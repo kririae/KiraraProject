@@ -1,0 +1,20 @@
+---
+BasedOnStyle: LLVM
+
+AlignConsecutiveMacros: true
+AllowShortBlocksOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: true
+FixNamespaceComments: true
+IndentCaseLabels: false
+IndentPPDirectives: None
+InsertNewlineAtEOF: true
+PPIndentWidth: 2
+QualifierAlignment: Right
+RemoveBracesLLVM: true
+SeparateDefinitionBlocks: Leave
+
+# Avoid indenting lambda bodies
+LambdaBodyIndentation: OuterScope
+
+TabWidth: 4
+UseTab: Never

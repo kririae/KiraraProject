@@ -1,0 +1,31 @@
+include(KRR_Message)
+
+# ----------------------------------------------------------
+# cmake-scripts
+# ----------------------------------------------------------
+CPMAddPackage(
+  NAME cmake-scripts
+  GITHUB_REPOSITORY StableCoder/cmake-scripts
+  GIT_TAG "24.04"
+)
+
+list(APPEND CMAKE_MODULE_PATH ${cmake-scripts_SOURCE_DIR})
+
+# ----------------------------------------------------------
+# Stacktrace
+# ----------------------------------------------------------
+if(KRR_WITH_BACKTRACE)
+  CPMAddPackage(
+    NAME backward-cpp
+    GITHUB_REPOSITORY bombela/backward-cpp
+    GIT_TAG v1.6
+    DOWNLOAD_ONLY YES
+  )
+
+  if(backward-cpp_ADDED)
+    list(APPEND CMAKE_PREFIX_PATH "${backward-cpp_SOURCE_DIR}")
+    find_package(Backward REQUIRED)
+  else()
+    krr_message(ERROR "Failed to add backward-cpp package, consider setting `KRR_WITH_BACKTRACE=OFF`")
+  endif()
+endif()

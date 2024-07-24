@@ -1,0 +1,5 @@
+#pragma once
+
+// clang-format off
+#define KRR_COMMIT_HASH "@KRR_COMMIT_HASH@"
+// clang-format on

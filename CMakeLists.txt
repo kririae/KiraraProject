@@ -1,0 +1,80 @@
+cmake_minimum_required(VERSION 3.27.4)
+project(kirara LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_COLOR_DIAGNOSTICS ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+execute_process(
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  COMMAND git rev-parse --short HEAD
+  RESULT_VARIABLE SHORT_HASH_RESULT
+  OUTPUT_VARIABLE KRR_COMMIT_SHORT_HASH)
+execute_process(
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  COMMAND git rev-parse HEAD
+  RESULT_VARIABLE SHORT_HASH_RESULT
+  OUTPUT_VARIABLE KRR_COMMIT_HASH)
+string(STRIP ${KRR_COMMIT_HASH} KRR_COMMIT_HASH)
+string(STRIP ${KRR_COMMIT_SHORT_HASH} KRR_COMMIT_SHORT_HASH)
+
+set(KRR_VERSION_MAJOR 0)
+set(KRR_VERSION_MINOR 0)
+set(KRR_VERSION_PATCH 0)
+
+message("╔════════════════════════════════════════════════════════════════════════════╗")
+message("║                               Kirara Project                               ║")
+message("╚════════════════════════════════════════════════════════════════════════════╝")
+message("Version:     ${KRR_VERSION_MAJOR}.${KRR_VERSION_MINOR}.${KRR_VERSION_PATCH}")
+message("Commit Hash: ${KRR_COMMIT_HASH}")
+
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of the CMake build" FORCE)
+endif()
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" "${CMAKE_BINARY_DIR}")
+
+# ----------------------------------------------------------
+# User options
+# ----------------------------------------------------------
+option(KRR_BUILD_TESTS "Build tests" ON)
+option(KRR_BUILD_FOR_NATIVE "Build with -march=native -mtune=native" OFF)
+
+option(KRR_USE_MOLD "Use mold as the linker" OFF)
+
+# ----------------------------------------------------------
+# Dependencies
+# ----------------------------------------------------------
+include(GetCPM)
+include(SetupDeps)
+
+# ----------------------------------------------------------
+# Compiler flags
+# ----------------------------------------------------------
+set(ENABLE_ALL_WARNINGS ON)
+set(ENABLE_EFFECTIVE_CXX OFF)
+
+# -DENABLE_ALL_WARNINGS=ON -DENABLE_EFFECTIVE_CXX=OFF
+include(compiler-options)
+
+# ----------------------------------------------------------
+# Responses for the user options
+# ----------------------------------------------------------
+if(KRR_BUILD_TESTS)
+  enable_testing()
+endif()
+
+if(KRR_BUILD_FOR_NATIVE)
+  include(EnableNative)
+endif()
+
+if(KRR_USE_MOLD)
+  include(EnableMoldLinker)
+endif()
+
+# ----------------------------------------------------------
+# Setup projects
+# ----------------------------------------------------------
+add_subdirectory(kira)

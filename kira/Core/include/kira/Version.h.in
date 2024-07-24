@@ -1,0 +1,7 @@
+#pragma once
+
+// clang-format off
+#define KRR_VERSION_MAJOR @KRR_VERSION_MAJOR@
+#define KRR_VERSION_MINOR @KRR_VERSION_MINOR@
+#define KRR_VERSION_PATCH @KRR_VERSION_PATCH@
+// clang-format on
