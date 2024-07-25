@@ -29,3 +29,17 @@ if(KRR_WITH_BACKTRACE)
     krr_message(ERROR "Failed to add backward-cpp package, consider setting `KRR_WITH_BACKTRACE=OFF`")
   endif()
 endif()
+
+if(KRR_BUILD_TESTS)
+  CPMAddPackage(
+    NAME ut
+    GITHUB_REPOSITORY qlibs/ut
+    GIT_TAG v2.1.1
+    DOWNLOAD_ONLY YES
+  )
+
+  if(ut_ADDED)
+    add_library(ut INTERFACE)
+    target_include_directories(ut INTERFACE ${ut_SOURCE_DIR})
+  endif()
+endif()

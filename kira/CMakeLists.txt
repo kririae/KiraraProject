@@ -1,6 +1,7 @@
 set(_kira_modules
   Core
   Geometry
+  Vecteur
 )
 
 set(CMAKE_SHARED_LIBRARY_PREFIX_CXX "")

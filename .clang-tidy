@@ -34,19 +34,11 @@ CheckOptions:
   readability-identifier-naming.FunctionCase: aNy_CasE
   readability-identifier-naming.VariableCase: camelBack
   readability-identifier-naming.ClassMemberCase: camelBack
-  readability-identifier-naming.ClassMemberSuffix: _
-  readability-identifier-naming.PrivateMemberSuffix: _
-  readability-identifier-naming.ProtectedMemberSuffix: _
+  readability-identifier-naming.ConstexprVariableCase: aNy_CasE
   readability-identifier-naming.EnumConstantCase: CamelCase
-  readability-identifier-naming.EnumConstantPrefix: k
-  readability-identifier-naming.ConstexprVariableCase: CamelCase
-  readability-identifier-naming.ConstexprVariablePrefix: k
   readability-identifier-naming.GlobalConstantCase: CamelCase
-  readability-identifier-naming.GlobalConstantPrefix: k
   readability-identifier-naming.MemberConstantCase: CamelCase
-  readability-identifier-naming.MemberConstantPrefix: k
   readability-identifier-naming.StaticConstantCase: CamelCase
-  readability-identifier-naming.StaticConstantPrefix: k
   readability-function-cognitive-complexity.IgnoreMacros: "true"
 
   # Extra options
