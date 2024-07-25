@@ -1,4 +1,5 @@
 include(KRR_AddModule)
+include(KRR_EnableClangTidy)
 
 configure_file(include/kira/CommitHash.h.in ${CMAKE_CURRENT_SOURCE_DIR}/include/kira/CommitHash.h @ONLY)
 configure_file(include/kira/Version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/include/kira/Version.h @ONLY)
@@ -16,6 +17,7 @@ CPMAddPackage(
   URL "https://github.com/gabime/spdlog/archive/refs/tags/v1.14.1.tar.gz"
   OPTIONS
     "SPDLOG_BUILD_SHARED OFF"
+    "SPDLOG_INSTALL ON"
     "SPDLOG_FMT_EXTERNAL_HO ON"
 )
 
@@ -37,8 +39,10 @@ endif()
 # ----------------------------------------------------------
 krr_add_module(kira Core
   HEADERS
+    kira/detail/Logger.h
     kira/CommitHash.h
     kira/KIRA.h
+    kira/Logger.h
     kira/Macros.h
     kira/SmallVector.h
     kira/Types.h
@@ -51,7 +55,10 @@ krr_add_module(kira Core
   HARD_DEPENDENCIES
     fmt::fmt
     spdlog::spdlog
-    mp::mp
   CMAKE_SUBDIRS
     tests
 )
+
+if(KRR_ENABLE_CLANG_TIDY)
+  krr_enable_clang_tidy(kira::Core)
+endif()

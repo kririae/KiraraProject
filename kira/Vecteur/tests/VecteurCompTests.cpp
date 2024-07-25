@@ -1,7 +1,7 @@
-#include "kira/Vecteur.h"
-
-#define UT_COMPILE_TIME_ONLY
+#include <iostream>
 #include <ut2>
+
+#include "kira/Vecteur.h"
 
 namespace {
 ut::suite vecteur = [] {
@@ -146,3 +146,5 @@ ut::suite vecteur = [] {
   };
 };
 } // namespace
+
+int main() {}

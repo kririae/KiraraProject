@@ -26,7 +26,7 @@ CreateLogger(std::string_view name, bool console,
              std::optional<std::filesystem::path> const &path) {
   auto const &sinks = CreateSinks(console, path);
 
-  auto envVal = std::getenv("KRR_LOG_LEVEL");
+  auto const *envVal = std::getenv("KRR_LOG_LEVEL");
   if (envVal != nullptr)
     spdlog::cfg::helpers::load_levels(envVal);
   auto logger = std::make_shared<spdlog::logger>(std::string{name},

@@ -27,9 +27,12 @@ krr_add_module(kira Vecteur
     kira/VecteurRouter.h
     kira/VecteurStorage.h
     kira/VecteurTraits.h
-  SOURCES
-    Vecteur.cpp
   HARD_DEPENDENCIES
     kira::Core
-    ut
+  CMAKE_SUBDIRS
+    tests
 )
+
+if(KRR_ENABLE_CLANG_TIDY)
+  krr_enable_clang_tidy(kira::Vecteur)
+endif()

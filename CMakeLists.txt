@@ -44,6 +44,8 @@ option(KRR_BUILD_FOR_NATIVE "Build with -march=native -mtune=native" OFF)
 
 option(KRR_USE_MOLD "Use mold as the linker" OFF)
 
+option(KRR_ENABLE_CLANG_TIDY "Enable clang-tidy for analysis" OFF)
+
 # ----------------------------------------------------------
 # Dependencies
 # ----------------------------------------------------------

@@ -1,0 +1,10 @@
+if(KRR_BUILD_TESTS)
+  add_executable(kira.Core.VecteurCompTests
+    VecteurCompTests.cpp
+  )
+  target_link_libraries(kira.Core.VecteurCompTests
+    PRIVATE
+      kira::Vecteur
+      ut
+  )
+endif()

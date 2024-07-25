@@ -202,7 +202,8 @@ protected:
   }
 
   /// Check whether Elt will be invalidated by resizing the vector to NewSize.
-  void assertSafeToReferenceAfterResize(void const *Elt, size_t NewSize) {
+  void assertSafeToReferenceAfterResize([[maybe_unused]] void const *Elt,
+                                        [[maybe_unused]] size_t NewSize) {
     assert(isSafeToReferenceAfterResize(Elt, NewSize) &&
            "Attempting to reference an element of the vector in an operation "
            "that invalidates it");

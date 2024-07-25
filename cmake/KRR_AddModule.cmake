@@ -1,4 +1,5 @@
 include(KRR_Message)
+include(GNUInstallDirs)
 
 function(krr_add_module project_name module_name)
   # ----------------------------------------------------------
@@ -40,9 +41,7 @@ function(krr_add_module project_name module_name)
   # ----------------------------------------------------------
   # Do add module
   # ----------------------------------------------------------
-  string(TOLOWER ${project_name} project_name_lower)
-  string(TOLOWER ${module_name} module_name_lower)
-  set(module_base_name ${project_name_lower}_${module_name_lower})
+  set(module_base_name ${project_name}${module_name})
   add_library(${module_base_name}
       ${module_library_type} # STATIC, SHARED or INTERFACE
       ${headers}
@@ -68,4 +67,27 @@ function(krr_add_module project_name module_name)
   foreach(subdir ${MODULE_CMAKE_SUBDIRS})
     add_subdirectory(${subdir})
   endforeach()
+
+  # ----------------------------------------------------------
+  # Add install rules
+  # ----------------------------------------------------------
+  # Install the headers
+  if(headers)
+    install(
+        DIRECTORY ${HEADER_ROOT}/
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        COMPONENT ${module_name}
+        FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
+    )
+  endif()
+
+  # Install the library
+  install(TARGETS ${module_base_name}
+    EXPORT ${project_name}Targets
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    COMPONENT ${module_name}
+  )
 endfunction()
