@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include <type_traits>
+
 namespace kira {
 /// \name Basic types
 /// \{
@@ -32,6 +34,33 @@ using uint = unsigned int;
 using int64 = int64_t;
 /// \brief 64-bit unsigned integer.
 using uint64 = uint64_t;
+
+namespace detail {
+template <typename T, char... Digits> consteval auto make_integral_udl() {
+  constexpr auto self = [](auto self, auto head, auto... tail) consteval {
+    if constexpr (sizeof...(tail) == 0)
+      return head - '0';
+    else
+      return 10 * (head - '0') + self(self, tail...);
+  };
+  return std::integral_constant<T, self(self, Digits...)>{};
+}
+} // namespace detail
+
+/// UDL for int.
+template <char... Digits> consteval auto operator""_i() {
+  return detail::make_integral_udl<int, Digits...>();
+}
+
+/// UDL for uint.
+template <char... Digits> consteval auto operator""_u() {
+  return detail::make_integral_udl<uint, Digits...>();
+}
+
+static_assert(42_i == 42);
+static_assert(std::is_same_v<std::integral_constant<int, 42>, decltype(42_i)>);
+static_assert(3_i == 3);
+static_assert(std::is_same_v<std::integral_constant<int, 3>, decltype(3_i)>);
 /// \}
 
 /// \name Floating point types

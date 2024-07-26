@@ -101,7 +101,7 @@ ut::suite vecteur = [] {
     expect((w2.z() == 11.55_d)(.01)) << "w2.z() should be close to 11.55";
   };
 
-  "integer_div"_test = [] {
+  "div"_test = [] {
     kira::Vecteur<int, 3> x{6, 12, 18};
     kira::Vecteur<int, 3> y{2, 3, 4};
 
@@ -123,7 +123,7 @@ ut::suite vecteur = [] {
     expect(w2.z() == 2_i);
   };
 
-  "floating_point_div"_test = [] {
+  "div_fp"_test = [] {
     kira::Vecteur<double, 3> x{6.0, 12.0, 18.0};
     kira::Vecteur<double, 3> y{2.0, 3.0, 4.0};
 
