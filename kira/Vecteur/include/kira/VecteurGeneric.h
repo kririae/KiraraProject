@@ -24,7 +24,7 @@ public:
   VecteurImpl() = default;
 
   /// Construct a vector with all elements set to `v`.
-  constexpr VecteurImpl(Scalar const &v) {
+  constexpr VecteurImpl(auto const &v) {
     // Use a range-based for loop to initialize the elements.
     for (auto &x : *this)
       x = v;
@@ -58,14 +58,12 @@ public:
   /// \{
 
   /// Fetch the i-th element of the vector in the storage.
-  [[nodiscard]] constexpr ConstRef entry(std::size_t i) const {
+  [[nodiscard]] constexpr ConstRef entry(auto i) const {
     return *(this->data() + i);
   }
 
   /// \copydoc entry
-  [[nodiscard]] constexpr Ref entry(std::size_t i) {
-    return *(this->data() + i);
-  }
+  [[nodiscard]] constexpr Ref entry(auto i) { return *(this->data() + i); }
 
   /// \}
 public:

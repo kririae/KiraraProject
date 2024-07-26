@@ -2,6 +2,8 @@
 
 #include <span>
 
+#include "kira/Types.h"
+
 namespace kira {
 template <typename Scalar_, std::size_t Size_, typename Derived>
 struct VecteurBase;
@@ -49,61 +51,61 @@ public:
   /// \name Element access interface
   /// \{
 
-  [[nodiscard]] constexpr decltype(auto) operator[](size_t i) const {
+  [[nodiscard]] constexpr decltype(auto) operator[](auto i) const {
     return derived().entry(i);
   }
 
   /// \copydoc operator[]
-  [[nodiscard]] constexpr decltype(auto) operator[](size_t i) {
+  [[nodiscard]] constexpr decltype(auto) operator[](auto i) {
     return derived().entry(i);
   }
 
   [[nodiscard]] constexpr decltype(auto) x() const
     requires(Size >= 1)
   {
-    return derived().entry(0);
+    return derived().entry(0_u);
   }
 
   [[nodiscard]] constexpr decltype(auto) y() const
     requires(Size >= 2)
   {
-    return derived().entry(1);
+    return derived().entry(1_u);
   }
 
   [[nodiscard]] constexpr decltype(auto) z() const
     requires(Size >= 3)
   {
-    return derived().entry(2);
+    return derived().entry(2_u);
   }
 
   [[nodiscard]] constexpr decltype(auto) w() const
     requires(Size >= 4)
   {
-    return derived().entry(3);
+    return derived().entry(3_u);
   }
 
   [[nodiscard]] constexpr decltype(auto) x()
     requires(Size >= 1)
   {
-    return derived().entry(0);
+    return derived().entry(0_u);
   }
 
   [[nodiscard]] constexpr decltype(auto) y()
     requires(Size >= 2)
   {
-    return derived().entry(1);
+    return derived().entry(1_u);
   }
 
   [[nodiscard]] constexpr decltype(auto) z()
     requires(Size >= 3)
   {
-    return derived().entry(2);
+    return derived().entry(2_u);
   }
 
   [[nodiscard]] constexpr decltype(auto) w()
     requires(Size >= 4)
   {
-    return derived().entry(3);
+    return derived().entry(3_u);
   }
 
   /// \}
