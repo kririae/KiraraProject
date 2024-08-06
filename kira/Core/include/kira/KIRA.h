@@ -1,7 +1,10 @@
 #pragma once
 
+#include "kira/Anyhow.h"
 #include "kira/CommitHash.h"
-#include "kira/Macros.h"
+#include "kira/Compiler.h"
+#include "kira/FileResolver.h"
+#include "kira/Reflection.h"
 #include "kira/SmallVector.h"
 #include "kira/Types.h"
 #include "kira/Utils.h"

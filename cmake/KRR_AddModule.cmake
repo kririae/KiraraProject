@@ -62,6 +62,22 @@ function(krr_add_module project_name module_name)
   )
 
   # ----------------------------------------------------------
+  # Enable compiler warnings
+  # ----------------------------------------------------------
+  if(MODULE_SOURCES)
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU"
+      OR CMAKE_CXX_COMPILER_ID MATCHES "GNU"
+      OR CMAKE_C_COMPILER_ID MATCHES "(Apple)?[Cc]lang"
+      OR CMAKE_CXX_COMPILER_ID MATCHES "(Apple)?[Cc]lang")
+      # GCC/Clang
+      target_compile_options(${module_base_name} PRIVATE -Wall -Wextra)
+    elseif(MSVC)
+      # MSVC
+      target_compile_options(${module_base_name} PRIVATE /W4)
+    endif()
+  endif()
+
+  # ----------------------------------------------------------
   # Include subdirectories
   # ----------------------------------------------------------
   foreach(subdir ${MODULE_CMAKE_SUBDIRS})

@@ -23,7 +23,7 @@ CPMAddPackage(
 
 # We do need a typed-array constexpr container. So let's use mp~!
 CPMAddPackage(
-  Name mp
+  NAME mp
   GITHUB_REPOSITORY qlibs/mp
   GIT_TAG v2.0.4
 )
@@ -34,6 +34,14 @@ if(mp_ADDED)
   add_library(mp::mp ALIAS mp)
 endif()
 
+CPMAddPackage(
+  NAME reflect-cpp
+  GITHUB_REPOSITORY getml/reflect-cpp
+  GIT_TAG v0.14.0
+  OPTIONS
+    "REFLECTCPP_BUILD_SHARED OFF"
+)
+
 # ----------------------------------------------------------
 # Do add module
 # ----------------------------------------------------------
@@ -41,21 +49,26 @@ krr_add_module(kira Core
   HEADERS
     kira/detail/Logger.h
     kira/Anyhow.h
+    kira/Assertions.h
     kira/CommitHash.h
+    kira/Compiler.h
     kira/FileResolver.h
     kira/KIRA.h
     kira/Logger.h
     kira/Macros.h
+    kira/Reflection.h
     kira/SmallVector.h
     kira/Types.h
     kira/Utils.h
     kira/Version.h
   SOURCES
+    FileResolver.cpp
     KIRA.cpp
     Logger.cpp
     SmallVector.cpp
   HARD_DEPENDENCIES
     fmt::fmt
+    reflectcpp
     spdlog::spdlog
   CMAKE_SUBDIRS
     tests

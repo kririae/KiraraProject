@@ -53,15 +53,6 @@ include(GetCPM)
 include(SetupDeps)
 
 # ----------------------------------------------------------
-# Compiler flags
-# ----------------------------------------------------------
-set(ENABLE_ALL_WARNINGS ON)
-set(ENABLE_EFFECTIVE_CXX OFF)
-
-# -DENABLE_ALL_WARNINGS=ON -DENABLE_EFFECTIVE_CXX=OFF
-include(compiler-options)
-
-# ----------------------------------------------------------
 # Responses for the user options
 # ----------------------------------------------------------
 if(KRR_BUILD_TESTS)

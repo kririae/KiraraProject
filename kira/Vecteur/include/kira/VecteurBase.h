@@ -2,7 +2,7 @@
 
 #include <span>
 
-#include "kira/Macros.h"
+#include "kira/Compiler.h"
 #include "kira/Types.h"
 
 namespace kira {
@@ -19,32 +19,22 @@ public:
     /// \name CRTP interface
     /// \{
 
-    /// Get the derived class based on consteval context.
-    template <bool is_constant_evaluated>
-    [[nodiscard]] constexpr auto &derivedDispatcher() KIRA_LIFETIME_BOUND {
-        if constexpr (is_constant_evaluated)
-            return static_cast<Derived &>(*this);
-        else
-            return static_cast<Derived &>(*this);
-    }
-
-    /// \copydoc derivedDispatcher
-    template <bool is_constant_evaluated>
-    [[nodiscard]] constexpr auto const &derivedDispatcher() const KIRA_LIFETIME_BOUND {
-        if constexpr (is_constant_evaluated)
-            return static_cast<Derived const &>(*this);
-        else
-            return static_cast<Derived const &>(*this);
-    }
-
     /// Get the derived class.
+    template <bool is_constant_evaluated = false>
     [[nodiscard]] constexpr auto const &derived() const KIRA_LIFETIME_BOUND {
-        return derivedDispatcher<false>();
+        if constexpr (is_constant_evaluated)
+            return static_cast<typename Derived::ConstexprImpl const &>(*this);
+        else
+            return static_cast<Derived const &>(*this);
     }
 
     /// \copydoc derived
+    template <bool is_constant_evaluated = false>
     [[nodiscard]] constexpr auto &derived() KIRA_LIFETIME_BOUND {
-        return derivedDispatcher<false>();
+        if constexpr (is_constant_evaluated)
+            return static_cast<typename Derived::ConstexprImpl &>(*this);
+        else
+            return static_cast<Derived &>(*this);
     }
 
     /// \}
@@ -119,7 +109,13 @@ public:
 
 /// \name Forward declarations
 /// \{
-template <typename Scalar, std::size_t Size, typename Derived> struct VecteurImpl;
+/// Forward declaration of the implementation of the vector.
+///
+/// \tparam Scalar The scalar type of the vector.
+/// \tparam Size The size of the vector.
+/// \tparam IsConstexpr Whether the implementation supports constexpr.
+/// \tparam Derived The CRTP derived class.
+template <typename Scalar, std::size_t Size, bool IsConstexpr, typename Derived> struct VecteurImpl;
 
 template <typename Scalar, std::size_t Size> struct Vecteur;
 /// \}
