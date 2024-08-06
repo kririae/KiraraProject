@@ -8,8 +8,8 @@
 
 namespace kira {
 template <typename Scalar, std::size_t Size, typename Derived>
-struct VecteurImpl : VecteurBase<Scalar, Size, Derived>,
-                     VecteurStorage<Scalar, Size, alignof(Scalar)> {
+struct VecteurImpl<Scalar, Size, true, Derived> : VecteurBase<Scalar, Size, Derived>,
+                                                  VecteurStorage<Scalar, Size, alignof(Scalar)> {
 private:
     using Base = VecteurBase<Scalar, Size, Derived>;
     using Storage = VecteurStorage<Scalar, Size, alignof(Scalar)>;
@@ -17,6 +17,7 @@ private:
 public:
     using Ref = std::add_lvalue_reference_t<Scalar>;
     using ConstRef = std::add_lvalue_reference_t<Scalar const>;
+    using ConstexprImpl = VecteurImpl<Scalar, Size, true, Derived>;
 
 public:
     /// \name Constructors
@@ -104,12 +105,19 @@ public:
     /// \}
 };
 
+/// A Fake a non-constexpr base when all backends are not presented.
+template <typename Scalar, std::size_t Size, typename Derived>
+struct VecteurImpl<Scalar, Size, false, Derived> : VecteurImpl<Scalar, Size, true, Derived> {
+    using Base = VecteurImpl<Scalar, Size, true, Vecteur<Scalar, Size>>;
+    using Base::Base;
+};
+
 template <typename Scalar, std::size_t Size>
-struct Vecteur : VecteurImpl<Scalar, Size, Vecteur<Scalar, Size>> {
+struct Vecteur : VecteurImpl<Scalar, Size, false, Vecteur<Scalar, Size>> {
     static_assert(std::is_arithmetic_v<Scalar>, "Scalar must be an arithmetic type (for now).");
     static_assert(Size > 0, "Size must be greater than 0.");
 
-    using Base = VecteurImpl<Scalar, Size, Vecteur<Scalar, Size>>;
+    using Base = VecteurImpl<Scalar, Size, false, Vecteur<Scalar, Size>>;
     using Base::Base;
 };
 

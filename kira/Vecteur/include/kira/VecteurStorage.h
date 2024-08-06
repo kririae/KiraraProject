@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <span>
 
-#include "kira/Macros.h"
+#include "kira/Compiler.h"
 
 namespace kira {
 template <typename Scalar, std::size_t Size, std::size_t alignment> struct VecteurStorage {

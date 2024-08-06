@@ -15,6 +15,7 @@
 // the following modifications:
 // - LLVM_GSL_OWNER -> KIRA_GSL_OWNER
 // - add [[nodiscard]] to suppress warnings
+// - add reflection support
 // NOLINTBEGIN
 
 #pragma once
@@ -32,7 +33,7 @@
 #include <type_traits>
 #include <utility>
 
-#include "kira/Macros.h"
+#include "kira/Compiler.h"
 
 namespace kira {
 template <typename T> class ArrayRef;
@@ -1266,6 +1267,22 @@ public:
         this->assign(IL);
         return *this;
     }
+
+public:
+    using ReflectionType = std::vector<T>;
+
+    SmallVector(std::vector<T> RHS) : SmallVectorImpl<T>(N) {
+        // Should support the moving from std::vector<std::unique_ptr<bool>> etc.
+        this->reserve(RHS.size());
+        std::move(RHS.begin(), RHS.end(), std::back_inserter(*this));
+    }
+
+    ReflectionType reflection() const & { return {this->begin(), this->end()}; }
+    ReflectionType reflection() && {
+        return ReflectionType(
+            std::make_move_iterator(this->begin()), std::make_move_iterator(this->end())
+        );
+    }
 };
 
 template <typename T, unsigned N> inline size_t capacity_in_bytes(SmallVector<T, N> const &X) {
@@ -1300,7 +1317,6 @@ extern template class kira::SmallVectorBase<uint32_t>;
 #if SIZE_MAX > UINT32_MAX
 extern template class kira::SmallVectorBase<uint64_t>;
 #endif
-
 } // end namespace kira
 
 namespace std {

@@ -8,6 +8,13 @@ if(KRR_BUILD_TESTS)
       kira::Core
   )
 
+  krr_add_test(kira Core AssertionTests
+    SOURCES
+      AssertionTests.cpp
+    HARD_DEPENDENCIES
+      kira::Core
+  )
+
   krr_add_test(kira Core LoggerTests
     SOURCES
       LoggerTests.cpp
@@ -18,6 +25,13 @@ if(KRR_BUILD_TESTS)
   krr_add_test(kira Core LoggerThreadSafeTests
     SOURCES
       LoggerThreadSafeTests.cpp
+    HARD_DEPENDENCIES
+      kira::Core
+  )
+
+  krr_add_test(kira Core ReflectionTests
+    SOURCES
+      ReflectionTests.cpp
     HARD_DEPENDENCIES
       kira::Core
   )

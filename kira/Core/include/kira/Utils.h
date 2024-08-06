@@ -22,4 +22,9 @@ template <class... Ts> struct Overload : Ts... {
 
 /// Deduction guide for `kira::overload`.
 template <class... Ts> Overload(Ts...) -> Overload<Ts...>;
+
+/// Helper struct for `std::visit` with lambdas.
+///
+/// \example static_assert(always_false_v<T>, "Unimplemented overload");
+template <class> inline constexpr bool always_false_v = false;
 } // namespace kira

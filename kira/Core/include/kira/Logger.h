@@ -1,6 +1,6 @@
 #pragma once
 
-#include "kira/Macros.h"
+#include "kira/Compiler.h"
 #include "kira/detail/Logger.h"
 
 namespace kira {

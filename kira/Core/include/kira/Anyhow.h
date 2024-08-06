@@ -1,8 +1,10 @@
 #pragma once
 
 #include <exception>
+#include <utility>
 
 #include "kira/Logger.h"
+#include "kira/Reflection.h"
 
 namespace kira {
 /// A exception system that integrates with the logging system.
@@ -40,6 +42,11 @@ public:
 
     /// Get the message associated with the exception.
     [[nodiscard]] char const *what() const noexcept override { return message.c_str(); }
+
+public:
+    using ReflectionType = std::string;
+    explicit Anyhow(ReflectionType message) : message(std::move(message)) {}
+    [[nodiscard]] ReflectionType reflection() const { return message; }
 
 private:
     std::string message;
