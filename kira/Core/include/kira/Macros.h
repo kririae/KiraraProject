@@ -47,6 +47,18 @@ namespace kira {
 #else
 #define KIRA_GSL_OWNER
 #endif
+
+/// Annotate the variable with the lifetime bound attribute.
+/// see https://clang.llvm.org/docs/AttributeReference.html#lifetimebound
+#if KIRA_HAS_CPP_ATTRIBUTE(clang::lifetimebound)
+#define KIRA_LIFETIME_BOUND [[clang::lifetimebound]]
+#elif KIRA_HAS_CPP_ATTRIBUTE(lifetimebound)
+#define KIRA_LIKIRA_LIFETIME_BOUND [[lifetimebound]]
+#elif KIRA_HAS_CPP_ATTRIBUTE(msvc::lifetimebound)
+#define KIRA_LIFEKIRA_LIFETIME_BOUND [[msvc::lifetimebound]]
+#else
+#define KIRAKIRA_LIFETIME_BOUND
+#endif
 /// \}
 
 /// \brief Disallow the copy and assignment of a class.
