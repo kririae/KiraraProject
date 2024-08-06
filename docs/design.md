@@ -10,12 +10,12 @@
   include.
 - Relaxed naming conventions
 - `SmallVector` adopted from LLVM
-- Thread-safe logger without DCL (use NTTP with static local variable
-  initiaization), highly simple and efficient!
+- <del>Thread-safe logger without DCL (use NTTP with static local variable
+  initiaization), highly simple and efficient!</del> For integration with
+  spdlog, use a `std::mutex` instead, anyway logger is not the bottle-neck.
 - camelBack variable naming; CamelCase for type naming, functions are
   recommended to be CamelCase. Strictly following the convention is impossible
   and these are designed to be convenient and short.
-- If a feature is not immediately necessary, don't add to codebase.
 - Inheritance chain trick for `Vecteur`(a nice name!), A op B boosts to
   `std::common_type`.
 - Hybrid testing framework with `ut2` and `gtest`

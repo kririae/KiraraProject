@@ -22,6 +22,7 @@ public:
     /// \name Constructors
     /// \{
 
+    /// Default constructor.
     VecteurImpl() = default;
 
     /// Construct a vector with all elements set to `v`.

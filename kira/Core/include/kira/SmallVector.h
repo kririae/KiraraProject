@@ -11,7 +11,7 @@
 ///
 //===----------------------------------------------------------------------===//
 
-// NOTE(zike): this file is a modified version of llvm/ADT/SmallVector.h, with
+// NOTE(krr): this file is a modified version of llvm/ADT/SmallVector.h, with
 // the following modifications:
 // - LLVM_GSL_OWNER -> KIRA_GSL_OWNER
 // - add [[nodiscard]] to suppress warnings
@@ -180,7 +180,7 @@ protected:
     /// NewSize.
     bool isSafeToReferenceAfterResize(void const *Elt, size_t NewSize) {
         // Past the end.
-        if (LLVM_LIKELY(!isReferenceToStorage(Elt)))
+        if (KIRA_LIKELY(!isReferenceToStorage(Elt)))
             return true;
 
         // Return false if Elt will be destroyed by shrinking.
@@ -237,13 +237,13 @@ protected:
     template <class U>
     static T const *reserveForParamAndGetAddressImpl(U *This, T const &Elt, size_t N) {
         size_t NewSize = This->size() + N;
-        if (LLVM_LIKELY(NewSize <= This->capacity()))
+        if (KIRA_LIKELY(NewSize <= This->capacity()))
             return &Elt;
 
         bool ReferencesStorage = false;
         int64_t Index = -1;
         if (!U::TakesParamByValue) {
-            if (LLVM_UNLIKELY(This->isReferenceToStorage(&Elt))) {
+            if (KIRA_UNLIKELY(This->isReferenceToStorage(&Elt))) {
                 ReferencesStorage = true;
                 Index = &Elt - This->begin();
             }

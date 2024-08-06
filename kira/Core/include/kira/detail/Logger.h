@@ -4,8 +4,8 @@
 
 #include <filesystem>
 #include <source_location>
+#include <unordered_map>
 
-#include "kira/SmallVector.h"
 #include "kira/Types.h"
 
 namespace kira::detail {
@@ -19,10 +19,12 @@ get_spdlog_source_loc(std::source_location const &loc) {
 template <size_t N> struct StringLiteral {
     char value[N];
     constexpr StringLiteral(char const (&str)[N]) { std::copy_n(str, N, value); }
+    constexpr operator char const *() const { return value; }
+    constexpr operator std::string_view() const { return value; }
 };
 
 /// Helper struct to construct the source location.
-struct FormatWithLocation {
+struct FormatWithSourceLoc {
     std::string_view fmt;
     std::source_location loc;
 
@@ -32,19 +34,46 @@ struct FormatWithLocation {
     /// in `fmt::print`. I'll stay with `fmt::runtime` for now.
     template <typename T>
         requires(std::is_convertible_v<T, std::string_view>)
-    constexpr FormatWithLocation(
+    constexpr FormatWithSourceLoc(
         T fmt, std::source_location const &loc = std::source_location::current()
     )
         : fmt(std::move(fmt)), loc(loc) {}
 };
 
-/// Create the sinks for the logger.
-///
-/// \param console Whether to log to console
-/// \param path Optional file path to log to
-/// \return Vector of sinks
-SmallVector<spdlog::sink_ptr> const &
-CreateSinks(bool console, std::optional<std::filesystem::path> const &path);
+/// The singleton to manage the sinks.
+class SinkManager {
+public:
+    static SinkManager &GetInstance() {
+        static SinkManager instance;
+        return instance;
+    }
+
+    SinkManager() = default;
+    ~SinkManager() = default;
+    SinkManager(SinkManager const &) = delete;
+    SinkManager &operator=(SinkManager const &) = delete;
+
+public:
+    /// Create or Get the console sink for the logger.
+    spdlog::sink_ptr CreateConsoleSink();
+
+    /// Create or Get the file sink for the logger.
+    spdlog::sink_ptr CreateFileSink(std::filesystem::path const &path);
+
+    /// Drop the console sink for the logger.
+    ///
+    /// \return Whether the sink is actually dropped.
+    bool DropConsoleSink() noexcept;
+
+    /// Drop the file sink for the logger.
+    ///
+    /// \return Whether the sink is actually dropped.
+    bool DropFileSink(std::filesystem::path const &path) noexcept;
+
+private:
+    spdlog::sink_ptr consoleSink;
+    std::unordered_map<std::filesystem::path, spdlog::sink_ptr> fileSinks;
+};
 
 /// \brief Create the logger that has not been previously created.
 ///
@@ -56,10 +85,10 @@ CreateSinks(bool console, std::optional<std::filesystem::path> const &path);
 /// \return The shared pointer to the logger.
 /// \note Even if the returned logger is discarded, the logger will be
 /// remembered by spdlog itself thus can be obtained by spdlog::get.
-/// \note If the logger has been previously created with the name, the behavior
-/// is undefined.
 ///
 /// \throw std::runtime_error If the logger could not be initialized.
+/// \throw std::runtime_error If the logger is previously initiaized without being reseted through
+/// `spdlog::drop*`.
 std::shared_ptr<spdlog::logger>
 CreateLogger(std::string_view name, bool console, std::optional<std::filesystem::path> const &path);
 } // namespace kira::detail

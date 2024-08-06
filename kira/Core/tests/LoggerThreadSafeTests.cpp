@@ -8,7 +8,7 @@
 
 TEST(LoggerThreadSafeTests, GetLoggerThreadSafety) {
     constexpr int numThreads = 32;
-    constexpr int iterPerThread = 128;
+    constexpr int iterPerThread = 1024;
 
     std::atomic<int> threadsReady(0);
     std::atomic<bool> startFlag(false);
@@ -21,7 +21,7 @@ TEST(LoggerThreadSafeTests, GetLoggerThreadSafety) {
             std::this_thread::yield();
 
         for (int i = 0; i < iterPerThread; ++i) {
-            auto *logger = kira::GetLogger<"testLogger">();
+            auto *logger = kira::GetLogger("testLogger");
             if (logger != nullptr)
                 successCount++;
         }
@@ -41,7 +41,7 @@ TEST(LoggerThreadSafeTests, GetLoggerThreadSafety) {
 
     EXPECT_EQ(successCount.load(), numThreads * iterPerThread);
 
-    auto *logger1 = kira::GetLogger<"testLogger">();
-    auto *logger2 = kira::GetLogger<"testLogger">();
+    auto *logger1 = kira::GetLogger("testLogger");
+    auto *logger2 = kira::GetLogger("testLogger");
     EXPECT_EQ(logger1, logger2);
 }

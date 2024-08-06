@@ -40,7 +40,9 @@ endif()
 krr_add_module(kira Core
   HEADERS
     kira/detail/Logger.h
+    kira/Anyhow.h
     kira/CommitHash.h
+    kira/FileResolver.h
     kira/KIRA.h
     kira/Logger.h
     kira/Macros.h

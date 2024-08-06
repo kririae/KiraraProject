@@ -1,14 +1,18 @@
 #pragma once
 
+#include "kira/Macros.h"
 #include "kira/detail/Logger.h"
 
 namespace kira {
 /// Setup the logger to the config and override the later.
 ///
+/// \tparam name The name of the logger as a string literal.
+///
 /// \param console Whether to log to console
 /// \param path Optional file path to log to
-inline void SetupLogger(bool console, std::optional<std::filesystem::path> const &path) {
-    detail::CreateSinks(console, path);
+inline void
+SetupLogger(std::string_view name, bool console, std::optional<std::filesystem::path> const &path) {
+    detail::CreateLogger(name, console, path);
 }
 
 /// \brief Get or create a thread-safe logger.
@@ -20,59 +24,71 @@ inline void SetupLogger(bool console, std::optional<std::filesystem::path> const
 ///
 /// \return A pointer to the spdlog logger.
 /// \throw std::runtime_error If logger initialization fails.
-template <detail::StringLiteral name> [[nodiscard]] inline spdlog::logger *GetLogger() {
-    static std::shared_ptr<spdlog::logger> cachedLogger = [] {
-        auto logger = spdlog::get(name.value);
-        if (not logger)
-            logger = detail::CreateLogger(name.value, true, std::nullopt);
-        return logger;
-    }();
+[[nodiscard]] inline spdlog::logger *GetLogger(std::string const &name) {
+    static std::mutex mutex;
 
-    return cachedLogger.get();
+    std::lock_guard guard(mutex);
+    auto logger = spdlog::get(name);
+    if (KIRA_UNLIKELY(not logger))
+        logger = detail::CreateLogger(name, true, std::nullopt);
+    return logger.get();
 }
 
+/// The logger name by default.
+constexpr detail::StringLiteral const defaultLoggerName = "kira";
+
 /// Log a message at the trace level.
-template <detail::StringLiteral name = "kira", typename... Args>
-inline void LogTrace(detail::FormatWithLocation fmt, Args &&...args) {
-    GetLogger<name>()->log(
-        detail::get_spdlog_source_loc(fmt.loc), spdlog::level::trace, fmt::runtime(fmt.fmt),
-        std::forward<Args>(args)...
-    );
+template <detail::StringLiteral name = defaultLoggerName, typename... Args>
+inline void LogTrace(detail::FormatWithSourceLoc fmt, Args &&...args) {
+    GetLogger(name.value)
+        ->log(
+            detail::get_spdlog_source_loc(fmt.loc), spdlog::level::trace, fmt::runtime(fmt.fmt),
+            std::forward<Args>(args)...
+        );
 }
 
 /// Log a message at the debug level.
-template <detail::StringLiteral name = "kira", typename... Args>
-inline void LogDebug(detail::FormatWithLocation fmt, Args &&...args) {
-    GetLogger<name>()->log(
-        detail::get_spdlog_source_loc(fmt.loc), spdlog::level::debug, fmt::runtime(fmt.fmt),
-        std::forward<Args>(args)...
-    );
+template <detail::StringLiteral name = defaultLoggerName, typename... Args>
+inline void LogDebug(detail::FormatWithSourceLoc fmt, Args &&...args) {
+    GetLogger(name.value)
+        ->log(
+            detail::get_spdlog_source_loc(fmt.loc), spdlog::level::debug, fmt::runtime(fmt.fmt),
+            std::forward<Args>(args)...
+        );
 }
 
 /// Log a message at the info level.
-template <detail::StringLiteral name = "kira", typename... Args>
-inline void LogInfo(detail::FormatWithLocation fmt, Args &&...args) {
-    GetLogger<name>()->log(
-        detail::get_spdlog_source_loc(fmt.loc), spdlog::level::info, fmt::runtime(fmt.fmt),
-        std::forward<Args>(args)...
-    );
+template <detail::StringLiteral name = defaultLoggerName, typename... Args>
+inline void LogInfo(detail::FormatWithSourceLoc fmt, Args &&...args) {
+    GetLogger(name.value)
+        ->log(
+            detail::get_spdlog_source_loc(fmt.loc), spdlog::level::info, fmt::runtime(fmt.fmt),
+            std::forward<Args>(args)...
+        );
 }
 
 /// Log a message at the warn level.
-template <detail::StringLiteral name = "kira", typename... Args>
-inline void LogWarn(detail::FormatWithLocation fmt, Args &&...args) {
-    GetLogger<name>()->log(
-        detail::get_spdlog_source_loc(fmt.loc), spdlog::level::warn, fmt::runtime(fmt.fmt),
-        std::forward<Args>(args)...
-    );
+template <detail::StringLiteral name = defaultLoggerName, typename... Args>
+inline void LogWarn(detail::FormatWithSourceLoc fmt, Args &&...args) {
+    GetLogger(name.value)
+        ->log(
+            detail::get_spdlog_source_loc(fmt.loc), spdlog::level::warn, fmt::runtime(fmt.fmt),
+            std::forward<Args>(args)...
+        );
 }
 
 /// Log a message at the error level.
-template <detail::StringLiteral name = "kira", typename... Args>
-inline void LogError(detail::FormatWithLocation fmt, Args &&...args) {
-    GetLogger<name>()->log(
-        detail::get_spdlog_source_loc(fmt.loc), spdlog::level::err, fmt::runtime(fmt.fmt),
-        std::forward<Args>(args)...
-    );
+template <detail::StringLiteral name = defaultLoggerName, typename... Args>
+inline void LogError(detail::FormatWithSourceLoc fmt, Args &&...args) {
+    GetLogger(name.value)
+        ->log(
+            detail::get_spdlog_source_loc(fmt.loc), spdlog::level::err, fmt::runtime(fmt.fmt),
+            std::forward<Args>(args)...
+        );
+}
+
+/// Flush the logger.
+template <detail::StringLiteral name = defaultLoggerName> inline void LogFlush() {
+    GetLogger(name.value)->flush();
 }
 } // namespace kira
