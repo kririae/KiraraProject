@@ -17,7 +17,7 @@ namespace kira {
 ///   );
 /// ```
 template <class... Ts> struct Overload : Ts... {
-  using Ts::operator()...;
+    using Ts::operator()...;
 };
 
 /// Deduction guide for `kira::overload`.

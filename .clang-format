@@ -1,20 +1,38 @@
 ---
 BasedOnStyle: LLVM
 
+AccessModifierOffset: -4
 AlignConsecutiveMacros: true
 AllowShortBlocksOnASingleLine: true
+AlignAfterOpenBracket: BlockIndent
 AllowShortCaseLabelsOnASingleLine: true
+ColumnLimit: 100
+ConstructorInitializerIndentWidth: 4
+ContinuationIndentWidth: 4
 FixNamespaceComments: true
 IndentCaseLabels: false
 IndentPPDirectives: None
+IndentWidth: 4
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: '^<.*\.h>'
+    Priority: 0
+    SortPriority: 0
+    CaseSensitive: false
+  - Regex: "^<.*"
+    Priority: 1
+    SortPriority: 0
+    CaseSensitive: false
+  - Regex: ".*"
+    Priority: 2
+    SortPriority: 0
+    CaseSensitive: false
 InsertNewlineAtEOF: true
-PPIndentWidth: 2
+KeepEmptyLinesAtTheStartOfBlocks: false
+LambdaBodyIndentation: OuterScope
+MaxEmptyLinesToKeep: 1
+PPIndentWidth: 4
 QualifierAlignment: Right
 RemoveBracesLLVM: true
 SeparateDefinitionBlocks: Leave
-
-# Avoid indenting lambda bodies
-LambdaBodyIndentation: OuterScope
-
-TabWidth: 4
 UseTab: Never
