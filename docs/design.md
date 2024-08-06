@@ -9,7 +9,7 @@
 - CMake files should be self-contained, i.e., should not depend on parents'
   include.
 - Relaxed naming conventions
-- `SmallVector` adapted from LLVM
+- `SmallVector` adopted from LLVM
 - Thread-safe logger without DCL (use NTTP with static local variable
   initiaization), highly simple and efficient!
 - camelBack variable naming; CamelCase for type naming, functions are
@@ -18,3 +18,4 @@
 - If a feature is not immediately necessary, don't add to codebase.
 - Inheritance chain trick for `Vecteur`(a nice name!), A op B boosts to
   `std::common_type`.
+- Hybrid testing framework with `ut2` and `gtest`

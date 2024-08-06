@@ -2,6 +2,7 @@
 
 #include <span>
 
+#include "kira/Macros.h"
 #include "kira/Types.h"
 
 namespace kira {
@@ -22,7 +23,7 @@ public:
 
   /// Get the derived class based on consteval context.
   template <bool is_constant_evaluated>
-  [[nodiscard]] constexpr auto &derivedDispatcher() {
+  [[nodiscard]] constexpr auto &derivedDispatcher() KIRA_LIFETIME_BOUND {
     if constexpr (is_constant_evaluated)
       return static_cast<Derived &>(*this);
     else
@@ -31,7 +32,8 @@ public:
 
   /// \copydoc derivedDispatcher
   template <bool is_constant_evaluated>
-  [[nodiscard]] constexpr auto const &derivedDispatcher() const {
+  [[nodiscard]] constexpr auto const &
+  derivedDispatcher() const KIRA_LIFETIME_BOUND {
     if constexpr (is_constant_evaluated)
       return static_cast<Derived const &>(*this);
     else
@@ -39,12 +41,14 @@ public:
   }
 
   /// Get the derived class.
-  [[nodiscard]] constexpr auto const &derived() const {
+  [[nodiscard]] constexpr auto const &derived() const KIRA_LIFETIME_BOUND {
     return derivedDispatcher<false>();
   }
 
   /// \copydoc derived
-  [[nodiscard]] constexpr auto &derived() { return derivedDispatcher<false>(); }
+  [[nodiscard]] constexpr auto &derived() KIRA_LIFETIME_BOUND {
+    return derivedDispatcher<false>();
+  }
 
   /// \}
 public:

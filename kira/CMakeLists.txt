@@ -3,6 +3,7 @@ project(kira LANGUAGES CXX)
 
 set(_kira_modules
   Core
+  GTestMain
   Geometry
   Vecteur
 )

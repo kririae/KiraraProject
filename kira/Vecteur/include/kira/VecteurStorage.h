@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <span>
 
+#include "kira/Macros.h"
+
 namespace kira {
 template <typename Scalar, std::size_t Size, std::size_t alignment>
 struct VecteurStorage {
@@ -14,14 +16,22 @@ struct VecteurStorage {
 public:
   [[nodiscard]] constexpr size_t size() const { return Size; }
 
-  [[nodiscard]] constexpr Scalar const *data() const { return storage; }
-  [[nodiscard]] constexpr Scalar *data() { return storage; }
+  [[nodiscard]] constexpr Scalar *data() KIRA_LIFETIME_BOUND { return storage; }
+  [[nodiscard]] constexpr Scalar const *data() const KIRA_LIFETIME_BOUND {
+    return storage;
+  }
 
-  [[nodiscard]] constexpr auto begin() const { return data(); }
-  [[nodiscard]] constexpr auto begin() { return data(); }
+  [[nodiscard]] constexpr auto begin() KIRA_LIFETIME_BOUND { return data(); }
+  [[nodiscard]] constexpr auto begin() const KIRA_LIFETIME_BOUND {
+    return data();
+  }
 
-  [[nodiscard]] constexpr auto end() const { return data() + size(); }
-  [[nodiscard]] constexpr auto end() { return data() + size(); }
+  [[nodiscard]] constexpr auto end() KIRA_LIFETIME_BOUND {
+    return data() + size();
+  }
+  [[nodiscard]] constexpr auto end() const KIRA_LIFETIME_BOUND {
+    return data() + size();
+  }
 };
 
 template <typename Scalar, std::size_t alignment>

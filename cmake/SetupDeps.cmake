@@ -31,6 +31,18 @@ if(KRR_WITH_BACKTRACE)
 endif()
 
 if(KRR_BUILD_TESTS)
+  # ----------------------------------------------------------
+  # GTest
+  # ----------------------------------------------------------
+  CPMAddPackage(
+    NAME googletest
+    GITHUB_REPOSITORY google/googletest
+    GIT_TAG main
+  )
+
+  # ----------------------------------------------------------
+  # ut2
+  # ----------------------------------------------------------
   CPMAddPackage(
     NAME ut
     GITHUB_REPOSITORY qlibs/ut

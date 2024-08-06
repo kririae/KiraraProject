@@ -1,6 +1,17 @@
-include(KRR_Message)
+include(KRR_AddTest)
 
 if(KRR_BUILD_TESTS)
-  add_executable(LoggerTests LoggerTests.cpp)
-  target_link_libraries(LoggerTests PRIVATE kira::Core)
+  krr_add_test(kira Core LoggerTests
+    SOURCES
+      LoggerTests.cpp
+    HARD_DEPENDENCIES
+      kira::Core
+  )
+
+  krr_add_test(kira Core LoggerThreadSafeTests
+    SOURCES
+      LoggerThreadSafeTests.cpp
+    HARD_DEPENDENCIES
+      kira::Core
+  )
 endif()
