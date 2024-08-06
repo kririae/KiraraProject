@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// NOTE(zike): this file is a modified version of llvm/ADT/SmallVector.cpp, with
+// NOTE(krr): this file is a modified version of llvm/ADT/SmallVector.cpp, with
 // the following modifications:
 // - llvm::safe_alloc -> std::malloc (because we do use exceptions)
 // - llvm::safe_realloc -> std::realloc

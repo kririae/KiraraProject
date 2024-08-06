@@ -146,5 +146,3 @@ ut::suite vecteur = [] {
     };
 };
 } // namespace
-
-int main() {}
