@@ -1,5 +1,5 @@
 #include <iostream>
-#include <ut2>
+#include <ut>
 
 #include "kira/Vecteur.h"
 

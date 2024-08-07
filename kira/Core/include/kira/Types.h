@@ -35,31 +35,30 @@ using int64 = int64_t;
 using uint64 = uint64_t;
 
 namespace detail {
-template <typename T, char... Digits> consteval auto make_integral_udl() {
-    constexpr auto self = [](auto self, auto head, auto... tail) consteval {
-        if constexpr (sizeof...(tail) == 0)
-            return head - '0';
-        else
-            return 10 * (head - '0') + self(self, tail...);
-    };
-    return std::integral_constant<T, self(self, Digits...)>{};
+template <typename T, char C, char... Cs> consteval auto make_integral_udl() {
+    if constexpr (sizeof...(Cs) == 0)
+        return C - '0';
+    else
+        return make_integral_udl<T, C>() * 10 + make_integral_udl<T, Cs...>();
 }
 } // namespace detail
 
 /// UDL for int.
-template <char... Digits> consteval auto operator""_i() {
-    return detail::make_integral_udl<int, Digits...>();
+template <char... Cs> consteval auto operator""_I() {
+    constexpr auto value = detail::make_integral_udl<int, Cs...>();
+    return std::integral_constant<int, value>{};
 }
 
 /// UDL for uint.
-template <char... Digits> consteval auto operator""_u() {
-    return detail::make_integral_udl<uint, Digits...>();
+template <char... Cs> consteval auto operator""_U() {
+    constexpr auto value = detail::make_integral_udl<uint, Cs...>();
+    return std::integral_constant<uint, value>{};
 }
 
-static_assert(42_i == 42);
-static_assert(std::is_same_v<std::integral_constant<int, 42>, decltype(42_i)>);
-static_assert(3_i == 3);
-static_assert(std::is_same_v<std::integral_constant<int, 3>, decltype(3_i)>);
+static_assert(42_I == 42);
+static_assert(std::is_same_v<std::integral_constant<int, 42>, decltype(42_I)>);
+static_assert(3_I == 3);
+static_assert(std::is_same_v<std::integral_constant<int, 3>, decltype(3_I)>);
 /// \}
 
 /// \name Floating point types

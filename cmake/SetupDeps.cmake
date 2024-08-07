@@ -11,23 +11,6 @@ CPMAddPackage(
 
 list(APPEND CMAKE_MODULE_PATH ${cmake-scripts_SOURCE_DIR})
 
-# ----------------------------------------------------------
-# Stacktrace
-# ----------------------------------------------------------
-CPMAddPackage(
-  NAME backward-cpp
-  GITHUB_REPOSITORY bombela/backward-cpp
-  GIT_TAG v1.6
-  DOWNLOAD_ONLY YES
-)
-
-if(backward-cpp_ADDED)
-  list(APPEND CMAKE_PREFIX_PATH "${backward-cpp_SOURCE_DIR}")
-  find_package(Backward REQUIRED)
-else()
-  krr_message(ERROR "Failed to add backward-cpp package, consider setting `KRR_WITH_BACKTRACE=OFF`")
-endif()
-
 if(KRR_BUILD_TESTS)
   # ----------------------------------------------------------
   # GTest
@@ -44,7 +27,7 @@ if(KRR_BUILD_TESTS)
   CPMAddPackage(
     NAME ut
     GITHUB_REPOSITORY qlibs/ut
-    GIT_TAG v2.1.1
+    GIT_TAG v2.1.2
     DOWNLOAD_ONLY YES
   )
 

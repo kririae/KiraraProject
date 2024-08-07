@@ -23,6 +23,7 @@ function(krr_add_test project_name module_name test_name)
   target_link_libraries(${test_base_name}
     PRIVATE
       gtest
+      gmock
       kira::GTestMain
       ${TEST_HARD_DEPENDENCIES}
   )

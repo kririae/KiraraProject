@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <random>
+#include <stdexcept>
 
 #include "kira/Anyhow.h"
 #include "kira/Logger.h"
@@ -52,17 +53,17 @@ protected:
 };
 
 TEST_F(LoggerTests, SetupLogger) {
-    SetupLogger("testSetup", true, std::nullopt);
+    LoggerBuilder{"testSetup"}.to_console(true).init();
     auto logger = spdlog::get("testSetup");
     EXPECT_NE(logger, nullptr);
     EXPECT_EQ(logger->sinks().size(), 1);
 
-    SetupLogger("testSetupFile1", true, tempLogPath);
+    LoggerBuilder{"testSetupFile1"}.to_console(true).to_file(tempLogPath).init();
     logger = spdlog::get("testSetupFile1");
     EXPECT_NE(logger, nullptr);
     EXPECT_EQ(logger->sinks().size(), 2);
 
-    SetupLogger("testSetupFile2", true, tempLogPath);
+    LoggerBuilder{"testSetupFile2"}.to_console(true).to_file(tempLogPath).init();
     auto logger1 = spdlog::get("testSetupFile2");
     EXPECT_NE(logger1, nullptr);
     EXPECT_EQ(logger1->sinks().size(), 2);
@@ -85,12 +86,12 @@ TEST_F(LoggerTests, ShutdownFromSpdlog) {
 }
 
 TEST_F(LoggerTests, DuplicateLogger) {
-    SetupLogger("testDuplicate", true, std::nullopt);
-    EXPECT_THROW(SetupLogger("testDuplicate", true, std::nullopt), Anyhow);
+    LoggerBuilder{"testDuplicated"}.to_console(true).init();
+    EXPECT_THROW(LoggerBuilder{"testDuplicated"}.to_console(true).init(), std::runtime_error);
 }
 
 TEST_F(LoggerTests, LogToConsole) {
-    SetupLogger(defaultLoggerName, true, std::nullopt);
+    LoggerBuilder{defaultLoggerName}.to_console(true).init();
     ::testing::internal::CaptureStdout();
     LogInfo("test message");
     LogFlush();
@@ -99,7 +100,7 @@ TEST_F(LoggerTests, LogToConsole) {
 }
 
 TEST_F(LoggerTests, NoLogToConsole) {
-    SetupLogger(defaultLoggerName, false, std::nullopt);
+    LoggerBuilder{}.to_console(false).init();
     ::testing::internal::CaptureStdout();
     LogInfo("test message");
     LogFlush();
@@ -108,7 +109,7 @@ TEST_F(LoggerTests, NoLogToConsole) {
 }
 
 TEST_F(LoggerTests, LogToFileAndConsole) {
-    SetupLogger(defaultLoggerName, true, tempLogPath);
+    LoggerBuilder{}.to_console(true).to_file(tempLogPath).init();
     EXPECT_NE(spdlog::get(defaultLoggerName.value).get(), nullptr);
 
     ::testing::internal::CaptureStdout();

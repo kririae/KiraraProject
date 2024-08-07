@@ -7,6 +7,8 @@
 
 namespace kira {
 /// A exception system that integrates with the logging system.
+///
+/// \remark Anyhow should not be used during logger initialization.
 class Anyhow : public std::exception {
     // https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#e14-use-purpose-designed-user-defined-types-as-exceptions-not-built-in-types
 

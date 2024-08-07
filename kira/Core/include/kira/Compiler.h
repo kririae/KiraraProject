@@ -53,20 +53,22 @@ namespace kira {
 #if KIRA_HAS_CPP_ATTRIBUTE(clang::lifetimebound)
 #define KIRA_LIFETIME_BOUND [[clang::lifetimebound]]
 #elif KIRA_HAS_CPP_ATTRIBUTE(lifetimebound)
-#define KIRA_LIKIRA_LIFETIME_BOUND [[lifetimebound]]
+#define KIRA_LIFETIME_BOUND [[lifetimebound]]
 #elif KIRA_HAS_CPP_ATTRIBUTE(msvc::lifetimebound)
-#define KIRA_LIFEKIRA_LIFETIME_BOUND [[msvc::lifetimebound]]
+#define KIRA_LIFETIME_BOUND [[msvc::lifetimebound]]
 #else
-#define KIRAKIRA_LIFETIME_BOUND
+#define KIRA_LIFETIME_BOUND
 #endif
 
 #if defined(__clang__) || defined(__GNUC__)
 #define KIRA_DIAGNOSTIC_PUSH         _Pragma("GCC diagnostic push")
 #define KIRA_IGNORE_UNUSED_PARAMETER _Pragma("GCC diagnostic ignored \"-Wunused-parameter\"")
+#define KIRA_IGNORE_TYPE_LIMITS      _Pragma("GCC diagnostic ignored \"-Wtype-limits\"")
 #define KIRA_DIAGNOSTIC_POP          _Pragma("GCC diagnostic pop")
 #elif defined(_MSC_VER)
 #define KIRA_DIAGNOSTIC_PUSH
 #define KIRA_IGNORE_UNUSED_PARAMETER
+#define KIRA_IGNORE_TYPE_LIMITS
 #define KIRA_DIAGNOSTIC_POP
 #endif
 /// \}

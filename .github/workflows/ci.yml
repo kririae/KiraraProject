@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build-gcc:
+    name: Build and Test (GCC)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        gcc-version: [11, 12]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up GCC ${{ matrix.gcc-version }}
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y gcc-${{ matrix.gcc-version }} g++-${{ matrix.gcc-version }}
+
+      - name: Install Python
+        run: |
+          sudo apt-get update -y
+          sudo apt install -y python3.11 python3.11-dev python3-pip
+
+      - name: Install CMake
+        run: |
+          pip3 install cmake==3.30.2
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G "Unix Makefiles" -DCMAKE_C_COMPILER=gcc-${{ matrix.gcc-version }} -DCMAKE_CXX_COMPILER=g++-${{ matrix.gcc-version }} -DCMAKE_BUILD_TYPE=Debug -DKRR_BUILD_TESTS=ON
+
+      - name: Build with GCC ${{ matrix.gcc-version }}
+        run: |
+          cmake --build build -j $(nproc)
+
+      - name: Run ctest with GCC ${{ matrix.gcc-version }}
+        run: |
+          cd build
+          ctest --output-on-failure
+
+  build-clang:
+    name: Build and Test (Clang)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        clang-version: [16, 18]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Clang ${{ matrix.clang-version }}
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh ${{ matrix.clang-version }}
+
+      - name: Install Python
+        run: |
+          sudo apt-get update -y
+          sudo apt install -y python3.11 python3.11-dev python3-pip
+
+      - name: Install CMake
+        run: |
+          pip3 install cmake==3.30.2
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G "Unix Makefiles" -DCMAKE_C_COMPILER=clang-${{ matrix.clang-version }} -DCMAKE_CXX_COMPILER=clang++-${{ matrix.clang-version }} -DCMAKE_BUILD_TYPE=Debug -DKRR_BUILD_TESTS=ON
+
+      - name: Build with Clang ${{ matrix.clang-version }}
+        run: |
+          cmake --build build -j $(nproc)
+
+      - name: Run ctest with Clang ${{ matrix.clang-version }}
+        run: |
+          cd build
+          ctest --output-on-failure

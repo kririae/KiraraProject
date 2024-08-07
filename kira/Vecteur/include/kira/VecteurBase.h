@@ -51,56 +51,56 @@ public:
     [[nodiscard]] constexpr decltype(auto) x() const
         requires(Size >= 1)
     {
-        return derived().entry(0_u);
+        return derived().entry(0_U);
     }
 
     /// Get the second element of the vector.
     [[nodiscard]] constexpr decltype(auto) y() const
         requires(Size >= 2)
     {
-        return derived().entry(1_u);
+        return derived().entry(1_U);
     }
 
     /// Get the third element of the vector.
     [[nodiscard]] constexpr decltype(auto) z() const
         requires(Size >= 3)
     {
-        return derived().entry(2_u);
+        return derived().entry(2_U);
     }
 
     /// Get the forth element of the vector.
     [[nodiscard]] constexpr decltype(auto) w() const
         requires(Size >= 4)
     {
-        return derived().entry(3_u);
+        return derived().entry(3_U);
     }
 
     /// Get the first element of the vector.
     [[nodiscard]] constexpr decltype(auto) x()
         requires(Size >= 1)
     {
-        return derived().entry(0_u);
+        return derived().entry(0_U);
     }
 
     /// Get the second element of the vector.
     [[nodiscard]] constexpr decltype(auto) y()
         requires(Size >= 2)
     {
-        return derived().entry(1_u);
+        return derived().entry(1_U);
     }
 
     /// Get the third element of the vector.
     [[nodiscard]] constexpr decltype(auto) z()
         requires(Size >= 3)
     {
-        return derived().entry(2_u);
+        return derived().entry(2_U);
     }
 
     /// Get the forth element of the vector.
     [[nodiscard]] constexpr decltype(auto) w()
         requires(Size >= 4)
     {
-        return derived().entry(3_u);
+        return derived().entry(3_U);
     }
 
     /// \}
