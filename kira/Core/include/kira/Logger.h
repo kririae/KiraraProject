@@ -2,49 +2,44 @@
 
 #include "kira/Compiler.h"
 #include "kira/detail/Logger.h"
+#include "spdlog/common.h"
 
 namespace kira {
-/// Setup the logger to the config and override the later.
-///
-/// \tparam name The name of the logger as a string literal.
-///
-/// \param console Whether to log to console
-/// \param path Optional file path to log to
-inline void
-SetupLogger(std::string_view name, bool console, std::optional<std::filesystem::path> const &path) {
-    detail::CreateLogger(name, console, path);
-}
+/// The logger name by default.
+constexpr detail::StringLiteral const defaultLoggerName = "kira";
 
 /// The builder to create a logger.
-///
-/// This class is used to create a logger with a fluent interface.
 class LoggerBuilder {
 public:
-    LoggerBuilder() = default;
+    LoggerBuilder() noexcept : name(defaultLoggerName) {}
+    LoggerBuilder(std::string_view name) noexcept : name(name) {}
 
 public:
-    [[nodiscard]] LoggerBuilder &with_name(std::string_view name) {
-        this->name = name;
-        return *this;
-    }
-
-    [[nodiscard]] LoggerBuilder &to_console(bool console) {
+    /// Set whether to log to console.
+    [[nodiscard]] LoggerBuilder &to_console(bool console) noexcept {
         this->console = console;
         return *this;
     }
 
-    [[nodiscard]] LoggerBuilder &to_file(std::filesystem::path const &path) {
+    /// Set the file path to log to.
+    [[nodiscard]] LoggerBuilder &to_file(std::filesystem::path const &path) noexcept {
         this->path = path;
         return *this;
     }
 
+    [[nodiscard]] LoggerBuilder &filter_level(spdlog::level::level_enum const &level) noexcept {
+        this->level = level;
+        return *this;
+    }
+
     /// Initializes the logger with the previously specified configuration.
-    void init() { SetupLogger(name, console, path); }
+    std::shared_ptr<spdlog::logger> init();
 
 private:
-    std::string_view name{"kira"};
+    std::string_view name;
     bool console{true};
     std::optional<std::filesystem::path> path;
+    std::optional<spdlog::level::level_enum> level;
 };
 
 /// \brief Get or create a thread-safe logger.
@@ -62,7 +57,7 @@ private:
     std::lock_guard guard(mutex);
     auto logger = spdlog::get(name);
     if (KIRA_UNLIKELY(not logger))
-        logger = detail::CreateLogger(name, true, std::nullopt);
+        logger = LoggerBuilder{}.init();
     return logger.get();
 }
 
@@ -77,9 +72,6 @@ private:
 //! compiler will complain that it is not in consteval context. The only feasible way to do this is
 //! to use https://stackoverflow.com/a/78540292 (through `reinterpret_cast` and inheritance to
 //! `std::string_view`), but this results in a segfault in our codebase.
-
-/// The logger name by default.
-constexpr detail::StringLiteral const defaultLoggerName = "kira";
 
 /// Log a message at the trace level.
 template <detail::StringLiteral name = defaultLoggerName, fmt::formattable<char>... Args>

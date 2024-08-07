@@ -74,21 +74,4 @@ private:
     spdlog::sink_ptr consoleSink;
     std::unordered_map<std::filesystem::path, spdlog::sink_ptr> fileSinks;
 };
-
-/// \brief Create the logger that has not been previously created.
-///
-/// \param name The name of the logger, used in the filtering different
-/// components.
-/// \param console Whether to log to the console if not previously specified.
-/// \param path Optional path to log to if not previously specified.
-///
-/// \return The shared pointer to the logger.
-/// \note Even if the returned logger is discarded, the logger will be
-/// remembered by spdlog itself thus can be obtained by spdlog::get.
-///
-/// \throw std::runtime_error If the logger could not be initialized.
-/// \throw std::runtime_error If the logger is previously initiaized without being reseted through
-/// `spdlog::drop*`.
-std::shared_ptr<spdlog::logger>
-CreateLogger(std::string_view name, bool console, std::optional<std::filesystem::path> const &path);
 } // namespace kira::detail

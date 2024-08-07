@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        compiler: [gcc, clang]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up ${{ matrix.compiler }}
+        run: |
+          if [ "${{ matrix.compiler }}" == "gcc" ]; then
+            sudo apt-get update -y
+            sudo apt-get install -y gcc g++
+          elif [ "${{ matrix.compiler }}" == "clang" ]; then
+            sudo apt-get update -y
+            sudo apt-get install -y clang
+          fi
+
+      - name: Install CMake
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y cmake
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G "Unix Makefiles" -DCMAKE_C_COMPILER=${{ matrix.compiler }} -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} -DKRR_BUILD_TESTS=ON
+
+      - name: Build with ${{ matrix.compiler }}
+        run: |
+          cmake --build build -j $(nproc)
+
+      - name: Run ctest with ${{ matrix.compiler }}
+        run: |
+          cd build
+          ctest --output-on-failure

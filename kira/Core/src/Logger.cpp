@@ -6,7 +6,8 @@
 #include "kira/Logger.h"
 #include "kira/SmallVector.h"
 
-namespace kira::detail {
+namespace kira {
+namespace detail {
 spdlog::sink_ptr SinkManager::CreateConsoleSink() {
     if (!consoleSink)
         consoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
@@ -39,26 +40,31 @@ bool SinkManager::DropFileSink(std::filesystem::path const &path) noexcept {
     }
     return false;
 }
+} // namespace detail
 
-std::shared_ptr<spdlog::logger> CreateLogger(
-    std::string_view name, bool console, std::optional<std::filesystem::path> const &path
-) {
-    auto &sinkManager = SinkManager::GetInstance();
+std::shared_ptr<spdlog::logger> LoggerBuilder::init() {
+    auto &sinkManager = detail::SinkManager::GetInstance();
     SmallVector<spdlog::sink_ptr> sinks;
 
     if (console)
         sinks.push_back(sinkManager.CreateConsoleSink());
     if (path)
         sinks.push_back(sinkManager.CreateFileSink(path.value()));
+    if (not level) {
+        auto const *envVal = std::getenv("KRR_LOG_LEVEL");
+        if (envVal != nullptr)
+            spdlog::cfg::helpers::load_levels(envVal);
+    }
 
-    auto const *envVal = std::getenv("KRR_LOG_LEVEL");
-    if (envVal != nullptr)
-        spdlog::cfg::helpers::load_levels(envVal);
     auto logger = std::make_shared<spdlog::logger>(std::string{name}, sinks.begin(), sinks.end());
+
+    // Override the environment variable if the level is set.
+    if (level)
+        logger->set_level(level.value());
 
     try {
         spdlog::initialize_logger(logger);
     } catch (std::exception const &e) { throw Anyhow("Failed to initialize logger: {}", e.what()); }
     return logger;
 }
-} // namespace kira::detail
+} // namespace kira
