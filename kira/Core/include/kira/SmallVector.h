@@ -1279,9 +1279,7 @@ public:
 
     ReflectionType reflection() const & { return {this->begin(), this->end()}; }
     ReflectionType reflection() && {
-        return ReflectionType(
-            std::make_move_iterator(this->begin()), std::make_move_iterator(this->end())
-        );
+        return {std::make_move_iterator(this->begin()), std::make_move_iterator(this->end())};
     }
 };
 
