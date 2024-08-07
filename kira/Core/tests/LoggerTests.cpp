@@ -1,3 +1,15 @@
+/*
+ * This file is part of AEROCAE, a computational fluid dynamics system.
+ *
+ * Created Date: Thursday, August 8th 2024, 12:05:23 am
+ * Author: Zike Xu
+ * -----
+ * Last Modified: Wed Aug 07 2024
+ * Modified By: Zike Xu
+ * -----
+ * Copyright (c) 2024 AEROCAE
+ */
+
 #include <gtest/gtest.h>
 
 #include <fstream>
