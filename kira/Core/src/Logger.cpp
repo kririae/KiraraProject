@@ -2,7 +2,7 @@
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
-#include "kira/Anyhow.h"
+#include "kira/Assertions.h"
 #include "kira/Logger.h"
 #include "kira/SmallVector.h"
 
@@ -40,6 +40,13 @@ bool SinkManager::DropFileSink(std::filesystem::path const &path) noexcept {
     }
     return false;
 }
+
+bool SinkManager::DropAllSinks() noexcept {
+    auto const changed = consoleSink.get() != nullptr || !fileSinks.empty();
+    consoleSink.reset();
+    fileSinks.clear();
+    return changed;
+}
 } // namespace detail
 
 std::shared_ptr<spdlog::logger> LoggerBuilder::init() {
@@ -58,10 +65,6 @@ std::shared_ptr<spdlog::logger> LoggerBuilder::init() {
 
     auto logger = std::make_shared<spdlog::logger>(std::string{name}, sinks.begin(), sinks.end());
 
-    // Override the environment variable if the level is set.
-    if (level)
-        logger->set_level(level.value());
-
     try {
         spdlog::initialize_logger(logger);
     } catch (std::exception const &e) {
@@ -71,6 +74,9 @@ std::shared_ptr<spdlog::logger> LoggerBuilder::init() {
         throw std::runtime_error(str);
     }
 
+    // Override the environment variable if the level is set.
+    if (level)
+        logger->set_level(level.value());
     return logger;
 }
 } // namespace kira

@@ -70,6 +70,11 @@ public:
     /// \return Whether the sink is actually dropped.
     bool DropFileSink(std::filesystem::path const &path) noexcept;
 
+    /// Drop all the sinks.
+    ///
+    /// \return Whether any sink is actually dropped.
+    bool DropAllSinks() noexcept;
+
 private:
     spdlog::sink_ptr consoleSink;
     std::unordered_map<std::filesystem::path, spdlog::sink_ptr> fileSinks;
