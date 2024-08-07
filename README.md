@@ -2,4 +2,6 @@
 
 ## Requirements
 
-- C++20 (gcc-11+, clang-16+)
+- GCC 11.4 or higher
+- Clang 16.0 or higher
+- MSVC 17.8 (19.38) or higher

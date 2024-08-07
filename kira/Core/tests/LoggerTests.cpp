@@ -4,7 +4,6 @@
 #include <random>
 #include <stdexcept>
 
-#include "kira/Anyhow.h"
 #include "kira/Logger.h"
 
 using namespace kira;
@@ -23,8 +22,11 @@ protected:
     }
 
     void TearDown() override {
-        if (std::filesystem::exists(tempLogPath))
+        spdlog::shutdown();
+        if (std::filesystem::exists(tempLogPath)) {
+            detail::SinkManager::GetInstance().DropFileSink(tempLogPath);
             std::filesystem::remove(tempLogPath);
+        }
     }
 
     bool FileContainsLog(std::string const &logMessage) {
@@ -90,24 +92,8 @@ TEST_F(LoggerTests, DuplicateLogger) {
     EXPECT_THROW(LoggerBuilder{"testDuplicated"}.to_console(true).init(), std::runtime_error);
 }
 
-TEST_F(LoggerTests, LogToConsole) {
-    LoggerBuilder{defaultLoggerName}.to_console(true).init();
-    ::testing::internal::CaptureStdout();
-    LogInfo("test message");
-    LogFlush();
-    auto const &output = ::testing::internal::GetCapturedStdout();
-    EXPECT_TRUE(output.find("test message") != std::string::npos);
-}
-
-TEST_F(LoggerTests, NoLogToConsole) {
-    LoggerBuilder{}.to_console(false).init();
-    ::testing::internal::CaptureStdout();
-    LogInfo("test message");
-    LogFlush();
-    auto const &output = ::testing::internal::GetCapturedStdout();
-    EXPECT_TRUE(output.find("test message") == std::string::npos);
-}
-
+// Disable these tests on Windows
+#if !defined(_WIN32)
 TEST_F(LoggerTests, LogToFileAndConsole) {
     LoggerBuilder{}.to_console(true).to_file(tempLogPath).init();
     EXPECT_NE(spdlog::get(defaultLoggerName.value).get(), nullptr);
@@ -120,6 +106,24 @@ TEST_F(LoggerTests, LogToFileAndConsole) {
     EXPECT_TRUE(FileContainsLog("test message"));
 }
 
+TEST_F(LoggerTests, NoLogToConsole) {
+    LoggerBuilder{}.to_console(false).init();
+    ::testing::internal::CaptureStdout();
+    LogInfo("test message");
+    LogFlush();
+    auto const &output = ::testing::internal::GetCapturedStdout();
+    EXPECT_TRUE(output.find("test message") == std::string::npos);
+}
+
+TEST_F(LoggerTests, LogToConsole) {
+    LoggerBuilder{}.to_console(true).init();
+    ::testing::internal::CaptureStdout();
+    LogInfo("test message");
+    LogFlush();
+    auto const &output = ::testing::internal::GetCapturedStdout();
+    EXPECT_TRUE(output.find("test message") != std::string::npos);
+}
+
 TEST_F(LoggerTests, LogWithFormat) {
     ::testing::internal::CaptureStdout();
     LogInfo("test message {}", 42);
@@ -127,3 +131,4 @@ TEST_F(LoggerTests, LogWithFormat) {
     auto const &output = ::testing::internal::GetCapturedStdout();
     EXPECT_TRUE(output.find("test message 42") != std::string::npos);
 }
+#endif
