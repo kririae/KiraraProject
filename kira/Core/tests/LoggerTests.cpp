@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <cstdlib>
 #include <fstream>
 #include <random>
 #include <stdexcept>
@@ -19,14 +20,16 @@ protected:
         if (std::filesystem::exists(tempLogPath))
             std::filesystem::remove(tempLogPath);
         spdlog::shutdown();
+        setenv("KRR_LOG_LEVEL", "info", 1);
     }
 
     void TearDown() override {
         spdlog::shutdown();
         if (std::filesystem::exists(tempLogPath)) {
-            detail::SinkManager::GetInstance().DropFileSink(tempLogPath);
+            detail::SinkManager::GetInstance().DropAllSinks();
             std::filesystem::remove(tempLogPath);
         }
+        unsetenv("KRR_LOG_LEVEL");
     }
 
     bool FileContainsLog(std::string const &logMessage) {
@@ -130,5 +133,45 @@ TEST_F(LoggerTests, LogWithFormat) {
     LogFlush();
     auto const &output = ::testing::internal::GetCapturedStdout();
     EXPECT_TRUE(output.find("test message 42") != std::string::npos);
+}
+
+TEST_F(LoggerTests, LogWithFilterFromBuilder) {
+    LoggerBuilder{}.to_console(true).filter_level(spdlog::level::warn).init();
+    ::testing::internal::CaptureStdout();
+    LogInfo("test info");
+    LogFlush();
+    LogWarn("test warn");
+    LogFlush();
+    auto const &output = ::testing::internal::GetCapturedStdout();
+    EXPECT_TRUE(output.find("test info") == std::string::npos);
+    EXPECT_TRUE(output.find("test warn") != std::string::npos);
+}
+
+TEST_F(LoggerTests, LogWithFilterFromEnvironement) {
+    setenv("KRR_LOG_LEVEL", "warn", 1);
+    LoggerBuilder{}.to_console(true).init();
+    ::testing::internal::CaptureStdout();
+    LogInfo("test info");
+    LogFlush();
+    LogWarn("test warn");
+    LogFlush();
+    auto const &output = ::testing::internal::GetCapturedStdout();
+    EXPECT_TRUE(output.find("test info") == std::string::npos);
+    EXPECT_TRUE(output.find("test warn") != std::string::npos);
+    unsetenv("KRR_LOG_LEVEL");
+}
+
+TEST_F(LoggerTests, LogWithFilterIgnoreEnvironment) {
+    setenv("KRR_LOG_LEVEL", "error", 1);
+    LoggerBuilder{}.to_console(true).filter_level(spdlog::level::warn).init();
+    ::testing::internal::CaptureStdout();
+    LogInfo("test info");
+    LogFlush();
+    LogWarn("test warn");
+    LogFlush();
+    auto const &output = ::testing::internal::GetCapturedStdout();
+    EXPECT_TRUE(output.find("test info") == std::string::npos);
+    EXPECT_TRUE(output.find("test warn") != std::string::npos);
+    unsetenv("KRR_LOG_LEVEL");
 }
 #endif
