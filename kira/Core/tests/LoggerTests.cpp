@@ -118,3 +118,11 @@ TEST_F(LoggerTests, LogToFileAndConsole) {
     EXPECT_TRUE(output.find("test message") != std::string::npos);
     EXPECT_TRUE(FileContainsLog("test message"));
 }
+
+TEST_F(LoggerTests, LogWithFormat) {
+    ::testing::internal::CaptureStdout();
+    LogInfo("test message {}", 42);
+    LogFlush();
+    auto const &output = ::testing::internal::GetCapturedStdout();
+    EXPECT_TRUE(output.find("test message 42") != std::string::npos);
+}

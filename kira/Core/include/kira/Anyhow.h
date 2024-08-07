@@ -1,10 +1,9 @@
 #pragma once
 
 #include <exception>
-#include <utility>
+#include <string_view>
 
 #include "kira/Logger.h"
-#include "kira/Reflection.h"
 
 namespace kira {
 /// A exception system that integrates with the logging system.
