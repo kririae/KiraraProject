@@ -56,4 +56,5 @@ CheckOptions:
   readability-identifier-naming.MemberConstantCase: CamelCase
   readability-identifier-naming.StaticConstantCase: CamelCase
   readability-function-cognitive-complexity.IgnoreMacros: "true"
+  readability-identifier-naming.FunctionIgnoredRegexp: ".*_$"
 SystemHeaders: false

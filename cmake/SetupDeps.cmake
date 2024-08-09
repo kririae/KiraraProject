@@ -20,7 +20,9 @@ if(KRR_BUILD_TESTS)
     GITHUB_REPOSITORY google/googletest
     GIT_TAG main
   )
+endif()
 
+if(KRR_BUILD_COMPTIME_TESTS)
   # ----------------------------------------------------------
   # ut2
   # ----------------------------------------------------------
