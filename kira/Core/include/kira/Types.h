@@ -35,11 +35,10 @@ using int64 = int64_t;
 using uint64 = uint64_t;
 
 namespace detail {
-template <typename T, char C, char... Cs> consteval auto make_integral_udl() {
-    if constexpr (sizeof...(Cs) == 0)
-        return C - '0';
-    else
-        return make_integral_udl<T, C>() * 10 + make_integral_udl<T, Cs...>();
+template <typename T, char... Cs> consteval auto make_integral_udl() {
+    T result = 0;
+    ((result = result * 10 + (Cs - '0')), ...);
+    return result;
 }
 } // namespace detail
 
@@ -51,14 +50,32 @@ template <char... Cs> consteval auto operator""_I() {
 
 /// UDL for uint.
 template <char... Cs> consteval auto operator""_U() {
-    constexpr auto value = detail::make_integral_udl<uint, Cs...>();
-    return std::integral_constant<uint, value>{};
+    constexpr auto value = detail::make_integral_udl<unsigned int, Cs...>();
+    return std::integral_constant<unsigned int, value>{};
 }
 
 static_assert(42_I == 42);
 static_assert(std::is_same_v<std::integral_constant<int, 42>, decltype(42_I)>);
 static_assert(3_I == 3);
 static_assert(std::is_same_v<std::integral_constant<int, 3>, decltype(3_I)>);
+static_assert(0_I == 0);
+static_assert(std::is_same_v<std::integral_constant<int, 0>, decltype(0_I)>);
+static_assert(123_I == 123);
+static_assert(std::is_same_v<std::integral_constant<int, 123>, decltype(123_I)>);
+static_assert(9999_I == 9999);
+static_assert(std::is_same_v<std::integral_constant<int, 9999>, decltype(9999_I)>);
+
+static_assert(0_U == 0u);
+static_assert(std::is_same_v<std::integral_constant<uint, 0>, decltype(0_U)>);
+static_assert(42_U == 42u);
+static_assert(std::is_same_v<std::integral_constant<uint, 42>, decltype(42_U)>);
+static_assert(9999_U == 9999u);
+static_assert(std::is_same_v<std::integral_constant<uint, 9999>, decltype(9999_U)>);
+
+static_assert(10_I + 5_I == 15_I);
+static_assert(20_U - 5_U == 15_U);
+static_assert(6_I * 7_I == 42_I);
+static_assert(100_U / 4_U == 25_U);
 /// \}
 
 /// \name Floating point types

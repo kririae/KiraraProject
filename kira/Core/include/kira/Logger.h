@@ -1,10 +1,11 @@
 #pragma once
 
+#include <spdlog/common.h>
+
 #include <optional>
 
 #include "kira/Compiler.h"
 #include "kira/detail/Logger.h"
-#include "spdlog/common.h"
 
 namespace kira {
 /// The logger name by default.

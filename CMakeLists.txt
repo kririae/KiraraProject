@@ -44,6 +44,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" "${CMAKE_BINARY_DIR}")
 # User options
 # ----------------------------------------------------------
 option(KRR_BUILD_TESTS "Build tests" ON)
+option(KRR_BUILD_COMPTIME_TESTS "Build compile-time tests, this requires new versions of compiler" OFF)
 option(KRR_BUILD_FOR_NATIVE "Build with -march=native -mtune=native" OFF)
 
 option(KRR_USE_MOLD "Use mold as the linker" OFF)
@@ -59,7 +60,7 @@ include(SetupDeps)
 # ----------------------------------------------------------
 # Responses for the user options
 # ----------------------------------------------------------
-if(KRR_BUILD_TESTS)
+if(KRR_BUILD_TESTS OR KRR_BUILD_COMPTIME_TESTS)
   enable_testing()
 endif()
 

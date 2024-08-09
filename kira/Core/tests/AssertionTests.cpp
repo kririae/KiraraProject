@@ -9,11 +9,13 @@ using ::testing::HasSubstr;
 using ::testing::StartsWith;
 
 TEST(AssertionTests, ForceAssert) {
-    EXPECT_DEATH(KIRA_FORCE_ASSERT(false), StartsWith("Assertion (false) failed at"));
-    EXPECT_DEATH(
+    EXPECT_DEATH_IF_SUPPORTED(KIRA_FORCE_ASSERT(false), StartsWith("Assertion (false) failed at"));
+    EXPECT_DEATH_IF_SUPPORTED(
         KIRA_FORCE_ASSERT(false, "Because of cute girls"), HasSubstr("Because of cute girls")
     );
-    EXPECT_DEATH(KIRA_FORCE_ASSERT(false, "Because of {}", 42), HasSubstr("Because of 42"));
+    EXPECT_DEATH_IF_SUPPORTED(
+        KIRA_FORCE_ASSERT(false, "Because of {}", 42), HasSubstr("Because of 42")
+    );
 }
 
 TEST(AssertionTests, Assert) {

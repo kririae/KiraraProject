@@ -28,9 +28,17 @@ constexpr auto __assert(
         std::abort();
     }
 }
+
+// NOLINTNEXTLINE
+constexpr std::string_view __filename(std::string_view sv) {
+    size_t pos = sv.rfind('/');
+    if (pos == std::string_view::npos)
+        pos = sv.rfind('\\');
+    return (pos == std::string_view::npos) ? sv : sv.substr(pos + 1);
+}
 } // namespace kira::detail
 
-#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+#define __FILENAME__ ::kira::detail::__filename(__FILE__) /**/
 
 #define KIRA_FORCE_ASSERT(cond, ...)                                                               \
     ::kira::detail::__assert(#cond, __FILENAME__, __LINE__, (cond)__VA_OPT__(, ) __VA_ARGS__) /**/
