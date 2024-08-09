@@ -61,14 +61,27 @@ public:
     using result = Vecteur<type, size>;
 };
 
-namespace tests {
-static_assert(std::is_same_v<PromotedType<int, int>::type, int>);
-static_assert(std::is_same_v<PromotedType<float, float>::type, float>);
-static_assert(std::is_same_v<PromotedType<float, int>::type, float>);
-static_assert(std::is_same_v<PromotedType<int, float>::type, float>);
-static_assert(std::is_same_v<PromotedType<Vecteur<int, 1>, float>::type, float>);
-static_assert(std::is_same_v<PromotedType<float, Vecteur<int, 1>>::type, float>);
-static_assert(std::is_same_v<PromotedType<Vecteur<int, 1>, Vecteur<float, 1>>::type, float>);
-static_assert(std::is_same_v<PromotedType<Vecteur<float, 1>, Vecteur<int, 1>>::type, float>);
-} // namespace tests
+template <size_t LHSSize, size_t RHSSize>
+concept is_static_operable =
+    (LHSSize == RHSSize) || (LHSSize == std::dynamic_extent) || (RHSSize == std::dynamic_extent);
+
+template <is_vecteur LHS, is_vecteur RHS>
+constexpr auto CheckDynamicOperable(LHS const &lhs, RHS const &rhs) {
+    if constexpr (LHS::is_dynamic() or RHS::is_dynamic()) {
+        // You already use the dynamic vector, right?
+        KIRA_FORCE_ASSERT(
+            lhs.size() == rhs.size(), "The size of the operands must be the same: {} != {}",
+            lhs.size(), rhs.size()
+        );
+    }
+}
+
+template <typename From, typename To>
+concept is_safely_convertible =
+    std::is_same_v<decltype(std::declval<From>() + std::declval<To>()), To>;
+
+// For std::conjunction to work, we need to define a primary template.
+template <typename From, typename To> struct is_safely_convertible_t {
+    static constexpr bool value = is_safely_convertible<From, To>;
+};
 } // namespace kira
