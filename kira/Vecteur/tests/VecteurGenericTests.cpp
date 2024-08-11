@@ -17,6 +17,8 @@ TEST_F(VecteurTests, ZeroConstructor) {
     EXPECT_EQ(0, x[0]);
     EXPECT_EQ(0, x[1]);
     EXPECT_EQ(0, x[2]);
+    static_assert(Vecteur<int, 3>::IsGeneric);
+    static_assert(x.is_generic());
 }
 
 TEST_F(VecteurTests, OneConstructor) {
@@ -71,6 +73,12 @@ TEST_F(VecteurTests, XYZAccessors) {
     EXPECT_EQ(1, x.x());
     EXPECT_EQ(2, x.y());
     EXPECT_EQ(3, x.z());
+}
+
+TEST_F(VecteurTests, EvalSafety) {
+    constexpr Vecteur<int, 3> x{1, 2, 3};
+    constexpr Vecteur<int, 3> y{2, 3, 4};
+    constexpr auto z = (x + y).eval();
 }
 
 TEST_F(VecteurTests, Addition) {

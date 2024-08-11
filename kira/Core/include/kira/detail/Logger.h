@@ -28,6 +28,7 @@ struct FormatWithSourceLoc {
     std::string_view fmt;
     std::source_location loc;
 
+public:
     /// https://stackoverflow.com/questions/57547273/how-to-use-source-location-in-a-variadic-template-function
     ///
     /// It will be tricky to enable both `source_location` and compile-time check

@@ -1,11 +1,19 @@
 #pragma once
 
+#include <span>
 #include <type_traits>
 
 #include "kira/Compiler.h"
 #include "kira/Types.h"
 
 namespace kira {
+/// The backend to use for the vector.
+enum class VecteurBackend {
+    Generic, //< The generic backend.
+    Lazy,    //< The lazy-evaluated backend.
+    LLVM,    //< The LLVM codegen backend.
+};
+
 template <typename Scalar_, std::size_t Size_, typename Derived> struct VecteurBase;
 
 //! The base class is not specialized for dynamic extent, because std::dynamic_extent holds for the
@@ -15,10 +23,11 @@ template <typename Scalar_, typename Derived>
 struct VecteurBase<Scalar_, std::dynamic_extent, Derived> {};
 #endif
 
-template <typename Scalar_, std::size_t Size_, typename Derived> struct VecteurBase {
+template <typename Scalar_, std::size_t Size_, typename Derived_> struct VecteurBase {
 public:
     using Scalar = Scalar_;
     static constexpr std::size_t Size = Size_;
+    using Derived = Derived_;
 
     /// \name CRTP interface
     /// \{
@@ -43,6 +52,43 @@ public:
 
     /// \}
 public:
+    static constexpr bool IsVecteur = true;
+    static constexpr bool IsGeneric = Derived::get_backend() == VecteurBackend::Generic;
+    static constexpr bool IsConstexpr = IsGeneric;
+    static constexpr bool IsDynamic = Size == std::dynamic_extent;
+    static constexpr bool IsLazy = Derived::get_backend() == VecteurBackend::Lazy;
+
+    static constexpr bool is_vecteur() { return IsVecteur; }
+    static constexpr bool is_generic() { return IsGeneric; }
+    static constexpr bool is_constexpr() { return IsConstexpr; }
+    static constexpr bool is_dynamic() { return IsDynamic; }
+    static constexpr bool is_lazy() { return IsLazy; }
+
+public:
+#define KIRA_CONSTEXPR_DISPATCH0(func)                                                             \
+    [&]() {                                                                                        \
+        if constexpr (is_constexpr())                                                              \
+            if (std::is_constant_evaluated())                                                      \
+                return derived<true>().func();                                                     \
+        return derived<false>().func();                                                            \
+    }()
+#define KIRA_CONSTEXPR_DISPATCH1(func, p1)                                                         \
+    [&]() {                                                                                        \
+        if constexpr (is_constexpr())                                                              \
+            if (std::is_constant_evaluated())                                                      \
+                return derived<true>().func(p1);                                                   \
+        return derived<false>().func(p1);                                                          \
+    }()
+
+#define KIRA_CONSTEXPR_DISPATCH2(func, p1, p2)                                                     \
+    [&]() {                                                                                        \
+        if constexpr (is_constexpr())                                                              \
+            if (std::is_constant_evaluated())                                                      \
+                return derived<true>().func(p1, p2);                                               \
+        return derived<false>().func(p1, p2);                                                      \
+    }()
+
+public:
     // -----------------------------------------------------------------------------------------------------------------
     /// \name Element access interface
     // -----------------------------------------------------------------------------------------------------------------
@@ -52,6 +98,13 @@ public:
 
     /// \copydoc operator[]
     [[nodiscard]] constexpr decltype(auto) operator[](auto i) { return derived().entry(i); }
+
+    /// Evaluate the vector.
+    ///
+    /// \note This function will only do computation when the vector is lazy or jit.
+    /// \note A const reference wikll be returned when the vector is generic to safe copy, so be
+    /// cautious of the potential dangling reference.
+    [[nodiscard]] constexpr auto eval() const { return KIRA_CONSTEXPR_DISPATCH0(eval_); }
 
     /// Get the first element of the vector.
     [[nodiscard]] constexpr decltype(auto) x() const
@@ -111,21 +164,6 @@ public:
 
     /// \}
     // -----------------------------------------------------------------------------------------------------------------
-public:
-#define KIRA_CONSTEXPR_DISPATCH0(func)                                                             \
-    [&]() {                                                                                        \
-        return std::is_constant_evaluated() ? derived<true>().func() : derived<false>().func();    \
-    }()
-#define KIRA_CONSTEXPR_DISPATCH1(func, p1)                                                         \
-    [&]() {                                                                                        \
-        return std::is_constant_evaluated() ? derived<true>().func(p1)                             \
-                                            : derived<false>().func(p1);                           \
-    }()
-#define KIRA_CONSTEXPR_DISPATCH2(func, p1, p2)                                                     \
-    [&]() {                                                                                        \
-        return std::is_constant_evaluated() ? derived<true>().func(p1, p2)                         \
-                                            : derived<false>().func(p1, p2);                       \
-    }()
 public:
     // -----------------------------------------------------------------------------------------------------------------
     /// \name Binary comparable interface
@@ -232,8 +270,11 @@ public:
 /// \tparam Size The size of the vector.
 /// \tparam IsConstexpr Whether the implementation supports constexpr.
 /// \tparam Derived The CRTP derived class.
-template <typename Scalar, std::size_t Size, bool IsConstexpr, typename Derived> struct VecteurImpl;
+template <
+    typename Scalar, std::size_t Size, VecteurBackend backend, bool IsConstexpr, typename Derived>
+struct VecteurImpl;
 
-template <typename Scalar, std::size_t Size> struct Vecteur;
+template <typename Scalar, std::size_t Size, VecteurBackend backend = VecteurBackend::Generic>
+struct Vecteur;
 /// \}
 } // namespace kira
