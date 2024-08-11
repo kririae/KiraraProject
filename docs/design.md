@@ -19,3 +19,5 @@
 - Inheritance chain trick for `Vecteur`(a nice name!), A op B boosts to
   `std::common_type`.
 - Hybrid testing framework with `ut2` and `gtest`
+- SSA-like operations on Vecteur
+- Operations with type prompted in Vecteur, i.e., float op int -> float.

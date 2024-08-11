@@ -1,5 +1,7 @@
 #pragma once
 
+#include <fmt/format.h>
+
 #include <cstdint>
 #include <type_traits>
 
@@ -103,3 +105,15 @@ real constexpr operator"" _R(long double v) { return real(v); }
 real constexpr operator"" _R(unsigned long long v) { return real(v); }
 /// \}
 } // namespace kira
+
+namespace fmt {
+template <typename T, T Value> struct formatter<std::integral_constant<T, Value>> {
+    constexpr auto parse(format_parse_context &ctx) -> decltype(ctx.begin()) { return ctx.begin(); }
+
+    template <typename FormatContext>
+    auto format(std::integral_constant<T, Value> const &, FormatContext &ctx) const
+        -> decltype(ctx.out()) {
+        return fmt::format_to(ctx.out(), "{}", Value);
+    }
+};
+} // namespace fmt

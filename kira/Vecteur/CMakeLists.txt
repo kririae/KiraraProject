@@ -11,8 +11,15 @@ CPMAddPackage(
     "HWY_CMAKE_RVV OFF"
     "HWY_ENABLE_CONTRIB OFF"
     "HWY_ENABLE_EXAMPLES OFF"
-    "HWY_ENABLE_INSTALL OFF"
+    "HWY_ENABLE_INSTALL ON"
     "HWY_ENABLE_TESTS OFF"
+)
+
+CPMAddPackage(
+  NAME Eigen3
+  URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip
+  OPTIONS
+    "BUILD_TESTING OFF"
 )
 
 # ----------------------------------------------------------
@@ -20,14 +27,21 @@ CPMAddPackage(
 # ----------------------------------------------------------
 krr_add_module(kira Vecteur
   HEADERS
+    kira/detail/VecteurLazyArith.h
+    kira/detail/VecteurReductionArith.h
     kira/Vecteur.h
     kira/VecteurBase.h
+    kira/VecteurFormat.h
     kira/VecteurGeneric.h
     kira/VecteurHighway.h
+    kira/VecteurLazy.h
+    kira/VecteurOptimizer.h
     kira/VecteurRouter.h
     kira/VecteurStorage.h
     kira/VecteurTraits.h
   HARD_DEPENDENCIES
+    eigen
+    hwy
     kira::Core
   CMAKE_SUBDIRS
     tests

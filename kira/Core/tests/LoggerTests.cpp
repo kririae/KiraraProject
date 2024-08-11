@@ -1,3 +1,18 @@
+<<<<<<< HEAD
+=======
+/*
+ * This file is part of AEROCAE, a computational fluid dynamics system.
+ *
+ * Created Date: Thursday, August 8th 2024, 12:05:23 am
+ * Author: Zike Xu
+ * -----
+ * Last Modified: Sun Aug 11 2024
+ * Modified By: Zike Xu
+ * -----
+ * Copyright (c) 2024 AEROCAE
+ */
+
+>>>>>>> b04e27c (feat: initiate and partially add highway as backend)
 #include <gtest/gtest.h>
 
 #include <cstdlib>
@@ -20,7 +35,12 @@ protected:
         if (std::filesystem::exists(tempLogPath))
             std::filesystem::remove(tempLogPath);
         spdlog::shutdown();
+
+#ifdef _WIN32
+        _putenv_s("KRR_LOG_LEVEL", "info");
+#else
         setenv("KRR_LOG_LEVEL", "info", 1);
+#endif
     }
 
     void TearDown() override {
@@ -29,7 +49,12 @@ protected:
             detail::SinkManager::GetInstance().DropAllSinks();
             std::filesystem::remove(tempLogPath);
         }
+
+#ifdef _WIN32
+        _putenv_s("KRR_LOG_LEVEL", ""); // Remove environment variable
+#else
         unsetenv("KRR_LOG_LEVEL");
+#endif
     }
 
     bool FileContainsLog(std::string const &logMessage) {
