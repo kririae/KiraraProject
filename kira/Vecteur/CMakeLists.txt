@@ -15,6 +15,13 @@ CPMAddPackage(
     "HWY_ENABLE_TESTS OFF"
 )
 
+CPMAddPackage(
+  NAME Eigen3
+  URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip
+  OPTIONS
+    "BUILD_TESTING OFF"
+)
+
 # ----------------------------------------------------------
 # Do add module
 # ----------------------------------------------------------
@@ -24,11 +31,13 @@ krr_add_module(kira Vecteur
     kira/VecteurBase.h
     kira/VecteurGeneric.h
     kira/VecteurHighway.h
+    kira/VecteurLazyOp.h
     kira/VecteurRouter.h
     kira/VecteurStorage.h
     kira/VecteurTraits.h
   HARD_DEPENDENCIES
     kira::Core
+    eigen
   CMAKE_SUBDIRS
     tests
 )

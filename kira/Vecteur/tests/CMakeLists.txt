@@ -14,13 +14,26 @@ if(KRR_BUILD_TESTS)
     HARD_DEPENDENCIES
       kira::Vecteur
   )
+
+  krr_add_test(kira Vecteur VecteurEigenPlayground
+    SOURCES
+      VecteurEigenPlayground.cpp
+    HARD_DEPENDENCIES
+      kira::Vecteur
+  )
+
+  krr_add_test(kira Vecteur VecteurLazyTests
+    SOURCES
+      VecteurLazyTests.cpp
+    HARD_DEPENDENCIES
+      kira::Vecteur
+  )
 endif()
 
 if(KRR_BUILD_COMPTIME_TESTS)
   krr_add_test(kira Vecteur VecteurComptimeTests
     SOURCES
       VecteurComptimeTests.cpp
-      VecteurTraitsTests.cpp
     HARD_DEPENDENCIES
       kira::Vecteur
       ut

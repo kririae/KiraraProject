@@ -12,25 +12,28 @@ namespace kira {
 
 #define KIRA_ROUTE_BINARY(name, func)                                                              \
     template <is_vecteur LHS, is_vecteur RHS> constexpr auto name(const LHS &a1, const RHS &a2) {  \
-        if (std::is_constant_evaluated())                                                          \
-            return a1.template derived<true>().func(a2);                                           \
-        return a1.template derived().func(a2);                                                     \
+        if constexpr (LHS::is_constexpr() and RHS::is_constexpr())                                 \
+            if (std::is_constant_evaluated())                                                      \
+                return a1.template derived<true>().func(a2);                                       \
+        return a1.derived().func(a2);                                                              \
     }                                                                                              \
                                                                                                    \
     template <is_vecteur LHS, typename RHS>                                                        \
         requires(std::is_arithmetic_v<RHS>)                                                        \
     constexpr auto name(const LHS &a1, const RHS &a2) {                                            \
-        if (std::is_constant_evaluated())                                                          \
-            return a1.template derived<true>().func(a2);                                           \
-        return a1.template derived().func(a2);                                                     \
+        if constexpr (LHS::is_constexpr())                                                         \
+            if (std::is_constant_evaluated())                                                      \
+                return a1.template derived<true>().func(a2);                                       \
+        return a1.derived().func(a2);                                                              \
     }                                                                                              \
                                                                                                    \
     template <typename LHS, is_vecteur RHS>                                                        \
         requires(std::is_arithmetic_v<LHS>)                                                        \
     constexpr auto name(const LHS &a1, const RHS &a2) {                                            \
-        if (std::is_constant_evaluated())                                                          \
-            return a2.template derived<true>().r##func(a1);                                        \
-        return a2.template derived().r##func(a1);                                                  \
+        if constexpr (RHS::is_constexpr())                                                         \
+            if (std::is_constant_evaluated())                                                      \
+                return a2.template derived<true>().r##func(a1);                                    \
+        return a2.derived().r##func(a1);                                                           \
     }
 
 KIRA_ROUTE_BINARY(operator+, add_);
