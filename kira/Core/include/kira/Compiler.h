@@ -71,5 +71,13 @@ namespace kira {
 #define KIRA_IGNORE_TYPE_LIMITS
 #define KIRA_DIAGNOSTIC_POP
 #endif
+
+#if defined(__clang__) || defined(__GNUC__)
+#define KIRA_FORCEINLINE __attribute__((always_inline)) inline
+#elif defined(_MSC_VER)
+#define KIRA_FORCEINLINE __forceinline
+#else
+#define KIRA_FORCEINLINE inline
+#endif
 /// \}
 } // namespace kira

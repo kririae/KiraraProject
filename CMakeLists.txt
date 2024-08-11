@@ -26,7 +26,7 @@ string(STRIP ${KRR_COMMIT_SHORT_HASH} KRR_COMMIT_SHORT_HASH)
 
 set(KRR_VERSION_MAJOR 0)
 set(KRR_VERSION_MINOR 0)
-set(KRR_VERSION_PATCH 0)
+set(KRR_VERSION_PATCH 1)
 
 message("╔════════════════════════════════════════════════════════════════════════════╗")
 message("║                               Kirara Project                               ║")
@@ -41,10 +41,31 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" "${CMAKE_BINARY_DIR}")
 
 # ----------------------------------------------------------
+# Platform detection
+# ----------------------------------------------------------
+include(KRR_Message)
+
+if(WIN32)
+  set(KRR_BUILD_FOR_WINDOWS ON)
+  krr_message(INFO "Configured to build for Windows")
+else()
+  set(KRR_BUILD_FOR_WINDOWS OFF)
+endif()
+
+if(UNIX AND NOT APPLE)
+  set(KRR_BUILD_FOR_LINUX ON)
+  krr_message(INFO "Configured to build for Linux")
+else()
+  set(KRR_BUILD_FOR_LINUX OFF)
+endif()
+
+# ----------------------------------------------------------
 # User options
 # ----------------------------------------------------------
+include(CMakeDependentOption)
+
 option(KRR_BUILD_TESTS "Build tests" ON)
-option(KRR_BUILD_COMPTIME_TESTS "Build compile-time tests, this requires new versions of compiler" OFF)
+cmake_dependent_option(KRR_BUILD_COMPTIME_TESTS "Build compile-time tests, this requires new versions of compiler" OFF "KRR_BUILD_TESTS" OFF)
 option(KRR_BUILD_FOR_NATIVE "Build with -march=native -mtune=native" OFF)
 
 option(KRR_USE_MOLD "Use mold as the linker" OFF)
@@ -60,7 +81,7 @@ include(SetupDeps)
 # ----------------------------------------------------------
 # Responses for the user options
 # ----------------------------------------------------------
-if(KRR_BUILD_TESTS OR KRR_BUILD_COMPTIME_TESTS)
+if(KRR_BUILD_TESTS)
   enable_testing()
 endif()
 
