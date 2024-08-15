@@ -3,12 +3,13 @@
 #include <type_traits>
 
 #include "kira/Assertions.h"
-#include "kira/VecteurBase.h"
-#include "kira/VecteurStorage.h"
-#include "kira/VecteurTraits.h"
-#include "kira/detail/VecteurReductionArith.h"
 
-namespace kira {
+#include "Base.h"
+#include "Storage.h"
+#include "Traits.h"
+#include "detail/ReductionMixin.h"
+
+namespace kira::vecteur {
 namespace detail {
 constexpr auto sqr(auto const &x) { return x * x; }
 constexpr auto neg(auto const &x) { return -x; }
@@ -18,7 +19,7 @@ template <typename Scalar, std::size_t Size, typename Derived>
 struct VecteurImpl<Scalar, Size, VecteurBackend::Generic, true, Derived>
     : VecteurBase<Scalar, Size, VecteurBackend::Generic, Derived>,
       VecteurStorage<Scalar, Size, alignof(Scalar)>,
-      detail::VecteurReductionArithmeticBase<Derived> {
+      detail::VecteurReductionMixin<Derived> {
 private:
     using Base = VecteurBase<Scalar, Size, VecteurBackend::Generic, Derived>;
     using Storage = VecteurStorage<Scalar, Size, alignof(Scalar)>;
@@ -227,4 +228,4 @@ struct Vecteur : VecteurImpl<Scalar, Size, backend, false, Vecteur<Scalar, Size,
 /// Deduction guide for the Vecteur class.
 template <typename... Ts>
 Vecteur(Ts...) -> Vecteur<std::common_type_t<Ts...>, sizeof...(Ts), VecteurBackend::Generic>;
-} // namespace kira
+} // namespace kira::vecteur

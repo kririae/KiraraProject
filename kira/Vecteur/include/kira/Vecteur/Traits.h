@@ -3,9 +3,9 @@
 #include <span>
 #include <type_traits>
 
-#include "kira/VecteurBase.h"
+#include "Base.h"
 
-namespace kira {
+namespace kira::vecteur {
 // Any vecteur leaf that inherits from VectuerBase must be a vecteur.
 template <typename T, typename D = std::decay_t<T>>
 concept is_vecteur =
@@ -152,4 +152,4 @@ concept is_safely_convertible =
 template <typename From, typename To> struct is_safely_convertible_t {
     static constexpr bool value = is_safely_convertible<From, To>;
 };
-} // namespace kira
+} // namespace kira::vecteur

@@ -6,7 +6,7 @@
 #include "kira/Compiler.h"
 #include "kira/Types.h"
 
-namespace kira {
+namespace kira::vecteur {
 /// The backend to use for the vector.
 enum class VecteurBackend {
     Generic, //< The generic backend (with constexpr&CUDA support and SIMD-accelerated).
@@ -295,4 +295,4 @@ struct VecteurImpl;
 
 template <typename Scalar, std::size_t Size, VecteurBackend backend> struct Vecteur;
 /// \}
-} // namespace kira
+} // namespace kira::vecteur

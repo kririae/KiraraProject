@@ -1,14 +1,13 @@
 #pragma once
 
-#include "kira/Compiler.h"
-#include "kira/VecteurBase.h"
-#include "kira/VecteurOptimizer.h"
-#include "kira/VecteurStorage.h"
-#include "kira/VecteurTraits.h"
-#include "kira/detail/VecteurLazyArith.h"
-#include "kira/detail/VecteurReductionArith.h"
+#include "Base.h"
+#include "Optimizer.h"
+#include "Storage.h"
+#include "Traits.h"
+#include "detail/Lazy.h"
+#include "detail/ReductionMixin.h"
 
-namespace kira {
+namespace kira::vecteur {
 //! NOTE(krr): As for pitfalls, we do suffer from the same dielmma as the Eigen library.
 //! see https://eigen.tuxfamily.org/dox/TopicPitfalls.html
 //!
@@ -24,8 +23,7 @@ template <typename T> struct UnitaryOp;
 template <typename BinaryOp, typename LHS, typename RHS> struct CwiseBinaryOp;
 template <typename UnaryOp, typename T> struct CwiseUnaryOp0;
 
-template <typename Derived>
-struct VecteurLazyBase : detail::VecteurReductionArithmeticBase<Derived> {
+template <typename Derived> struct VecteurLazyBase : detail::VecteurReductionMixin<Derived> {
 private:
     constexpr auto const &derived_() const { return *static_cast<Derived const *>(this); }
     constexpr auto &derived_() { return *static_cast<Derived *>(this); }
@@ -288,4 +286,4 @@ public:
         return *this;
     }
 };
-} // namespace kira
+} // namespace kira::vecteur

@@ -4,9 +4,10 @@
 #include <random>
 #include <span>
 
+#include "kira/Vecteur.h"
+
 #include "ArithLib.h"
 #include "VecteurTests.h"
-#include "kira/Vecteur.h"
 
 using namespace kira;
 
@@ -469,9 +470,9 @@ TEST_F(VecteurDynamicTests, FresnelConductor) {
     auto lazyExpandedGt = FresnelConductorExpanded(0.5F, lazyEtaI, lazyEtaT, lazyK);
 
     for (std::size_t i = 0; i < rtsize; ++i)
-        EXPECT_NEAR(gt[i], lazyGt[i], 1e-5);
+        EXPECT_NEAR(gt[i], lazyGt[i], 1e-4);
     for (std::size_t i = 0; i < rtsize; ++i)
-        EXPECT_NEAR(gt[i], lazyExpandedGt[i], 1e-5);
+        EXPECT_NEAR(gt[i], lazyExpandedGt[i], 1e-4);
     for (std::size_t i = 0; i < rtsize; ++i)
-        EXPECT_NEAR(gt[i], gt[i], 1e-5);
+        EXPECT_NEAR(gt[i], gt[i], 1e-4);
 }

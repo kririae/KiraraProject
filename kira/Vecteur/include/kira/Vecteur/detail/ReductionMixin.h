@@ -1,12 +1,12 @@
 #pragma once
 
-#include "kira/VecteurTraits.h"
+#include "../Traits.h"
 
-namespace kira::detail {
+namespace kira::vecteur::detail {
 //! NOTE(krr): This is abstracted out, because many backends will have the same implementation,
 //! while reduction is hard to be optimized by expression template.
 
-template <typename Derived> struct VecteurReductionArithmeticBase {
+template <typename Derived> struct VecteurReductionMixin {
 private:
     constexpr auto const &derived_() const { return *static_cast<Derived const *>(this); }
     constexpr auto &derived_() { return *static_cast<Derived *>(this); }
@@ -84,4 +84,4 @@ public:
         return result;
     }
 };
-} // namespace kira::detail
+} // namespace kira::vecteur::detail

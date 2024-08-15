@@ -79,5 +79,11 @@ namespace kira {
 #else
 #define KIRA_FORCEINLINE inline
 #endif
+
+#if defined(__clang__) || defined(__GNUC__)
+#define KIRA_ASSUME(expr) __builtin_assume(expr)
+#elif defined(_MSC_VER)
+#define KIRA_ASSUME(expr) __assume(expr)
+#endif
 /// \}
 } // namespace kira
