@@ -6,10 +6,36 @@
 #include "kira/VecteurBase.h"
 
 namespace kira {
+// Any vecteur leaf that inherits from VectuerBase must be a vecteur.
+template <typename T, typename D = std::decay_t<T>>
+concept is_vecteur =
+    std::is_base_of_v<VecteurBase<typename D::Scalar, D::Size, D::get_backend(), D>, D>;
+
 namespace detail {
 struct no_assignment_operator { // NOLINT
     no_assignment_operator &operator=(no_assignment_operator const &) = delete;
 };
+
+template <typename T> static auto entry_or_scalar(T const &obj, auto i) {
+    if constexpr (is_vecteur<T>)
+        return obj.entry(i);
+    else
+        return obj;
+}
+
+template <typename T> constexpr auto size_or_1(T const &obj) {
+    if constexpr (is_vecteur<T>)
+        return obj.size();
+    else
+        return 1UL;
+}
+
+template <typename T> consteval auto height_or_1() {
+    if constexpr (is_vecteur<T>)
+        return T::height;
+    else
+        return 1;
+}
 
 template <typename T> struct ScalarOperandType {
     using type = T;
@@ -37,11 +63,6 @@ struct VecteurOperandType<Vecteur<Scalar, Size, backend>> {
 };
 } // namespace detail
 
-// Any vecteur leaf that inherits from VectuerBase must be a vecteur.
-template <typename T>
-concept is_vecteur =
-    std::is_base_of_v<VecteurBase<typename T::Scalar, T::Size, T::get_backend(), T>, T>;
-
 template <typename T>
 struct OperandType
     : std::conditional_t<
@@ -51,6 +72,10 @@ template <typename T>
 concept is_leaf_vecteur = OperandType<T>::is_leaf;
 
 template <typename T> struct VecteurLazyOperandType {
+private:
+    using operand = OperandType<T>;
+
+public:
     using type = std::conditional_t<
         is_leaf_vecteur<T>, std::add_lvalue_reference_t<std::add_const_t<T>>, std::add_const_t<T>>;
 };

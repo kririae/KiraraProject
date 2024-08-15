@@ -45,9 +45,9 @@ KIRA_ROUTE_BINARY(operator%, mod_);
 #undef KIRA_ROUTE_BINARY
 
 constexpr auto operator==(is_vecteur auto const &a1, is_vecteur auto const &a2) {
-    return a1.eq(a2);
+    return a1.derived().eq(a2.derived());
 }
 
-constexpr auto operator-(is_vecteur auto const &a) { return a.neg(); }
+constexpr auto operator-(is_vecteur auto const &a) { return a.derived().neg(); }
 /// \}
 } // namespace kira

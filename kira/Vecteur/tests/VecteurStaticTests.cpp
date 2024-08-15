@@ -4,11 +4,11 @@
 
 #include "ArithLib.h"
 #include "VecteurTests.h"
-#include "kira/VecteurBase.h"
-#include "kira/VecteurGeneric.h"
-#include "kira/VecteurRouter.h"
 
 using namespace kira;
+
+static_assert(is_vecteur<Vecteur<float, 3, VecteurBackend::Generic>>);
+static_assert(is_vecteur<std::add_lvalue_reference_t<Vecteur<float, 3, VecteurBackend::Generic>>>);
 
 class VecteurStaticTests : public ::testing::Test {
 protected:
