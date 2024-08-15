@@ -36,8 +36,7 @@ endif()
 
 CPMAddPackage(
   NAME reflect-cpp
-  GITHUB_REPOSITORY getml/reflect-cpp
-  GIT_TAG v0.14.0
+  URL "https://github.com/getml/reflect-cpp/archive/refs/tags/v0.14.0.tar.gz"
   OPTIONS
     "REFLECTCPP_BUILD_SHARED OFF"
 )

@@ -6,9 +6,10 @@
 
 #include "kira/Anyhow.h"
 #include "kira/Compiler.h"
-#include "kira/VecteurTraits.h"
 
-namespace kira {
+#include "Traits.h"
+
+namespace kira::vecteur {
 //! NOTE(krr): Copy assignment matrix:
 //! | this \ rhs | static | dynamic | rvalue dynamic |
 //! |------------|--------|---------|----------------|
@@ -327,4 +328,4 @@ public:
         swap(*this, newStorage);
     }
 };
-} // namespace kira
+} // namespace kira::vecteur

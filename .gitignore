@@ -33,6 +33,8 @@
 
 build/
 build*/
+cmake-build*/
 compile_commands.json
 
 .cache/
+.idea/

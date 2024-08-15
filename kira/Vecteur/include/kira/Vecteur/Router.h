@@ -1,8 +1,8 @@
 #pragma once
 
-#include "kira/VecteurTraits.h"
+#include "Traits.h"
 
-namespace kira {
+namespace kira::vecteur {
 /// \name Binary router
 /// \{
 
@@ -50,4 +50,4 @@ constexpr auto operator==(is_vecteur auto const &a1, is_vecteur auto const &a2) 
 
 constexpr auto operator-(is_vecteur auto const &a) { return a.derived().neg(); }
 /// \}
-} // namespace kira
+} // namespace kira::vecteur

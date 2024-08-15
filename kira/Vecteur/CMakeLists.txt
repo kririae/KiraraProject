@@ -27,18 +27,18 @@ CPMAddPackage(
 # ----------------------------------------------------------
 krr_add_module(kira Vecteur
   HEADERS
-    kira/detail/VecteurLazyArith.h
-    kira/detail/VecteurReductionArith.h
+    kira/Vecteur/detail/Lazy.h
+    kira/Vecteur/detail/ReductionMixin.h
+    kira/Vecteur/Base.h
+    kira/Vecteur/Format.h
+    kira/Vecteur/Generic.h
+    kira/Vecteur/Highway.h
+    kira/Vecteur/Lazy.h
+    kira/Vecteur/Optimizer.h
+    kira/Vecteur/Router.h
+    kira/Vecteur/Storage.h
+    kira/Vecteur/Traits.h
     kira/Vecteur.h
-    kira/VecteurBase.h
-    kira/VecteurFormat.h
-    kira/VecteurGeneric.h
-    kira/VecteurHighway.h
-    kira/VecteurLazy.h
-    kira/VecteurOptimizer.h
-    kira/VecteurRouter.h
-    kira/VecteurStorage.h
-    kira/VecteurTraits.h
   HARD_DEPENDENCIES
     eigen
     hwy

@@ -1,11 +1,12 @@
 #pragma once
 
 #include "kira/Compiler.h"
-#include "kira/VecteurBase.h"
-#include "kira/VecteurTraits.h"
-#include "kira/detail/VecteurLazyArith.h"
 
-namespace kira {
+#include "Base.h"
+#include "Traits.h"
+#include "detail/Lazy.h"
+
+namespace kira::vecteur {
 template <typename BinaryOp, typename LHS, typename RHS> struct CwiseBinaryOp;
 template <typename UnaryOp, typename T> struct CwiseUnaryOp0;
 template <typename Derived> struct VecteurLazyBase;
@@ -75,4 +76,4 @@ public:
     constexpr auto operator()() const { return t; }
 };
 #endif
-} // namespace kira
+} // namespace kira::vecteur

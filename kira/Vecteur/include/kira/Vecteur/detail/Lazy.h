@@ -2,9 +2,9 @@
 
 #include <string_view>
 
-#include "kira/VecteurTraits.h"
+#include "../Traits.h"
 
-namespace kira::detail {
+namespace kira::vecteur::detail {
 template <typename LHSScalar, typename RHSScalar> struct BinaryOpAdd {
     static constexpr std::string_view expr_str = "+";
     constexpr auto operator()(LHSScalar const &lhs, RHSScalar const &rhs) const
@@ -96,4 +96,4 @@ template <typename Scalar> struct UnaryOp0Neg {
 template <typename Scalar> struct UnaryOp0Sqr {
     constexpr auto operator()(Scalar const &operand) const -> Scalar { return operand * operand; }
 };
-} // namespace kira::detail
+} // namespace kira::vecteur::detail

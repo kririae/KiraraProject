@@ -2,7 +2,7 @@
 
 #include "kira/Vecteur.h"
 
-namespace kira {
+namespace kira::vecteur {
 template <is_vecteur Spectrum>
 inline Spectrum
 FresnelConductor(float cos_theta_i, Spectrum const &etaI, Spectrum const &etaT, Spectrum const &k) {
@@ -51,4 +51,4 @@ inline Spectrum FresnelConductorExpanded(
 
     return ((rp + rs) * 0.5F).eval();
 }
-} // namespace kira
+} // namespace kira::vecteur

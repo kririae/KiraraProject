@@ -3,10 +3,11 @@
 #include <hwy/highway.h>
 
 #include "kira/Compiler.h"
-#include "kira/VecteurBase.h"
-#include "kira/VecteurTraits.h"
 
-namespace kira {
+#include "Base.h"
+#include "Traits.h"
+
+namespace kira::vecteur {
 namespace hn = hwy::HWY_NAMESPACE;
 
 #if defined(__CUDA_ARCH__)
@@ -91,4 +92,4 @@ public:
     }
 };
 #endif
-} // namespace kira
+} // namespace kira::vecteur

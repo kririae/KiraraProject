@@ -1,35 +1,35 @@
 include(KRR_AddTest)
 
 if(KRR_BUILD_TESTS)
-  krr_add_test(kira Vecteur VecteurStaticTests
+  krr_add_test(kira Vecteur StaticTests
     SOURCES
-      VecteurStaticTests.cpp
+      StaticTests.cpp
     HARD_DEPENDENCIES
       kira::Vecteur
   )
 
-  krr_add_test(kira Vecteur VecteurDynamicTests
+  krr_add_test(kira Vecteur DynamicTests
     SOURCES
-      VecteurDynamicTests.cpp
+      DynamicTests.cpp
     HARD_DEPENDENCIES
       kira::Vecteur
   )
 
-  krr_add_test(kira Vecteur VecteurEigenPlayground
+  krr_add_test(kira Vecteur EigenPlayground
     SOURCES
-      VecteurEigenPlayground.cpp
+      EigenPlayground.cpp
     HARD_DEPENDENCIES
       kira::Vecteur
   )
 
-  add_executable(VecteurTests VecteurBinaryCheck.cpp)
+  add_executable(VecteurTests BinaryCheck.cpp)
   target_link_libraries(VecteurTests PRIVATE kira::Vecteur)
 endif()
 
 if(KRR_BUILD_COMPTIME_TESTS)
-  krr_add_test(kira Vecteur VecteurComptimeTests
+  krr_add_test(kira Vecteur ComptimeTests
     SOURCES
-      VecteurComptimeTests.cpp
+      ComptimeTests.cpp
     HARD_DEPENDENCIES
       kira::Vecteur
       ut
