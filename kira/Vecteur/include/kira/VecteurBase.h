@@ -10,7 +10,7 @@ namespace kira {
 /// The backend to use for the vector.
 enum class VecteurBackend {
     Generic, //< The generic backend (with constexpr&CUDA support and SIMD-accelerated).
-    Lazy,    //< The lazy-evaluated backend (with CUDA support).
+    Lazy,    //< The lazy-evaluated backend.
     LLVM,    //< The LLVM codegen backend.
 };
 

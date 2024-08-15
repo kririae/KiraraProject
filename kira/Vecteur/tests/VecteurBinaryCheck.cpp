@@ -3,11 +3,12 @@
 
 #include "ArithLib.h"
 #include "kira/Vecteur.h"
+#include "kira/VecteurBase.h"
 
 using namespace kira;
 
 using GenericVec4f = Vecteur<float, 3, VecteurBackend::Generic>;
-using DynVec = Vecteur<float, std::dynamic_extent, VecteurBackend::Generic>;
+using DynVec = Vecteur<float, 7, VecteurBackend::Lazy>;
 using LazyVec3f = Vecteur<float, 3, VecteurBackend::Lazy>;
 
 __attribute__((noinline)) LazyVec3f
@@ -37,7 +38,7 @@ DynVec simd_add_generic_dynamic_vec4f(DynVec const &a, DynVec const &b, DynVec c
 void test_performance() {
     // Likely not a good benchmark, but it's a start.
     int const numIterations = 1000000;
-    int const vectorSize = 64;
+    int const vectorSize = 7;
 
     DynVec a(vectorSize);
     DynVec b(vectorSize);
@@ -51,7 +52,7 @@ void test_performance() {
 
     auto start = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < numIterations; ++i) {
-        DynVec result = FresnelConductorExpanded(0.5F, a, b, c);
+        DynVec result = FresnelConductor(0.5F, a, b, c);
         a[0] += result[0] * 0.000001f;
     }
     auto end = std::chrono::high_resolution_clock::now();
@@ -65,6 +66,7 @@ void test_performance() {
 
 int main() {
     test_performance();
+
 #if 0
     float a0 = 0, a1 = 1, a2 = 2, a3 = 3;
     LazyVec3f a{a0, a1, a2};

@@ -6,9 +6,7 @@
 
 #include "ArithLib.h"
 #include "VecteurTests.h"
-#include "kira/VecteurBase.h"
-#include "kira/VecteurGeneric.h"
-#include "kira/VecteurRouter.h"
+#include "kira/Vecteur.h"
 
 using namespace kira;
 

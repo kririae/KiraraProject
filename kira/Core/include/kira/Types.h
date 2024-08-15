@@ -106,6 +106,7 @@ real constexpr operator"" _R(unsigned long long v) { return real(v); }
 /// \}
 } // namespace kira
 
+/// A formatter for UDL.
 namespace fmt {
 template <typename T, T Value> struct formatter<std::integral_constant<T, Value>> {
     constexpr auto parse(format_parse_context &ctx) -> decltype(ctx.begin()) { return ctx.begin(); }

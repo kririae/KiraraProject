@@ -7,7 +7,6 @@
 #include "kira/VecteurTraits.h"
 #include "kira/detail/VecteurLazyArith.h"
 #include "kira/detail/VecteurReductionArith.h"
-#include "kira/detail/VecteurUtils.h"
 
 namespace kira {
 //! NOTE(krr): As for pitfalls, we do suffer from the same dielmma as the Eigen library.
@@ -21,6 +20,7 @@ template <typename Scalar, std::size_t Size, typename Derived>
 struct VecteurImpl<Scalar, Size, VecteurBackend::Lazy, false, Derived>
     : VecteurBase<Scalar, Size, VecteurBackend::Lazy, Derived> {};
 
+template <typename T> struct UnitaryOp;
 template <typename BinaryOp, typename LHS, typename RHS> struct CwiseBinaryOp;
 template <typename UnaryOp, typename T> struct CwiseUnaryOp0;
 
@@ -30,26 +30,46 @@ private:
     constexpr auto const &derived_() const { return *static_cast<Derived const *>(this); }
     constexpr auto &derived_() { return *static_cast<Derived *>(this); }
 
+    //! NOTE(krr): Early evaluation is implemented here. It determines the depth of the expression
+    //! tree, evaluate the expression s.t. the tree will not be too large(which significantly blocks
+    //! optimization).
+    // NOLINTNEXTLINE
+    template <typename T> constexpr decltype(auto) __collapse(T const &expr) const {
+        if constexpr (T::height >= 4)
+            // This deduces to a value *UnitaryOp* instead of a reference.
+            return UnitaryOp{expr.eval()};
+        else
+            // This deduces to a reference.
+            return expr;
+    }
+
     template <template <typename...> typename BinaryOp, is_vecteur RHS>
     constexpr auto __make_binary_op_vv(RHS const &rhs) const { // NOLINT
-        return VecteurOptimizer{
-            CwiseBinaryOp<BinaryOp<typename Derived::Scalar, typename RHS::Scalar>, Derived, RHS>(
-                derived_(), rhs.derived()
-            )
-        }();
+        using LHSType = std::decay_t<decltype(__collapse(derived_()))>;
+        using RHSType = std::decay_t<decltype(__collapse(rhs.derived()))>;
+        return VecteurOptimizer{CwiseBinaryOp<
+            BinaryOp<typename Derived::Scalar, typename RHS::Scalar>, LHSType, RHSType>(
+            __collapse(derived_()), __collapse(rhs.derived())
+        )}();
     }
 
     template <template <typename...> typename BinaryOp, typename RHS>
     constexpr auto __make_binary_op_vs(RHS const &rhs) const { // NOLINT
+        using LHSType = std::decay_t<decltype(__collapse(derived_()))>;
         return VecteurOptimizer{
-            CwiseBinaryOp<BinaryOp<typename Derived::Scalar, RHS>, Derived, RHS>(derived_(), rhs)
+            CwiseBinaryOp<BinaryOp<typename Derived::Scalar, RHS>, LHSType, RHS>(
+                __collapse(derived_()), rhs
+            )
         }();
     }
 
     template <template <typename...> typename BinaryOp, typename LHS>
     constexpr auto __make_binary_op_sv(LHS const &lhs) const { // NOLINT
+        using RHSType = std::decay_t<decltype(__collapse(derived_()))>;
         return VecteurOptimizer{
-            CwiseBinaryOp<BinaryOp<LHS, typename Derived::Scalar>, LHS, Derived>(lhs, derived_())
+            CwiseBinaryOp<BinaryOp<LHS, typename Derived::Scalar>, LHS, RHSType>(
+                lhs, __collapse(derived_())
+            )
         }();
     }
 
@@ -63,6 +83,7 @@ public:
         auto const &node = derived_();
 
         // Create a non-initialized leaf node.
+        // TODO: Strip-mine the loop using vectorized load.
         auto result = Vecteur<typename Derived::Scalar, Derived::Size, VecteurBackend::Lazy>();
         if constexpr (decltype(result)::is_dynamic())
             result.realloc(node.size());
@@ -137,6 +158,28 @@ public:
     constexpr auto sqr_() const { return __make_unary_op0<detail::UnaryOp0Sqr>(); }
 };
 
+/// Return the constructor itself.
+///
+/// The `UnitaryOp` is a nothing that wraps the operand. The reason that why we need this, is to
+/// take the ownership of the itermediate expression, s.t. collapsed expression's lifetime can be
+/// extended.
+template <typename T>
+struct UnitaryOp
+    : VecteurImpl<typename T::Scalar, T::Size, VecteurBackend::Lazy, false, UnitaryOp<T>>,
+      VecteurLazyBase<UnitaryOp<T>>,
+      detail::no_assignment_operator {
+private:
+    T const t;
+
+public:
+    using ConstexprImpl = UnitaryOp;
+    static constexpr int height = T::height;
+
+    explicit UnitaryOp(T t) : t(std::move(t)) {}
+    [[nodiscard]] constexpr auto entry(auto i) const { return t.entry(i); }
+    [[nodiscard]] constexpr auto size() const { return t.size(); }
+};
+
 template <typename BinaryOp, typename LHS, typename RHS>
 struct CwiseBinaryOp : VecteurImpl<
                            typename PromotedType<LHS, RHS>::type, PromotedType<LHS, RHS>::size,
@@ -149,6 +192,8 @@ private:
 
 public:
     using ConstexprImpl = CwiseBinaryOp;
+    static constexpr int height =
+        std::max(detail::height_or_1<LHS>(), detail::height_or_1<RHS>()) + 1;
     constexpr CwiseBinaryOp(const LHS &lhs, const RHS &rhs) : lhs(lhs), rhs(rhs) {
         if constexpr (is_vecteur<LHS> and is_vecteur<RHS>) {
             static_assert(is_static_operable<LHS, RHS>, "Incompatible sizes.");
@@ -157,11 +202,11 @@ public:
     }
 
 public:
-    [[nodiscard]] KIRA_FORCEINLINE constexpr auto entry(auto i) const {
+    [[nodiscard]] constexpr auto entry(auto i) const {
         return BinaryOp{}(detail::entry_or_scalar(lhs, i), detail::entry_or_scalar(rhs, i));
     }
 
-    [[nodiscard]] KIRA_FORCEINLINE constexpr auto size() const {
+    [[nodiscard]] constexpr auto size() const {
         // Different sized vecteur are checked at construction time.
         return std::max<size_t>(detail::size_or_1(lhs), detail::size_or_1(rhs));
     }
@@ -181,14 +226,13 @@ private:
 
 public:
     using ConstexprImpl = CwiseUnaryOp0;
+    static constexpr int height = detail::height_or_1<T>() + 1;
     constexpr CwiseUnaryOp0(T const &operand) : operand(operand) {}
 
 public:
-    [[nodiscard]] KIRA_FORCEINLINE constexpr auto entry(auto i) const {
-        return UnaryOp0{}(operand.entry(i));
-    }
+    [[nodiscard]] constexpr auto entry(auto i) const { return UnaryOp0{}(operand.entry(i)); }
 
-    [[nodiscard]] KIRA_FORCEINLINE constexpr auto size() const { return operand.size(); }
+    [[nodiscard]] constexpr auto size() const { return operand.size(); }
 };
 
 #define KIRA_VECTEUR_LEAF_TYPE Vecteur<Scalar, Size, VecteurBackend::Lazy>
@@ -206,6 +250,7 @@ public:
     using Ref = std::add_lvalue_reference_t<Scalar>;
     using ConstRef = std::add_lvalue_reference_t<Scalar const>;
     using ConstexprImpl = VecteurImpl;
+    static constexpr int height = 1;
 
     using Storage::Storage;
     using Storage::operator=;

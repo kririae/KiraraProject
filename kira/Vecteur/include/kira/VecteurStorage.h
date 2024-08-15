@@ -4,9 +4,9 @@
 #include <cstdlib>
 #include <span>
 
+#include "kira/Anyhow.h"
 #include "kira/Compiler.h"
 #include "kira/VecteurTraits.h"
-
 
 namespace kira {
 //! NOTE(krr): Copy assignment matrix:
@@ -183,7 +183,7 @@ public:
         storage = static_cast<Scalar *>(std::aligned_alloc(alignment, sizeof(Scalar) * size));
 #endif
         if (!storage)
-            throw std::bad_alloc();
+            throw Anyhow("VecteurStorage: Failed to allocate {} bytes", sizeof(Scalar) * size);
     }
 
     constexpr VecteurStorage(VecteurStorage const &rhs) : asize{rhs.asize} {
@@ -193,7 +193,7 @@ public:
         storage = static_cast<Scalar *>(std::aligned_alloc(alignment, sizeof(Scalar) * rhs.asize));
 #endif
         if (!storage)
-            throw std::bad_alloc();
+            throw Anyhow("VecteurStorage: Failed to allocate {} bytes", sizeof(Scalar) * rhs.asize);
         std::copy_n(rhs.storage, asize, storage);
     }
 
