@@ -41,7 +41,7 @@ public:
 public:
     // Use the base class's implementation.
     using Base::add_;
-    using Base::div_;
+    using Base::rsqrt_;
     using Base::sqrt_;
 
 private:
@@ -87,6 +87,18 @@ public:
         this->strip_mining([&](auto tag, std::size_t i) {
             auto const v = hn::LoadU(tag, this->data() + i);
             hn::StoreU(hn::Sqrt(v), tag, result.data() + i);
+        });
+        return result;
+    }
+
+    /// Vectorized reciprocal square root.
+    auto rsqrt_() const {
+        auto result = Derived();
+        if constexpr (Derived::is_dynamic())
+            result.realloc(this->size());
+        this->strip_mining([&](auto tag, std::size_t i) {
+            auto const v = hn::LoadU(tag, this->data() + i);
+            hn::StoreU(hn::ApproximateReciprocalSqrt(v), tag, result.data() + i);
         });
         return result;
     }

@@ -11,6 +11,7 @@
 
 namespace kira::vecteur {
 namespace detail {
+constexpr auto rsqrt(auto const &x) { return 1 / std::sqrt(x); }
 constexpr auto sqr(auto const &x) { return x * x; }
 constexpr auto neg(auto const &x) { return -x; }
 } // namespace detail
@@ -206,8 +207,9 @@ public:
     KIRA_FORALL_ARITHMETIC0(round_, std::round) /// @5
     KIRA_FORALL_ARITHMETIC0(sqrt_, std::sqrt)   /// @6
 
-    KIRA_FORALL_ARITHMETIC0(neg_, detail::neg) /// @7
-    KIRA_FORALL_ARITHMETIC0(sqr_, detail::sqr) /// @8
+    KIRA_FORALL_ARITHMETIC0(rsqrt_, detail::rsqrt) /// @7
+    KIRA_FORALL_ARITHMETIC0(neg_, detail::neg)     /// @8
+    KIRA_FORALL_ARITHMETIC0(sqr_, detail::sqr)     /// @9
 
     // krr: similar functions can be added here.
 #undef KIRA_FORALL_ARITHMETIC

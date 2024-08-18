@@ -89,6 +89,12 @@ template <typename Scalar> struct UnaryOp0Sqrt {
     constexpr auto operator()(Scalar const &operand) const -> Scalar { return std::sqrt(operand); }
 };
 
+template <typename Scalar> struct UnaryOp0RSqrt {
+    constexpr auto operator()(Scalar const &operand) const -> Scalar {
+        return 1 / std::sqrt(operand);
+    }
+};
+
 template <typename Scalar> struct UnaryOp0Neg {
     constexpr auto operator()(Scalar const &operand) const -> Scalar { return -operand; }
 };

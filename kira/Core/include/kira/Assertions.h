@@ -30,7 +30,7 @@ constexpr auto __assert(
 }
 
 // NOLINTNEXTLINE
-constexpr std::string_view __filename(std::string_view sv) {
+consteval std::string_view __filename(std::string_view sv) {
     size_t pos = sv.rfind('/');
     if (pos == std::string_view::npos)
         pos = sv.rfind('\\');

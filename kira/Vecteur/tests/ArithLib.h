@@ -3,52 +3,55 @@
 #include "kira/Vecteur.h"
 
 namespace kira::vecteur {
-template <is_vecteur Spectrum>
+template <typename Spectrum>
 inline Spectrum
-FresnelConductor(float cos_theta_i, Spectrum const &etaI, Spectrum const &etaT, Spectrum const &k) {
-    cos_theta_i = std::clamp<float>(cos_theta_i, -1, 1);
+FresnelConductor(float cosThetaI, Spectrum const &etaI, Spectrum const &etaT, Spectrum const &k) {
+    cosThetaI = std::clamp<float>(cosThetaI, -1, 1);
     Spectrum const eta = etaT / etaI;
-    Spectrum const etak = k / etaI;
+    Spectrum const etaK = k / etaI;
 
-    auto const c2 = cos_theta_i * cos_theta_i;
+    auto const c2 = cosThetaI * cosThetaI;
     auto const si = 1 - c2;
     auto const eta2 = eta * eta;
-    auto const etak2 = etak * etak;
-    auto const t0 = eta2 - etak2 - si;
-    auto const apb = (t0 * t0 + eta2 * etak2 * 4).sqrt();
-    auto const t1 = apb + c2;
-    auto const a = ((apb + t0) * 0.5F).sqrt();
-    auto const t2 = a * cos_theta_i * 2;
+    auto const etaK2 = etaK * etaK;
+    auto const t0 = eta2 - etaK2 - si;
+    auto const aPlusB = (t0 * t0 + eta2 * etaK2 * 4).sqrt();
+    auto const t1 = aPlusB + c2;
+    auto const a = ((aPlusB + t0) * 0.5F).sqrt();
+    auto const t2 = a * cosThetaI * 2;
     auto const rs = (t1 - t2) / (t1 + t2);
-    auto const t3 = si * si + apb * c2;
+    auto const t3 = si * si + aPlusB * c2;
     auto const t4 = t2 * si;
     auto const rp = rs * (t3 - t4) / (t3 + t4);
 
     return ((rp + rs) * 0.5F).eval();
 }
 
-template <is_vecteur Spectrum>
+template <typename Spectrum>
 inline Spectrum FresnelConductorExpanded(
-    float cos_theta_i, Spectrum const &etaI, Spectrum const &etaT, Spectrum const &k
+    float cosThetaI, Spectrum const &etaI, Spectrum const &etaT, Spectrum const &k
 ) {
-    cos_theta_i = std::clamp<float>(cos_theta_i, -1, 1);
+    cosThetaI = std::clamp<float>(cosThetaI, -1, 1);
     Spectrum const eta = etaT / etaI;
-    Spectrum const etak = k / etaI;
+    Spectrum const etaK = k / etaI;
 
-    auto const c2 = cos_theta_i * cos_theta_i;
-    auto const si = 1 - c2;
+    float const c2 = cosThetaI * cosThetaI;
+    float const si = 1 - c2;
     Spectrum const eta2 = eta * eta;
-    Spectrum const etak2 = etak * etak;
-    Spectrum const t0 = eta2 - etak2 - si;
-    Spectrum const apb = (t0 * t0 + eta2 * etak2 * 4).sqrt();
-    Spectrum const t1 = apb + c2;
-    Spectrum const a = ((apb + t0) * 0.5F).sqrt();
-    Spectrum const t2 = a * cos_theta_i * 2;
+    Spectrum const etaK2 = etaK * etaK;
+    Spectrum const t0 = eta2 - etaK2 - si;
+    Spectrum const aPlusB = (t0 * t0 + eta2 * etaK2 * 4).sqrt();
+    Spectrum const t1 = aPlusB + c2;
+    Spectrum const a = ((aPlusB + t0) * 0.5F).sqrt();
+    Spectrum const t2 = a * cosThetaI * 2;
     Spectrum const rs = (t1 - t2) / (t1 + t2);
-    Spectrum const t3 = si * si + apb * c2;
+    Spectrum const t3 = si * si + aPlusB * c2;
     Spectrum const t4 = t2 * si;
     Spectrum const rp = rs * (t3 - t4) / (t3 + t4);
 
     return ((rp + rs) * 0.5F).eval();
 }
+
+/// The following tests data-parallellism in the math functions.
+// TODO(krr): add data-level parallelism tests.
 } // namespace kira::vecteur
