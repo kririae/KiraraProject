@@ -23,6 +23,7 @@ concept ValidVecteurConstructor = requires {
     Vecteur<T, N, VecteurBackend::Lazy>{std::declval<Args>()...};
 };
 
+#if (defined(__clang__) and (__clang_major__ >= 18)) or (defined(__GNUC__) and (__GNUC__ >= 11))
 TEST_F(VecteurStaticTests, InvalidConstructor) {
     static_assert(
         !ValidVecteurConstructor<int, 3, int, int>,
@@ -40,6 +41,7 @@ TEST_F(VecteurStaticTests, InvalidConstructor) {
     // Indeed not possible.
     // Vecteur<int, 3, VecteurBackend::Generic> x{1.0, 2, 3};
 }
+#endif
 
 TEST_F(VecteurStaticTests, ZeroConstructor) {
     InstantiateStaticTests<int, 3>([]<typename Vecteur>() {

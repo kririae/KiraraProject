@@ -441,6 +441,8 @@ TEST_F(VecteurDynamicTests, Division) {
     });
 }
 
+// This is an exception that clang-16 cannot compile.
+#if (defined(__clang__) and (__clang_major__ >= 18)) or (defined(__GNUC__) and (__GNUC__ >= 11))
 TEST_F(VecteurDynamicTests, FresnelConductor) {
     using GenericVecteur = Vecteur<float, std::dynamic_extent, VecteurBackend::Generic>;
     using LazyVecteur = Vecteur<float, std::dynamic_extent, VecteurBackend::Lazy>;
@@ -476,3 +478,4 @@ TEST_F(VecteurDynamicTests, FresnelConductor) {
     for (std::size_t i = 0; i < rtsize; ++i)
         EXPECT_NEAR(gt[i], gt[i], 1e-4);
 }
+#endif
