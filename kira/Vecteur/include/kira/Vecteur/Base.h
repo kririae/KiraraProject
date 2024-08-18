@@ -268,6 +268,8 @@ public:
     [[nodiscard]] constexpr auto round() const { return KIRA_CONSTEXPR_DISPATCH0(round_); }
     /// Square root of all elements in the vector.
     [[nodiscard]] constexpr auto sqrt() const { return KIRA_CONSTEXPR_DISPATCH0(sqrt_); }
+    /// Reciprocal square root of all elements in the vector.
+    [[nodiscard]] constexpr auto rsqrt() const { return KIRA_CONSTEXPR_DISPATCH0(rsqrt_); }
     /// Negate all elements in the vector.
     [[nodiscard]] constexpr auto neg() const { return KIRA_CONSTEXPR_DISPATCH0(neg_); }
     /// Square all elements in the vector.

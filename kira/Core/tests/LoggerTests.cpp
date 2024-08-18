@@ -1,18 +1,3 @@
-<<<<<<< HEAD
-=======
-/*
- * This file is part of AEROCAE, a computational fluid dynamics system.
- *
- * Created Date: Thursday, August 8th 2024, 12:05:23 am
- * Author: Zike Xu
- * -----
- * Last Modified: Sun Aug 11 2024
- * Modified By: Zike Xu
- * -----
- * Copyright (c) 2024 AEROCAE
- */
-
->>>>>>> b04e27c (feat: initiate and partially add highway as backend)
 #include <gtest/gtest.h>
 
 #include <cstdlib>

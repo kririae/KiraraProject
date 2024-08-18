@@ -14,6 +14,9 @@ namespace kira::vecteur {
 //! For example, when evaluating the expression `auto d = a + b + c`, the expression tree will be
 //! `d = CwiseBinaryOp(a, CwiseBinaryOp(b, c))`, which results in a temporary object being created
 //! at `CwiseBinaryOp(b, c)`.
+//!
+//! The temporary variable is a xvalue, whose lifetime cannot be extended, thus is should be
+//! captured into a either a `UnitaryOp` object or by-value to a node.
 
 template <typename Scalar, std::size_t Size, typename Derived>
 struct VecteurImpl<Scalar, Size, VecteurBackend::Lazy, false, Derived>
@@ -152,6 +155,7 @@ public:
     constexpr auto log_() const { return __make_unary_op0<detail::UnaryOp0Log>(); }
     constexpr auto round_() const { return __make_unary_op0<detail::UnaryOp0Round>(); }
     constexpr auto sqrt_() const { return __make_unary_op0<detail::UnaryOp0Sqrt>(); }
+    constexpr auto rsqrt_() const { return __make_unary_op0<detail::UnaryOp0RSqrt>(); }
     constexpr auto neg_() const { return __make_unary_op0<detail::UnaryOp0Neg>(); }
     constexpr auto sqr_() const { return __make_unary_op0<detail::UnaryOp0Sqr>(); }
 };
