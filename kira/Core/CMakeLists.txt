@@ -41,34 +41,50 @@ CPMAddPackage(
     "REFLECTCPP_BUILD_SHARED OFF"
 )
 
+CPMAddPackage(
+  NAME tomlplusplus
+  URL "https://github.com/marzer/tomlplusplus/archive/refs/tags/v3.4.0.tar.gz"
+)
+
+CPMAddPackage(
+  NAME magic_enum
+  GITHUB_REPOSITORY Neargye/magic_enum
+  VERSION 0.9.6
+)
+
 # ----------------------------------------------------------
 # Do add module
 # ----------------------------------------------------------
 krr_add_module(kira Core
   HEADERS
     kira/detail/Logger.h
+    kira/detail/PropertiesMixin.h
     kira/Anyhow.h
     kira/Assertions.h
     kira/CommitHash.h
     kira/Compiler.h
+    kira/Core.h
     kira/FileResolver.h
-    kira/KIRA.h
     kira/Logger.h
     kira/Macros.h
+    kira/Properties.h
     kira/Reflection.h
     kira/SmallVector.h
     kira/Types.h
     kira/Utils.h
     kira/Version.h
   SOURCES
+    Core.cpp
     FileResolver.cpp
-    KIRA.cpp
     Logger.cpp
+    Properties.cpp
     SmallVector.cpp
   HARD_DEPENDENCIES
     fmt::fmt
+    magic_enum
     reflectcpp
     spdlog::spdlog
+    tomlplusplus::tomlplusplus
   CMAKE_SUBDIRS
     tests
 )

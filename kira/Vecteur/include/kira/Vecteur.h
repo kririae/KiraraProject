@@ -15,6 +15,7 @@ using vecteur::Vecteur;
 using vecteur::VecteurBackend;
 
 // Unless otherwise specified, use the generic backend for now.
+// "Application speedups through core library changes"
 constexpr auto defaultBackend = VecteurBackend::Generic;
 
 using VecXi = Vecteur<int, std::dynamic_extent, defaultBackend>;

@@ -21,3 +21,6 @@
 - Hybrid testing framework with `ut2` and `gtest`
 - SSA-like operations on Vecteur
 - Operations with type prompted in Vecteur, i.e., float op int -> float.
+- PCH not introduced for now, for potential cxx module support.
+- TODO: more Vecteur initialization schemes.
+- TODO: add `mimalloc` and `backward-cpp`.

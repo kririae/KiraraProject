@@ -1,7 +1,5 @@
 #pragma once
 
-#include <fmt/core.h>
-
 namespace kira {
 /// \brief Cherry-picked useful macros from LLVM and some elsewhere.
 /// \{
