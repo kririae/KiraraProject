@@ -36,7 +36,7 @@ endif()
 
 CPMAddPackage(
   NAME reflect-cpp
-  URL "https://github.com/getml/reflect-cpp/archive/refs/tags/v0.14.0.tar.gz"
+  URL "https://github.com/getml/reflect-cpp/archive/refs/tags/v0.14.1.tar.gz"
   OPTIONS
     "REFLECTCPP_BUILD_SHARED OFF"
 )
@@ -44,12 +44,33 @@ CPMAddPackage(
 CPMAddPackage(
   NAME tomlplusplus
   URL "https://github.com/marzer/tomlplusplus/archive/refs/tags/v3.4.0.tar.gz"
+  DOWNLOAD_ONLY
 )
+
+if(tomlplusplus_ADDED)
+  # Hack the tomlplusplus so that it can be used with installation rules
+  add_library(tomlplusplus INTERFACE)
+  target_include_directories(tomlplusplus INTERFACE ${tomlplusplus_SOURCE_DIR}/include)
+
+  install(
+    DIRECTORY ${tomlplusplus_SOURCE_DIR}/include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    COMPONENT tomlplusplus
+    FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
+  )
+
+  install(TARGETS tomlplusplus 
+    EXPORT kiraTargets
+    INCLUDES ${CMAKE_INSTALL_INCLUDEDIR}
+  )
+endif()
 
 CPMAddPackage(
   NAME magic_enum
   GITHUB_REPOSITORY Neargye/magic_enum
   VERSION 0.9.6
+  OPTIONS
+    "MAGIC_ENUM_OPT_INSTALL ON"
 )
 
 # ----------------------------------------------------------
@@ -58,7 +79,7 @@ CPMAddPackage(
 krr_add_module(kira Core
   HEADERS
     kira/detail/Logger.h
-    kira/detail/PropertiesMixin.h
+    kira/detail/PropertiesMixins.h
     kira/Anyhow.h
     kira/Assertions.h
     kira/CommitHash.h
@@ -84,7 +105,7 @@ krr_add_module(kira Core
     magic_enum
     reflectcpp
     spdlog::spdlog
-    tomlplusplus::tomlplusplus
+    tomlplusplus
   CMAKE_SUBDIRS
     tests
 )

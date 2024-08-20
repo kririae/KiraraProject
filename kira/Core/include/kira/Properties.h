@@ -9,25 +9,22 @@
 #include <span>
 
 #include "kira/Anyhow.h"
-#include "kira/Assertions.h"
 #include "kira/SmallVector.h"
-#include "kira/detail/PropertiesMixin.h"
+#include "kira/detail/PropertiesMixins.h"
 
 namespace kira {
 /// The to-be-specialized PropertyProcessor class that converts TOML native types to C++ types.
 template <class T> struct PropertyProcessor : std::false_type {};
 
-namespace detail {
-template <class Derived> class PropertiesMixin;
-} // namespace detail
-
-class Properties : public detail::PropertiesMixin<Properties> {
-    // On standard library like containers, we use the `camel_case` naming convention, as if it is a
-    // imported class.
+/// The associative class that stores properties in a TOML table.
+class Properties : public detail::PropertiesAccessMixin<Properties>,
+                   public detail::PropertiesUseQueryMixin {
+    // On standard library like containers, we use the `camel_case` naming convention, as if it is
+    // an imported class.
 
 public:
     template <typename T> friend struct PropertyProcessor;
-    friend class PropertiesMixin<Properties>;
+    friend class PropertiesAccessMixin<Properties>;
 
     Properties() = default;
     Properties(Properties const &) = default;
@@ -35,12 +32,15 @@ public:
     Properties &operator=(Properties const &) = default;
     Properties &operator=(Properties &&) noexcept = default;
 
-    /// Construct a new Properties object from a TOML table and the corresponding source file.
+    /// Construct a new \c Properties object from a TOML table and the corresponding source file.
     Properties(toml::table table, std::string_view source);
     /// \copydoc Properties(toml::table, std::string_view)
     Properties(toml::table table, SmallVector<std::string> source);
 
     /// Clear the table and source.
+    ///
+    /// \remark This is a unsafe operation, as it will invalidate all the views to the \c
+    /// Properties.
     void clear() noexcept {
         table.clear();
         sourceLines.clear();
@@ -49,22 +49,20 @@ public:
     /// Check if the table is empty.
     [[nodiscard]] bool empty() const noexcept { return table.empty(); }
 
-    /// Get the TOML representation of the table.
-    [[nodiscard]] std::string to_toml() const {
-        std::ostringstream oss;
-        oss << table;
-        return oss.str();
-    }
+public:
+    using ReflectionType = std::string;
+    Properties(ReflectionType const &archive) : Properties(toml::parse(archive), archive) {}
+    [[nodiscard]] ReflectionType reflection() const { return to_toml(); }
 
 private:
-    /// Get within the TOML node with the given key.
-    [[nodiscard]] auto get_node_(std::string_view key) { return table.get(key); }
-    /// \copydoc get_node_(std::string_view)
-    [[nodiscard]] auto get_node_(std::string_view key) const { return table.get(key); }
+    /// Get the underlying table.
+    [[nodiscard]] toml::table &get_table_() noexcept { return table; }
+    /// Get the underlying table.
+    [[nodiscard]] toml::table const &get_table_() const noexcept { return table; }
 
     /// Get the diagnostic message for the given source region.
-    [[nodiscard]]
-    std::optional<std::string> get_diagnostic_(toml::source_region const &region) const;
+    [[nodiscard]] std::optional<std::string> get_diagnostic_(toml::source_region const &region
+    ) const;
 
 private:
     toml::table table;
@@ -73,14 +71,18 @@ private:
 
 /// The PropertiesView class that provides a view to the Properties object.
 ///
-/// \tparam Mutable Whether the view is mutable or not, i.e., can it modify the underlying table.
-template <bool Mutable>
-class PropertiesView : public detail::PropertiesMixin<PropertiesView<Mutable>> {
+/// \tparam IsMutable Whether the view is mutable or not, i.e., can it modify the underlying table.
+/// \remark The PropertiesView class tracks only the source info and the underlying table, but not
+/// the usage status as tracked by \c PropertiesUseQueryMixin.
+template <bool IsMutable>
+class PropertiesView : public detail::PropertiesAccessMixin<PropertiesView<IsMutable>>,
+                       public detail::PropertiesUseQueryMixin {
 public:
-    using ViewType = std::conditional_t<Mutable, toml::node, toml::node const>;
+    using ViewType = std::conditional_t<IsMutable, toml::node, toml::node const>;
 
     template <typename T> friend struct PropertyProcessor;
-    friend class detail::PropertiesMixin<PropertiesView>;
+    friend class detail::PropertiesAccessMixin<PropertiesView>;
+    friend class detail::PropertiesUseQueryMixin;
 
     PropertiesView() = delete;
     PropertiesView(PropertiesView const &) = default;
@@ -90,14 +92,13 @@ public:
 
     /// Construct a new PropertiesView object from a TOML table node view and the corresponding
     /// source file.
+    ///
+    /// \remark tableView must be a valid table node, otherwise segfault will occur.
     PropertiesView(
         toml::node_view<ViewType> tableView, std::span<std::string const> sourceLinesView
     )
-        : tableView(tableView), sourceLinesView(sourceLinesView) {
-        KIRA_ASSERT(
-            tableView.is_table(), "PropertyView should be constructed from a valid table node"
-        );
-    }
+        : detail::PropertiesUseQueryMixin(*tableView.as_table()), tableView(tableView),
+          sourceLinesView(sourceLinesView) {}
 
     /// Check if the table is empty.
     [[nodiscard]] bool empty() const noexcept { return tableView.as_table()->empty(); }
@@ -109,22 +110,27 @@ public:
         return oss.str();
     }
 
-private:
-    /// Get within the TOML node with the given key.
-    [[nodiscard]] auto get_node_(std::string_view key)
-        requires(Mutable)
-    {
-        return tableView.as_table()->get(key);
+    /// Clone a copy of the underlying table.
+    [[nodiscard]]
+    auto clone() const {
+        // As `toml::table` will not copy the source info, no source info is copied here.
+        return Properties{*tableView.as_table(), ""};
     }
 
-    /// \copydoc get_node_(std::string_view)
-    [[nodiscard]] auto get_node_(std::string_view key) const {
-        return tableView.as_table()->get(key);
+private:
+    /// Get the underlying table.
+    [[nodiscard]] toml::table &get_table_() noexcept
+        requires(IsMutable)
+    {
+        return *tableView.as_table();
     }
+
+    /// Get the underlying table.
+    [[nodiscard]] toml::table const &get_table_() const noexcept { return *tableView.as_table(); }
 
     /// Get the diagnostic message for the given source region.
-    [[nodiscard]]
-    std::optional<std::string> get_diagnostic_(toml::source_region const &region) const;
+    [[nodiscard]] std::optional<std::string> get_diagnostic_(toml::source_region const &region
+    ) const;
 
 private:
     toml::node_view<ViewType> tableView;
@@ -146,16 +152,16 @@ using ImmutablePropertiesView = PropertiesView<false>;
             if (value)                                                                             \
                 return value.value();                                                              \
             throw Anyhow(                                                                          \
-                false, "Expected a {}, but got a(an) {}", name, magic_enum::enum_name(node.type()) \
+                "Expected a {}, but got a(an) {}", name, magic_enum::enum_name(node.type())        \
             );                                                                                     \
         }                                                                                          \
-    }; /**/
+    };
 
 KIRA_PROPERTY_PROCESSOR(bool);
 KIRA_PROPERTY_PROCESSOR(int);
 KIRA_PROPERTY_PROCESSOR(int64_t);
 KIRA_PROPERTY_PROCESSOR(uint32_t);
-KIRA_PROPERTY_PROCESSOR(uint64_t);
+/* KIRA_PROPERTY_PROCESSOR(uint64_t); */ // not supported by toml++
 KIRA_PROPERTY_PROCESSOR(float);
 KIRA_PROPERTY_PROCESSOR(double);
 KIRA_PROPERTY_PROCESSOR(std::string);
@@ -163,7 +169,7 @@ KIRA_PROPERTY_PROCESSOR(std::string);
 
 template <> struct PropertyProcessor<std::filesystem::path> : std::true_type {
     static constexpr std::string_view name = "std::filesystem::path";
-    static auto to_toml(auto const &props) { return props.to_toml(); }
+    static auto to_toml(auto const &props) { return props.string(); }
     static auto from_toml(toml::node &node, auto...) {
         return std::filesystem::path(node.template value<std::string>().value());
     }
@@ -171,46 +177,40 @@ template <> struct PropertyProcessor<std::filesystem::path> : std::true_type {
 
 template <> struct PropertyProcessor<Properties> : std::true_type {
     static constexpr std::string_view name = "kira::Properties";
-    static auto to_toml(auto const &props) { return props.to_toml(); }
+    static auto to_toml(auto const &props) { return props.table; }
     static auto from_toml(auto &node, auto...) {
         if (!node.is_table())
-            throw Anyhow(
-                false, "Expected a table, but got a(an) {}", magic_enum::enum_name(node.type())
-            );
+            throw Anyhow("Expected a table, but got a(an) {}", magic_enum::enum_name(node.type()));
         return Properties{*node.as_table(), std::string_view{}};
     }
 };
 
-template <bool Mutable> struct PropertyProcessor<PropertiesView<Mutable>> : std::true_type {
-    using ViewType = toml::node_view<typename PropertiesView<Mutable>::ViewType>;
+template <bool IsMutable> struct PropertyProcessor<PropertiesView<IsMutable>> : std::true_type {
+    using ViewType = toml::node_view<typename PropertiesView<IsMutable>::ViewType>;
 
-public:
     static constexpr std::string_view name = "kira::PropertiesView";
-    static auto to_toml(auto const &props) { return props.to_toml(); }
+    static auto to_toml(auto const &props) { return props.clone().table; }
 
     /// Construct a PropertiesView from a TOML node and a Properties object.
-    static auto from_toml(auto &node, Properties const &props) {
+    static auto from_toml(auto &node, Properties &props) {
         if (!node.is_table())
-            throw Anyhow(
-                false, "Expected a table, but got a(an) {}", magic_enum::enum_name(node.type())
-            );
-        return PropertiesView<Mutable>(
+            throw Anyhow("Expected a table, but got a(an) {}", magic_enum::enum_name(node.type()));
+        return PropertiesView<IsMutable>(
             ViewType{node}, std::span{props.sourceLines.begin(), props.sourceLines.end()}
         );
     }
 
     /// Construct a PropertiesView from a TOML node and another PropertiesView object.
-    template <bool Mutable_>
-    static auto from_toml(auto &node, PropertiesView<Mutable_> const &props) {
-        static_assert(
-            not(Mutable || Mutable_),
-            "Cannot construct a mutable PropertiesView from an immutable PropertiesView"
-        );
-        if (!node.is_table())
-            throw Anyhow(
-                false, "Expected a table, but got a(an) {}", magic_enum::enum_name(node.type())
+    template <bool IsMutable_>
+    static auto from_toml(auto &node, PropertiesView<IsMutable_> &props) {
+        if constexpr (not IsMutable_)
+            static_assert(
+                not IsMutable,
+                "Cannot construct an immutable PropertiesView from a mutable PropertiesView"
             );
-        return PropertiesView<Mutable>(ViewType{node}, props.sourceLinesView);
+        if (!node.is_table())
+            throw Anyhow("Expected a table, but got a(an) {}", magic_enum::enum_name(node.type()));
+        return PropertiesView<IsMutable>(ViewType{node}, props.sourceLinesView);
     }
 };
 } // namespace kira

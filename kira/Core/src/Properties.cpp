@@ -3,12 +3,15 @@
 #include "kira/Properties.h"
 // clang-format on
 
+#include <fmt/color.h>
+
 #include <ostream>
 
 #include "kira/Assertions.h"
 
 namespace kira {
-Properties::Properties(toml::table table, std::string_view source) : table{std::move(table)} {
+Properties::Properties(toml::table table, std::string_view source)
+    : detail::PropertiesUseQueryMixin(table), table{std::move(table)} {
     std::istringstream stream{std::string{source}};
     std::string line;
     while (std::getline(stream, line))
@@ -16,9 +19,18 @@ Properties::Properties(toml::table table, std::string_view source) : table{std::
 }
 
 Properties::Properties(toml::table table, SmallVector<std::string> source)
-    : table{std::move(table)}, sourceLines{std::move(source)} {}
+    : PropertiesUseQueryMixin(table), table{std::move(table)}, sourceLines{std::move(source)} {}
 
 namespace {
+#if 0
+auto get_range_decorator(size_t len) {
+    return fmt::format(
+        "{}",
+        fmt::styled(std::string(len, '^'), fmt::fg(fmt::color::light_green) | fmt::emphasis::bold)
+    );
+}
+#endif
+
 std::optional<std::string>
 get_diagnostic_impl(toml::source_region const &region, auto const &sourceLines) {
     if (region.begin.line - 1 >= sourceLines.size() || region.end.line - 1 >= sourceLines.size())
