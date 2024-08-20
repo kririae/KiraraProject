@@ -99,11 +99,10 @@ function(krr_add_module project_name module_name)
 
   # Install the library
   install(TARGETS ${module_base_name}
+    EXPORT ${project_name}Targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    # EXPORT ${project_name}Targets
-    # COMPONENT ${module_name}
   )
 endfunction()

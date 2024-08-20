@@ -1,5 +1,5 @@
 include(CMakePackageConfigHelpers)
-project(kira LANGUAGES CXX)
+project(kira LANGUAGES C CXX)
 
 set(_kira_modules
   Core
@@ -7,9 +7,6 @@ set(_kira_modules
   Geometry
   Vecteur
 )
-
-set(CMAKE_SHARED_LIBRARY_PREFIX_CXX "")
-set(CMAKE_STATIC_LIBRARY_PREFIX_CXX "")
 
 foreach(module ${_kira_modules})
   add_subdirectory(${module})
@@ -34,5 +31,23 @@ install(TARGETS ${PROJECT_NAME}
 install(EXPORT ${PROJECT_NAME}Targets
   FILE ${PROJECT_NAME}Targets.cmake
   NAMESPACE ${PROJECT_NAME}::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+)
+
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake"
+  VERSION "${KIRA_VERSION_MAJOR}.${KIRA_VERSION_MINOR}.${KIRA_VERSION_PATCH}"
+  COMPATIBILITY SameMajorVersion
+)
+
+configure_package_config_file(
+  "${CMAKE_SOURCE_DIR}/cmake/${PROJECT_NAME}Config.cmake.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+)
+
+install(FILES
+  "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
+  "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake"
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
 )

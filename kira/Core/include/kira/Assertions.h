@@ -41,7 +41,10 @@ consteval std::string_view __filename(std::string_view sv) {
 #define __FILENAME__ ::kira::detail::__filename(__FILE__) /**/
 
 #define KIRA_FORCE_ASSERT(cond, ...)                                                               \
-    ::kira::detail::__assert(#cond, __FILENAME__, __LINE__, (cond)__VA_OPT__(, ) __VA_ARGS__) /**/
+    do {                                                                                           \
+        constexpr auto filename = __FILENAME__;                                                    \
+        ::kira::detail::__assert(#cond, filename, __LINE__, (cond)__VA_OPT__(, ) __VA_ARGS__);     \
+    } while (false)
 
 #if !defined(NDEBUG)
 #define KIRA_ASSERT(cond, ...) KIRA_FORCE_ASSERT(cond, __VA_ARGS__)
