@@ -33,6 +33,10 @@ auto get_range_decorator(size_t len) {
 
 std::optional<std::string>
 get_diagnostic_impl(toml::source_region const &region, auto const &sourceLines) {
+    // invalid region
+    if (region.begin.line == 0 || region.begin.column == 0 || region.end.line == 0 ||
+        region.end.column == 0)
+        return std::nullopt;
     if (region.begin.line - 1 >= sourceLines.size() || region.end.line - 1 >= sourceLines.size())
         return std::nullopt;
 

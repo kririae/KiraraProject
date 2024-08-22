@@ -30,6 +30,7 @@ public:
         return *this;
     }
 
+    /// Set the filter level for the logger.
     [[nodiscard]] LoggerBuilder &filter_level(spdlog::level::level_enum const &level) noexcept {
         this->level = level;
         return *this;

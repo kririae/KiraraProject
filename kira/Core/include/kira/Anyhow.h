@@ -12,8 +12,6 @@ namespace kira {
 /// \remark Generally, one should not call with \c logToConsole set to \c true, as the exception
 /// might be rethrown.
 class Anyhow : public std::exception {
-    // https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#e14-use-purpose-designed-user-defined-types-as-exceptions-not-built-in-types
-
 public:
     /// Construct an exception with default message.
     template <typename Boolean>
@@ -73,7 +71,10 @@ public:
     [[nodiscard]] ReflectionType reflection() const { return message; }
 
 private:
+    /// The message associated with the exception.
     std::string message;
+
+    /// The source location where the exception was thrown.
     std::source_location sourceLoc;
 };
 } // namespace kira

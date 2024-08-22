@@ -43,3 +43,9 @@ TEST(EigenTests, NodeCont) {
 
     auto e = al * bl + bl;
 }
+
+TEST(EigenTests, Fresnel) {
+    float vdotH(0.1);
+    Eigen::Vector3f f0(0.1f, 0.2f, 0.3f);
+    Eigen::Vector3f f = f0 + (Eigen::Vector3f::Ones() - f0) * std::pow(1.0 - vdotH, 5.0f);
+}

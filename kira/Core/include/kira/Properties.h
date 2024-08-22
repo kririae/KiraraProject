@@ -1,10 +1,5 @@
 #pragma once
 
-// clang-format off
-#define TOML_HEADER_ONLY 0
-#include <toml++/toml.hpp>
-// clang-format on
-
 #include <magic_enum.hpp>
 #include <span>
 
@@ -13,8 +8,12 @@
 #include "kira/detail/PropertiesMixins.h"
 
 namespace kira {
-/// The to-be-specialized PropertyProcessor class that converts TOML native types to C++ types.
+/// The to-be-specialized PropertyProcessor class that converts TOML native types <-> C++ types.
 template <class T> struct PropertyProcessor : std::false_type {};
+
+// -----------------------------------------------------------------------------------------------------------------
+/// Properties
+// -----------------------------------------------------------------------------------------------------------------
 
 /// The associative class that stores properties in a TOML table.
 class Properties : public detail::PropertiesAccessMixin<Properties>,
@@ -44,6 +43,7 @@ public:
     void clear() noexcept {
         table.clear();
         sourceLines.clear();
+        useMap.clear();
     }
 
     /// Check if the table is empty.
@@ -69,6 +69,10 @@ private:
     SmallVector<std::string> sourceLines;
 };
 
+// -----------------------------------------------------------------------------------------------------------------
+// PropertiesView
+// -----------------------------------------------------------------------------------------------------------------
+
 /// The PropertiesView class that provides a view to the Properties object.
 ///
 /// \tparam IsMutable Whether the view is mutable or not, i.e., can it modify the underlying table.
@@ -90,7 +94,7 @@ public:
     PropertiesView &operator=(PropertiesView const &) = default;
     PropertiesView &operator=(PropertiesView &&) noexcept = default;
 
-    /// Construct a new PropertiesView object from a TOML table node view and the corresponding
+    /// Construct a new \c PropertiesView object from a TOML table node view and the corresponding
     /// source file.
     ///
     /// \remark tableView must be a valid table node, otherwise segfault will occur.
@@ -100,15 +104,20 @@ public:
         : detail::PropertiesUseQueryMixin(*tableView.as_table()), tableView(tableView),
           sourceLinesView(sourceLinesView) {}
 
+    /// Clear the table.
+    ///
+    /// By clearing the table there, we do not mean by reset the reference, but to clear the
+    /// underlying content in the referenced table.
+    void clear() noexcept
+        requires(IsMutable)
+    {
+        get_table_().clear();
+        sourceLinesView = {};
+        useMap.clear();
+    }
+
     /// Check if the table is empty.
     [[nodiscard]] bool empty() const noexcept { return tableView.as_table()->empty(); }
-
-    /// Get the TOML representation of the table.
-    [[nodiscard]] std::string to_toml() const {
-        std::ostringstream oss;
-        oss << tableView;
-        return oss.str();
-    }
 
     /// Clone a copy of the underlying table.
     [[nodiscard]]
@@ -143,6 +152,105 @@ template class PropertiesView<false>;
 using MutablePropertiesView = PropertiesView<true>;
 using ImmutablePropertiesView = PropertiesView<false>;
 
+// -----------------------------------------------------------------------------------------------------------------
+// PropertiesArray
+// -----------------------------------------------------------------------------------------------------------------
+
+class PropertiesArray : public detail::PropertiesArrayAccessMixin<PropertiesArray> {
+public:
+    template <typename T> friend struct PropertyProcessor;
+    friend class detail::PropertiesArrayAccessMixin<PropertiesArray>;
+
+    PropertiesArray() = default;
+    PropertiesArray(PropertiesArray const &) = default;
+    PropertiesArray(PropertiesArray &&) noexcept = default;
+    PropertiesArray &operator=(PropertiesArray const &) = default;
+    PropertiesArray &operator=(PropertiesArray &&) noexcept = default;
+
+    /// Construct a new \c PropertiesArray object from a TOML array.
+    PropertiesArray(toml::array array) : array(std::move(array)) {}
+
+    /// Clear the array.
+    ///
+    /// \remark This is a unsafe operation, as it will invalidate all the views to the \c
+    /// PropertiesArray.
+    void clear() noexcept { array.clear(); }
+
+    /// Check if the array is empty.
+    [[nodiscard]] bool empty() const noexcept { return array.empty(); }
+
+    /// Get the size of the array.
+    [[nodiscard]] auto size() const noexcept { return array.size(); }
+
+private:
+    [[nodiscard]] toml::array &get_array_() noexcept { return array; }
+    [[nodiscard]] toml::array const &get_array_() const noexcept { return array; }
+
+    toml::array array;
+};
+
+// -----------------------------------------------------------------------------------------------------------------
+// PropertiesArrayView
+// -----------------------------------------------------------------------------------------------------------------
+
+template <bool IsMutable>
+class PropertiesArrayView
+    : public detail::PropertiesArrayAccessMixin<PropertiesArrayView<IsMutable>> {
+public:
+    using ViewType = std::conditional_t<IsMutable, toml::node, toml::node const>;
+
+    template <typename T> friend struct PropertyProcessor;
+    friend class detail::PropertiesArrayAccessMixin<PropertiesArrayView>;
+
+    PropertiesArrayView() = delete;
+    PropertiesArrayView(PropertiesArrayView const &) = default;
+    PropertiesArrayView(PropertiesArrayView &&) noexcept = default;
+    PropertiesArrayView &operator=(PropertiesArrayView const &) = default;
+    PropertiesArrayView &operator=(PropertiesArrayView &&) noexcept = default;
+
+    /// Construct a new \c PropertiesArrayView object from a TOML array node view.
+    ///
+    /// \remark arrayView must be a valid array node, otherwise segfault will occur.
+    PropertiesArrayView(toml::node_view<ViewType> arrayView) : arrayView(arrayView) {}
+
+    /// Clear the array.
+    ///
+    /// By clearing the array here, we do not mean by resetting the reference, but by clearing the
+    /// content inside the referenced array. The key will be retained.
+    void clear() noexcept
+        requires(IsMutable)
+    {
+        return get_array_().clear();
+    }
+
+    /// Check if the array is empty.
+    [[nodiscard]] bool empty() const noexcept { return get_array_().empty(); }
+
+    /// Get the size of the array.
+    [[nodiscard]] auto size() const noexcept { return get_array_().size(); }
+
+    /// Clone a copy of the underlying array.
+    [[nodiscard]] auto clone() const { return PropertiesArray{get_array_()}; }
+
+private:
+    [[nodiscard]] toml::array &get_array_() noexcept
+        requires(IsMutable)
+    {
+        return *arrayView.as_array();
+    }
+
+    [[nodiscard]] toml::array const &get_array_() const noexcept { return *arrayView.as_array(); }
+
+    toml::node_view<ViewType> arrayView;
+};
+
+using MutablePropertiesArrayView = PropertiesArrayView<true>;
+using ImmutablePropertiesArrayView = PropertiesArrayView<false>;
+
+// -----------------------------------------------------------------------------------------------------------------
+// PropertyProcessor
+// -----------------------------------------------------------------------------------------------------------------
+
 #define KIRA_PROPERTY_PROCESSOR(T)                                                                 \
     template <> struct PropertyProcessor<T> : std::true_type {                                     \
         static constexpr std::string_view name = #T;                                               \
@@ -166,6 +274,18 @@ KIRA_PROPERTY_PROCESSOR(float);
 KIRA_PROPERTY_PROCESSOR(double);
 KIRA_PROPERTY_PROCESSOR(std::string);
 #undef KIRA_PROPERTY_PROCESSOR
+
+// This gives the possibility to invoke `arr.push_back("str")`.
+template <size_t N> struct PropertyProcessor<char[N]> : std::true_type {
+    static constexpr std::string_view name = "std::string";
+    static auto to_toml(auto const &v) { return std::string{v}; }
+    static auto from_toml(auto &&node, auto...) {
+        auto const &value = node.template value<std::string>();
+        if (value)
+            return value.value();
+        throw Anyhow("Expected a {}, but got a(an) {}", name, magic_enum::enum_name(node.type()));
+    }
+};
 
 template <> struct PropertyProcessor<std::filesystem::path> : std::true_type {
     static constexpr std::string_view name = "std::filesystem::path";
@@ -191,6 +311,13 @@ template <bool IsMutable> struct PropertyProcessor<PropertiesView<IsMutable>> : 
     static constexpr std::string_view name = "kira::PropertiesView";
     static auto to_toml(auto const &props) { return props.clone().table; }
 
+    /// Construct a PropertiesView from only a TOML node.
+    static auto from_toml(auto &node, auto...) {
+        if (!node.is_table())
+            throw Anyhow("Expected a table, but got a(an) {}", magic_enum::enum_name(node.type()));
+        return PropertiesView<IsMutable>(ViewType{node}, std::span<std::string const>{});
+    }
+
     /// Construct a PropertiesView from a TOML node and a Properties object.
     static auto from_toml(auto &node, Properties &props) {
         if (!node.is_table())
@@ -205,12 +332,35 @@ template <bool IsMutable> struct PropertyProcessor<PropertiesView<IsMutable>> : 
     static auto from_toml(auto &node, PropertiesView<IsMutable_> &props) {
         if constexpr (not IsMutable_)
             static_assert(
-                not IsMutable,
+                !IsMutable,
                 "Cannot construct an immutable PropertiesView from a mutable PropertiesView"
             );
         if (!node.is_table())
             throw Anyhow("Expected a table, but got a(an) {}", magic_enum::enum_name(node.type()));
         return PropertiesView<IsMutable>(ViewType{node}, props.sourceLinesView);
+    }
+};
+
+template <> struct PropertyProcessor<PropertiesArray> : std::true_type {
+    static constexpr std::string_view name = "kira::PropertiesArray";
+    static auto to_toml(auto const &props) { return props.array; }
+    static auto from_toml(auto &node, auto...) {
+        if (!node.is_array())
+            throw Anyhow("Expected an array, but got a(an) {}", magic_enum::enum_name(node.type()));
+        return PropertiesArray{*node.as_array()};
+    }
+};
+
+template <bool IsMutable>
+struct PropertyProcessor<PropertiesArrayView<IsMutable>> : std::true_type {
+    using ViewType = toml::node_view<typename PropertiesArrayView<IsMutable>::ViewType>;
+
+    static constexpr std::string_view name = "kira::PropertiesArrayView";
+    static auto to_toml(auto const &props) { return props.clone().array; }
+    static auto from_toml(auto &node, auto...) {
+        if (!node.is_array())
+            throw Anyhow("Expected an array, but got a(an) {}", magic_enum::enum_name(node.type()));
+        return PropertiesArrayView<IsMutable>{ViewType{node}};
     }
 };
 } // namespace kira
