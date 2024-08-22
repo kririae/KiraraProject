@@ -1,7 +1,11 @@
 #pragma once
 
-#include <string_view>
+// clang-format off
+#define TOML_HEADER_ONLY 0
 #include <toml++/toml.hpp>
+// clang-format on
+
+#include <string_view>
 
 #include "kira/Anyhow.h"
 
@@ -24,13 +28,15 @@ public:
     /// This tests the possibility of invoking \c get<T>(name) without throwing an exception.
     ///
     /// \tparam T The type to check for conversion.
+    ///
     /// \param name The name of the key to check.
+    ///
     /// \return \c true if the key exists and can be converted to type \c T, \c false otherwise.
     template <typename T>
     [[nodiscard]] bool is_type_of(std::string_view name) noexcept
         requires(PropertyProcessor<T>::value)
     {
-        return type_of_impl_<Derived, T>(derived_(), name);
+        return is_type_of_impl_<Derived, T>(derived_(), name);
     }
 
     /// \copydoc is_type_of(std::string_view)
@@ -38,22 +44,23 @@ public:
     [[nodiscard]] bool is_type_of(std::string_view name) const noexcept
         requires(PropertyProcessor<T>::value)
     {
-        return type_of_impl_<Derived const, T>(derived_(), name);
+        return is_type_of_impl_<Derived const, T>(derived_(), name);
     }
 
     /// Generic getter method to retrieve properties.
     ///
     /// \tparam T The type of the property to retrieve. Can additionally be a \c Properties, \c
     /// PropertiesView<true>, or \c PropertiesView<false>.
-    /// \param name The name of the property to
-    /// retrieve.
+    ///
+    /// \param name The name of the property to retrieve.
+    ///
     /// \return The property value of type \c T.
     /// \throw Anyhow if the key does not exist.
     template <typename T>
     T get(std::string_view name)
         requires(PropertyProcessor<T>::value)
     {
-        return get_node_impl_<Derived, T>(derived_(), name);
+        return get_impl_<Derived, T>(derived_(), name);
     }
 
     /// \copydoc get(std::string_view)
@@ -61,7 +68,7 @@ public:
     T get(std::string_view name) const
         requires(PropertyProcessor<T>::value)
     {
-        return get_node_impl_<Derived const, T>(derived_(), name);
+        return get_impl_<Derived const, T>(derived_(), name);
     }
 
     /// Generic getter method to retrieve properties with a default value.
@@ -70,21 +77,23 @@ public:
     /// like conversion failure (as defined by the PropertyProcess itself) will be propagated.
     ///
     /// \tparam T The type of the property to retrieve.
+    ///
     /// \param name The name of the property to retrieve.
-    /// \param def_value The default value to return if the key does not exist.
+    /// \param defaultValue The default value to return if the key does not exist.
+    ///
     /// \return The property value of type \c T, or the default value if the key does not exist.
-    template <typename T> T get_or(std::string_view name, T const &def_value) {
+    template <typename T> T get_or(std::string_view name, T const &defaultValue) {
         auto *node = get_node_(name);
         if (!node)
-            return def_value;
+            return defaultValue;
         return get<T>(name);
     }
 
     /// \copydoc get_or(std::string_view, T const &)
-    template <typename T> T get_or(std::string_view name, T const &def_value) const {
+    template <typename T> T get_or(std::string_view name, T const &defaultValue) const {
         auto *node = get_node_(name);
         if (!node)
-            return def_value;
+            return defaultValue;
         return get<T>(name);
     }
 
@@ -98,13 +107,15 @@ public:
         auto *node = get_node_(name);
         if (node && !overwrite) {
             throw Anyhow(
-                "Key '{}' already exists: {}", name,
+                "Key '{}' already exists{}", name,
                 derived_().get_diagnostic_(node->source()).value_or("")
             );
         }
 
         derived_().mark_unused(std::string{name});
-        derived_().get_table_().insert_or_assign(name, PropertyProcessor<T>::to_toml(value));
+        derived_().get_table_().insert_or_assign(
+            name, PropertyProcessor<T>::to_toml(value), toml::preserve_source_value_flags
+        );
     }
 
     /// Get the TOML representation of the table.
@@ -129,7 +140,7 @@ public:
     }
 
 private:
-    Derived &derived_() noexcept{ return static_cast<Derived &>(*this); }
+    Derived &derived_() noexcept { return static_cast<Derived &>(*this); }
     Derived const &derived_() const noexcept { return static_cast<Derived const &>(*this); }
 
     auto get_node_(std::string_view key) noexcept { return derived_().get_table_().get(key); }
@@ -137,7 +148,7 @@ private:
 
     // no cxx 23 yet, manually implement the deducing this.
     template <typename Self, typename T>
-    static auto type_of_impl_(Self &self, std::string_view name) {
+    static auto is_type_of_impl_(Self &self, std::string_view name) {
         auto *node = self.get_node_(name);
         if (!node)
             return false;
@@ -147,8 +158,7 @@ private:
         } catch (...) { return false; }
     }
 
-    template <typename Self, typename T>
-    static auto get_node_impl_(Self &self, std::string_view name) {
+    template <typename Self, typename T> static auto get_impl_(Self &self, std::string_view name) {
         auto *node = self.get_node_(name);
         if (!node)
             throw Anyhow("Key '{}' does not exist", name);
@@ -231,8 +241,159 @@ public:
                 func(key);
     }
 
-private:
+protected:
     std::unordered_map<std::string, bool> useMap;
+};
+
+template <typename Derived> class PropertiesArrayAccessMixin {
+public:
+    /// Check if the i-th element is of the given type.
+    ///
+    /// This tests the possibility of invoking \c get<T>(index) without throwing an exception.
+    ///
+    /// \tparam T The type to check for conversion.
+    ///
+    /// \param index The index of the element to check.
+    ///
+    /// \return \c true if the element exists and can be converted to type \c T, \c false otherwise.
+    /// \see Properties::is_type_of
+    template <typename T> [[nodiscard]] bool is_type_of(std::size_t index) noexcept {
+        return is_type_of_impl_<Derived, T>(derived_(), index);
+    }
+
+    /// \copydoc is_type_of(std::size_t)
+    template <typename T> [[nodiscard]] bool is_type_of(std::size_t index) const noexcept {
+        return is_type_of_impl_<Derived const, T>(derived_(), index);
+    }
+
+    /// Generic getter method to retrieve properties.
+    ///
+    /// \tparam T The type of the property to retrieve.
+    ///
+    /// \param index The index of the element to retrieve.
+    /// \return The property value of type \c T.
+    ///
+    /// \throw Anyhow if the index is out of bounds or the element cannot be converted to type \c T.
+    template <typename T>
+    T get(std::size_t index)
+        requires(PropertyProcessor<T>::value)
+    {
+        return get_impl_<Derived, T>(derived_(), index);
+    }
+
+    /// \copydoc get(std::size_t)
+    template <typename T>
+    T get(std::size_t index) const
+        requires(PropertyProcessor<T>::value)
+    {
+        return get_impl_<Derived const, T>(derived_(), index);
+    }
+
+    /// Generic getter method to retrieve properties with a default value.
+    ///
+    /// \tparam T The type of the property to retrieve.
+    ///
+    /// \param index The index of the element to retrieve.
+    /// \param defaultValue The default value to return if the index is out of bounds.
+    ///
+    /// \return The property value of type \c T, or the default value if the index is out of bounds.
+    template <typename T>
+    T get_or(std::size_t index, T const &defaultValue)
+        requires(PropertyProcessor<T>::value)
+    {
+        auto *node = derived_().get_array_().get(index);
+        if (!node)
+            return defaultValue;
+        return get<T>(index);
+    }
+
+    /// \copydoc get_or(std::size_t, T const &)
+    template <typename T>
+    T get_or(std::size_t index, T const &defaultValue) const
+        requires(PropertyProcessor<T>::value)
+    {
+        auto *node = derived_().get_array_().get(index);
+        if (!node)
+            return defaultValue;
+        return get<T>(index);
+    }
+
+    /// Generic setter method to set properties.
+    ///
+    /// \tparam T The type of the property to set.
+    ///
+    /// \param index The index of the element to set.
+    /// \param value The value to set the property to.
+    ///
+    /// \throw std::exception if the index is out of bounds.
+    template <typename T>
+    void set(std::size_t index, T const &value)
+        requires(PropertyProcessor<T>::value)
+    {
+        if (index >= derived_().get_array_().size()) {
+            std::ostringstream oss;
+            oss << derived_().get_array_();
+            throw Anyhow("Index '{}' out of bounds in the array: \n{}\n", index, oss.str());
+        }
+
+        auto const begin = derived_().get_array_().begin();
+        derived_().get_array_().replace(
+            begin + index, PropertyProcessor<T>::to_toml(value), toml::preserve_source_value_flags
+        );
+    }
+
+    /// Push a value to the back of the array.
+    ///
+    /// \tparam T The type of the property to push.
+    ///
+    /// \param value The value to push to the back of the array.
+    template <typename T>
+    void push_back(T const &value)
+        requires(PropertyProcessor<T>::value)
+    {
+        derived_().get_array_().push_back(PropertyProcessor<T>::to_toml(value));
+    }
+
+private:
+    Derived &derived_() noexcept { return static_cast<Derived &>(*this); }
+    Derived const &derived_() const noexcept { return static_cast<Derived const &>(*this); }
+
+    template <typename Self, typename T>
+    static auto is_type_of_impl_(Self &self, std::size_t index) {
+        auto *node = self.derived_().get_array_().get(index);
+        if (!node)
+            return false;
+        try {
+            PropertyProcessor<T>::from_toml(*node);
+            return true;
+        } catch (...) { return false; }
+    }
+
+    template <typename Self, typename T> static auto get_impl_(Self &self, std::size_t index) {
+        auto *node = self.derived_().get_array_().get(index);
+        if (!node) {
+            std::ostringstream oss;
+            oss << self.derived_().get_array_();
+            throw Anyhow("Index '{}' out of bounds in the array: \n{}\n", index, oss.str());
+        }
+
+        try {
+            return PropertyProcessor<T>::from_toml(*node);
+        } catch (std::exception const &e) {
+            // TODO(krr): No diagnostic info is available for array elements for now, because of
+            // this weird design:
+            // https://github.com/marzer/tomlplusplus/issues/49#issuecomment-665089577
+            //
+            // I don't really understand why the source info is not copied and there is no other
+            // approach to copy it without forking the library, do it later.
+            std::ostringstream oss;
+            oss << self.derived_().get_array_();
+            throw Anyhow(
+                "Failed to convert element at index {} to type {}: {} in the array: \n{}\n", index,
+                PropertyProcessor<T>::name, e.what(), oss.str()
+            );
+        }
+    }
 };
 } // namespace detail
 } // namespace kira
