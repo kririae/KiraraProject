@@ -9,7 +9,7 @@
 
 namespace kira {
 /// The to-be-specialized PropertyProcessor class that converts TOML native types <-> C++ types.
-template <class T> struct PropertyProcessor : std::false_type {};
+template <class> struct PropertyProcessor : std::false_type {};
 
 // -----------------------------------------------------------------------------------------------------------------
 /// Properties
@@ -38,7 +38,7 @@ public:
 
     /// Clear the table and source.
     ///
-    /// \remark This is a unsafe operation, as it will invalidate all the views to the \c
+    /// \remark This is an unsafe operation, as it will invalidate all the views to the \c
     /// Properties.
     void clear() noexcept {
         table.clear();
@@ -120,8 +120,7 @@ public:
     [[nodiscard]] bool empty() const noexcept { return tableView.as_table()->empty(); }
 
     /// Clone a copy of the underlying table.
-    [[nodiscard]]
-    auto clone() const {
+    [[nodiscard]] auto clone() const {
         // As `toml::table` will not copy the source info, no source info is copied here.
         return Properties{*tableView.as_table(), ""};
     }
@@ -172,7 +171,7 @@ public:
 
     /// Clear the array.
     ///
-    /// \remark This is a unsafe operation, as it will invalidate all the views to the \c
+    /// \remark This is an unsafe operation, as it will invalidate all the views to the \c
     /// PropertiesArray.
     void clear() noexcept { array.clear(); }
 

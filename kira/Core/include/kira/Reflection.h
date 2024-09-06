@@ -20,10 +20,10 @@ namespace rfl = ::rfl::json;
 //! Just use the `Serialize` and `Deserialize` functions to serialize and deserialize objects.
 //!
 //! \example
-//! ```cpp
+//! \code
 //! SmallVector<int> svec{1, 2, 3};
 //! auto str = Serialize(svec);
-//! ```
+//! \endcode
 //!
 //! \see Serialize
 //! \see Deserialize

@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.27.4)
 project(kirara LANGUAGES C CXX)
 
+set(CMAKE_COLOR_DIAGNOSTICS ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_COLOR_DIAGNOSTICS ON)
-set(CMAKE_PCH_WARN_INVALID ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_PCH_WARN_INVALID ON)
 
 if(MSVC)
   add_compile_options(/Zc:preprocessor)
@@ -73,6 +73,10 @@ option(KRR_USE_MOLD "Use mold as the linker" OFF)
 
 option(KRR_ENABLE_CLANG_TIDY "Enable clang-tidy for analysis" OFF)
 
+# Optional modules
+option(KRR_BUILD_EXAMPLES "Build the examples" ON)
+option(KRR_BUILD_KIRARA_DANCE "Build the KiraraDance application" ON)
+
 # ----------------------------------------------------------
 # Dependencies
 # ----------------------------------------------------------
@@ -98,3 +102,12 @@ endif()
 # Setup projects
 # ----------------------------------------------------------
 add_subdirectory(kira)
+
+if(KRR_BUILD_EXAMPLES)
+  add_subdirectory(examples)
+endif()
+
+if(KRR_BUILD_EXAMPLES)
+  add_subdirectory(kirara-dance)
+endif()
+
