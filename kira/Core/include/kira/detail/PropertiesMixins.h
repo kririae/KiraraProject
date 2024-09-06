@@ -198,19 +198,13 @@ public:
     /// \param key The key of the property to check.
     /// \return \c true if the property is used, \c false otherwise.
     /// \throw std::exception If the property is not found, an exception is thrown.
-    [[nodiscard]]
-    bool is_used(std::string const &key) const {
-        return useMap.at(key);
-    }
+    [[nodiscard]] bool is_used(std::string const &key) const { return useMap.at(key); }
 
     /// Check if all properties are used.
     ///
     /// \return \c true if all properties are used, \c false otherwise.
-    [[nodiscard]]
-    bool is_all_used() const {
-        return std::all_of(useMap.begin(), useMap.end(), [](auto const &pair) {
-            return pair.second;
-        });
+    [[nodiscard]] bool is_all_used() const {
+        return std::ranges::all_of(useMap, [](auto const &pair) { return pair.second; });
     }
 
     /// Mark the property with the given key as used.
@@ -230,9 +224,9 @@ public:
     /// \example
     /// ```cpp
     /// Properties props;
-    /// // ... initialize props
+    /// // ... initialize
     /// props.for_each_unused([](std::string_view key) {
-    ///    std::cout << "Unused key: " << key << '\n';
+    ///    std::cout << "Unused key: " << key << "\n";
     /// });
     /// ```
     void for_each_unused(auto const &func) const {
