@@ -16,7 +16,7 @@ CPMAddPackage(
     "DILIGENT_NO_WEBGPU ON"
 
     "DILIGENT_BUILD_SAMPLES OFF"
-    "DILIGENT_BUILD_TOOLS OFF"
+    "DILIGENT_BUILD_TOOLS ON"
 )
 
 add_executable(kirara-dance

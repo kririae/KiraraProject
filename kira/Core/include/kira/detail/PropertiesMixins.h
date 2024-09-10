@@ -221,14 +221,13 @@ public:
 
     /// Iterate through all unused properties.
     ///
-    /// \example
-    /// ```cpp
+    /// Example: \code{.cpp}
     /// Properties props;
     /// // ... initialize
     /// props.for_each_unused([](std::string_view key) {
     ///    std::cout << "Unused key: " << key << "\n";
     /// });
-    /// ```
+    /// \endcode
     void for_each_unused(auto const &func) const {
         for (auto const &[key, used] : useMap)
             if (!used)

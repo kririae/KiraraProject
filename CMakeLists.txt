@@ -74,8 +74,8 @@ option(KRR_USE_MOLD "Use mold as the linker" OFF)
 option(KRR_ENABLE_CLANG_TIDY "Enable clang-tidy for analysis" OFF)
 
 # Optional modules
-option(KRR_BUILD_EXAMPLES "Build the examples" ON)
-option(KRR_BUILD_KIRARA_DANCE "Build the KiraraDance application" ON)
+option(KRR_BUILD_EXAMPLES "Build the examples" OFF)
+option(KRR_BUILD_KIRARA_DANCE "Build the KiraraDance application" OFF)
 
 # ----------------------------------------------------------
 # Dependencies
@@ -107,7 +107,6 @@ if(KRR_BUILD_EXAMPLES)
   add_subdirectory(examples)
 endif()
 
-if(KRR_BUILD_EXAMPLES)
+if(KRR_BUILD_KIRARA_DANCE)
   add_subdirectory(kirara-dance)
 endif()
-

@@ -9,7 +9,7 @@
 
 namespace kira {
 /// The logger name by default.
-constexpr detail::StringLiteral const defaultLoggerName = "kira";
+constexpr detail::StringLiteral defaultLoggerName = "kira";
 
 /// The builder to create a logger.
 class LoggerBuilder {
@@ -17,7 +17,6 @@ public:
     LoggerBuilder() noexcept : name(defaultLoggerName) {}
     LoggerBuilder(std::string_view name) noexcept : name(name) {}
 
-public:
     /// Set whether to log to console.
     [[nodiscard]] LoggerBuilder &to_console(bool console) noexcept {
         this->console = console;
@@ -79,7 +78,7 @@ private:
 
 /// Log a message at the trace level.
 template <detail::StringLiteral name = defaultLoggerName, fmt::formattable<char>... Args>
-inline void LogTrace(detail::FormatWithSourceLoc fmt, Args &&...args) {
+void LogTrace(detail::FormatWithSourceLoc fmt, Args &&...args) {
     GetLogger(name.value)
         ->log(
             detail::get_spdlog_source_loc(fmt.loc), spdlog::level::trace, fmt::runtime(fmt.fmt),
@@ -89,7 +88,7 @@ inline void LogTrace(detail::FormatWithSourceLoc fmt, Args &&...args) {
 
 /// Log a message at the debug level.
 template <detail::StringLiteral name = defaultLoggerName, fmt::formattable<char>... Args>
-inline void LogDebug(detail::FormatWithSourceLoc fmt, Args &&...args) {
+void LogDebug(detail::FormatWithSourceLoc fmt, Args &&...args) {
     GetLogger(name.value)
         ->log(
             detail::get_spdlog_source_loc(fmt.loc), spdlog::level::debug, fmt::runtime(fmt.fmt),
@@ -99,7 +98,7 @@ inline void LogDebug(detail::FormatWithSourceLoc fmt, Args &&...args) {
 
 /// Log a message at the info level.
 template <detail::StringLiteral name = defaultLoggerName, fmt::formattable<char>... Args>
-inline void LogInfo(detail::FormatWithSourceLoc fmt, Args &&...args) {
+void LogInfo(detail::FormatWithSourceLoc fmt, Args &&...args) {
     GetLogger(name.value)
         ->log(
             detail::get_spdlog_source_loc(fmt.loc), spdlog::level::info, fmt::runtime(fmt.fmt),
@@ -109,7 +108,7 @@ inline void LogInfo(detail::FormatWithSourceLoc fmt, Args &&...args) {
 
 /// Log a message at the warn level.
 template <detail::StringLiteral name = defaultLoggerName, fmt::formattable<char>... Args>
-inline void LogWarn(detail::FormatWithSourceLoc fmt, Args &&...args) {
+void LogWarn(detail::FormatWithSourceLoc fmt, Args &&...args) {
     GetLogger(name.value)
         ->log(
             detail::get_spdlog_source_loc(fmt.loc), spdlog::level::warn, fmt::runtime(fmt.fmt),
@@ -119,7 +118,7 @@ inline void LogWarn(detail::FormatWithSourceLoc fmt, Args &&...args) {
 
 /// Log a message at the error level.
 template <detail::StringLiteral name = defaultLoggerName, fmt::formattable<char>... Args>
-inline void LogError(detail::FormatWithSourceLoc fmt, Args &&...args) {
+void LogError(detail::FormatWithSourceLoc fmt, Args &&...args) {
     GetLogger(name.value)
         ->log(
             detail::get_spdlog_source_loc(fmt.loc), spdlog::level::err, fmt::runtime(fmt.fmt),
@@ -128,7 +127,7 @@ inline void LogError(detail::FormatWithSourceLoc fmt, Args &&...args) {
 }
 
 /// Flush the logger.
-template <detail::StringLiteral name = defaultLoggerName> inline void LogFlush() {
+template <detail::StringLiteral name = defaultLoggerName> void LogFlush() {
     GetLogger(name.value)->flush();
 }
 } // namespace kira

@@ -160,7 +160,7 @@ struct PSInput
 
 struct PSOutput
 {
-    float4 Color : SV_TARGET;
+    float4 wolor : SV_TARGET;
 };
 
 void main(in  PSInput  PSIn,
