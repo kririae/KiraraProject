@@ -86,7 +86,7 @@ krr_add_module(kira Core
     magic_enum
     reflectcpp
     spdlog::spdlog
-    tomlplusplus
+    tomlplusplus::tomlplusplus
   CMAKE_SUBDIRS
     tests
 )

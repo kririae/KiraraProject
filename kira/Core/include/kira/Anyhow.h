@@ -6,16 +6,16 @@
 #include "kira/Logger.h"
 
 namespace kira {
-/// A exception system that integrates with the logging system.
+/// An exception system that integrates with the logging system.
 ///
 /// \remark Anyhow should not be used during logger initialization.
 /// \remark Generally, one should not call with \c logToConsole set to \c true, as the exception
 /// might be rethrown.
-class Anyhow : public std::exception {
+class Anyhow final : public std::exception {
 public:
     /// Construct an exception with default message.
     template <typename Boolean>
-    Anyhow(
+    explicit Anyhow(
         Boolean const &logToConsole,
         std::source_location const &loc = std::source_location::current()
     )
@@ -37,16 +37,18 @@ public:
 
     /// Construct an exception with default message.
     ///
-    /// \example throw Anyhow{};
-    Anyhow(std::source_location const &loc = std::source_location::current())
+    /// Example: \code{.cpp} throw Anyhow{}; \endcode
+    explicit Anyhow(std::source_location const &loc = std::source_location::current())
         : Anyhow(false, loc) {}
 
     /// Construct an exception with a message.
     ///
-    /// \example throw Anyhow("Something went wrong");
-    /// \example throw Anyhow("Something went wrong: {}", 42);
+    /// Example: \code{.cpp}
+    /// throw Anyhow("Something went wrong");
+    /// throw Anyhow("Something went wrong: {}", 42);
+    /// \endcode
     template <typename... Args>
-    Anyhow(detail::FormatWithSourceLoc fmt, Args &&...args)
+    explicit Anyhow(detail::FormatWithSourceLoc fmt, Args &&...args)
         : Anyhow(false, fmt, std::forward<Args>(args)...) {}
 
     /// Get the message associated with the exception.

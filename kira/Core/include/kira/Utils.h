@@ -1,13 +1,12 @@
 #pragma once
 
 namespace kira {
-/// \brief Overload pattern for `std::visit`.
+/// \brief Overload pattern for \c std::visit.
 ///
 /// This struct template allows multiple callable objects to be combined
-/// into a single object, which can then be used with `std::visit`.
+/// into a single object, which can then be used with \c std::visit.
 ///
-/// \example
-/// ```cpp
+/// Example: \code{.cpp}
 /// std::visit(
 ///     kira::Overload{
 ///         [](const variant_type1& c) { /* ... */ },
@@ -16,7 +15,7 @@ namespace kira {
 ///     },
 ///     variant_object
 /// );
-/// ```
+/// \endcode
 template <class... Ts> struct Overload : Ts... {
     using Ts::operator()...;
 };
@@ -26,6 +25,8 @@ template <class... Ts> Overload(Ts...) -> Overload<Ts...>;
 
 /// Helper struct for \c std::visit with lambdas.
 ///
-/// \example ```static_assert(always_false_v<T>, "Unimplemented overload");```
+/// Example: \code{.cpp}
+/// static_assert(always_false_v<T>, "Unimplemented overload");
+/// \endcode
 template <class> inline constexpr bool always_false_v = false;
 } // namespace kira

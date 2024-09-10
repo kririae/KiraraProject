@@ -94,21 +94,20 @@ using real = float32;
 ///
 /// \return A real (float32) representation of the input value.
 ///
-/// \example 3.14_R
+/// Example: 3.14_R
 real constexpr operator"" _R(long double v) { return real(v); }
 
 /// \brief User-defined literal for real (float32) values from integer literals.
 ///
 /// \return A real (float32) representation of the input value.
 ///
-/// \example 42_R
+/// Example: 42_R
 real constexpr operator"" _R(unsigned long long v) { return real(v); }
 /// \}
 } // namespace kira
 
 /// A formatter for UDL.
-namespace fmt {
-template <typename T, T Value> struct formatter<std::integral_constant<T, Value>> {
+template <typename T, T Value> struct fmt::formatter<std::integral_constant<T, Value>> {
     constexpr auto parse(format_parse_context &ctx) -> decltype(ctx.begin()) { return ctx.begin(); }
 
     template <typename FormatContext>
@@ -117,4 +116,3 @@ template <typename T, T Value> struct formatter<std::integral_constant<T, Value>
         return fmt::format_to(ctx.out(), "{}", Value);
     }
 };
-} // namespace fmt

@@ -1,0 +1,25 @@
+{
+  "files.associations": {
+    "string_view": "cpp",
+    "map": "cpp",
+    "set": "cpp",
+    "string": "cpp",
+    "unordered_map": "cpp",
+    "unordered_set": "cpp",
+    "*.tcc": "cpp",
+    "*.ipp": "cpp",
+    "atomic": "cpp",
+    "fstream": "cpp",
+    "limits": "cpp",
+    "sstream": "cpp",
+    "__hash_table": "cpp",
+    "__tree": "cpp",
+    "deque": "cpp",
+    "forward_list": "cpp",
+    "istream": "cpp",
+    "list": "cpp",
+    "locale": "cpp",
+    "regex": "cpp",
+    "vector": "cpp"
+  }
+}

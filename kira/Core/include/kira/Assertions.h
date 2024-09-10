@@ -50,12 +50,12 @@ consteval std::string_view __filename(std::string_view sv) {
         ::kira::detail::__assert(#cond, filename, __LINE__, (cond)__VA_OPT__(, ) __VA_ARGS__);     \
     } while (false)
 
-/// \brief Macro to perform an assertion in debug builds.
+#if !defined(NDEBUG)
+/// \brief Macro to perform an assertion only in debug builds.
 ///
 /// This macro will check the condition and print an error message to stderr if the condition is
 /// false, but only in debug builds (i.e., when NDEBUG is not defined). In release builds, the
 /// assertion is ignored.
-#if !defined(NDEBUG)
 #define KIRA_ASSERT(cond, ...) KIRA_FORCE_ASSERT(cond, __VA_ARGS__)
 #else
 #define KIRA_ASSERT(cond, ...)

@@ -3,7 +3,6 @@
 #include <magic_enum.hpp>
 #include <span>
 
-#include "kira/Anyhow.h"
 #include "kira/SmallVector.h"
 #include "kira/detail/PropertiesMixins.h"
 
@@ -16,8 +15,8 @@ template <class> struct PropertyProcessor : std::false_type {};
 // -----------------------------------------------------------------------------------------------------------------
 
 /// The associative class that stores properties in a TOML table.
-class Properties : public detail::PropertiesAccessMixin<Properties>,
-                   public detail::PropertiesUseQueryMixin {
+class Properties final : public detail::PropertiesAccessMixin<Properties>,
+                         public detail::PropertiesUseQueryMixin {
     // On standard library like containers, we use the `camel_case` naming convention, as if it is
     // an imported class.
 
@@ -75,14 +74,14 @@ private:
 
 /// The PropertiesView class that provides a view to the Properties object.
 ///
-/// \tparam IsMutable Whether the view is mutable or not, i.e., can it modify the underlying table.
+/// \tparam is_mutable Whether the view is mutable or not, i.e., can it modify the underlying table.
 /// \remark The PropertiesView class tracks only the source info and the underlying table, but not
 /// the usage status as tracked by \c PropertiesUseQueryMixin.
-template <bool IsMutable>
-class PropertiesView : public detail::PropertiesAccessMixin<PropertiesView<IsMutable>>,
-                       public detail::PropertiesUseQueryMixin {
+template <bool is_mutable>
+class PropertiesView final : public detail::PropertiesAccessMixin<PropertiesView<is_mutable>>,
+                             public detail::PropertiesUseQueryMixin {
 public:
-    using ViewType = std::conditional_t<IsMutable, toml::node, toml::node const>;
+    using ViewType = std::conditional_t<is_mutable, toml::node, toml::node const>;
 
     template <typename T> friend struct PropertyProcessor;
     friend class detail::PropertiesAccessMixin<PropertiesView>;
@@ -109,7 +108,7 @@ public:
     /// By clearing the table there, we do not mean by reset the reference, but to clear the
     /// underlying content in the referenced table.
     void clear() noexcept
-        requires(IsMutable)
+        requires(is_mutable)
     {
         get_table_().clear();
         sourceLinesView = {};
@@ -128,7 +127,7 @@ public:
 private:
     /// Get the underlying table.
     [[nodiscard]] toml::table &get_table_() noexcept
-        requires(IsMutable)
+        requires(is_mutable)
     {
         return *tableView.as_table();
     }
@@ -155,7 +154,7 @@ using ImmutablePropertiesView = PropertiesView<false>;
 // PropertiesArray
 // -----------------------------------------------------------------------------------------------------------------
 
-class PropertiesArray : public detail::PropertiesArrayAccessMixin<PropertiesArray> {
+class PropertiesArray final : public detail::PropertiesArrayAccessMixin<PropertiesArray> {
 public:
     template <typename T> friend struct PropertyProcessor;
     friend class detail::PropertiesArrayAccessMixin<PropertiesArray>;
@@ -192,11 +191,11 @@ private:
 // PropertiesArrayView
 // -----------------------------------------------------------------------------------------------------------------
 
-template <bool IsMutable>
-class PropertiesArrayView
-    : public detail::PropertiesArrayAccessMixin<PropertiesArrayView<IsMutable>> {
+template <bool is_mutable>
+class PropertiesArrayView final
+    : public detail::PropertiesArrayAccessMixin<PropertiesArrayView<is_mutable>> {
 public:
-    using ViewType = std::conditional_t<IsMutable, toml::node, toml::node const>;
+    using ViewType = std::conditional_t<is_mutable, toml::node, toml::node const>;
 
     template <typename T> friend struct PropertyProcessor;
     friend class detail::PropertiesArrayAccessMixin<PropertiesArrayView>;
@@ -217,7 +216,7 @@ public:
     /// By clearing the array here, we do not mean by resetting the reference, but by clearing the
     /// content inside the referenced array. The key will be retained.
     void clear() noexcept
-        requires(IsMutable)
+        requires(is_mutable)
     {
         return get_array_().clear();
     }
@@ -233,7 +232,7 @@ public:
 
 private:
     [[nodiscard]] toml::array &get_array_() noexcept
-        requires(IsMutable)
+        requires(is_mutable)
     {
         return *arrayView.as_array();
     }
@@ -304,8 +303,8 @@ template <> struct PropertyProcessor<Properties> : std::true_type {
     }
 };
 
-template <bool IsMutable> struct PropertyProcessor<PropertiesView<IsMutable>> : std::true_type {
-    using ViewType = toml::node_view<typename PropertiesView<IsMutable>::ViewType>;
+template <bool is_mutable> struct PropertyProcessor<PropertiesView<is_mutable>> : std::true_type {
+    using ViewType = toml::node_view<typename PropertiesView<is_mutable>::ViewType>;
 
     static constexpr std::string_view name = "kira::PropertiesView";
     static auto to_toml(auto const &props) { return props.clone().table; }
@@ -314,29 +313,29 @@ template <bool IsMutable> struct PropertyProcessor<PropertiesView<IsMutable>> : 
     static auto from_toml(auto &node, auto...) {
         if (!node.is_table())
             throw Anyhow("Expected a table, but got a(an) {}", magic_enum::enum_name(node.type()));
-        return PropertiesView<IsMutable>(ViewType{node}, std::span<std::string const>{});
+        return PropertiesView<is_mutable>(ViewType{node}, std::span<std::string const>{});
     }
 
     /// Construct a PropertiesView from a TOML node and a Properties object.
     static auto from_toml(auto &node, Properties &props) {
         if (!node.is_table())
             throw Anyhow("Expected a table, but got a(an) {}", magic_enum::enum_name(node.type()));
-        return PropertiesView<IsMutable>(
+        return PropertiesView<is_mutable>(
             ViewType{node}, std::span{props.sourceLines.begin(), props.sourceLines.end()}
         );
     }
 
     /// Construct a PropertiesView from a TOML node and another PropertiesView object.
-    template <bool IsMutable_>
-    static auto from_toml(auto &node, PropertiesView<IsMutable_> &props) {
-        if constexpr (not IsMutable_)
+    template <bool is_mutable_>
+    static auto from_toml(auto &node, PropertiesView<is_mutable_> &props) {
+        if constexpr (not is_mutable_)
             static_assert(
-                !IsMutable,
+                !is_mutable,
                 "Cannot construct an immutable PropertiesView from a mutable PropertiesView"
             );
         if (!node.is_table())
             throw Anyhow("Expected a table, but got a(an) {}", magic_enum::enum_name(node.type()));
-        return PropertiesView<IsMutable>(ViewType{node}, props.sourceLinesView);
+        return PropertiesView<is_mutable>(ViewType{node}, props.sourceLinesView);
     }
 };
 
@@ -350,16 +349,16 @@ template <> struct PropertyProcessor<PropertiesArray> : std::true_type {
     }
 };
 
-template <bool IsMutable>
-struct PropertyProcessor<PropertiesArrayView<IsMutable>> : std::true_type {
-    using ViewType = toml::node_view<typename PropertiesArrayView<IsMutable>::ViewType>;
+template <bool is_mutable>
+struct PropertyProcessor<PropertiesArrayView<is_mutable>> : std::true_type {
+    using ViewType = toml::node_view<typename PropertiesArrayView<is_mutable>::ViewType>;
 
     static constexpr std::string_view name = "kira::PropertiesArrayView";
     static auto to_toml(auto const &props) { return props.clone().array; }
     static auto from_toml(auto &node, auto...) {
         if (!node.is_array())
             throw Anyhow("Expected an array, but got a(an) {}", magic_enum::enum_name(node.type()));
-        return PropertiesArrayView<IsMutable>{ViewType{node}};
+        return PropertiesArrayView<is_mutable>{ViewType{node}};
     }
 };
 } // namespace kira
