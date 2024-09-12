@@ -1,0 +1,17 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index bfef032..9cd27b7 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -31,10 +31,10 @@ target_include_directories(
+ target_compile_features(tomlplusplus_tomlplusplus INTERFACE cxx_std_17)
+
+ # ---- Install rules and examples ----
+-if(PROJECT_IS_TOP_LEVEL)
++#if(PROJECT_IS_TOP_LEVEL)
+   include(cmake/install-rules.cmake)
+   option(BUILD_EXAMPLES "Build examples tree." OFF)
+   if(BUILD_EXAMPLES)
+     add_subdirectory(examples)
+   endif()
+-endif()
++#endif()

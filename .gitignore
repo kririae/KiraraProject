@@ -36,6 +36,7 @@ build*/
 cmake-build*/
 compile_commands.json
 
+.vscode/
 .cache/
 .idea/
 examples/
