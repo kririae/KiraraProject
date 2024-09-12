@@ -16,13 +16,47 @@ CPMAddPackage(
 
 krr_message(INFO "Downloading slang... This might take long")
 
-CPMAddPackage(
-  NAME slang
-  VERSION 2024.11
-  OPTIONS
-    "SLANG_ENABLE_SLANGD OFF"
-    "SLANG_ENABLE_TESTS OFF"
+if(UNIX AND NOT APPLE)
+  CPMAddPackage(
+    NAME slang
+    URL "https://github.com/shader-slang/slang/releases/download/v2024.11/slang-2024.11-linux-x86_64.tar.gz"
+    VERSION 2024.11
+    DOWNLOAD_ONLY)
+elseif(WIN32)
+  CPMAddPackage(
+    NAME slang
+    URL "https://github.com/shader-slang/slang/releases/download/v2024.11/slang-2024.11-windows-x86_64.tar.gz"
+    VERSION 2024.11
+    DOWNLOAD_ONLY)
+else()
+  krr_message(ERROR "Unsupported platform: Only Linux/Windows x64 is supported by Kirara Project")
+endif()
+
+if(slang_ADDED)
+  set(SLANG_ROOT ${slang_SOURCE_DIR})
+
+  add_library(slang::slang SHARED IMPORTED)
+  add_library(slang::gfx SHARED IMPORTED)
+
+  if(UNIX AND NOT APPLE)
+    set_target_properties(slang::slang PROPERTIES
+      IMPORTED_LOCATION "${SLANG_ROOT}/lib/libslang.so"
+      INTERFACE_INCLUDE_DIRECTORIES "${SLANG_ROOT}/include")
+    set_target_properties(slang::gfx PROPERTIES
+      IMPORTED_LOCATION "${SLANG_ROOT}/lib/libgfx.so"
+      INTERFACE_INCLUDE_DIRECTORIES "${SLANG_ROOT}/include")
+  elseif(WIN32)
+    # TODO(krr)
+  endif()
+endif()
+
+add_executable(kirara-dance
+  src/main2.cpp
+  src/vulkan-api.cpp
 )
 
-add_executable(kirara-dance src/main.cpp)
-target_link_libraries(kirara-dance PRIVATE slang-gfx kira::Core)
+target_link_libraries(kirara-dance PRIVATE
+  slang::slang
+  slang::gfx
+  kira::kira
+)

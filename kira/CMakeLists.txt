@@ -15,6 +15,7 @@ endforeach()
 # Add install rules
 # ----------------------------------------------------------
 add_library(kira INTERFACE)
+add_library(kira::kira ALIAS kira)
 
 target_include_directories(kira INTERFACE
   $<INSTALL_INTERFACE:${INSTALL_INCLUDEDIR}>)
