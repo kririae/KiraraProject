@@ -1,6 +1,11 @@
 include(KRR_Message)
 include(GNUInstallDirs)
 
+#
+# A helper function to add a module to a certain project
+#
+# See the comments on the options below for usage
+#
 function(krr_add_module project_name module_name)
   # ----------------------------------------------------------
   # Retrieve arguments
@@ -8,9 +13,17 @@ function(krr_add_module project_name module_name)
   set(options "")
   set(one_value_args "")
   set(multi_value_args
+
+    # A list of all header files (if any)
     HEADERS
+
+    # A list of all source files (if any)
     SOURCES
+
+    # Targets to be linked with `target_link_libraries`
     HARD_DEPENDENCIES
+
+    # A list of directories to be added with `add_subdirectory`
     CMAKE_SUBDIRS
   )
 
@@ -45,8 +58,7 @@ function(krr_add_module project_name module_name)
   add_library(${module_base_name}
       ${module_library_type} # STATIC, SHARED or INTERFACE
       ${headers}
-      ${sources}
-  )
+      ${sources})
   add_library(${project_name}::${module_name} ALIAS ${module_base_name})
 
   # ----------------------------------------------------------
@@ -54,12 +66,11 @@ function(krr_add_module project_name module_name)
   # ----------------------------------------------------------
   target_include_directories(${module_base_name}
     ${module_link_type}
-      $<BUILD_INTERFACE:${HEADER_ROOT}>
-  )
+      $<BUILD_INTERFACE:${HEADER_ROOT}>)
+
   target_link_libraries(${module_base_name}
     ${module_link_type}
-      ${MODULE_HARD_DEPENDENCIES}
-  )
+      ${MODULE_HARD_DEPENDENCIES})
 
   # ----------------------------------------------------------
   # Enable compiler warnings
@@ -87,22 +98,23 @@ function(krr_add_module project_name module_name)
   # ----------------------------------------------------------
   # Add install rules
   # ----------------------------------------------------------
-  # Install the headers
   if(headers)
     install(
-        DIRECTORY ${HEADER_ROOT}/
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-        COMPONENT ${module_name}
-        FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
-    )
+      DIRECTORY ${HEADER_ROOT}/
+      DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+      COMPONENT ${module_name}
+      FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
   endif()
 
-  # Install the library
+  set_property(TARGET ${module_base_name} PROPERTY EXPORT_NAME ${module_name})
   install(TARGETS ${module_base_name}
-    # EXPORT ${project_name}Targets
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-  )
+    EXPORT ${PROJECT_NAME}Targets
+    LIBRARY
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME
+    DESTINATION ${CMAKE_INSTALL_BINDIR}
+    INCLUDES
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 endfunction()

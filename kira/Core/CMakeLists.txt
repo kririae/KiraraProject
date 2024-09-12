@@ -25,7 +25,7 @@ CPMAddPackage(
 CPMAddPackage(
   NAME mp
   GITHUB_REPOSITORY qlibs/mp
-  GIT_TAG v2.0.4
+  VERSION 2.0.11
 )
 
 if(mp_ADDED)
@@ -44,6 +44,9 @@ CPMAddPackage(
 CPMAddPackage(
   NAME tomlplusplus
   URL "https://github.com/marzer/tomlplusplus/archive/refs/tags/v3.4.0.tar.gz"
+
+  # This enables top-level installation on `tomlplusplus` as subdirectory
+  PATCHES "${CMAKE_SOURCE_DIR}/cmake/patches/tomlplusplus.patch"
 )
 
 CPMAddPackage(

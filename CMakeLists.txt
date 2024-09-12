@@ -80,6 +80,9 @@ option(KRR_BUILD_KIRARA_DANCE "Build the KiraraDance application" OFF)
 # ----------------------------------------------------------
 # Dependencies
 # ----------------------------------------------------------
+
+# Using local packages is not recommended
+set(CPM_USE_LOCAL_PACKAGES OFF)
 include(GetCPM)
 include(SetupDeps)
 
