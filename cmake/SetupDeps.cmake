@@ -6,10 +6,10 @@ include(KRR_Message)
 CPMAddPackage(
   NAME cmake-scripts
   GITHUB_REPOSITORY StableCoder/cmake-scripts
-  GIT_TAG "24.04"
+  GIT_TAG "24.08.1"
 )
 
-list(APPEND CMAKE_MODULE_PATH ${cmake-scripts_SOURCE_DIR})
+list(APPEND CMAKE_MODULE_PATH "${cmake-scripts_SOURCE_DIR}")
 
 if(KRR_BUILD_TESTS)
   # ----------------------------------------------------------

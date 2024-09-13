@@ -3,7 +3,7 @@ include(KRR_Message)
 
 krr_message(INFO "Native build is enabled. This optimizes the code for the
    current CPU architecture, potentially improving performance but reducing
-   portability. The resulting binary may not run on different CPU models.")
+   portability. The resulting binary may not run on different CPU models")
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
   check_cxx_compiler_flag("-march=native" COMPILER_SUPPORTS_MARCH_NATIVE)

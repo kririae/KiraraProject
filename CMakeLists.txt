@@ -71,6 +71,10 @@ option(KRR_BUILD_FOR_NATIVE "Build with -march=native -mtune=native" OFF)
 
 option(KRR_USE_MOLD "Use mold as the linker" OFF)
 
+option(KRR_ENABLE_LSAN "Enable LSAN (leak sanitizer)" OFF)
+option(KRR_ENABLE_ASAN "Enable ASAN (address sanitizer)" OFF)
+option(KRR_ENABLE_UBSAN "Enable UBSAN (undefined behavior sanitizer)" OFF)
+
 option(KRR_ENABLE_CLANG_TIDY "Enable clang-tidy for analysis" OFF)
 
 # Optional modules
@@ -99,6 +103,27 @@ endif()
 
 if(KRR_USE_MOLD)
   include(EnableMoldLinker)
+endif()
+
+include(sanitizers)
+
+if(KRR_ENABLE_LSAN)
+  krr_message(INFO "LeakSanitizer is enabled")
+  add_sanitizer_support(leak)
+endif()
+
+if(KRR_ENABLE_ASAN)
+  krr_message(INFO "AddressSanitizer is enabled. It intends to detect common
+  issues like out of bounds/use after free/use after return/use after scope,
+  etc. It will also utilize LeakSanitizer to check memory leak. Sometimes
+  AddressSanitizer is aggresive that the program can fail mysteriously, one
+  might consider enabling UBSAN or LSAN only")
+  add_sanitizer_support(address)
+endif()
+
+if(KRR_ENABLE_UBSAN)
+  krr_message(INFO "UndefinedBehaviourSanitizer is enabled")
+  add_sanitizer_support(undefined)
 endif()
 
 # ----------------------------------------------------------
