@@ -76,55 +76,42 @@ private:
 //! to use https://stackoverflow.com/a/78540292 (through `reinterpret_cast` and inheritance to
 //! `std::string_view`), but this results in a segfault in our codebase.
 
+template <detail::StringLiteral name, spdlog::level::level_enum lvl>
+struct LoggerCustomizationPoint {
+    template <fmt::formattable<char>... Args>
+    void operator()(detail::FormatWithSourceLoc fmt, Args &&...args) {
+        GetLogger(name.value)
+            ->log(
+                detail::get_spdlog_source_loc(fmt.loc), lvl, fmt::runtime(fmt.fmt),
+                std::forward<Args>(args)...
+            );
+    }
+};
+
+//! We follow a design like CPO, because other submodules might want to change the \c
+//! defaultLoggerName. This makes it easier to create new \c Log.* function with other default
+//! logger name. For example, with a single line
+//! \code{.cpp}
+//! inline kira::LoggerCustomizationPoint<"krd", spdlog::level::level_enum::trace> LogTrace;
+//! \endcode
+//! we can introduce the function to other scope.
+
+// NOLINTBEGIN
 /// Log a message at the trace level.
-template <detail::StringLiteral name = defaultLoggerName, fmt::formattable<char>... Args>
-void LogTrace(detail::FormatWithSourceLoc fmt, Args &&...args) {
-    GetLogger(name.value)
-        ->log(
-            detail::get_spdlog_source_loc(fmt.loc), spdlog::level::trace, fmt::runtime(fmt.fmt),
-            std::forward<Args>(args)...
-        );
-}
+inline LoggerCustomizationPoint<defaultLoggerName, spdlog::level::level_enum::trace> LogTrace;
 
 /// Log a message at the debug level.
-template <detail::StringLiteral name = defaultLoggerName, fmt::formattable<char>... Args>
-void LogDebug(detail::FormatWithSourceLoc fmt, Args &&...args) {
-    GetLogger(name.value)
-        ->log(
-            detail::get_spdlog_source_loc(fmt.loc), spdlog::level::debug, fmt::runtime(fmt.fmt),
-            std::forward<Args>(args)...
-        );
-}
+inline LoggerCustomizationPoint<defaultLoggerName, spdlog::level::level_enum::debug> LogDebug;
 
 /// Log a message at the info level.
-template <detail::StringLiteral name = defaultLoggerName, fmt::formattable<char>... Args>
-void LogInfo(detail::FormatWithSourceLoc fmt, Args &&...args) {
-    GetLogger(name.value)
-        ->log(
-            detail::get_spdlog_source_loc(fmt.loc), spdlog::level::info, fmt::runtime(fmt.fmt),
-            std::forward<Args>(args)...
-        );
-}
+inline LoggerCustomizationPoint<defaultLoggerName, spdlog::level::level_enum::info> LogInfo;
 
 /// Log a message at the warn level.
-template <detail::StringLiteral name = defaultLoggerName, fmt::formattable<char>... Args>
-void LogWarn(detail::FormatWithSourceLoc fmt, Args &&...args) {
-    GetLogger(name.value)
-        ->log(
-            detail::get_spdlog_source_loc(fmt.loc), spdlog::level::warn, fmt::runtime(fmt.fmt),
-            std::forward<Args>(args)...
-        );
-}
+inline LoggerCustomizationPoint<defaultLoggerName, spdlog::level::level_enum::warn> LogWarn;
 
 /// Log a message at the error level.
-template <detail::StringLiteral name = defaultLoggerName, fmt::formattable<char>... Args>
-void LogError(detail::FormatWithSourceLoc fmt, Args &&...args) {
-    GetLogger(name.value)
-        ->log(
-            detail::get_spdlog_source_loc(fmt.loc), spdlog::level::err, fmt::runtime(fmt.fmt),
-            std::forward<Args>(args)...
-        );
-}
+inline LoggerCustomizationPoint<defaultLoggerName, spdlog::level::level_enum::err> LogError;
+// NOLINTEND
 
 /// Flush the logger.
 template <detail::StringLiteral name = defaultLoggerName> void LogFlush() {

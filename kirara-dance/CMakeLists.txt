@@ -51,8 +51,10 @@ if(slang_ADDED)
 endif()
 
 add_executable(kirara-dance
-  src/main2.cpp
-  src/vulkan-api.cpp
+  Core/ShaderCursor.cpp
+  Core/ShaderCursor.h
+  Core/SlangUtils.h
+  UI/Facade.cpp
 )
 
 target_link_libraries(kirara-dance PRIVATE
@@ -60,3 +62,6 @@ target_link_libraries(kirara-dance PRIVATE
   slang::gfx
   kira::kira
 )
+
+target_include_directories(kirara-dance PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR})
