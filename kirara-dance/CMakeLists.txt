@@ -14,7 +14,7 @@ CPMAddPackage(
     "GLFW_BUILD_DOCS OFF"
 )
 
-krr_message(INFO "Downloading slang... This might take long")
+krr_message(INFO "Pulling slang binaries... This might take long")
 
 if(UNIX AND NOT APPLE)
   CPMAddPackage(
