@@ -4,6 +4,7 @@ project(kira LANGUAGES C CXX)
 set(_kira_modules
   Core
   GTestMain
+  Geometry
   Vecteur
 )
 
@@ -42,7 +43,7 @@ write_basic_package_version_file(
   COMPATIBILITY SameMajorVersion)
 
 configure_package_config_file(
-  "${CMAKE_SOURCE_DIR}/cmake/${PROJECT_NAME}Config.cmake.in"
+  "${KRR_ROOT_DIR}/cmake/${PROJECT_NAME}Config.cmake.in"
   "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
   INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/kira)
 

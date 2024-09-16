@@ -11,6 +11,22 @@ CPMAddPackage(
 
 list(APPEND CMAKE_MODULE_PATH "${cmake-scripts_SOURCE_DIR}")
 
+# ----------------------------------------------------------
+# Backtrace utils
+# ----------------------------------------------------------
+CPMAddPackage(
+  NAME backward
+  GITHUB_REPOSITORY bombela/backward-cpp
+  GIT_TAG master
+)
+
+CPMAddPackage(
+  NAME Eigen3
+  URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip
+  OPTIONS
+    "BUILD_TESTING OFF"
+)
+
 if(KRR_BUILD_TESTS)
   # ----------------------------------------------------------
   # GTest
