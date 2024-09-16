@@ -8,3 +8,5 @@ void computeMain(uint3 threadId: SV_DispatchThreadID) {
     uint index = threadId.x;
     result[index] = buffer0[index] + buffer1[index];
 }
+
+

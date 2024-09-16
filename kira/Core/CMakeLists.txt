@@ -46,7 +46,7 @@ CPMAddPackage(
   URL "https://github.com/marzer/tomlplusplus/archive/refs/tags/v3.4.0.tar.gz"
 
   # This enables top-level installation on `tomlplusplus` as subdirectory
-  PATCHES "${CMAKE_SOURCE_DIR}/cmake/patches/tomlplusplus.patch"
+  PATCHES "${KRR_ROOT_DIR}/cmake/patches/tomlplusplus.patch"
 )
 
 CPMAddPackage(

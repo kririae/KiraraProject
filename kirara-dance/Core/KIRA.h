@@ -1,6 +1,7 @@
 #pragma once
 
 #include <kira/Anyhow.h>
+#include <kira/Assertions.h>
 #include <kira/Compiler.h>
 #include <kira/Logger.h>
 

@@ -13,7 +13,7 @@ function(krr_add_test project_name module_name test_name)
 
   cmake_parse_arguments(TEST "${options}" "${one_value_args}" "${multi_value_args}" ${ARGN})
 
-  krr_message(INFO "Adding test ${project_name}::${module_name}::${test_name}")
+  krr_message(INFO "Adding test ${BoldGreen}${project_name}::${module_name}::${test_name}${ColorReset}")
 
   # ----------------------------------------------------------
   # Setup test sources

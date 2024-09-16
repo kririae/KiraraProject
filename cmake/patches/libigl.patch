@@ -1,0 +1,13 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 498caee7..c8c1025c 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -164,7 +164,7 @@ if(LIBIGL_INSTALL)
+     set(project_config_out "${CMAKE_CURRENT_BINARY_DIR}/libigl-config.cmake")
+     set(config_targets_base "LibiglConfigTargets")
+     set(version_config_file "${CMAKE_CURRENT_BINARY_DIR}/LibiglConfigVersion.cmake")
+-    set(export_dest_dir "${CMAKE_INSTALL_LIBDIR}/cmake/igl")
++    set(export_dest_dir "${CMAKE_INSTALL_LIBDIR}/cmake/libigl")
+
+     foreach(suffix IN ITEMS "") #"_restricted" "_copyleft")
+         install(EXPORT LibiglTargets${suffix}

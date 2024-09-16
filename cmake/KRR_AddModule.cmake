@@ -29,7 +29,8 @@ function(krr_add_module project_name module_name)
 
   cmake_parse_arguments(MODULE "${options}" "${one_value_args}" "${multi_value_args}" ${ARGN})
 
-  krr_message(INFO "Adding module ${project_name}::${module_name}")
+  set(module_base_name ${project_name}${module_name})
+  krr_message(INFO "Adding module ${BoldCyan}${project_name}::${module_name}${ColorReset} (${module_base_name})")
 
   set(HEADER_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/include")
   set(SOURCE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/src")
@@ -48,13 +49,12 @@ function(krr_add_module project_name module_name)
     set(module_link_type PUBLIC)
   endif()
 
-  krr_message(INFO "    module library type: ${module_library_type}")
-  krr_message(INFO "    module link type: ${module_link_type}")
+  krr_message(INFO "    module library type: ${BoldWhite}${module_library_type}${ColorReset}")
+  krr_message(INFO "    module link type:    ${BoldWhite}${module_link_type}${ColorReset}")
 
   # ----------------------------------------------------------
   # Do add module
   # ----------------------------------------------------------
-  set(module_base_name ${project_name}${module_name})
   add_library(${module_base_name}
       ${module_library_type} # STATIC, SHARED or INTERFACE
       ${headers}

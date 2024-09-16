@@ -5,6 +5,7 @@
 #include <slang-gfx.h>
 #include <slang.h>
 
+#include "Core/KIRA.h"
 #include "Core/ShaderCursor.h"
 
 using krd::slangCheck;
@@ -23,7 +24,8 @@ public:
 
         slang::IModule *slangModule = nullptr;
         slangModule =
-            session->loadModule("/home/krr/Projects/KiraraProject/kirara-dance/src/shaders.slang");
+            session->loadModule("/home/krr/Projects/KiraraProject/kirara-dance/Shader/shaders.slang"
+            );
         if (!slangModule)
             return SLANG_FAIL;
 
@@ -40,7 +42,6 @@ public:
             componentTypes.data(), componentTypes.size(), composedProgram.writeRef()
         ));
 
-        // Let's turn back to gfx
         gfx::IShaderProgram::Desc shaderDesc{
             .slangGlobalScope = composedProgram.get(),
         };
@@ -106,7 +107,7 @@ public:
         slangCheck(gDevice->createBufferResource(bufferDesc, nullptr, resultBuffer.writeRef()));
 
         ComPtr<gfx::IPipelineState> pipelineState;
-        createComputePipelineFromShader(pipelineState.writeRef());
+        slangCheck(createComputePipelineFromShader(pipelineState.writeRef()));
 
         auto *encoder = commandBuffer->encodeComputeCommands();
         auto *rootObject = encoder->bindPipeline(pipelineState);
@@ -135,7 +136,7 @@ public:
                 gDevice->createBufferView(inputBuffer1, nullptr, viewDesc, buffer1View.writeRef())
             );
         }
-        rootObject->setResource(gfx::ShaderOffset{0, 1, 0}, buffer1View);
+        slangCheck(rootCursor["buffer1"].setResource(buffer1View));
 
         ComPtr<gfx::IResourceView> resultView;
         {
@@ -147,7 +148,7 @@ public:
                 gDevice->createBufferView(resultBuffer, nullptr, viewDesc, resultView.writeRef())
             );
         }
-        rootObject->setResource(gfx::ShaderOffset{0, 2, 0}, resultView);
+        slangCheck(rootCursor["result"].setResource(resultView));
 
         encoder->dispatchCompute(numElt, 1, 1);
         encoder->endEncoding();
