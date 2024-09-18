@@ -15,20 +15,24 @@ IndentPPDirectives: None
 IndentWidth: 4
 IncludeBlocks: Regroup
 IncludeCategories:
-  - Regex: '^<.*\.h>'
+  - Regex: "^<kira/.*"
     Priority: 0
     SortPriority: 0
     CaseSensitive: false
-  - Regex: "^<.*"
+  - Regex: '^<.*\.h>'
     Priority: 1
     SortPriority: 0
     CaseSensitive: false
-  - Regex: '^"kira/.*'
+  - Regex: "^<.*"
     Priority: 2
     SortPriority: 0
     CaseSensitive: false
+  - Regex: '^"kira/.*'
+    Priority: 3
+    SortPriority: 0
+    CaseSensitive: false
   - Regex: ".*"
-    Priority: 4
+    Priority: 3
     SortPriority: 0
     CaseSensitive: false
 InsertNewlineAtEOF: true

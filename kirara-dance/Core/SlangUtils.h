@@ -5,6 +5,7 @@
 
 #include <magic_enum.hpp>
 #include <source_location>
+#include <string_view>
 
 #include "Core/KIRA.h"
 
@@ -15,9 +16,9 @@ namespace krd {
 /// \param loc The source location where the check is called, defaults to the current location.
 /// \throws kira::Anyhow Throws this exception if \c bShouldThrow is true.
 template <bool bShouldThrow = true>
-inline void slangCheck(
+inline auto slangCheck(
     SlangResult result, std::source_location loc = std::source_location::current()
-) noexcept(not bShouldThrow) {
+) noexcept(not bShouldThrow) -> void {
     constexpr auto makeSlangResultString = [](SlangResult result) -> std::string_view {
         switch (result) {
         case SLANG_OK: return "SLANG_OK";
@@ -49,8 +50,20 @@ inline void slangCheck(
         if constexpr (bShouldThrow)
             throw kira::Anyhow("{}", str);
         else
-            kira::LogError("{}", str);
+            LogError("{}", str);
     }
+}
+
+/// Log the diagnostic message from Slang.
+inline auto slangDiagnostic(slang::IBlob *diagnostics) -> void {
+    if (KIRA_UNLIKELY(!diagnostics))
+        return;
+    LogWarn(
+        "slangDiagnostic(): {:s}",
+        std::string_view{
+            static_cast<char const *>(diagnostics->getBufferPointer()), diagnostics->getBufferSize()
+        }
+    );
 }
 
 /// Trim the Slang callback log of newline characters.
