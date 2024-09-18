@@ -55,6 +55,8 @@ add_executable(kirara-dance
   Core/ShaderCursor.cpp
   Core/ShaderCursor.h
   Core/SlangUtils.h
+  Core/SlangContext.h
+  Core/SlangContext.cpp
   UI/Backward.cpp
   UI/Facade.cpp
 )
