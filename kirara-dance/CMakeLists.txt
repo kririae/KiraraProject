@@ -60,8 +60,9 @@ add_executable(kirara-dance
   Core/Window.cpp
   Core/Window.h
 
-  UI/Backward.cpp
-  UI/Facade.cpp
+  KiraraDance/Backward.cpp
+  KiraraDance/KiraraDance.h
+  KiraraDance/KiraraDance.cpp
 )
 
 target_link_libraries(kirara-dance PRIVATE

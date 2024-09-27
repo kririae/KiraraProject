@@ -4,10 +4,12 @@
 
 #include <string>
 
+#include "Core/Object.h"
+
 struct GLFWwindow;
 
 namespace krd {
-class Window {
+class Window : public Object {
 public:
     struct Desc {
         int width;
@@ -15,12 +17,15 @@ public:
         std::string title;
     };
 
-public:
-    ///
+protected:
     Window(Desc const &desc);
 
+public:
     ///
-    ~Window();
+    static Ref<Window> create(Desc const &desc) { return {new Window(desc)}; }
+
+    ///
+    virtual ~Window();
 
     ///
     [[nodiscard]] int getWidth() const { return width; }
@@ -29,7 +34,7 @@ public:
     [[nodiscard]] int getHeight() const { return height; }
 
     ///
-    [[nodiscard]] gfx::WindowHandle getWindowHandle() { return handle; }
+    [[nodiscard]] gfx::WindowHandle getWindowHandle() const { return handle; }
 
 private:
     int width, height;
