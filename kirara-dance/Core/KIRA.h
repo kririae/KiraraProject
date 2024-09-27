@@ -22,4 +22,10 @@ inline kira::LoggerCustomizationPoint<"krd", spdlog::level::level_enum::warn> Lo
 /// Log a message at the error level.
 inline kira::LoggerCustomizationPoint<"krd", spdlog::level::level_enum::err> LogError;
 // NOLINTEND
+
+#if !defined(NDEBUG)
+#define KRD_ASSERT(cond, ...) KIRA_FORCE_ASSERT(cond, __VA_ARGS__)
+#else
+#define KRD_ASSERT(cond, ...)
+#endif
 } // namespace krd

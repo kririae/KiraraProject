@@ -1,62 +1,95 @@
 #pragma once
 
-#include <array>
+#include <kira/SmallVector.h>
 
+#include "Core/Object.h"
 #include "Core/Window.h"
 
 using Slang::ComPtr;
 
 namespace krd {
-class SlangContext {
-public:
+class SlangContext : public Object {
+protected:
     /// Setup necessary GFX global objects above.
     SlangContext();
 
+public:
     /// Slang's workaround makes it not necessary to define a destructor like OptiX: any destruction
     /// order is allowed by double reference counting.
     ///
     /// \see https://github.com/shader-slang/slang/pull/1788
     virtual ~SlangContext() = default;
 
-public:
-    /// \see gDevice->createGraphicsPipelineState
-    ComPtr<gfx::IPipelineState> createGraphicsPipelineState();
-
-    ///
-    void mainLoop();
-
-    ///
-    void renderFrame(int frameIndex);
-
 protected:
-    ///
-    std::unique_ptr<Window> window;
-
     ComPtr<gfx::IDevice> gDevice;
     ComPtr<gfx::ICommandQueue> gQueue;
-
-    ComPtr<gfx::ISwapchain> gSwapchain;
-    ComPtr<gfx::IFramebufferLayout> gFramebufferLayout;
-    ComPtr<gfx::IRenderPassLayout> gRenderPassLayout;
-    ComPtr<gfx::IPipelineState> gPipelineState;
-    ComPtr<gfx::IBufferResource> gVertexBuffer;
-
-    std::array<ComPtr<gfx::ITransientResourceHeap>, 2> gTransientHeapBuffer;
-    std::array<ComPtr<gfx::IFramebuffer>, 2> gFramebuffer;
-    ComPtr<gfx::IFence> gFrameFence;
-
-    uint64_t gFrameIndex = 0;
-
-    ComPtr<gfx::IRenderPassLayout> gRenderPass;
 };
 
 ///
 class SlangGraphicsContext : public SlangContext {
 public:
+    struct Desc {
+        //
+        int swapchainImageCnt = 2;
+
+        //
+        bool enableVSync = true;
+
+        // https://registry.khronos.org/vulkan/specs/1.3-extensions/html/vkspec.html#VUID-vkAcquireNextImageKHR-surface-07783
+        bool enableGFXFix_07783 = false;
+    };
+
+private:
     ///
-    SlangGraphicsContext();
+    SlangGraphicsContext(Desc const &desc, Ref<Window> const &window);
+
+public:
+    ///
+    static Ref<SlangGraphicsContext> create(Desc const &desc, Ref<Window> const &window) {
+        return {new SlangGraphicsContext(desc, window)};
+    }
 
     ///
-    ~SlangGraphicsContext();
+    ~SlangGraphicsContext() = default;
+
+public:
+    void setSwapchainImageCnt(int cnt);
+    void resize(std::shared_ptr<Window> const &window);
+
+public:
+    ///
+    void renderFrame();
+
+private:
+    void setupFramebufferLayout(); // (1)
+    void setupPipelineState();     // (2)
+    void setupSwapchain();         // (3)
+    void setupFramebuffer();       // (4)
+    void setupTransientHeap();     // (5)
+    void setupRenderPassLayout();  // (6)
+    void setupFrameFence();        // (7)
+
+protected:
+    int width, height;              // (0)
+    gfx::WindowHandle windowHandle; // (0)
+
+    gfx::Format pixFormat = gfx::Format::B8G8R8A8_UNORM; // (1)
+    ComPtr<gfx::IFramebufferLayout> gFramebufferLayout;  // (1)
+
+    ComPtr<gfx::IPipelineState> gPipelineState; // (2)
+
+    int swapchainImageCnt;              // (3)
+    bool enableVSync;                   // (3)
+    ComPtr<gfx::ISwapchain> gSwapchain; // (3)
+
+    kira::SmallVector<ComPtr<gfx::IFramebuffer>> gFrameBuffer;             // (4)
+    kira::SmallVector<ComPtr<gfx::ITransientResourceHeap>> gTransientHeap; // (5)
+
+    ComPtr<gfx::IRenderPassLayout> gRenderPassLayout; // (6)
+
+    bool enableGFXFix_07783 = false; // (7)
+    ComPtr<gfx::IFence> gFrameFence; // (7)
+
+    uint64_t gFrameIndex = 0;
 };
 } // namespace krd
