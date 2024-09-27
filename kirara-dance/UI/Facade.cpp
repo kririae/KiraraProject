@@ -7,4 +7,6 @@ int main() try {
     using namespace krd;
 
     SlangContext context;
+    while (true)
+        context.mainLoop();
 } catch (std::exception const &e) { krd::LogError("{}", e.what()); }

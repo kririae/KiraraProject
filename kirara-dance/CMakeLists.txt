@@ -57,6 +57,9 @@ add_executable(kirara-dance
   Core/SlangUtils.h
   Core/SlangContext.h
   Core/SlangContext.cpp
+  Core/Window.cpp
+  Core/Window.h
+
   UI/Backward.cpp
   UI/Facade.cpp
 )
@@ -65,6 +68,7 @@ target_link_libraries(kirara-dance PRIVATE
   slang::slang
   slang::gfx
   kira::kira
+  glfw
   Backward::Interface
 )
 
