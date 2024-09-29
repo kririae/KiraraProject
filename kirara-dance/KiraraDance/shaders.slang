@@ -1,3 +1,7 @@
+module null;
+
+__include null;
+
 cbuffer Uniforms { float4x4 modelViewProjection; }
 
 struct AssembledVertex {
@@ -35,6 +39,7 @@ VertexStageOutput vertexMain(AssembledVertex assembledVertex) {
 float4 fragmentMain(CoarseVertex coarseVertex: CoarseVertex) : SV_Target {
     float3 color = coarseVertex.color;
 
+    doNothing();
     return float4(color, 1.0);
 }
 
