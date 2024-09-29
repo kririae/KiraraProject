@@ -51,28 +51,38 @@ if(slang_ADDED)
 endif()
 
 add_executable(kirara-dance
+  Core/GLFW.h
   Core/KIRA.h
+  Core/Object.h
+  Core/ProgramBuilder.cpp
+  Core/ProgramBuilder.h
   Core/ShaderCursor.cpp
   Core/ShaderCursor.h
-  Core/SlangUtils.h
-  Core/SlangContext.h
   Core/SlangContext.cpp
+  Core/SlangContext.h
+  Core/SlangUtils.h
   Core/Window.cpp
   Core/Window.h
 
   KiraraDance/Backward.cpp
-  KiraraDance/KiraraDance.h
   KiraraDance/KiraraDance.cpp
 )
 
 target_link_libraries(kirara-dance PRIVATE
-  slang::slang
-  slang::gfx
-  kira::kira
-  glfw
   Backward::Interface
+  glfw
+  kira::kira
+  slang::gfx
+  slang::slang
 )
 
 # Link towards current directory.
 target_include_directories(kirara-dance PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR})
+
+if(false)
+  target_precompile_headers(kirara-dance PRIVATE
+    [[Core/GLFW.h]]
+    [[Core/KIRA.h]]
+  )
+endif()

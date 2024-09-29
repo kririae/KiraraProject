@@ -2,6 +2,7 @@
 #include <kira/SmallVector.h>
 
 #include "Core/GLFW.h"
+#include "Core/ProgramBuilder.h"
 #include "Core/ShaderCursor.h"
 #include "Core/SlangUtils.h"
 
@@ -116,39 +117,17 @@ void SlangGraphicsContext::setupFramebufferLayout() {
 }
 
 void SlangGraphicsContext::setupPipelineState() {
-    ComPtr<slang::ISession> slangSession = gDevice->getSlangSession();
-
-    ComPtr<slang::IBlob> diagnostics;
-    slang::IModule *module = slangSession->loadModule(
-        "/home/krr/Projects/KiraraProject/kirara-dance/Shader/shaders.slang", diagnostics.writeRef()
-    );
-    slangDiagnostic(diagnostics);
-    if (!module)
-        throw kira::Anyhow("Failed to load the Slang module");
-
-    ComPtr<slang::IEntryPoint> vertexEntryPoint;
-    slangCheck(module->findEntryPointByName("vertexMain", vertexEntryPoint.writeRef()));
-    ComPtr<slang::IEntryPoint> fragmentEntryPoint;
-    slangCheck(module->findEntryPointByName("fragmentMain", fragmentEntryPoint.writeRef()));
-
-    kira::SmallVector<slang::IComponentType *> componentTypes;
-    componentTypes.push_back(module);
-    componentTypes.push_back(vertexEntryPoint);
-    componentTypes.push_back(fragmentEntryPoint);
-
-    ComPtr<slang::IComponentType> linkedProgram;
-    SlangResult result = slangSession->createCompositeComponentType(
-        componentTypes.data(), static_cast<SlangInt>(componentTypes.size()),
-        linkedProgram.writeRef(), diagnostics.writeRef()
-    );
-    slangDiagnostic(diagnostics);
-    slangCheck(result);
-
-    ComPtr<gfx::IShaderProgram> program;
-    gfx::IShaderProgram::Desc shaderDesc{
-        .slangGlobalScope = linkedProgram.get(),
-    };
-    slangCheck(gDevice->createProgram(shaderDesc, program.writeRef()));
+    auto program = //
+        ProgramBuilder{}
+            .addSlangModuleFromPath(
+                "/home/krr/Projects/KiraraProject/kirara-dance/KiraraDance/shaders.slang"
+            )
+            .addEntryPoint("vertexMain")
+            .addEntryPoint("fragmentMain")
+            // .addSlangModuleFromPath(
+            //     "/home/krr/Projects/KiraraProject/kirara-dance/KiraraDance/null.slang"
+            // )
+            .link(gDevice);
 
     gfx::InputElementDesc inputElements[] = {
         {"POSITION", 0, gfx::Format::R32G32B32_FLOAT, offsetof(Vertex, position)},
@@ -160,7 +139,7 @@ void SlangGraphicsContext::setupPipelineState() {
 
     gfx::GraphicsPipelineStateDesc pipelineDesc{};
     pipelineDesc.inputLayout = inputLayout;
-    pipelineDesc.program = program;
+    pipelineDesc.program = program->getShaderProgram();
     pipelineDesc.framebufferLayout = gFramebufferLayout;
     slangCheck(gDevice->createGraphicsPipelineState(pipelineDesc, gPipelineState.writeRef()));
 }
