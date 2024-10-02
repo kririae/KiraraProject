@@ -13,12 +13,13 @@ class ProgramBuilder;
 ///
 /// \remark The shader program itself is immutable, and should not be changed. New \c Program can
 /// only be created by \c ProgramBuilder.
-class Program : public Object {
+class Program final : public Object {
 private:
     Program() = default;
 
 public:
     friend class ProgramBuilder;
+
     ~Program() = default;
 
 public:
