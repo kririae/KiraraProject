@@ -14,6 +14,13 @@ CPMAddPackage(
     "GLFW_BUILD_DOCS OFF"
 )
 
+CPMAddPackage(
+  NAME assimp
+  GITHUB_REPOSITORY assimp/assimp
+
+  GIT_TAG v5.4.3
+)
+
 krr_message(INFO "Pulling slang binaries... This might take long")
 
 if(UNIX AND NOT APPLE)
@@ -51,26 +58,29 @@ if(slang_ADDED)
 endif()
 
 add_executable(kirara-dance
-  Core/GLFW.h
-  Core/KIRA.h
-  Core/Object.h
   Core/ProgramBuilder.cpp
-  Core/ProgramBuilder.h
   Core/ShaderCursor.cpp
-  Core/ShaderCursor.h
   Core/SlangContext.cpp
-  Core/SlangContext.h
-  Core/SlangUtils.h
   Core/Window.cpp
-  Core/Window.h
 
   KiraraDance/Backward.cpp
   KiraraDance/KiraraDance.cpp
+
+  Renderer/RenderObject.cpp
+  Renderer/RenderScene.cpp
+  Renderer/RenderTriangleMesh.cpp
+  Renderer/SlangGraphicsContext.cpp
+
+  Scene/Scene.cpp
+  Scene/SceneObject.cpp
+  Scene/TriangleMesh.cpp
 )
 
 target_link_libraries(kirara-dance PRIVATE
   Backward::Interface
+  assimp
   glfw
+  igl::core
   kira::kira
   slang::gfx
   slang::slang

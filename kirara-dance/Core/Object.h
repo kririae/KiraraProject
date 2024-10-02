@@ -52,7 +52,11 @@ template <typename T> class Ref {
     using element_type = T;
 
 public:
+    /// Default constructor.
     Ref() = default;
+
+    /// Construct a \c Ref from \c nullptr.
+    Ref(std::nullptr_t) noexcept {}
 
     ~Ref() {
         if (ptr)
@@ -93,17 +97,15 @@ public:
     }
 
 public:
+    // NOTE(krr): No *observable state change*
+
     [[nodiscard]] bool operator==(Ref const &r) const { return ptr == r.ptr; }
     [[nodiscard]] bool operator!=(Ref const &r) const { return ptr != r.ptr; }
     [[nodiscard]] bool operator==(T const *otherPtr) const { return ptr == otherPtr; }
     [[nodiscard]] bool operator!=(T const *otherPtr) const { return ptr != otherPtr; }
-    [[nodiscard]] T *operator->() { return ptr; }
-    [[nodiscard]] T const *operator->() const { return ptr; }
-    [[nodiscard]] T &operator*() { return *ptr; }
-    [[nodiscard]] T const &operator*() const { return *ptr; }
-    [[nodiscard]] explicit operator T *() { return ptr; }
-    [[nodiscard]] explicit operator T const *() const { return ptr; }
-    [[nodiscard]] T *get() noexcept { return ptr; }
+    [[nodiscard]] T *operator->() const { return ptr; }
+    [[nodiscard]] T &operator*() const { return *ptr; }
+    [[nodiscard]] explicit operator T *() const { return ptr; }
     [[nodiscard]] T *get() const noexcept { return ptr; }
     [[nodiscard]] explicit operator bool() const { return ptr != nullptr; }
 
@@ -112,9 +114,19 @@ public:
     [[nodiscard]] auto getRefCount() const { return ptr != nullptr ? ptr->getRefCount() : 0; }
 
     /// Resets the reference to \c nullptr.
-    void reset() {
+    void reset() noexcept {
         Ref other{};
         swap(*this, other);
+    }
+
+    /// Cast the \c Ref<T> to \c Ref<T2> using \c dynamic_cast.
+    ///
+    /// \remark No new reference count is added.
+    /// \remark If the cast fails, the returned \c Ref<T2> will be \c nullptr.
+    template <typename T2>
+    [[nodiscard]]
+    auto dyn_cast() const {
+        return Ref<T2>{dynamic_cast<T2 *>(ptr)};
     }
 
 private:
