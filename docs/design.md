@@ -24,3 +24,5 @@
 - PCH not introduced for now, for potential cxx module support.
 - TODO: more Vecteur initialization schemes.
 - TODO: add `mimalloc` and `backward-cpp`.
+- Between `Scene`, observer pattern is used to break dependencies and avoid
+  complex dependencies.

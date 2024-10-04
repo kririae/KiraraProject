@@ -1,8 +1,8 @@
 include(KRR_AddModule)
 include(KRR_EnableClangTidy)
 
-configure_file(include/kira/CommitHash.h.in ${CMAKE_CURRENT_SOURCE_DIR}/include/kira/CommitHash.h @ONLY)
-configure_file(include/kira/Version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/include/kira/Version.h @ONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/kira/CommitHash.h.in ${CMAKE_CURRENT_SOURCE_DIR}/include/kira/CommitHash.h @ONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/kira/Version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/include/kira/Version.h @ONLY)
 
 # ----------------------------------------------------------
 # Setup module-specific dependencies

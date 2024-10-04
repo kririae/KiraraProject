@@ -3,26 +3,27 @@
 #include "Core/ProgramBuilder.h"
 #include "Core/ShaderCursor.h"
 #include "Core/SlangUtils.h"
+#include "Renderer/RenderTriangleMesh.h"
 
 namespace krd {
-namespace {
-struct Vertex {
-    float position[3];
-    float color[3];
-};
+SlangGraphicsContext::SlangGraphicsContext(
+    Desc const &desc, Ref<Window> const &window, Ref<RenderScene> const &renderScene
+) {
+    // TODO(krr): is this robust enough?.. IDK but anyway
+    //
+    // This limits the `RenderScene` to operate only on a single SlangGraphicsContext, while putting
+    // the `SlangGraphicsContext` is a passive place. I cannot get any reference on how to design
+    // this for now, but this really simplifies coding.
+    //
+    // Can we just assume that the `RenderScene` and `SlangGraphicsContext` operates on a single
+    // thread?
 
-static int const VertexCount = 3;
-static Vertex const VertexData[VertexCount] = {
-    {{0, 0, 0.5}, {1, 0, 0}},
-    {{0, 1, 0.5}, {0, 0, 1}},
-    {{1, 0, 0.5}, {0, 1, 0}},
-};
-} // namespace
+    this->renderScene = renderScene.get();
+    this->renderScene->bindGraphicsContext(Ref<SlangGraphicsContext>(this));
 
-SlangGraphicsContext::SlangGraphicsContext(Desc const &desc, Ref<Window> const &window)
-    : SlangContext() {
     width = window->getWidth(), height = window->getHeight(); // (0)
     windowHandle = window->getWindowHandle();                 // (0)
+    programBuilder = renderScene->createProgramBuilder();     // (2)
     swapchainImageCnt = desc.swapchainImageCnt;               // (3)
     enableVSync = desc.enableVSync;                           // (3)
     enableGFXFix_07783 = desc.enableGFXFix_07783;             // (7)
@@ -65,20 +66,22 @@ void SlangGraphicsContext::renderFrame() {
     renderEncoder->setViewportAndScissor(viewport);
 
     //! Bind the pipeline state to shader objects.
-    {
-        auto *rootObject = renderEncoder->bindPipeline(gPipelineState);
-        gfx::ShaderCursor rootCursor{rootObject};
+    auto *rootObject = renderEncoder->bindPipeline(gPipelineState);
+    gfx::ShaderCursor rootCursor{rootObject};
 
-        std::array<float, 16> identityMatrix{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
-        slangCheck(rootCursor["Uniforms"]["modelViewProjection"].setData(
-            identityMatrix.data(), sizeof(float) * 4 * 4
-        ));
-    }
+    std::array<float, 16> identityMatrix{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+    slangCheck(rootCursor["Uniforms"]["modelViewProjection"].setData(
+        identityMatrix.data(), sizeof(float) * 4 * 4
+    ));
 
     //! Set the vertex buffer and render the triangles.
-    {
-        // renderEncoder->setVertexBuffer(0, gVertexBuffer);
-        // renderEncoder->setPrimitiveTopology(gfx::PrimitiveTopology::TriangleList);
+    for (auto const &rObj : getRenderScene()->getRenderObjectOfType<RenderTriangleMesh>()) {
+        auto const resource = rObj->getResource();
+        renderEncoder->setVertexBuffer(0, resource->vertexBuffer);
+        renderEncoder->setIndexBuffer(resource->indexBuffer, gfx::Format::R32_UINT);
+        renderEncoder->setPrimitiveTopology(gfx::PrimitiveTopology::TriangleList);
+
+        renderEncoder->drawIndexed(rObj->getNumIndices(), 0);
     }
 
     // Clean up the rendering of this frame and dispatch the rendering commands.
@@ -104,22 +107,13 @@ void SlangGraphicsContext::setupFramebufferLayout() {
 }
 
 void SlangGraphicsContext::setupPipelineState() {
-    auto program = //
-        ProgramBuilder{}
-            .addSlangModuleFromPath(
-                "/home/krr/Projects/KiraraProject/kirara-dance/Renderer/shaders.slang"
-            )
-            .addEntryPoint("vertexMain")
-            .addEntryPoint("fragmentMain")
-            // .addSlangModuleFromPath(
-            //     "/home/krr/Projects/KiraraProject/kirara-dance/KiraraDance/null.slang"
-            // )
-            .link(gDevice);
+    auto const program = this->programBuilder.link(gDevice);
 
     gfx::InputElementDesc inputElements[] = {
         {"POSITION", 0, gfx::Format::R32G32B32_FLOAT, offsetof(Vertex, position)},
-        {"COLOR", 0, gfx::Format::R32G32B32_FLOAT, offsetof(Vertex, color)},
+        {"NORMAL", 0, gfx::Format::R32G32B32_FLOAT, offsetof(Vertex, normal)},
     };
+
     ComPtr<gfx::IInputLayout> inputLayout;
     slangCheck(gDevice->createInputLayout(sizeof(Vertex), inputElements, 2, inputLayout.writeRef())
     );

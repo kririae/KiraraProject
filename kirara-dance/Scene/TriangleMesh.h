@@ -6,6 +6,7 @@
 #include "Scene/SceneObject.h"
 
 namespace krd {
+/// A triangle mesh in the most general format.
 class TriangleMesh : public SceneObject<IRenderable, IPhysical> {
 private:
     TriangleMesh(Scene *scene);
