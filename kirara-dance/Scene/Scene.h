@@ -1,5 +1,7 @@
 #pragma once
 
+#include <kira/SmallVector.h>
+
 #include <unordered_map>
 #include <unordered_set>
 
@@ -14,8 +16,12 @@ private:
     Scene() = default;
 
 public:
+    struct Desc {
+        ///
+    };
+
     ///
-    static Ref<Scene> create() { return {new Scene()}; }
+    static Ref<Scene> create(Desc const &desc) { return {new Scene()}; }
 
     ///
     ~Scene() = default;
@@ -36,7 +42,7 @@ public:
     template <typename T>
         requires(std::is_base_of_v<SceneObjectBase, T>)
     [[nodiscard]] auto getAs(uint64_t sceneObjId) const {
-        auto ret = sceneObjMap.at(sceneObjId).dyn_cast<T>();
+        auto ret = sObjMap.at(sceneObjId).dyn_cast<T>();
         if (!ret)
             throw kira::Anyhow("Scene: Scene object cannot be casted to the given type");
         return ret;
@@ -48,7 +54,7 @@ public:
     /// Invoked mostly by \c SceneObject constructor.
     ///
     /// \return A non-zero unique identifier of the scene object.
-    uint64_t registerSceneObject(Ref<SceneObjectBase> sceneObj);
+    [[nodiscard]] uint64_t registerSceneObject(Ref<SceneObjectBase> sceneObj);
 
     ///
     void markRenderable(uint64_t sceneObjId) {}
@@ -57,55 +63,28 @@ public:
     void markPhysical(uint64_t sceneObjId) {}
 
     ///
-    void markStaticTriangleMesh(uint64_t sceneObjId);
+    void markTriangleMesh(uint64_t sceneObjId) {}
 
 public:
-    /// The iterable range of the scene objects of type \c T.
-    template <typename T, typename IterableType> class SceneObjectRange {
-    public:
-        SceneObjectRange(Scene const *s, IterableType &iterable) : scene(s), iterable(iterable) {}
-
-        class Iterator {
-        private:
-            Scene const *scene;
-            typename IterableType::iterator it;
-
-        public:
-            Iterator(Scene const *s, typename IterableType::iterator i) : scene(s), it(i) {}
-
-            bool operator!=(Iterator const &other) const { return it != other.it; }
-            Iterator &operator++() {
-                ++it;
-                return *this;
-            }
-            auto operator*() const { return scene->template getAs<T>(*it); }
-        };
-
-        Iterator begin() { return Iterator(scene, iterable.begin()); }
-        Iterator end() { return Iterator(scene, iterable.end()); }
-
-    private:
-        Scene const *scene;
-        IterableType &iterable;
-    };
-
+    /// Get the scene object of type \c T with the given id.
     ///
-    [[nodiscard]] auto getStaticTriangleMeshRange() const {
-        return SceneObjectRange<TriangleMesh, std::unordered_set<uint64_t> const>{
-            this, staticTriangleMeshSceneObjIds
-        };
+    /// \remark This function is not thread-safe and highly inefficient. Use it only for development
+    /// and debugging.
+    template <typename T> [[nodiscard]] auto getSceneObjectOfType() const {
+        kira::SmallVector<Ref<T>> ret;
+        for (auto const &[_, sObj] : sObjMap)
+            if (auto casted = sObj.dyn_cast<T>(); casted)
+                ret.push_back(casted);
+        return ret;
     }
+
+    /// Get the triangle meshes in the scene.
+    [[nodiscard]] kira::SmallVector<Ref<TriangleMesh>> getTriangleMesh() const;
 
 private:
     ///
-    std::atomic_uint64_t sceneObjIdCnt{0};
+    std::atomic_uint64_t sObjIdCnt{0};
     ///
-    std::unordered_map<uint64_t, Ref<SceneObjectBase>> sceneObjMap;
-    ///
-    std::unordered_set<uint64_t> renderableSceneObjIds;
-    ///
-    std::unordered_set<uint64_t> physicalSceneObjIds;
-    ///
-    std::unordered_set<uint64_t> staticTriangleMeshSceneObjIds;
+    std::unordered_map<uint64_t, Ref<SceneObjectBase>> sObjMap;
 };
 } // namespace krd

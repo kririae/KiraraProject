@@ -134,10 +134,6 @@ endif()
 # ----------------------------------------------------------
 add_subdirectory(kira)
 
-if(KRR_BUILD_EXAMPLES)
-  add_subdirectory(examples)
-endif()
-
 if(KRR_BUILD_KIRARA_DANCE)
   add_subdirectory(kirara-dance)
 endif()

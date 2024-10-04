@@ -19,7 +19,16 @@ public:
     /// order is allowed by double reference counting.
     ///
     /// \see https://github.com/shader-slang/slang/pull/1788
-    virtual ~SlangContext() = default;
+    ~SlangContext() override {
+        if (gQueue)
+            gQueue->waitOnHost();
+    }
+
+    /// Get the device that this context is associated with.
+    [[nodiscard]] auto getDevice() const { return gDevice; }
+
+    /// Get the command queue that this context is associated with.
+    [[nodiscard]] auto getCommandQueue() const { return gQueue; }
 
 protected:
     ComPtr<gfx::IDevice> gDevice;

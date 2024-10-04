@@ -38,8 +38,11 @@ public:
         return scene;
     }
 
-    /// Gets the unique identifier of this object in the scene.
-    [[nodiscard]] auto getSceneId() const { return sceneId; }
+    /// Gets the non-zero unique identifier of this object in the scene.
+    [[nodiscard]] auto getSceneId() const {
+        KRD_ASSERT(sceneId != 0, "SceneObject: Scene id is not set");
+        return sceneId;
+    }
 
 protected:
     /// Constructs a scene object and registers it to the scene.

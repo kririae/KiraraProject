@@ -10,7 +10,7 @@
 
 namespace krd {
 TriangleMesh::TriangleMesh(Scene *scene) : SceneObject(scene) {
-    getScene()->markStaticTriangleMesh(getSceneId());
+    getScene()->markTriangleMesh(getSceneId());
 }
 
 void TriangleMesh::loadFromFile(std::filesystem::path const &path) {

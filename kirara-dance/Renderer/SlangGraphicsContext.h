@@ -1,7 +1,9 @@
 #pragma once
 
+#include "Core/ProgramBuilder.h"
 #include "Core/SlangContext.h"
 #include "Core/Window.h"
+#include "Renderer/RenderScene.h"
 
 namespace krd {
 ///
@@ -10,30 +12,43 @@ public:
     struct Desc {
         //
         int swapchainImageCnt = 2;
-
         //
         bool enableVSync = true;
-
         // https://registry.khronos.org/vulkan/specs/1.3-extensions/html/vkspec.html#VUID-vkAcquireNextImageKHR-surface-07783
         bool enableGFXFix_07783 = false;
     };
 
 private:
     ///
-    SlangGraphicsContext(Desc const &desc, Ref<Window> const &window);
+    SlangGraphicsContext(
+        Desc const &desc, Ref<Window> const &window, Ref<RenderScene> const &renderScene
+    );
 
 public:
     ///
-    static Ref<SlangGraphicsContext> create(Desc const &desc, Ref<Window> const &window) {
-        return {new SlangGraphicsContext(desc, window)};
+    static Ref<SlangGraphicsContext>
+    create(Desc const &desc, Ref<Window> const &window, Ref<RenderScene> const &renderScene) {
+        return {new SlangGraphicsContext(desc, window, renderScene)};
     }
 
-    ///
-    ~SlangGraphicsContext() = default;
+    ~SlangGraphicsContext() override {
+        // Wait for the queue to finish, i.e., the work submitted by the last frame.
+        // This implicitly waits for
+        // 1. all the fences to be signaled
+        // 2. transient heaps are cleared, because heap usage is issued before the queue submission
+        if (gQueue)
+            gQueue->waitOnHost();
+    }
 
 public:
     void setSwapchainImageCnt(int cnt);
     void resize(std::shared_ptr<Window> const &window);
+
+    /// Get the render scene that this graphics context is associated with.
+    auto getRenderScene() const {
+        KRD_ASSERT(renderScene, "SlangGraphicsContext: RenderScene is not set");
+        return renderScene;
+    }
 
 public:
     ///
@@ -49,12 +64,14 @@ private:
     void setupFrameFence();        // (7)
 
 protected:
+    RenderScene *renderScene;       // (0)
     int width, height;              // (0)
     gfx::WindowHandle windowHandle; // (0)
 
     gfx::Format pixFormat = gfx::Format::B8G8R8A8_UNORM; // (1)
     ComPtr<gfx::IFramebufferLayout> gFramebufferLayout;  // (1)
 
+    ProgramBuilder programBuilder;              // (2)
     ComPtr<gfx::IPipelineState> gPipelineState; // (2)
 
     int swapchainImageCnt;              // (3)
