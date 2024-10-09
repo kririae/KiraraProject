@@ -3,18 +3,6 @@
 #include "Scene/Scene.h"
 
 namespace krd {
-SceneObjectBase::SceneObjectBase(Scene *scene)
+SceneObject::SceneObject(Scene *scene) noexcept
     : scene(scene), sceneId(scene->registerSceneObject(this)) {}
-
-void SceneObjectBase::markRenderable() const {
-    KRD_ASSERT(getScene() != nullptr);
-    KRD_ASSERT(getSceneId() != 0);
-    getScene()->markRenderable(getSceneId());
-}
-
-void SceneObjectBase::markPhysical() const {
-    KRD_ASSERT(getScene() != nullptr);
-    KRD_ASSERT(getSceneId() != 0);
-    getScene()->markPhysical(getSceneId());
-}
 } // namespace krd

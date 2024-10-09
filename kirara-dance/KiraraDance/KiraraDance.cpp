@@ -1,5 +1,5 @@
-#include "FLux/FLuxScene.h"
-#include "FLux/SlangGraphicsContext.h"
+#include "Instant/InstantScene.h"
+#include "Instant/SlangGraphicsContext.h"
 #include "Scene/Camera.h"
 #include "Scene/Scene.h"
 #include "Scene/TriangleMesh.h"
@@ -10,11 +10,10 @@ int main() try {
     // Scene: the abstraction of the global state, i.e., configuration (per-program)
     // Scene can be ticked.
     //
-    // FLuxScene: the abstraction of render resource creation and manipulation (per-device)
+    // InstantScene: the abstraction of render resource creation and manipulation (per-device)
+    // InstantScene should not be ticked.
     //
-    // SlangGraphicsContext: the abstraction of the graphics API (per-view)
-    // No communication in between. SlangGraphicsContext directly responds to FLuxScene's
-    // configuration
+    // SlangGraphicsContext: the abstraction of the graphics API (per-window)
 
     // scene > window
     auto const scene = Scene::create(Scene::Desc{});
@@ -30,22 +29,25 @@ int main() try {
     camera->setTarget(krd::float3(0, 0, 0));
     camera->setUpDirection(krd::float3(0, 1, 0));
 
+    auto const instScene = InstantScene::create(InstantScene::Desc{}, scene);
     auto const window =
         Window::create(Window::Desc{.width = 1280, .height = 720, .title = "Kirara Dance"});
 
-    // Maybe we should call it \c RenderSystem
-    auto const flScene = FLuxScene::create(FLuxScene::Desc{}, scene);
-
     SlangGraphicsContext::Desc desc{};
-    auto const context = SlangGraphicsContext::create(desc, window, flScene);
+    auto const context = SlangGraphicsContext::create(desc, window, instScene);
 
     //
     window->attachController(camera->getController());
     window->attachController(context->getController());
 
     // Enter the main loop.
-    window->mainLoop([&]() { context->renderFrame(); });
+    window->mainLoop([&](float deltaTime) {
+        scene->tick(deltaTime);
+
+        instScene->pull();
+        context->renderFrame();
+    });
 
     // Should not be RAII-ed.
-    context->finalize();
+    context->synchronize();
 } catch (std::exception const &e) { krd::LogError("{}", e.what()); }

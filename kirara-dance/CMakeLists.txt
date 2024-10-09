@@ -79,15 +79,16 @@ add_executable(kirara-dance
   KiraraDance/Editor.cpp
   KiraraDance/KiraraDance.cpp
 
-  FLux/FLuxScene.cpp
-  FLux/RenderCamera.cpp
-  FLux/RenderObject.cpp
-  FLux/RenderTriangleMesh.cpp
-  FLux/SlangGraphicsContext.cpp
+  Instant/InstantCamera.cpp
+  Instant/InstantObject.cpp
+  Instant/InstantScene.cpp
+  Instant/InstantTriangleMesh.cpp
+  Instant/SlangGraphicsContext.cpp
 
   Scene/Camera.cpp
   Scene/Scene.cpp
   Scene/SceneObject.cpp
+  Scene/Transform.cpp
   Scene/TriangleMesh.cpp
 )
 

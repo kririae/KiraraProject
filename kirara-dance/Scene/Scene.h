@@ -16,8 +16,6 @@ class Scene final : public Object {
     Scene() = default;
 
 public:
-    friend class SceneController;
-
     struct Desc {
         ///
     };
@@ -30,7 +28,7 @@ public:
 
     /// Creates a scene object and registers it to the \c Scene.
     template <typename T, typename... Args>
-        requires(std::is_base_of_v<SceneObjectBase, T>)
+        requires(std::is_base_of_v<SceneObject, T>)
     auto create(Args &&...args) {
         return T::create(this, std::forward<Args>(args)...);
     }
@@ -42,13 +40,16 @@ public:
     /// \throw std::out_of_range if the id is out of range.
     /// \throw kira::Anyhow if the object cannot be cast to \c T.
     template <typename T>
-        requires(std::is_base_of_v<SceneObjectBase, T>)
-    [[nodiscard]] auto getAs(uint64_t sceneObjId) const {
-        auto ret = sObjMap.at(sceneObjId).dyn_cast<T>();
+        requires(std::is_base_of_v<SceneObject, T>)
+    [[nodiscard]] auto getAs(uint64_t sObjId) const {
+        auto ret = sObjMap.at(sObjId).dyn_cast<T>();
         if (!ret)
             throw kira::Anyhow("Scene: Scene object cannot be casted to the given type");
         return ret;
     }
+
+    /// Tick the scene.
+    void tick(float deltaTime);
 
 public:
     /// Registers a scene object to the scene.
@@ -56,19 +57,12 @@ public:
     /// Invoked mostly by \c SceneObject constructor.
     ///
     /// \return A non-zero unique identifier of the scene object.
-    [[nodiscard]] uint64_t registerSceneObject(Ref<SceneObjectBase> sObj);
+    [[nodiscard]] uint64_t registerSceneObject(Ref<SceneObject> sObj) noexcept;
 
     /// Discard a scene object from the scene.
-    bool discardSceneObject(uint64_t sObjId);
-
     ///
-    void markRenderable(uint64_t sObjId) {}
-
-    ///
-    void markPhysical(uint64_t sObjId) {}
-
-    ///
-    void markTriangleMesh(uint64_t sObjId) {}
+    /// \remark This function potentially invokes destructors.
+    bool discardSceneObject(uint64_t sObjId) noexcept;
 
     /// Mark the scene object as the active camera.
     void markActiveCamera(uint64_t const sObjId) { activeCameraId = sObjId; }
@@ -102,7 +96,10 @@ private:
     uint64_t activeCameraId{0};
     ///
     std::atomic_uint64_t sObjIdCnt{0};
+
+    /// The list of scene objects in the scene.
     ///
-    std::unordered_map<uint64_t, Ref<SceneObjectBase>> sObjMap;
+    /// Don't put anything after this line, the order of destruction is important.
+    std::unordered_map<uint64_t, Ref<SceneObject>> sObjMap;
 };
 } // namespace krd
