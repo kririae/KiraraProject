@@ -20,8 +20,8 @@ public:
     ///
     /// \see https://github.com/shader-slang/slang/pull/1788
     ~SlangContext() override {
-        if (gQueue)
-            gQueue->waitOnHost();
+        gQueue->waitOnHost();
+        LogTrace("SlangContext: destructed");
     }
 
     /// Get the device that this context is associated with.
@@ -31,7 +31,7 @@ public:
     [[nodiscard]] auto getCommandQueue() const { return gQueue; }
 
 protected:
-    ComPtr<gfx::IDevice> gDevice;
-    ComPtr<gfx::ICommandQueue> gQueue;
+    ComPtr<gfx::IDevice> gDevice{};
+    ComPtr<gfx::ICommandQueue> gQueue{};
 };
 } // namespace krd

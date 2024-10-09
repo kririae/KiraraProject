@@ -14,8 +14,7 @@
 
 ## Build and Use
 
-KIRA is designed to be built out-of-box, while others are only built with
-best-effort guarantee. That is to say, some special dependencies are to be setup
+KIRA is designed to be built out-of-box, while others are not. Some special dependencies are to be setup
 on your own.
 
 KIRA is built by CMake. User can build it with `CMakePresets.json` aware
@@ -36,7 +35,7 @@ One can also use the conventional 2-step CMake process, but it is not
 recommended.
 
 Specifically for KIRA, which can be used as a dependency in other projects,
-supports 2 modes:
+supports 2 modes to import:
 
 ```cmake
 set(KRR_BUILD_TESTS OFF)
@@ -46,8 +45,6 @@ FetchContent_Declare(
   GIT_TAG main)
 FetchContent_MakeAvailable(kira)
 ```
-
-and
 
 ```cmake
 # Require CMAKE_PREFX_PATH to be set properly

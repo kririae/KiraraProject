@@ -7,32 +7,30 @@
 
 namespace krd {
 /// A triangle mesh in the most general format.
-class TriangleMesh : public SceneObject<IRenderable, IPhysical> {
-private:
-    TriangleMesh(Scene *scene);
-
+class TriangleMesh final : public SceneObject<IRenderable, IPhysical> {
 public:
     /// \see igl::PerVertexNormalsWeightingType
-    enum class NormalWeightingType {
+    enum class NormalWeightingType : uint8_t {
         ByArea,
         ByAngle,
     };
 
+    /// Constructor.
+    explicit TriangleMesh(Scene *scene);
+
     ///
-    [[nodiscard]]
-    static Ref<TriangleMesh> create(Scene *scene) {
+    [[nodiscard]] static Ref<TriangleMesh> create(Scene *scene) {
         return {new TriangleMesh(scene)};
     }
 
-    [[nodiscard]]
-    static Ref<TriangleMesh> create(Scene *scene, std::filesystem::path const &path) {
+    [[nodiscard]] static Ref<TriangleMesh> create(Scene *scene, std::filesystem::path const &path) {
         auto mesh = create(scene);
         mesh->loadFromFile(path);
         return mesh;
     }
 
     ///
-    ~TriangleMesh() = default;
+    ~TriangleMesh() override = default;
 
 public:
     void loadFromFile(std::filesystem::path const &path);

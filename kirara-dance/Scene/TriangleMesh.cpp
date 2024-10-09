@@ -17,7 +17,7 @@ void TriangleMesh::loadFromFile(std::filesystem::path const &path) {
     // \c libigl can just load V and F, and is not that robust in loading mesh with attributes.
     Assimp::Importer importer;
 
-    aiScene const *scene = importer.ReadFile(path, aiProcess_Triangulate);
+    aiScene const *scene = importer.ReadFile(path.string(), aiProcess_Triangulate);
     if (!scene || !scene->mRootNode || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE)
         throw kira::Anyhow(
             "TriangleMesh: Failed to load the model from '{:s}': {:s}", path.string(),
@@ -66,7 +66,7 @@ void TriangleMesh::loadFromFile(std::filesystem::path const &path) {
 }
 
 void TriangleMesh::calculateNormal(TriangleMesh::NormalWeightingType weighting) {
-    igl::PerVertexNormalsWeightingType iglWeighting;
+    igl::PerVertexNormalsWeightingType iglWeighting{};
     switch (weighting) {
     case NormalWeightingType::ByArea:
         iglWeighting = igl::PER_VERTEX_NORMALS_WEIGHTING_TYPE_AREA;

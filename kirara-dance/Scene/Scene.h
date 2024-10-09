@@ -9,13 +9,15 @@
 #include "Scene/SceneObject.h"
 
 namespace krd {
+class Camera;
 class TriangleMesh;
 
 class Scene final : public Object {
-private:
     Scene() = default;
 
 public:
+    friend class SceneController;
+
     struct Desc {
         ///
     };
@@ -24,7 +26,7 @@ public:
     static Ref<Scene> create(Desc const &desc) { return {new Scene()}; }
 
     ///
-    ~Scene() = default;
+    ~Scene() override;
 
     /// Creates a scene object and registers it to the \c Scene.
     template <typename T, typename... Args>
@@ -38,7 +40,7 @@ public:
     /// \tparam T The expected type of the scene object.
     ///
     /// \throw std::out_of_range if the id is out of range.
-    /// \throw kira::Anyhow if the object cannot be casted to \c T.
+    /// \throw kira::Anyhow if the object cannot be cast to \c T.
     template <typename T>
         requires(std::is_base_of_v<SceneObjectBase, T>)
     [[nodiscard]] auto getAs(uint64_t sceneObjId) const {
@@ -54,18 +56,29 @@ public:
     /// Invoked mostly by \c SceneObject constructor.
     ///
     /// \return A non-zero unique identifier of the scene object.
-    [[nodiscard]] uint64_t registerSceneObject(Ref<SceneObjectBase> sceneObj);
+    [[nodiscard]] uint64_t registerSceneObject(Ref<SceneObjectBase> sObj);
+
+    /// Discard a scene object from the scene.
+    bool discardSceneObject(uint64_t sObjId);
 
     ///
-    void markRenderable(uint64_t sceneObjId) {}
+    void markRenderable(uint64_t sObjId) {}
 
     ///
-    void markPhysical(uint64_t sceneObjId) {}
+    void markPhysical(uint64_t sObjId) {}
 
     ///
-    void markTriangleMesh(uint64_t sceneObjId) {}
+    void markTriangleMesh(uint64_t sObjId) {}
 
-public:
+    /// Mark the scene object as the active camera.
+    void markActiveCamera(uint64_t const sObjId) { activeCameraId = sObjId; }
+
+    /// Unmark the scene object as the active camera.
+    void unmarkActiveCamera(uint64_t const sObjId) {
+        if (sObjId == activeCameraId)
+            activeCameraId = 0;
+    }
+
     /// Get the scene object of type \c T with the given id.
     ///
     /// \remark This function is not thread-safe and highly inefficient. Use it only for development
@@ -78,10 +91,15 @@ public:
         return ret;
     }
 
+    /// Get the active camera in the scene.
+    [[nodiscard]] std::optional<Ref<Camera>> getActiveCamera() const;
+
     /// Get the triangle meshes in the scene.
     [[nodiscard]] kira::SmallVector<Ref<TriangleMesh>> getTriangleMesh() const;
 
 private:
+    ///
+    uint64_t activeCameraId{0};
     ///
     std::atomic_uint64_t sObjIdCnt{0};
     ///

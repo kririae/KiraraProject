@@ -119,7 +119,7 @@ if(KRR_ENABLE_ASAN)
   krr_message(WARN "AddressSanitizer is enabled. 
   It intends to detect common issues like out of bounds/use after free/use after
   return/use after scope, etc. It will also utilize LeakSanitizer to check
-  memory leak. Sometimes AddressSanitizer is aggresive that the program can fail
+  memory leak. Sometimes AddressSanitizer is aggressive that the program can fail
   mysteriously, one might consider enabling UBSAN or LSAN only")
   add_sanitizer_support(address)
 endif()

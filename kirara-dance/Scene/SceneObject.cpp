@@ -4,7 +4,7 @@
 
 namespace krd {
 SceneObjectBase::SceneObjectBase(Scene *scene)
-    : scene(scene), sceneId(scene->registerSceneObject(Ref<SceneObjectBase>(this))) {}
+    : scene(scene), sceneId(scene->registerSceneObject(this)) {}
 
 void SceneObjectBase::markRenderable() const {
     KRD_ASSERT(getScene() != nullptr);

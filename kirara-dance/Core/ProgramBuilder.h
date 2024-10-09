@@ -32,7 +32,6 @@ public:
     ///
     ~ProgramBuilder() = default;
 
-public:
     ///
     ProgramBuilder &addSlangModuleFromPath(std::filesystem::path path);
 

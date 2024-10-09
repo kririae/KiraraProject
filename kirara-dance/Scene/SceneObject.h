@@ -46,17 +46,17 @@ public:
 
 protected:
     /// Constructs a scene object and registers it to the scene.
-    SceneObjectBase(Scene *scene);
+    explicit SceneObjectBase(Scene *scene);
 
 private:
     void markRenderable() const;
     void markPhysical() const;
 
     /// The scene that this object belongs to.
-    Scene *scene{nullptr};
+    Scene *const scene{nullptr};
 
     /// The unique identifier of this object in the scene.
-    uint64_t const sceneId{0};
+    uint64_t const sceneId;
 };
 
 /// A scene object that satisfies the given concepts.
