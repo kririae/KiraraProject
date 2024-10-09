@@ -7,7 +7,7 @@
 
 namespace krd {
 /// A triangle mesh in the most general format.
-class TriangleMesh final : public SceneObject<IRenderable, IPhysical> {
+class TriangleMesh final : public SceneObject {
 public:
     /// \see igl::PerVertexNormalsWeightingType
     enum class NormalWeightingType : uint8_t {
@@ -23,6 +23,7 @@ public:
         return {new TriangleMesh(scene)};
     }
 
+    ///
     [[nodiscard]] static Ref<TriangleMesh> create(Scene *scene, std::filesystem::path const &path) {
         auto mesh = create(scene);
         mesh->loadFromFile(path);

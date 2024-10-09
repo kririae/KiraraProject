@@ -60,7 +60,7 @@ public:
     /// Launch the main loop of an application.
     ///
     /// \remark Resource captured by the function should stay valid until the function returns.
-    void mainLoop(std::function<void()> const &onNewFrame) const;
+    void mainLoop(std::function<void(float)> const &onNewFrame) const;
 
 private:
     int width, height;

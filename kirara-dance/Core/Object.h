@@ -208,6 +208,25 @@ public:
         return Ref<T2>{dynamic_cast<T2 *>(ptr)};
     }
 
+    /// Decay the \c Ref<T> to \c UniqueRef<T> with runtime check.
+    ///
+    /// \return If the reference count is 1, the ownership is transferred to the \c UniqueRef<T>.
+    /// Else, an empty \c UniqueRef will be returned.
+    UniqueRef<T> tryDecay() && noexcept {
+        if (getRefCount() == 1)
+            return UniqueRef<T>(std::exchange(ptr, nullptr));
+        return {nullptr};
+    }
+
+    /// Decay the \c Ref<T> to \c UniqueRef<T> with runtime check.
+    ///
+    /// \throw kira::Anyhow if the reference count is not 1.
+    UniqueRef<T> decay() && {
+        if (getRefCount() == 1)
+            return UniqueRef<T>(std::exchange(ptr, nullptr));
+        throw kira::Anyhow("Ref: Failed to decay the reference");
+    }
+
 private:
     T *ptr{nullptr};
 };

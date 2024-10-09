@@ -7,17 +7,29 @@ namespace krd {
 Scene::~Scene() {
     for (auto &[sObjId, sObj] : sObjMap)
         if (sObj.getRefCount() != 1)
-            LogError("Scene: Scene Object {} outlives the scene", sObjId);
+            LogError("Scene: Scene Object id={} outlives the scene", sObjId);
     sObjMap.clear();
+    LogTrace("Scene: destructed");
 }
 
-uint64_t Scene::registerSceneObject(Ref<SceneObjectBase> sObj) {
+void Scene::tick(float deltaTime) {
+    for (auto &[sObjId, sObj] : sObjMap)
+        sObj->tick(deltaTime);
+}
+
+uint64_t Scene::registerSceneObject(Ref<SceneObject> sObj) noexcept {
     auto const sObjId = sObjIdCnt.fetch_add(1) + 1;
-    sObjMap.emplace(sObjId, std::move(sObj));
+    try {
+        sObjMap.emplace(sObjId, std::move(sObj));
+    } catch (std::exception const &e) {
+        LogError("Scene: Failed to register SceneObject: {}", e.what());
+        return 0;
+    }
+
     return sObjId;
 }
 
-bool Scene::discardSceneObject(uint64_t sObjId) {
+bool Scene::discardSceneObject(uint64_t sObjId) noexcept {
     auto const it = sObjMap.find(sObjId);
     if (it == sObjMap.end())
         return false;

@@ -9,9 +9,7 @@
 #include "Scene/Scene.h"
 
 namespace krd {
-TriangleMesh::TriangleMesh(Scene *scene) : SceneObject(scene) {
-    getScene()->markTriangleMesh(getSceneId());
-}
+TriangleMesh::TriangleMesh(Scene *scene) : SceneObject(scene) {}
 
 void TriangleMesh::loadFromFile(std::filesystem::path const &path) {
     // \c libigl can just load V and F, and is not that robust in loading mesh with attributes.
@@ -76,6 +74,7 @@ void TriangleMesh::calculateNormal(TriangleMesh::NormalWeightingType weighting) 
         break;
     default: KRD_ASSERT(false);
     }
+
     LogTrace(
         "TriangleMesh: Calculating normals on {:d} vertices with {:s} weighting...",
         getNumVertices(), weighting == NormalWeightingType::ByArea ? "area" : "angle"

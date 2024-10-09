@@ -31,7 +31,7 @@ private:
     std::set<int> keys;
 };
 
-class Camera final : public SceneObject<IRenderable> {
+class Camera final : public SceneObject {
     explicit Camera(Scene *scene);
 
 public:

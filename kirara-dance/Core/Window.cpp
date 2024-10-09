@@ -64,7 +64,7 @@ Window::~Window() {
     LogTrace("Window: destructed");
 }
 
-void Window::mainLoop(std::function<void()> const &onNewFrame) const {
+void Window::mainLoop(std::function<void(float)> const &onNewFrame) const {
     while (!glfwWindowShouldClose(window)) {
         // (1)
         glfwPollEvents();
@@ -74,7 +74,7 @@ void Window::mainLoop(std::function<void()> const &onNewFrame) const {
             controller->tick(1 / 60.0f);
 
         // (3)
-        onNewFrame();
+        onNewFrame(1 / 60.0f);
     }
 }
 } // namespace krd
