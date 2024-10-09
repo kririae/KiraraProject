@@ -24,8 +24,10 @@ inline kira::LoggerCustomizationPoint<"krd", spdlog::level::level_enum::err> Log
 // NOLINTEND
 
 #if !defined(NDEBUG)
+/// Asserts that the given condition is true.
 #define KRD_ASSERT(cond, ...) KIRA_FORCE_ASSERT(cond, __VA_ARGS__)
 #else
+/// Asserts that the given condition is true.
 #define KRD_ASSERT(cond, ...)
 #endif
 } // namespace krd

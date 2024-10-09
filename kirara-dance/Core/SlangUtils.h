@@ -16,7 +16,7 @@ namespace krd {
 /// \param loc The source location where the check is called, defaults to the current location.
 /// \throws kira::Anyhow Throws this exception if \c bShouldThrow is true.
 template <bool bShouldThrow = true>
-inline auto slangCheck(
+auto slangCheck(
     SlangResult result, std::source_location loc = std::source_location::current()
 ) noexcept(not bShouldThrow) -> void {
     constexpr auto makeSlangResultString = [](SlangResult result) -> std::string_view {
@@ -79,7 +79,9 @@ inline auto slangTrim(std::string const &str) -> std::string {
 };
 
 /// The callback object for handling debug messages from GFX.
-struct GfxDebugCallback : public gfx::IDebugCallback {
+struct GfxDebugCallback final : gfx::IDebugCallback {
+    virtual ~GfxDebugCallback() = default;
+
     void SLANG_NO_THROW handleMessage(
         gfx::DebugMessageType type, gfx::DebugMessageSource source, char const *message
     ) override {

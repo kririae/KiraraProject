@@ -26,3 +26,5 @@
 - TODO: add `mimalloc` and `backward-cpp`.
 - Between `Scene`, observer pattern is used to break dependencies and avoid
   complex dependencies.
+- Constructor should not throw. I don't have other approaches..
+- Right-handed global coordinate system.

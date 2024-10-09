@@ -16,9 +16,14 @@ CPMAddPackage(
 
 CPMAddPackage(
   NAME assimp
-  GITHUB_REPOSITORY assimp/assimp
+  URL "https://github.com/assimp/assimp/archive/refs/tags/v5.4.3.tar.gz"
+  VERSION 5.4.3
+)
 
-  GIT_TAG v5.4.3
+CPMAddPackage(
+  NAME glm
+  URL "https://github.com/g-truc/glm/archive/refs/tags/1.0.1.tar.gz"
+  VERSION 1.0.1
 )
 
 krr_message(INFO "Pulling slang binaries... This might take long")
@@ -53,7 +58,14 @@ if(slang_ADDED)
       IMPORTED_LOCATION "${SLANG_ROOT}/lib/libgfx.so"
       INTERFACE_INCLUDE_DIRECTORIES "${SLANG_ROOT}/include")
   elseif(WIN32)
-    # TODO(krr)
+    set_target_properties(slang::slang PROPERTIES
+      IMPORTED_LOCATION "${SLANG_ROOT}/bin/slang.dll"
+      IMPORTED_IMPLIB   "${SLANG_ROOT}/lib/slang.lib"
+      INTERFACE_INCLUDE_DIRECTORIES "${SLANG_ROOT}/include")
+    set_target_properties(slang::gfx PROPERTIES
+      IMPORTED_LOCATION "${SLANG_ROOT}/bin/gfx.dll"
+      IMPORTED_IMPLIB   "${SLANG_ROOT}/lib/gfx.lib"
+      INTERFACE_INCLUDE_DIRECTORIES "${SLANG_ROOT}/include")
   endif()
 endif()
 
@@ -64,13 +76,16 @@ add_executable(kirara-dance
   Core/Window.cpp
 
   KiraraDance/Backward.cpp
+  KiraraDance/Editor.cpp
   KiraraDance/KiraraDance.cpp
 
-  Renderer/RenderObject.cpp
-  Renderer/RenderScene.cpp
-  Renderer/RenderTriangleMesh.cpp
-  Renderer/SlangGraphicsContext.cpp
+  FLux/FLuxScene.cpp
+  FLux/RenderCamera.cpp
+  FLux/RenderObject.cpp
+  FLux/RenderTriangleMesh.cpp
+  FLux/SlangGraphicsContext.cpp
 
+  Scene/Camera.cpp
   Scene/Scene.cpp
   Scene/SceneObject.cpp
   Scene/TriangleMesh.cpp
@@ -80,6 +95,7 @@ target_link_libraries(kirara-dance PRIVATE
   Backward::Interface
   assimp
   glfw
+  glm::glm
   igl::core
   kira::kira
   slang::gfx
@@ -89,6 +105,15 @@ target_link_libraries(kirara-dance PRIVATE
 # Link towards current directory.
 target_include_directories(kirara-dance PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR})
+
+if(WIN32)
+  # Copy DLLs to the output directory
+  add_custom_command(TARGET kirara-dance POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+    $<TARGET_RUNTIME_DLLS:kirara-dance>
+    $<TARGET_FILE_DIR:kirara-dance>
+    COMMAND_EXPAND_LISTS)
+endif()
 
 if(false)
   target_precompile_headers(kirara-dance PRIVATE
