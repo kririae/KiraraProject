@@ -5,6 +5,7 @@
 
 namespace krd {
 Scene::~Scene() {
+    // Destruct the objects first, such that the registration map can be corrected updated.
     for (auto &[sObjId, sObj] : sObjMap)
         if (sObj.getRefCount() != 1)
             LogError("Scene: Scene Object id={} outlives the scene", sObjId);

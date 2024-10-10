@@ -15,9 +15,16 @@ InstantScene::InstantScene(Desc const &desc, Ref<Scene> scene) : scene(std::move
     this->pull();
 }
 
-InstantScene::~InstantScene() { LogTrace("InstantScene: destructed"); }
+InstantScene::~InstantScene() {
+    // Similar to Scene, destruct the objects first
+    for (auto &[iObjId, iObj] : iObjMap)
+        if (iObj.getRefCount() != 1)
+            LogError("InstantScene: Instant Scene Object id={} outlives the scene", iObjId);
+    iObjMap.clear();
+    LogTrace("InstantScene: destructed");
+}
 
-uint64_t InstantScene::registerInstantObject(Ref<InstantObject> rObj) {
+uint64_t InstantScene::registerInstantObject(Ref<InstantObject> rObj) noexcept {
     auto const rObjId = iObjIdCnt.fetch_add(1) + 1;
     iObjMap.emplace(rObjId, std::move(rObj));
     return rObjId;
@@ -37,9 +44,11 @@ void InstantScene::pull() {
 
 ProgramBuilder InstantScene::createProgramBuilder() const {
     // Return an instance of ProgramBuilder to avoid maintaining state.
-    std::filesystem::path const shadersPath = R"(InstantScene/VFMain.slang)";
+    std::filesystem::path const shadersPath = R"(Instant/VFMain.slang)";
 
     ProgramBuilder programBuilder;
+
+    // CMake will copy the source.
     programBuilder.addSlangModuleFromPath(shadersPath)
         .addEntryPoint("vertexMain")
         .addEntryPoint("fragmentMain");

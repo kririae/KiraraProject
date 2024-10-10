@@ -14,23 +14,15 @@ CPMAddPackage(
   OPTIONS
     "GLFW_BUILD_EXAMPLES OFF"
     "GLFW_BUILD_TESTS OFF"
-    "GLFW_BUILD_DOCS OFF"
-)
+    "GLFW_BUILD_DOCS OFF")
 
 CPMAddPackage(
   NAME assimp
   URL "https://github.com/assimp/assimp/archive/refs/tags/v5.4.3.tar.gz"
   VERSION 5.4.3
-)
-
-CPMAddPackage(
-  NAME glm
-  URL "https://github.com/g-truc/glm/archive/refs/tags/1.0.1.tar.gz"
-  VERSION 1.0.1
-)
+  OPTIONS "ASSIMP_BUILD_TESTS OFF")
 
 krr_message(INFO "Pulling slang binaries... This might take long")
-
 if(UNIX AND NOT APPLE)
   CPMAddPackage(
     NAME slang
@@ -102,7 +94,6 @@ target_link_libraries(kirara-dance PRIVATE
   Backward::Interface
   assimp
   glfw
-  glm::glm
   igl::core
   kira::kira
   slang::gfx

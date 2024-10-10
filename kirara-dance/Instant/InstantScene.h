@@ -63,7 +63,7 @@ public:
     /// Invoked mostly by \c InstantObject constructor.
     ///
     /// \return A non-zero unique identifier of the render object.
-    [[nodiscard]] uint64_t registerInstantObject(Ref<InstantObject> rObj);
+    [[nodiscard]] uint64_t registerInstantObject(Ref<InstantObject> rObj) noexcept;
 
     /// Get the reference scene that this \c InstantScene observes.
     [[nodiscard]] auto getScene() const { return scene; }
@@ -81,8 +81,8 @@ public:
     /// and debugging.
     template <typename T> [[nodiscard]] auto getInstantObjectOfType() const {
         kira::SmallVector<Ref<T>> ret;
-        for (auto const &[_, rObj] : iObjMap)
-            if (auto casted = rObj.template dyn_cast<T>(); casted)
+        for (auto const &[_, iObj] : iObjMap)
+            if (auto casted = iObj.template dyn_cast<T>(); casted)
                 ret.push_back(casted);
         return ret;
     }

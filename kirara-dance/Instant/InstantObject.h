@@ -5,12 +5,11 @@
 namespace krd {
 class InstantScene;
 class Scene;
-class SlangGraphicsContext;
 
-/// Base class for an object that belongs to a instant scene, e.g., InstantCamera, RenderLight, etc.
+/// Base class for an object that belongs to a instant scene, e.g., \c InstantCamera, etc.
 class InstantObject : public Object {
 public:
-    ~InstantObject() override = default;
+    ~InstantObject() noexcept override = default;
 
     /// Get the instant scene that this object belongs to.
     [[nodiscard]] InstantScene *getInstantScene() const {
@@ -32,11 +31,12 @@ public:
     virtual bool pull() { return false; }
 
 protected:
-    explicit InstantObject(InstantScene *instantScene);
+    /// Construct a instant scene object and registers it to the instant scene.
+    explicit InstantObject(InstantScene *instantScene) noexcept;
 
 private:
     ///
-    InstantScene *instantScene;
+    InstantScene *const instantScene;
     ///
     uint64_t const instantSceneId;
 };
