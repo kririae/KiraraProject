@@ -15,14 +15,14 @@ public:
     bool pull() override;
 
     ///
-    [[nodiscard]] krd::float4x4 getViewMatrix() const;
+    [[nodiscard]] float4x4 getViewMatrix() const;
 
     ///
-    [[nodiscard]] krd::float4x4 getProjectionMatrix(float aspectRatio) const;
+    [[nodiscard]] float4x4 getProjectionMatrix(float aspectRatio) const;
 
 private:
-    krd::float3 position{};
-    krd::float3 upDirection{};
-    krd::float3 target{};
+    float3 position{};
+    float3 upDirection{};
+    float3 target{};
 };
 } // namespace krd

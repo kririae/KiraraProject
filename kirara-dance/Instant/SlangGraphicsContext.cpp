@@ -50,7 +50,7 @@ void SlangGraphicsContext::onResize(int newWidth, int newHeight) {
     // Wait until the rendering is done.
     gQueue->waitOnHost();
 
-    LogInfo("SlangGraphicsContext: resizing to width={}, height={}...", newWidth, newHeight);
+    LogTrace("SlangGraphicsContext: resizing to width={}, height={}...", newWidth, newHeight);
     this->width = newWidth, this->height = newHeight;
 
     gFrameBuffer.clear();   // (4)
@@ -61,7 +61,7 @@ void SlangGraphicsContext::onResize(int newWidth, int newHeight) {
 
     setupFramebuffer();   // (4)
     setupTransientHeap(); // (5)
-    LogInfo("SlangGraphicsContext: resized to width={}, height={}", newWidth, newHeight);
+    LogTrace("SlangGraphicsContext: resized to width={}, height={}", newWidth, newHeight);
 }
 
 void SlangGraphicsContext::renderFrame() {
@@ -97,21 +97,20 @@ void SlangGraphicsContext::renderFrame() {
     gfx::ShaderCursor rootCursor{rootObject};
 
     auto const camera = getRenderScene()->getActiveCamera();
-    krd::float4x4 viewProjection = krd::mul(
-        camera->getProjectionMatrix(static_cast<float>(width) / static_cast<float>(height)),
-        camera->getViewMatrix()
-    );
+    float4x4 viewProjection =
+        mul(camera->getProjectionMatrix(static_cast<float>(width) / static_cast<float>(height)),
+            camera->getViewMatrix());
 
     auto deviceInfo = gDevice->getDeviceInfo();
-    krd::float4x4 correctionMatrix;
+    float4x4 correctionMatrix;
     std::memcpy(&correctionMatrix, deviceInfo.identityProjectionMatrix, sizeof(correctionMatrix));
 
-    viewProjection = krd::mul(correctionMatrix, viewProjection);
+    viewProjection = mul(correctionMatrix, viewProjection);
 
     // https://github.com/shader-slang/slang/blob/master/docs/user-guide/a1-01-matrix-layout.md
     // "Default matrix layout in memory for Slang is row-major"
     // "GLM is column-major"
-    viewProjection = krd::transpose(viewProjection);
+    viewProjection = transpose(viewProjection);
     slangCheck(rootCursor["Uniforms"]["modelViewProjection"].setData(
         &viewProjection, sizeof(float) * 4 * 4
     ));

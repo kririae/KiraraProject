@@ -81,7 +81,6 @@ option(KRR_ENABLE_UBSAN "Enable UBSAN (undefined behavior sanitizer)" OFF)
 option(KRR_ENABLE_CLANG_TIDY "Enable clang-tidy for analysis" OFF)
 
 # Optional modules
-option(KRR_BUILD_EXAMPLES "Build the examples" OFF)
 option(KRR_BUILD_KIRARA_DANCE "Build the KiraraDance application" OFF)
 
 # ----------------------------------------------------------

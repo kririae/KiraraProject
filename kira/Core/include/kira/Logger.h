@@ -36,7 +36,7 @@ public:
     }
 
     /// Initializes the logger with the previously specified configuration.
-    std::shared_ptr<spdlog::logger> init();
+    std::shared_ptr<spdlog::logger> init() const;
 
 private:
     std::string_view name;

@@ -1,8 +1,9 @@
+#include "kira/Logger.h"
+
 #include <spdlog/cfg/env.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
-#include "kira/Logger.h"
 #include "kira/SmallVector.h"
 
 namespace kira {
@@ -48,7 +49,7 @@ bool SinkManager::DropAllSinks() noexcept {
 }
 } // namespace detail
 
-std::shared_ptr<spdlog::logger> LoggerBuilder::init() {
+std::shared_ptr<spdlog::logger> LoggerBuilder::init() const {
     auto &sinkManager = detail::SinkManager::GetInstance();
     SmallVector<spdlog::sink_ptr> sinks;
 
@@ -66,6 +67,11 @@ std::shared_ptr<spdlog::logger> LoggerBuilder::init() {
 
     try {
         spdlog::initialize_logger(logger);
+#ifdef NDEBUG
+        logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%n] [%^%l%$] %v");
+#else
+        logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%n] [%^%l%$] [%s:%#] %v");
+#endif
     } catch (std::exception const &e) {
         auto const str = fmt::format("kira: Failed to initialize logger: {}\n", e.what());
         fmt::print(stderr, "{:s}", str);
