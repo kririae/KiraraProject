@@ -20,11 +20,12 @@ Window::Window(Desc const &desc) {
     width = desc.width, height = desc.height;
     window = glfwCreateWindow(width, height, desc.title.c_str(), nullptr, nullptr);
 
-    // TODO(krr): enhance the loading process
 #if _WIN32
     handle = gfx::WindowHandle::FromHwnd(glfwGetWin32Window(window));
-#elif
+#elif __linux__
     handle = gfx::WindowHandle::FromXWindow(glfwGetX11Display(), glfwGetX11Window(window));
+#else
+#error "Platform not supported"
 #endif
 
     glfwShowWindow(window);

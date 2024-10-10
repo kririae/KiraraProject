@@ -17,9 +17,9 @@ SlangGraphicsContext::SlangGraphicsContext(
     : controller(this) {
     // TODO(krr): is this robust enough?.. IDK but anyway
     //
-    // This limits the `InstantScene` to operate only on a single SlangGraphicsContext, while putting
-    // the `SlangGraphicsContext` is a passive place. I cannot get any reference on how to design
-    // this for now, but this really simplifies coding.
+    // This limits the `InstantScene` to operate only on a single SlangGraphicsContext, while
+    // putting the `SlangGraphicsContext` is a passive place. I cannot get any reference on how to
+    // design this for now, but this really simplifies coding.
     //
     // Can we just assume that the `InstantScene` and `SlangGraphicsContext` operates on a single
     // thread?
@@ -30,7 +30,7 @@ SlangGraphicsContext::SlangGraphicsContext(
 
     width = window->getWidth(), height = window->getHeight(); // (0)
     windowHandle = window->getWindowHandle();                 // (0)
-    programBuilder = instantScene->createProgramBuilder();     // (2)
+    programBuilder = instantScene->createProgramBuilder();    // (2)
     swapchainImageCnt = desc.swapchainImageCnt;               // (3)
     enableVSync = desc.enableVSync;                           // (3)
     enableGFXFix_07783 = desc.enableGFXFix_07783;             // (7)

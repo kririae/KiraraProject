@@ -3,6 +3,9 @@ project(kirara-dance LANGUAGES C CXX)
 include(KRR_AddModule)
 include(KRR_Message)
 
+# ----------------------------------------------------------
+# Dependency setup
+# ----------------------------------------------------------
 CPMAddPackage(
   NAME glfw
   GITHUB_REPOSITORY glfw/glfw
@@ -60,15 +63,18 @@ if(slang_ADDED)
   elseif(WIN32)
     set_target_properties(slang::slang PROPERTIES
       IMPORTED_LOCATION "${SLANG_ROOT}/bin/slang.dll"
-      IMPORTED_IMPLIB   "${SLANG_ROOT}/lib/slang.lib"
+      IMPORTED_IMPLIB "${SLANG_ROOT}/lib/slang.lib"
       INTERFACE_INCLUDE_DIRECTORIES "${SLANG_ROOT}/include")
     set_target_properties(slang::gfx PROPERTIES
       IMPORTED_LOCATION "${SLANG_ROOT}/bin/gfx.dll"
-      IMPORTED_IMPLIB   "${SLANG_ROOT}/lib/gfx.lib"
+      IMPORTED_IMPLIB "${SLANG_ROOT}/lib/gfx.lib"
       INTERFACE_INCLUDE_DIRECTORIES "${SLANG_ROOT}/include")
   endif()
 endif()
 
+# ----------------------------------------------------------
+# Executable setup
+# ----------------------------------------------------------
 add_executable(kirara-dance
   Core/ProgramBuilder.cpp
   Core/ShaderCursor.cpp
@@ -103,9 +109,33 @@ target_link_libraries(kirara-dance PRIVATE
   slang::slang
 )
 
-# Link towards current directory.
-target_include_directories(kirara-dance PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR})
+# Include towards current directory.
+target_include_directories(kirara-dance PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+# ----------------------------------------------------------
+# Additionally, copy auxiliary files to the output directory
+# ----------------------------------------------------------
+file(GLOB_RECURSE SHADER_FILES
+  LIST_DIRECTORIES false
+  ${CMAKE_CURRENT_SOURCE_DIR}/*.slang
+  ${CMAKE_CURRENT_SOURCE_DIR}/*.slangh
+  ${CMAKE_CURRENT_SOURCE_DIR}/*.hlsli
+  ${CMAKE_CURRENT_SOURCE_DIR}/*.hlsl)
+
+foreach(SHADER_FILE ${SHADER_FILES})
+  file(RELATIVE_PATH REL_SHADER_FILE ${CMAKE_CURRENT_SOURCE_DIR} ${SHADER_FILE})
+  get_filename_component(SHADER_DIR ${REL_SHADER_FILE} DIRECTORY)
+
+  add_custom_command(TARGET kirara-dance POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+    $<TARGET_FILE_DIR:kirara-dance>/${SHADER_DIR}
+
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    ${SHADER_FILE}
+    $<TARGET_FILE_DIR:kirara-dance>/${REL_SHADER_FILE})
+
+  krr_message(INFO "Copying shader file: ${REL_SHADER_FILE}")
+endforeach()
 
 if(WIN32)
   # Copy DLLs to the output directory
@@ -114,11 +144,6 @@ if(WIN32)
     $<TARGET_RUNTIME_DLLS:kirara-dance>
     $<TARGET_FILE_DIR:kirara-dance>
     COMMAND_EXPAND_LISTS)
-endif()
 
-if(false)
-  target_precompile_headers(kirara-dance PRIVATE
-    [[Core/GLFW.h]]
-    [[Core/KIRA.h]]
-  )
+  krr_message(INFO "Copy DLLs to the output directory")
 endif()

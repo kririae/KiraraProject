@@ -54,18 +54,6 @@ auto slangCheck(
     }
 }
 
-/// Log the diagnostic message from Slang.
-inline auto slangDiagnostic(slang::IBlob *diagnostics) -> void {
-    if (KIRA_UNLIKELY(!diagnostics))
-        return;
-    LogWarn(
-        "slangDiagnostic(): {:s}",
-        std::string_view{
-            static_cast<char const *>(diagnostics->getBufferPointer()), diagnostics->getBufferSize()
-        }
-    );
-}
-
 /// Trim the Slang callback log of newline characters.
 ///
 /// \param str The input string to be trimmed.
@@ -77,6 +65,18 @@ inline auto slangTrim(std::string const &str) -> std::string {
     auto end = str.find_last_not_of('\n');
     return str.substr(start, end - start + 1);
 };
+
+/// Log the diagnostic message from Slang.
+inline auto slangDiagnostic(slang::IBlob *diagnostics) -> void {
+    if (KIRA_UNLIKELY(!diagnostics))
+        return;
+    LogWarn(
+        "slangDiagnostic(): {:s}",
+        slangTrim(std::string{
+            static_cast<char const *>(diagnostics->getBufferPointer()), diagnostics->getBufferSize()
+        })
+    );
+}
 
 /// The callback object for handling debug messages from GFX.
 struct GfxDebugCallback final : gfx::IDebugCallback {

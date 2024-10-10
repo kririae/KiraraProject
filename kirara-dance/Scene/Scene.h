@@ -42,7 +42,7 @@ public:
     template <typename T>
         requires(std::is_base_of_v<SceneObject, T>)
     [[nodiscard]] auto getAs(uint64_t sObjId) const {
-        auto ret = sObjMap.at(sObjId).dyn_cast<T>();
+        auto ret = sObjMap.at(sObjId).template dyn_cast<T>();
         if (!ret)
             throw kira::Anyhow("Scene: Scene object cannot be casted to the given type");
         return ret;
@@ -80,7 +80,7 @@ public:
     template <typename T> [[nodiscard]] auto getSceneObjectOfType() const {
         kira::SmallVector<Ref<T>> ret;
         for (auto const &[_, sObj] : sObjMap)
-            if (auto casted = sObj.dyn_cast<T>(); casted)
+            if (auto casted = sObj.template dyn_cast<T>(); casted)
                 ret.push_back(casted);
         return ret;
     }
