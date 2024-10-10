@@ -22,7 +22,8 @@ public:
     };
 
     ///
-    static Ref<InstantTriangleMesh> create(InstantScene *instantScene, Ref<TriangleMesh> const &mesh) {
+    static Ref<InstantTriangleMesh>
+    create(InstantScene *instantScene, Ref<TriangleMesh> const &mesh) {
         return {new InstantTriangleMesh(instantScene, mesh)};
     }
 

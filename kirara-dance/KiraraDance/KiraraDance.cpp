@@ -18,11 +18,15 @@ int main() try {
     // scene > window
     auto const scene = Scene::create(Scene::Desc{});
 
+#if _WIN32
     scene->create<TriangleMesh>(R"(C:\Users\kriae\Projects\flux-data\cbox\geometry\boxes.ply)");
     scene->create<TriangleMesh>(R"(C:\Users\kriae\Projects\flux-data\cbox\geometry\floor.ply)");
     scene->create<TriangleMesh>(R"(C:\Users\kriae\Projects\flux-data\cbox\geometry\back.ply)");
     scene->create<TriangleMesh>(R"(C:\Users\kriae\Projects\flux-data\cbox\geometry\left.ply)");
     scene->create<TriangleMesh>(R"(C:\Users\kriae\Projects\flux-data\cbox\geometry\right.ply)");
+#else
+    scene->create<TriangleMesh>(R"(/home/krr/Projects/flux/flux/data/cbox/geometry/boxes.ply)");
+#endif
 
     auto const camera = scene->create<Camera>();
     camera->setPosition(krd::float3(0, 1, 4));
@@ -50,4 +54,7 @@ int main() try {
 
     // Should not be RAII-ed.
     context->synchronize();
-} catch (std::exception const &e) { krd::LogError("{}", e.what()); }
+} catch (std::exception const &e) {
+    //
+    krd::LogError("{}", e.what());
+}

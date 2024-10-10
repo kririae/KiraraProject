@@ -51,7 +51,7 @@ public:
     template <typename T>
         requires(std::is_base_of_v<InstantObject, T>)
     [[nodiscard]] auto getAs(uint64_t iObjId) const {
-        auto ret = iObjMap.at(iObjId).dyn_cast<T>();
+        auto ret = iObjMap.at(iObjId).template dyn_cast<T>();
         if (!ret)
             throw kira::Anyhow("InstantScene: Render object cannot be casted to the given type");
         return ret;
@@ -82,7 +82,7 @@ public:
     template <typename T> [[nodiscard]] auto getInstantObjectOfType() const {
         kira::SmallVector<Ref<T>> ret;
         for (auto const &[_, rObj] : iObjMap)
-            if (auto casted = rObj.dyn_cast<T>(); casted)
+            if (auto casted = rObj.template dyn_cast<T>(); casted)
                 ret.push_back(casted);
         return ret;
     }

@@ -37,8 +37,7 @@ void InstantScene::pull() {
 
 ProgramBuilder InstantScene::createProgramBuilder() const {
     // Return an instance of ProgramBuilder to avoid maintaining state.
-    std::filesystem::path const shadersPath =
-        R"(C:\Users\kriae\KiraraProject\kirara-dance\FLux\VFMain.slang)";
+    std::filesystem::path const shadersPath = R"(InstantScene/VFMain.slang)";
 
     ProgramBuilder programBuilder;
     programBuilder.addSlangModuleFromPath(shadersPath)

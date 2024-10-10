@@ -1,7 +1,5 @@
 #pragma once
 
 namespace krd {
-class Editor {
-
-};
+class Editor {};
 } // namespace krd
