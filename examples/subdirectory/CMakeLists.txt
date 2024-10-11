@@ -5,9 +5,9 @@ include(FetchContent)
 
 set(KRR_BUILD_TESTS OFF)
 FetchContent_Declare(
-  kira
-  GIT_REPOSITORY https://github.com/kririae/KiraraProject.git
-  GIT_TAG krr/graphics)
+    kira
+    GIT_REPOSITORY https://github.com/kririae/KiraraProject.git
+    GIT_TAG krr/graphics)
 FetchContent_MakeAvailable(kira)
 
 add_executable(kirara-example main.cpp)
