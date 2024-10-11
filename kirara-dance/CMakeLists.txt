@@ -15,12 +15,8 @@ CPMAddPackage(
 CPMAddPackage(
     NAME assimp
     URL "https://github.com/assimp/assimp/archive/refs/tags/v5.4.3.tar.gz"
-    VERSION 5.4.3)
-
-CPMAddPackage(
-    NAME glm
-    URL "https://github.com/g-truc/glm/archive/refs/tags/1.0.1.tar.gz"
-    VERSION 1.0.1)
+    VERSION 5.4.3
+    OPTIONS "ASSIMP_BUILD_TESTS OFF" "ASSIMP_BUILD_USD_IMPORTER OFF")
 
 krr_message(INFO "Pulling slang binaries... This might take long")
 
@@ -84,6 +80,7 @@ add_executable(
     Instant/SlangGraphicsContext.cpp
     Scene/Camera.cpp
     Scene/Scene.cpp
+    Scene/SceneBuilder.cpp
     Scene/SceneObject.cpp
     Scene/Transform.cpp
     Scene/TriangleMesh.cpp)
@@ -93,7 +90,6 @@ target_link_libraries(
     PRIVATE Backward::Interface
             assimp
             glfw
-            glm::glm
             igl::core
             kira::kira
             slang::gfx
