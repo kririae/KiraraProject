@@ -2,6 +2,7 @@
 #include "Instant/SlangGraphicsContext.h"
 #include "Scene/Camera.h"
 #include "Scene/Scene.h"
+#include "Scene/SceneBuilder.h"
 #include "Scene/TriangleMesh.h"
 
 int main() try {
@@ -15,6 +16,10 @@ int main() try {
     //
     // SlangGraphicsContext: the abstraction of the graphics API (per-window)
 
+    SceneBuilder builder{};
+    builder.loadFromFile(R"(C:\Users\kriae\KiraraProject\sphere.glb)");
+
+    return 0;
     // scene > window
     auto const scene = Scene::create(Scene::Desc{});
 
