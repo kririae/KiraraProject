@@ -16,11 +16,15 @@ CPMAddPackage(
     "GLFW_BUILD_TESTS OFF"
     "GLFW_BUILD_DOCS OFF")
 
+krr_message(INFO "Pulling and configuring assimp... This might take long")
+
 CPMAddPackage(
   NAME assimp
   URL "https://github.com/assimp/assimp/archive/refs/tags/v5.4.3.tar.gz"
   VERSION 5.4.3
-  OPTIONS "ASSIMP_BUILD_TESTS OFF")
+  OPTIONS
+    "ASSIMP_BUILD_TESTS OFF"
+    "ASSIMP_BUILD_USD_IMPORTER OFF")
 
 krr_message(INFO "Pulling slang binaries... This might take long")
 if(UNIX AND NOT APPLE)
@@ -85,6 +89,7 @@ add_executable(kirara-dance
 
   Scene/Camera.cpp
   Scene/Scene.cpp
+  Scene/SceneBuilder.cpp
   Scene/SceneObject.cpp
   Scene/Transform.cpp
   Scene/TriangleMesh.cpp
