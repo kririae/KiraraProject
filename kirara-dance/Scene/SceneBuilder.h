@@ -26,7 +26,11 @@ public:
     void loadFromFile(std::filesystem::path const &path);
 
 public:
-    /// Build the scene.
-    [[nodiscard]] Ref<Scene> build() const;
+    /// Get the scene.
+    [[nodiscard]] Ref<Scene> buildScene() { return std::move(scene); }
+
+private:
+    // TODO(krr): change it to lazy loading later. Multiple configurations can be loaded.
+    Ref<Scene> scene;
 };
 } // namespace krd

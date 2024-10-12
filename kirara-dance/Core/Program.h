@@ -19,8 +19,7 @@ private:
 
 public:
     friend class ProgramBuilder;
-
-    ~Program() = default;
+    ~Program() override = default;
 
 public:
     ///

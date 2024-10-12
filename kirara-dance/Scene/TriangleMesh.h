@@ -3,11 +3,13 @@
 #include <Eigen/Core>
 
 #include "Core/Object.h"
-#include "Scene/SceneObject.h"
+#include "Scene/AnimatableObject.h"
+
+struct aiMesh;
 
 namespace krd {
 /// A triangle mesh in the most general format.
-class TriangleMesh final : public SceneObject {
+class TriangleMesh final : public AnimatableObject {
 public:
     /// \see igl::PerVertexNormalsWeightingType
     enum class NormalWeightingType : uint8_t {
@@ -34,6 +36,10 @@ public:
     ~TriangleMesh() override = default;
 
 public:
+    ///
+    void loadFromAssimp(aiMesh const *inMesh, std::string_view name);
+
+    ///
     void loadFromFile(std::filesystem::path const &path);
 
 public:
@@ -48,9 +54,21 @@ public:
     ///
     [[nodiscard]] auto const &getVertices() const { return V; }
     ///
+    [[nodiscard]] auto &getVertices() { return V; }
+    ///
     [[nodiscard]] auto const &getNormals() const { return N; }
     ///
+    [[nodiscard]] auto &getNormals() { return N; }
+    ///
     [[nodiscard]] auto const &getFaces() const { return F; }
+    ///
+    [[nodiscard]] auto &getFaces() { return F; }
+
+    /// \brief Get the transformation of the mesh
+    ///
+    /// If the \c TriangleMesh is attached to a \c SceneNode, it will return the transformation of
+    /// the node. Otherwise, it will return the identity transformation.
+    [[nodiscard]] Transform getTransform() const;
 
     /// \brief Calculates the normals of the mesh.
     ///

@@ -34,6 +34,13 @@ public:
     Ref<DeviceData> upload(SlangGraphicsContext *context);
 
     ///
+    [[nodiscard]] float const *getModelMatrix() const { return modelMatrix.data(); }
+    ///
+    [[nodiscard]] float const *getInverseTransposedModelMatrix() const {
+        return inverseTransposedModelMatrix.data();
+    }
+
+    ///
     [[nodiscard]] auto getNumVertices() const { return vertices.size(); }
 
     ///
@@ -47,6 +54,8 @@ private:
     Ref<DeviceData> deviceData;
 
     // "transposed" data from TriangleMesh to InstantTriangleMesh
+    std::array<float, 16> modelMatrix;
+    std::array<float, 16> inverseTransposedModelMatrix;
     kira::SmallVector<Vertex> vertices;
     kira::SmallVector<uint32_t> indices;
 };

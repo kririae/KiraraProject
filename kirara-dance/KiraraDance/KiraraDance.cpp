@@ -17,19 +17,17 @@ int main() try {
     // SlangGraphicsContext: the abstraction of the graphics API (per-window)
 
     SceneBuilder builder{};
-    builder.loadFromFile(R"(C:\Users\kriae\KiraraProject\sphere.glb)");
+    builder.loadFromFile(R"(C:\Users\kriae\KiraraProject\spheres.glb)");
 
-    return 0;
-    // scene > window
-    auto const scene = Scene::create(Scene::Desc{});
+    auto const scene = builder.buildScene();
 
-#if _WIN32
-    scene->create<TriangleMesh>(R"(C:\Users\kriae\Projects\flux-data\cbox\geometry\boxes.ply)");
-    scene->create<TriangleMesh>(R"(C:\Users\kriae\Projects\flux-data\cbox\geometry\floor.ply)");
-    scene->create<TriangleMesh>(R"(C:\Users\kriae\Projects\flux-data\cbox\geometry\back.ply)");
-    scene->create<TriangleMesh>(R"(C:\Users\kriae\Projects\flux-data\cbox\geometry\left.ply)");
+    // scene->create<TriangleMesh>(R"(C:\Users\kriae\Projects\flux-data\cbox\geometry\boxes.ply)");
+    // scene->create<TriangleMesh>(R"(C:\Users\kriae\Projects\flux-data\cbox\geometry\floor.ply)");
+    // scene->create<TriangleMesh>(R"(C:\Users\kriae\Projects\flux-data\cbox\geometry\left.ply)");
+
+#if 0
     scene->create<TriangleMesh>(R"(C:\Users\kriae\Projects\flux-data\cbox\geometry\right.ply)");
-#else
+#elif 0
     scene->create<TriangleMesh>(R"(/home/krr/Projects/flux/flux/data/cbox/geometry/boxes.ply)");
 #endif
 

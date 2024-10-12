@@ -6,6 +6,7 @@
 #include <unordered_set>
 
 #include "Core/Object.h"
+#include "Scene/SceneGraph.h"
 #include "Scene/SceneObject.h"
 
 namespace krd {
@@ -91,11 +92,17 @@ public:
     /// Get the triangle meshes in the scene.
     [[nodiscard]] kira::SmallVector<Ref<TriangleMesh>> getTriangleMesh() const;
 
+    [[nodiscard]] SceneGraph &getSceneGraph() { return sceneGraph; }
+    [[nodiscard]] SceneGraph const &getSceneGraph() const { return sceneGraph; }
+
 private:
     ///
     uint64_t activeCameraId{0};
     ///
     std::atomic_uint64_t sObjIdCnt{0};
+
+    ///
+    SceneGraph sceneGraph;
 
     /// The list of scene objects in the scene.
     ///

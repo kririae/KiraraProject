@@ -92,10 +92,6 @@ void SlangGraphicsContext::renderFrame() {
     viewport.extentY = static_cast<float>(this->height);
     renderEncoder->setViewportAndScissor(viewport);
 
-    //! Bind the pipeline state to shader objects.
-    auto *rootObject = renderEncoder->bindPipeline(gPipelineState);
-    gfx::ShaderCursor rootCursor{rootObject};
-
     auto const camera = getRenderScene()->getActiveCamera();
     float4x4 viewProjection =
         mul(camera->getProjectionMatrix(static_cast<float>(width) / static_cast<float>(height)),
@@ -111,13 +107,34 @@ void SlangGraphicsContext::renderFrame() {
     // "Default matrix layout in memory for Slang is row-major"
     // "GLM is column-major"
     viewProjection = transpose(viewProjection);
-    slangCheck(rootCursor["Uniforms"]["modelViewProjection"].setData(
-        &viewProjection, sizeof(float) * 4 * 4
-    ));
+
+    auto *slangReflection = shaderProgram->getReflection();
+    auto *perView = slangReflection->findTypeByName("PerView");
+    auto viewShaderObject = gDevice->createShaderObject(perView);
+    {
+        gfx::ShaderCursor cursor(viewShaderObject);
+        slangCheck(cursor["viewProjection"].setData(&viewProjection, sizeof(float) * 4 * 4));
+    }
+
+    auto *perModel = slangReflection->findTypeByName("PerModel");
 
     //! Set the vertex buffer and render the triangles.
     for (auto const &rObj : getRenderScene()->getInstantObjectOfType<InstantTriangleMesh>()) {
         auto const deviceData = rObj->upload(this);
+
+        //! Bind the pipeline state to shader objects.
+        auto *rootObject = renderEncoder->bindPipeline(gPipelineState);
+        gfx::ShaderCursor rootCursor{rootObject};
+
+        auto modelShaderObject = gDevice->createShaderObject(perModel);
+        gfx::ShaderCursor cursor(modelShaderObject);
+        slangCheck(cursor["modelMatrix"].setData(rObj->getModelMatrix(), sizeof(float) * 4 * 4));
+        slangCheck(cursor["inverseTransposedModelMatrix"].setData(
+            rObj->getInverseTransposedModelMatrix(), sizeof(float) * 4 * 4
+        ));
+
+        slangCheck(rootCursor["gViewParams"].setObject(viewShaderObject));
+        slangCheck(rootCursor["gModelParams"].setObject(modelShaderObject));
 
         renderEncoder->setVertexBuffer(0, deviceData->vertexBuffer);
         renderEncoder->setIndexBuffer(deviceData->indexBuffer, gfx::Format::R32_UINT);
@@ -173,7 +190,7 @@ void SlangGraphicsContext::setupRenderPassLayout() {
 }
 
 void SlangGraphicsContext::setupPipelineState() {
-    auto const program = this->programBuilder.link(gDevice);
+    shaderProgram = this->programBuilder.link(gDevice);
 
     gfx::InputElementDesc inputElements[] = {
         {"POSITION", 0, gfx::Format::R32G32B32_FLOAT, offsetof(Vertex, position)},
@@ -186,7 +203,7 @@ void SlangGraphicsContext::setupPipelineState() {
 
     gfx::GraphicsPipelineStateDesc pipelineDesc{};
     pipelineDesc.inputLayout = inputLayout;
-    pipelineDesc.program = program->getShaderProgram();
+    pipelineDesc.program = shaderProgram->getShaderProgram();
     pipelineDesc.framebufferLayout = gFramebufferLayout;
     pipelineDesc.primitiveType = gfx::PrimitiveType::Triangle;
     pipelineDesc.depthStencil.depthFunc = gfx::ComparisonFunc::LessEqual;
@@ -261,7 +278,6 @@ void SlangGraphicsContext::setupFramebuffer() {
 void SlangGraphicsContext::setupTransientHeap() {
     gTransientHeap.clear();
     for (int frameBufferId = 0; frameBufferId < swapchainImageCnt; ++frameBufferId) {
-        // TODO(krr): Might require a different constantBufferSize?
         gfx::ITransientResourceHeap::Desc transientHeapDesc{
             .constantBufferSize = static_cast<gfx::Size>(4096) * 1024
         };

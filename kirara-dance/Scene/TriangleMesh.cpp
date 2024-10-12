@@ -9,7 +9,49 @@
 #include "Scene/Scene.h"
 
 namespace krd {
-TriangleMesh::TriangleMesh(Scene *scene) : SceneObject(scene) {}
+TriangleMesh::TriangleMesh(Scene *scene) : AnimatableObject(scene) {}
+
+void TriangleMesh::loadFromAssimp(aiMesh const *mesh, std::string_view name) {
+    // Validate the `inMesh`
+    if (!mesh->HasPositions() || !mesh->HasFaces())
+        throw kira::Anyhow(
+            "TriangleMesh: The mesh '{:s}' does not have positions or faces.", mesh->mName.C_Str()
+        );
+
+    if (name.empty())
+        name = mesh->mName.C_Str();
+
+    V.resize(mesh->mNumVertices, 3);
+    F.resize(mesh->mNumFaces, 3);
+
+    LogTrace("TriangleMesh: Loading mesh '{:s}'...", name);
+    for (uint32_t i = 0; i < mesh->mNumVertices; ++i)
+        V.row(i) << mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z;
+    LogTrace("TriangleMesh: Loaded {:d} vertices", mesh->mNumVertices);
+
+    if (mesh->HasNormals()) {
+        N.resize(mesh->mNumVertices, 3);
+        for (uint32_t i = 0; i < mesh->mNumVertices; ++i)
+            N.row(i) << mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z;
+        LogTrace("TriangleMesh: Loaded {:d} normals", mesh->mNumVertices);
+    } else {
+        LogTrace("TriangleMesh: No normals found in '{:s}'", name);
+        this->calculateNormal();
+    }
+
+    for (uint32_t i = 0; i < mesh->mNumFaces; ++i) {
+        aiFace const &face = mesh->mFaces[i];
+        if (face.mNumIndices != 3)
+            throw kira::Anyhow("TriangleMesh: Only triangle faces are supported in '{:s}'", name);
+        F.row(i) << face.mIndices[0], face.mIndices[1], face.mIndices[2];
+    }
+    LogTrace("TriangleMesh: Loaded {:d} faces", mesh->mNumFaces);
+
+    LogInfo(
+        "TriangleMesh: Loaded '{:s}' with {:d} vertices and {:d} faces", name, mesh->mNumVertices,
+        mesh->mNumFaces
+    );
+}
 
 void TriangleMesh::loadFromFile(std::filesystem::path const &path) {
     // \c libigl can just load V and F, and is not that robust in loading mesh with attributes.
@@ -28,39 +70,11 @@ void TriangleMesh::loadFromFile(std::filesystem::path const &path) {
         );
 
     aiMesh const *mesh = scene->mMeshes[0];
+    loadFromAssimp(mesh, path.string());
+}
 
-    V.resize(mesh->mNumVertices, 3);
-    F.resize(mesh->mNumFaces, 3);
-
-    LogTrace("TriangleMesh: Loading '{:s}'...", path.string());
-    for (uint32_t i = 0; i < mesh->mNumVertices; ++i)
-        V.row(i) << mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z;
-    LogTrace("TriangleMesh: Loaded {:d} vertices", mesh->mNumVertices);
-
-    if (mesh->HasNormals()) {
-        N.resize(mesh->mNumVertices, 3);
-        for (uint32_t i = 0; i < mesh->mNumVertices; ++i)
-            N.row(i) << mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z;
-        LogTrace("TriangleMesh: Loaded {:d} normals", mesh->mNumVertices);
-    } else {
-        LogTrace("TriangleMesh: No normals found in '{:s}'", path.string());
-        this->calculateNormal();
-    }
-
-    for (uint32_t i = 0; i < mesh->mNumFaces; ++i) {
-        aiFace const &face = mesh->mFaces[i];
-        if (face.mNumIndices != 3)
-            throw kira::Anyhow(
-                "TriangleMesh: Only triangle faces are supported in '{:s}'", path.string()
-            );
-        F.row(i) << face.mIndices[0], face.mIndices[1], face.mIndices[2];
-    }
-    LogTrace("TriangleMesh: Loaded {:d} faces", mesh->mNumFaces);
-
-    LogInfo(
-        "TriangleMesh: Loaded '{:s}' with {:d} vertices and {:d} faces", path.string(),
-        mesh->mNumVertices, mesh->mNumFaces
-    );
+Transform TriangleMesh::getTransform() const {
+    return getSceneNode() != nullptr ? getSceneNode()->getTransform() : Transform::identity();
 }
 
 void TriangleMesh::calculateNormal(TriangleMesh::NormalWeightingType weighting) {

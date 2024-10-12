@@ -12,6 +12,16 @@ bool InstantTriangleMesh::pull() {
     if (!vertices.empty())
         return false;
 
+    auto mMatrix = mesh->getTransform().getMatrix();
+    auto itMatrix = transpose(inverse(mMatrix));
+
+    mMatrix = transpose(mMatrix);
+    std::memcpy(modelMatrix.data(), &mMatrix, sizeof(modelMatrix));
+    itMatrix = transpose(itMatrix);
+    std::memcpy(
+        inverseTransposedModelMatrix.data(), &itMatrix, sizeof(inverseTransposedModelMatrix)
+    );
+
     vertices.clear();
     indices.clear();
 

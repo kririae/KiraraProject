@@ -78,9 +78,11 @@ add_executable(
     Instant/InstantScene.cpp
     Instant/InstantTriangleMesh.cpp
     Instant/SlangGraphicsContext.cpp
+    Scene/AnimatableObject.cpp
     Scene/Camera.cpp
     Scene/Scene.cpp
     Scene/SceneBuilder.cpp
+    Scene/SceneGraph.cpp
     Scene/SceneObject.cpp
     Scene/Transform.cpp
     Scene/TriangleMesh.cpp)
