@@ -36,6 +36,9 @@ public:
     /// This will be executed every frame at first.
     virtual void tick(float deltaTime) { (void)(deltaTime); }
 
+    /// \brief Check if the object is animatable.
+    [[nodiscard]] virtual bool isAnimatable() const { return false; }
+
 protected:
     /// Constructs a scene object and registers it to the scene.
     ///

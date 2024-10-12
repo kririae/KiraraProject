@@ -103,6 +103,7 @@ protected:
     ComPtr<gfx::IRenderPassLayout> gRenderPassLayout;    // (2)
 
     ProgramBuilder programBuilder;              // (3)
+    Ref<Program> shaderProgram;                 // (3)
     ComPtr<gfx::IPipelineState> gPipelineState; // (3)
 
     int swapchainImageCnt;              // (4)

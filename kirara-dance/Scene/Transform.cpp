@@ -1,10 +1,12 @@
 #include "Scene/Transform.h"
 
+#include "Core/KIRA.h"
+
 namespace krd {
 float4x4 Transform::getMatrix() const {
-    // SRT order
-    return cmul(
-        cmul(scaling_matrix(scaling), rotation_matrix(rotation)), translation_matrix(translation)
+    // TRS order: T * (R * S)
+    return mul(
+        translation_matrix(translation), mul(rotation_matrix(rotation), scaling_matrix(scaling))
     );
 }
 } // namespace krd
