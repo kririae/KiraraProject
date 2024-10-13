@@ -6,6 +6,10 @@
 
 #include "kira/SmallVector.h"
 
+#if _WIN32
+#include <Windows.h>
+#endif
+
 namespace kira {
 namespace detail {
 spdlog::sink_ptr SinkManager::CreateConsoleSink() {
@@ -49,6 +53,34 @@ bool SinkManager::DropAllSinks() noexcept {
 }
 } // namespace detail
 
+namespace {
+std::string safe_getenv(char const *name) {
+#ifdef _WIN32
+    DWORD bufferSize = 0;
+    std::vector<char> buffer;
+
+    bufferSize = GetEnvironmentVariableA(name, nullptr, 0);
+    if (bufferSize == 0) {
+        if (GetLastError() == ERROR_ENVVAR_NOT_FOUND)
+            return {};
+        throw std::runtime_error("Failed to get environment variable size");
+    }
+
+    buffer.resize(bufferSize);
+    DWORD result = GetEnvironmentVariableA(name, buffer.data(), bufferSize);
+    if (result == 0 || result >= bufferSize)
+        throw std::runtime_error("Failed to get environment variable value");
+
+    return {buffer.data(), result};
+#else
+    char const *value = std::getenv(name);
+    if (value == nullptr)
+        return {};
+    return std::string(value);
+#endif
+}
+} // namespace
+
 std::shared_ptr<spdlog::logger> LoggerBuilder::init() const {
     auto &sinkManager = detail::SinkManager::GetInstance();
     SmallVector<spdlog::sink_ptr> sinks;
@@ -58,8 +90,7 @@ std::shared_ptr<spdlog::logger> LoggerBuilder::init() const {
     if (path)
         sinks.push_back(sinkManager.CreateFileSink(path.value()));
     if (not level) {
-        auto const *envVal = std::getenv("KRR_LOG_LEVEL");
-        if (envVal != nullptr)
+        if (auto const envVal = safe_getenv("KRR_LOG_LEVEL"); !envVal.empty())
             spdlog::cfg::helpers::load_levels(envVal);
     }
 

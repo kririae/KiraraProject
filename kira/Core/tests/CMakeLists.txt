@@ -25,9 +25,4 @@ if(KRR_BUILD_TESTS)
         kira Core PropertiesTests
         SOURCES PropertiesTests.cpp
         HARD_DEPENDENCIES kira::Core)
-
-    krr_add_test(
-        kira Core ReflectionTests
-        SOURCES ReflectionTests.cpp
-        HARD_DEPENDENCIES kira::Core)
 endif()

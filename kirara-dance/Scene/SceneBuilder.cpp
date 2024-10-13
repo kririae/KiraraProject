@@ -46,7 +46,6 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
     if (scene)
         scene.reset();
     scene = Scene::create({});
-    scene->create<TriangleMesh>(R"(C:\Users\kriae\Projects\flux-data\cbox\geometry\floor.ply)");
 
     Assimp::Importer importer;
 

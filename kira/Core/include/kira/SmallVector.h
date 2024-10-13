@@ -35,6 +35,10 @@
 
 #include "kira/Compiler.h"
 
+#if _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4324)
+#endif
 namespace kira {
 template <typename T> class ArrayRef;
 
@@ -1267,20 +1271,6 @@ public:
         this->assign(IL);
         return *this;
     }
-
-public:
-    using ReflectionType = std::vector<T>;
-
-    SmallVector(std::vector<T> RHS) : SmallVectorImpl<T>(N) {
-        // Should support the moving from std::vector<std::unique_ptr<bool>> etc.
-        this->reserve(RHS.size());
-        std::move(RHS.begin(), RHS.end(), std::back_inserter(*this));
-    }
-
-    ReflectionType reflection() const & { return {this->begin(), this->end()}; }
-    ReflectionType reflection() && {
-        return {std::make_move_iterator(this->begin()), std::make_move_iterator(this->end())};
-    }
 };
 
 template <typename T, unsigned N> inline size_t capacity_in_bytes(SmallVector<T, N> const &X) {
@@ -1316,6 +1306,10 @@ extern template class kira::SmallVectorBase<uint32_t>;
 extern template class kira::SmallVectorBase<uint64_t>;
 #endif
 } // end namespace kira
+
+#if _MSC_VER
+#pragma warning(pop)
+#endif
 
 namespace std {
 /// Implement std::swap in terms of SmallVector swap.
