@@ -64,11 +64,21 @@ public:
     ///
     [[nodiscard]] auto &getFaces() { return F; }
 
-    /// \brief Get the transformation of the mesh
+    /// \brief Get the local transformation of the mesh.
     ///
     /// If the \c TriangleMesh is attached to a \c SceneNode, it will return the transformation of
     /// the node. Otherwise, it will return the identity transformation.
-    [[nodiscard]] Transform getTransform() const;
+    [[nodiscard]] Transform getLocalTransform() const;
+
+    /// \brief Get the global transformation of the mesh.
+    ///
+    /// If the \c TriangleMesh is attached to a \c SceneNode, it will return the transformation of
+    /// the node. Otherwise, it will return the identity transformation.
+    ///
+    /// \see Transform::getGlobalTransformMatrix
+    [[nodiscard]] float4x4 getGlobalTransformMatrix() const;
+
+    /// \brief Get the global transformation of the mesh
 
     /// \brief Calculates the normals of the mesh.
     ///

@@ -54,8 +54,8 @@ private:
     Ref<DeviceData> deviceData;
 
     // "transposed" data from TriangleMesh to InstantTriangleMesh
-    std::array<float, 16> modelMatrix;
-    std::array<float, 16> inverseTransposedModelMatrix;
+    std::array<float, 16> modelMatrix{};
+    std::array<float, 16> inverseTransposedModelMatrix{};
     kira::SmallVector<Vertex> vertices;
     kira::SmallVector<uint32_t> indices;
 };

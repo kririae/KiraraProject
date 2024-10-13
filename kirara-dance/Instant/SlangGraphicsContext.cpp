@@ -44,8 +44,6 @@ SlangGraphicsContext::SlangGraphicsContext(
     setupFrameFence();        // (7)
 }
 
-void SlangGraphicsContext::setSwapchainImageCnt(int cnt) { throw kira::Anyhow("not implemented"); }
-
 void SlangGraphicsContext::onResize(int newWidth, int newHeight) {
     // Wait until the rendering is done.
     gQueue->waitOnHost();
@@ -86,11 +84,30 @@ void SlangGraphicsContext::renderFrame() {
         commandBuffer->encodeRenderCommands(gRenderPassLayout, gFrameBuffer[swapchainImageIdx]);
 
     // Set the viewport and scissor rect.
-    gfx::Viewport viewport{};
-    viewport.maxZ = 1.0f;
-    viewport.extentX = static_cast<float>(this->width);
-    viewport.extentY = static_cast<float>(this->height);
-    renderEncoder->setViewportAndScissor(viewport);
+    {
+        gfx::Viewport viewport{};
+        viewport.maxZ = 1.0f;
+        viewport.extentX = static_cast<float>(this->width);
+        viewport.extentY = static_cast<float>(this->height);
+        renderEncoder->setViewportAndScissor(viewport);
+    }
+
+    // Perform a clear operation on the color buffer.
+    {
+        ComPtr<gfx::ITextureResource> colorBuffer;
+        slangCheck(gSwapchain->getImage(swapchainImageIdx, colorBuffer.writeRef()));
+
+        gfx::IResourceView::Desc colorBufferViewDesc{};
+        colorBufferViewDesc.format = pixFormat;
+        colorBufferViewDesc.renderTarget.shape = gfx::IResource::Type::Texture2D;
+        colorBufferViewDesc.type = gfx::IResourceView::Type::RenderTarget;
+        ComPtr<gfx::IResourceView> rtv =
+            gDevice->createTextureView(colorBuffer.get(), colorBufferViewDesc);
+
+        gfx::ClearValue clearValue{};
+        clearValue.color = {gClearValue.x, gClearValue.y, gClearValue.z, gClearValue.w};
+        renderEncoder->clearResourceView(rtv, &clearValue, gfx::ClearResourceViewFlags::None);
+    }
 
     auto const camera = getRenderScene()->getActiveCamera();
     float4x4 viewProjection =
@@ -241,7 +258,7 @@ void SlangGraphicsContext::setupFramebuffer() {
         depthBufferDesc.format = gfx::Format::D32_FLOAT;
         depthBufferDesc.defaultState = gfx::ResourceState::DepthWrite;
         depthBufferDesc.allowedStates = gfx::ResourceStateSet(gfx::ResourceState::DepthWrite);
-        gfx::ClearValue depthClearValue = {};
+        gfx::ClearValue depthClearValue{};
         depthBufferDesc.optimalClearValue = &depthClearValue;
         ComPtr<gfx::ITextureResource> depthBufferResource =
             gDevice->createTextureResource(depthBufferDesc, nullptr);

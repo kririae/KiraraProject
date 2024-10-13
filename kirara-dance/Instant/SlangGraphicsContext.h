@@ -58,8 +58,12 @@ public:
     }
 
 public:
-    void setSwapchainImageCnt(int cnt);
     void onResize(int newWidth, int newHeight);
+
+    /// Set the clear value of the render target.
+    ///
+    /// The effect will take place in the next frame.
+    void setClearValue(float4 const &clearValue) { gClearValue = clearValue; }
 
     /// Get the instant scene that this graphics context is associated with.
     auto getRenderScene() const { return instantScene; }
@@ -117,5 +121,6 @@ protected:
     ComPtr<gfx::IFence> gFrameFence; // (7)
 
     uint64_t gFrameIndex = 0;
+    float4 gClearValue{20.0f / 255, 19.0f / 255, 20.0f / 255, 1.0f};
 };
 } // namespace krd

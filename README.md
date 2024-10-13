@@ -8,47 +8,51 @@
 
 ## Subprojects
 
-- **KIRA**: A minimum and high-performance shared graphics infrastructure.
-- **FLux-v2**(WIP): A KIRA's port of our previous offline rendering engine.
-- **Kirara Dance**(WIP): An effect-oriented animation and simulation engine.
+- **KIRA**: A minimal, high-performance shared graphics infrastructure.
+- **Kirara Dance** (Work in Progress): An effect-oriented animation and simulation engine.
 
-## Build and Use
+## Building and Usage
 
-KIRA is designed to be built out-of-box, while others are not. Some special dependencies are to be setup
-on your own.
+KIRA is designed to be built out-of-the-box, while other subprojects may require additional setup. Some special
+dependencies need to be configured manually.
 
-KIRA is built by CMake. User can build it with `CMakePresets.json` aware
+### Building KIRA
+
+KIRA uses CMake for building. We recommend using `CMakePresets.json` for a streamlined build process:
+
+For users:
 
 ```bash
 cmake --preset default
 cmake --build --preset release
 ```
 
-Developers might want to use
+For developers:
 
 ```bash
 cmake --preset developer
 cmake --build --preset developer
 ```
 
-One can also use the conventional 2-step CMake process, but it is not
-recommended.
+While the conventional two-step CMake process is supported, it's not recommended.
 
-Specifically for KIRA, which can be used as a dependency in other projects,
-supports 2 modes to import:
+### Using KIRA in Other Projects
 
-```cmake
-set(KRR_BUILD_TESTS OFF)
-FetchContent_Declare(
-  kira
-  GIT_REPOSITORY https://github.com/kririae/KiraraProject.git
-  GIT_TAG main)
-FetchContent_MakeAvailable(kira)
-```
+KIRA can be integrated into other projects as a dependency in two ways:
 
-```cmake
-# Require CMAKE_PREFX_PATH to be set properly
-find_package(kira CONFIG REQUIRED)
-```
+1. Using FetchContent:
+   ```cmake
+   set(KRR_BUILD_TESTS OFF)
+   FetchContent_Declare(
+     kira
+     GIT_REPOSITORY https://github.com/kririae/KiraraProject.git
+     GIT_TAG main)
+   FetchContent_MakeAvailable(kira)
+   ```
 
-checkout `examples/` directory for concrete usage.
+2. Using find_package (requires CMAKE_PREFIX_PATH to be set correctly):
+   ```cmake
+   find_package(kira CONFIG REQUIRED)
+   ```
+
+For concrete usage examples, please refer to the `examples/` directory in the repository.
