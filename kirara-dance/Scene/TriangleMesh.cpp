@@ -73,8 +73,13 @@ void TriangleMesh::loadFromFile(std::filesystem::path const &path) {
     loadFromAssimp(mesh, path.string());
 }
 
-Transform TriangleMesh::getTransform() const {
-    return getSceneNode() != nullptr ? getSceneNode()->getTransform() : Transform::identity();
+Transform TriangleMesh::getLocalTransform() const {
+    return getSceneNode() != nullptr ? getSceneNode()->getLocalTransform() : Transform::identity();
+}
+
+float4x4 TriangleMesh::getGlobalTransformMatrix() const {
+    return getSceneNode() != nullptr ? getSceneNode()->getGlobalTransformMatrix()
+                                     : float4x4(identity);
 }
 
 void TriangleMesh::calculateNormal(TriangleMesh::NormalWeightingType weighting) {

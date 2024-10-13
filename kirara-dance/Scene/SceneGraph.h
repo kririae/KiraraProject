@@ -1,5 +1,7 @@
 #pragma once
 
+#include <list>
+
 #include "Core/Object.h"
 #include "Scene/Transform.h"
 
@@ -24,9 +26,19 @@ public:
     ///
     [[nodiscard]] SceneNode *getParent() const { return parent; }
     ///
-    void setTransform(Transform const &transform) { this->transform = transform; }
+    void setLocalTransform(Transform const &transform) { this->transform = transform; }
     ///
-    [[nodiscard]] Transform const &getTransform() const { return transform; }
+    [[nodiscard]] Transform const &getLocalTransform() const { return transform; }
+
+    /// \brief Returns the global transformation matrix.
+    ///
+    /// \note Sometimes it is not a good idea to use this function in a loop because it is not
+    /// efficient, consider using \c getGlobalPosition instead.
+    /// \note \c transform turns the coordinate into the parent's space.
+    [[nodiscard]] float4x4 getGlobalTransformMatrix() const;
+
+    /// Transform a position from the local space to the global space.
+    [[nodiscard]] float3 getGlobalPosition(float3 position) const;
 
     ///
     void addChild(Ref<SceneNode> const &child) {
