@@ -18,20 +18,20 @@ public:
     LoggerBuilder(std::string_view name) noexcept : name(name) {}
 
     /// Set whether to log to console.
-    [[nodiscard]] LoggerBuilder &to_console(bool console) noexcept {
-        this->console = console;
+    [[nodiscard]] LoggerBuilder &to_console(bool inConsole) noexcept {
+        this->console = inConsole;
         return *this;
     }
 
     /// Set the file path to log to.
-    [[nodiscard]] LoggerBuilder &to_file(std::filesystem::path const &path) noexcept {
-        this->path = path;
+    [[nodiscard]] LoggerBuilder &to_file(std::filesystem::path const &inPath) noexcept {
+        this->path = inPath;
         return *this;
     }
 
     /// Set the filter level for the logger.
-    [[nodiscard]] LoggerBuilder &filter_level(spdlog::level::level_enum const &level) noexcept {
-        this->level = level;
+    [[nodiscard]] LoggerBuilder &filter_level(spdlog::level::level_enum const &inLevel) noexcept {
+        this->level = inLevel;
         return *this;
     }
 

@@ -66,18 +66,26 @@ endif()
 # ----------------------------------------------------------
 add_executable(
     kirara-dance
+    #
+    #
     Core/ProgramBuilder.cpp
     Core/ShaderCursor.cpp
     Core/SlangContext.cpp
     Core/Window.cpp
+    #
+    #
     KiraraDance/Backward.cpp
     KiraraDance/Editor.cpp
     KiraraDance/KiraraDance.cpp
+    #
+    #
     Instant/InstantCamera.cpp
     Instant/InstantObject.cpp
     Instant/InstantScene.cpp
     Instant/InstantTriangleMesh.cpp
     Instant/SlangGraphicsContext.cpp
+    #
+    #
     Scene/AnimatableObject.cpp
     Scene/Camera.cpp
     Scene/Scene.cpp

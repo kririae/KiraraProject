@@ -29,11 +29,6 @@ if(mp_ADDED)
 endif()
 
 CPMAddPackage(
-    NAME reflect-cpp
-    URL "https://github.com/getml/reflect-cpp/archive/refs/tags/v0.14.1.tar.gz"
-    OPTIONS "REFLECTCPP_BUILD_SHARED OFF")
-
-CPMAddPackage(
     NAME tomlplusplus
     URL "https://github.com/marzer/tomlplusplus/archive/refs/tags/v3.4.0.tar.gz"
     # This enables top-level installation on `tomlplusplus` as subdirectory
@@ -61,7 +56,6 @@ krr_add_module(
             kira/Logger.h
             kira/Macros.h
             kira/Properties.h
-            kira/Reflection.h
             kira/SmallVector.h
             kira/Types.h
             kira/Utils.h
@@ -74,7 +68,6 @@ krr_add_module(
     HARD_DEPENDENCIES
         fmt::fmt
         magic_enum
-        reflectcpp
         spdlog::spdlog
         tomlplusplus::tomlplusplus
     CMAKE_SUBDIRS tests)

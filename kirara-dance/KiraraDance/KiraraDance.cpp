@@ -21,16 +21,6 @@ int main() try {
 
     auto const scene = builder.buildScene();
 
-    // scene->create<TriangleMesh>(R"(C:\Users\kriae\Projects\flux-data\cbox\geometry\boxes.ply)");
-    // scene->create<TriangleMesh>(R"(C:\Users\kriae\Projects\flux-data\cbox\geometry\floor.ply)");
-    // scene->create<TriangleMesh>(R"(C:\Users\kriae\Projects\flux-data\cbox\geometry\left.ply)");
-
-#if 0
-    scene->create<TriangleMesh>(R"(C:\Users\kriae\Projects\flux-data\cbox\geometry\right.ply)");
-#elif 0
-    scene->create<TriangleMesh>(R"(/home/krr/Projects/flux/flux/data/cbox/geometry/boxes.ply)");
-#endif
-
     auto const camera = scene->create<Camera>();
     camera->setPosition(krd::float3(0, 1, 4));
     camera->setTarget(krd::float3(0, 0, 0));

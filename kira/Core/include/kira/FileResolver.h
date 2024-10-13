@@ -71,11 +71,6 @@ public:
     /// Return an entry from the list of search paths (const)
     std::filesystem::path const &operator[](size_t index) const { return paths[index]; }
 
-public:
-    using ReflectionType = SmallVector<std::filesystem::path>;
-    FileResolver(ReflectionType reflection) : paths(std::move(reflection)) {}
-    [[nodiscard]] ReflectionType reflection() const { return paths; }
-
 private:
     SmallVector<std::filesystem::path> paths;
 };
