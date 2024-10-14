@@ -8,16 +8,16 @@
 int main() try {
     using namespace krd;
 
-    // Scene: the abstraction of the global state, i.e., configuration (per-program)
+    // Scene: the abstraction of the global state, in other words, configuration (per-program)
     // Scene can be ticked.
     //
     // InstantScene: the abstraction of render resource creation and manipulation (per-device)
-    // InstantScene should not be ticked.
+    // InstantScene shouldn't be ticked.
     //
     // SlangGraphicsContext: the abstraction of the graphics API (per-window)
 
     SceneBuilder builder{};
-    builder.loadFromFile(R"(C:\Users\kriae\KiraraProject\spheres.glb)");
+    builder.loadFromFile(R"(C:\Users\kriae\KiraraProject\kirara-dance\Data\BoxAnimated.glb)");
 
     auto const scene = builder.buildScene();
 

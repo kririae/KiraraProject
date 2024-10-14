@@ -10,10 +10,14 @@ class SceneGraph;
 
 ///
 class SceneNode final : public Object {
-public:
     ///
     SceneNode(std::string name, Transform const &transform, SceneNode *parent)
         : name(std::move(name)), transform(transform), parent(parent) {}
+
+public:
+    static Ref<SceneNode> create(std::string name, Transform const &transform, SceneNode *parent) {
+        return {new SceneNode(std::move(name), transform, parent)};
+    }
 
     ///
     ~SceneNode() override {
@@ -66,6 +70,7 @@ public:
     ///
     ~SceneGraph() = default;
 
+    ///
     Ref<SceneNode> root;
 };
 } // namespace krd

@@ -13,9 +13,9 @@ public:
     using SceneObject::SceneObject;
 
     ///
-    void attachToSceneNode(SceneNode *node) { sceneNode = node; }
+    void attachToSceneNode(Ref<SceneNode> node) { sceneNode = std::move(node); }
     ///
-    [[nodiscard]] SceneNode *getSceneNode() const { return sceneNode; }
+    [[nodiscard]] Ref<SceneNode> getSceneNode() const { return sceneNode; }
 
     /// \see SceneObject::isAnimatable
     [[nodiscard]] bool isAnimatable() const override { return true; }
@@ -24,6 +24,6 @@ protected:
     explicit AnimatableObject(Scene *scene) : SceneObject(scene) {}
 
 private:
-    SceneNode *sceneNode{nullptr};
+    Ref<SceneNode> sceneNode;
 };
 } // namespace krd

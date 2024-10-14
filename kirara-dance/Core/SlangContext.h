@@ -11,7 +11,7 @@ using Slang::ComPtr;
 namespace krd {
 class SlangContext : public Object {
 protected:
-    /// Setup necessary GFX global objects above.
+    /// Set up the necessary GFX global objects preceding.
     SlangContext();
 
 public:

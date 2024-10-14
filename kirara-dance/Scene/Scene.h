@@ -39,7 +39,7 @@ public:
     /// \tparam T The expected type of the scene object.
     ///
     /// \throw std::out_of_range if the id is out of range.
-    /// \throw kira::Anyhow if the object cannot be cast to \c T.
+    /// \throw kira::Anyhow if the object can't be cast to \c T.
     template <typename T>
         requires(std::is_base_of_v<SceneObject, T>)
     [[nodiscard]] auto getAs(uint64_t sObjId) const {
@@ -76,7 +76,7 @@ public:
 
     /// Get the scene object of type \c T with the given id.
     ///
-    /// \remark This function is not thread-safe and highly inefficient. Use it only for development
+    /// \remark This function isn't thread-safe and highly inefficient. Use it only for development
     /// and debugging.
     template <typename T> [[nodiscard]] auto getSceneObjectOfType() const {
         kira::SmallVector<Ref<T>> ret;

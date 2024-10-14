@@ -25,7 +25,7 @@ public:
     public:
         virtual ~Controller() = default;
 
-        /// Some of the controller needs to be ticked, e.g., the \c CameraController.
+        /// Some of the controller needs to be ticked, for example, the \c CameraController.
         virtual void tick(float deltaTime) { (void)(deltaTime); }
 
         /// \c glfwSetFramebufferSizeCallback
@@ -57,7 +57,7 @@ public:
     ///
     void attachController(Controller *controller) { controllers.push_back(controller); }
 
-    /// Launch the main loop of an application.
+    /// Launch the main loop of an app.
     ///
     /// \remark Resource captured by the function should stay valid until the function returns.
     void mainLoop(std::function<void(float)> const &onNewFrame) const;

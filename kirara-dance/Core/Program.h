@@ -11,7 +11,7 @@ class ProgramBuilder;
 
 /// The immutable shader program created by \c ProgramBuilder.
 ///
-/// \remark The shader program itself is immutable, and should not be changed. New \c Program can
+/// \remark The shader program itself is immutable, and shouldn't be changed. New \c Program can
 /// only be created by \c ProgramBuilder.
 class Program final : public Object {
 private:

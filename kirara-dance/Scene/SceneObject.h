@@ -27,9 +27,12 @@ public:
     ///
     /// This will be called after the object is constructed.
     ///
-    /// Do the job that needs to be done after the object is constructed here, e.g., load data from
-    /// disk.
+    /// Do the job that needs to be done after the object is constructed here, for example, load
+    /// data from the disk.
     virtual void init() {}
+
+    /// \brief Reset the animation status the scene object.
+    virtual void resetAnimation() {}
 
     /// \brief Tick the scene object.
     ///
