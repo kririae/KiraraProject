@@ -29,6 +29,14 @@ void TriangleMesh::loadFromAssimp(aiMesh const *mesh, std::string_view name) {
         V.row(i) << mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z;
     LogTrace("TriangleMesh: Loaded {:d} vertices", mesh->mNumVertices);
 
+    for (uint32_t i = 0; i < mesh->mNumFaces; ++i) {
+        aiFace const &face = mesh->mFaces[i];
+        if (face.mNumIndices != 3)
+            throw kira::Anyhow("TriangleMesh: Only triangle faces are supported in '{:s}'", name);
+        F.row(i) << face.mIndices[0], face.mIndices[1], face.mIndices[2];
+    }
+    LogTrace("TriangleMesh: Loaded {:d} faces", mesh->mNumFaces);
+
     if (mesh->HasNormals()) {
         N.resize(mesh->mNumVertices, 3);
         for (uint32_t i = 0; i < mesh->mNumVertices; ++i)
@@ -38,14 +46,6 @@ void TriangleMesh::loadFromAssimp(aiMesh const *mesh, std::string_view name) {
         LogTrace("TriangleMesh: No normals found in '{:s}'", name);
         this->calculateNormal();
     }
-
-    for (uint32_t i = 0; i < mesh->mNumFaces; ++i) {
-        aiFace const &face = mesh->mFaces[i];
-        if (face.mNumIndices != 3)
-            throw kira::Anyhow("TriangleMesh: Only triangle faces are supported in '{:s}'", name);
-        F.row(i) << face.mIndices[0], face.mIndices[1], face.mIndices[2];
-    }
-    LogTrace("TriangleMesh: Loaded {:d} faces", mesh->mNumFaces);
 
     LogInfo(
         "TriangleMesh: Loaded '{:s}' with {:d} vertices and {:d} faces", name, mesh->mNumVertices,
@@ -95,13 +95,9 @@ void TriangleMesh::calculateNormal(TriangleMesh::NormalWeightingType weighting) 
     }
 
     LogTrace(
-        "TriangleMesh: Calculating normals on {:d} vertices with {:s} weighting...",
-        getNumVertices(), weighting == NormalWeightingType::ByArea ? "area" : "angle"
+        "TriangleMesh: Calculating normals on {:d} vertices and {:d} faces with {:s} weighting...",
+        getNumVertices(), getNumFaces(), weighting == NormalWeightingType::ByArea ? "area" : "angle"
     );
     igl::per_vertex_normals(V, F, iglWeighting, N);
-    LogTrace(
-        "TriangleMesh: Calculated normals on {:d} vertices with {:s} weighting", getNumVertices(),
-        weighting == NormalWeightingType::ByArea ? "area" : "angle"
-    );
 }
 } // namespace krd

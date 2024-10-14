@@ -2,6 +2,7 @@ project(kirara-dance LANGUAGES C CXX)
 
 include(KRR_AddModule)
 include(KRR_Message)
+include(KRR_AddTest)
 
 # ----------------------------------------------------------
 # Dependency setup
@@ -64,19 +65,14 @@ endif()
 # ----------------------------------------------------------
 # Executable setup
 # ----------------------------------------------------------
-add_executable(
-    kirara-dance
+add_library(
+    kirara-backend STATIC
     #
     #
     Core/ProgramBuilder.cpp
     Core/ShaderCursor.cpp
     Core/SlangContext.cpp
     Core/Window.cpp
-    #
-    #
-    KiraraDance/Backward.cpp
-    KiraraDance/Editor.cpp
-    KiraraDance/KiraraDance.cpp
     #
     #
     Instant/InstantCamera.cpp
@@ -87,6 +83,7 @@ add_executable(
     #
     #
     Scene/AnimatableObject.cpp
+    Scene/Animation.cpp
     Scene/Camera.cpp
     Scene/Scene.cpp
     Scene/SceneBuilder.cpp
@@ -96,17 +93,21 @@ add_executable(
     Scene/TriangleMesh.cpp)
 
 target_link_libraries(
-    kirara-dance
-    PRIVATE Backward::Interface
-            assimp
-            glfw
-            igl::core
-            kira::kira
-            slang::gfx
-            slang::slang)
+    kirara-backend
+    PUBLIC assimp
+           glfw
+           igl::core
+           kira::kira
+           slang::gfx
+           slang::slang)
 
 # Include towards current directory.
-target_include_directories(kirara-dance PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(kirara-backend PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+#
+add_executable(kirara-dance #
+               KiraraDance/Backward.cpp KiraraDance/Editor.cpp KiraraDance/KiraraDance.cpp)
+target_link_libraries(kirara-dance PRIVATE kirara-backend Backward::Interface)
 
 # ----------------------------------------------------------
 # Additionally, copy auxiliary files to the output directory
@@ -139,4 +140,14 @@ if(WIN32)
         COMMAND_EXPAND_LISTS)
 
     krr_message(INFO "Copy DLLs to the output directory")
+endif()
+
+# ----------------------------------------------------------
+# Setup UnitTests
+# ----------------------------------------------------------
+if(KRR_BUILD_TESTS)
+    krr_add_test(
+        krd Backend AnimationTests
+        SOURCES UnitTests/AnimationTests.cpp
+        HARD_DEPENDENCIES kirara-backend)
 endif()

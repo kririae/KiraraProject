@@ -72,8 +72,8 @@ private:
 //! It will be ambiguous to determine whether "kiraTheLogger" is the format string or the logger
 //! name.
 //! Ok, let's try to pass `fmt` directly to the `fmt::format` without using `fmt::runtime`? No,
-//! compiler will complain that it is not in consteval context. The only feasible way to do this is
-//! to use https://stackoverflow.com/a/78540292 (through `reinterpret_cast` and inheritance to
+//! the compiler will complain that it is not in consteval context. The only feasible way to do this
+//! is to use https://stackoverflow.com/a/78540292 (through `reinterpret_cast` and inheritance to
 //! `std::string_view`), but this results in a segfault in our codebase.
 
 template <detail::StringLiteral name, spdlog::level::level_enum lvl>
@@ -89,12 +89,12 @@ struct LoggerCustomizationPoint {
 };
 
 //! We follow a design like CPO, because other submodules might want to change the \c
-//! defaultLoggerName. This makes it easier to create new \c Log.* function with other default
+//! defaultLoggerName. This makes it easier to create new \c Log.* function with another default
 //! logger name. For example, with a single line
 //! \code{.cpp}
 //! inline kira::LoggerCustomizationPoint<"krd", spdlog::level::level_enum::trace> LogTrace;
 //! \endcode
-//! we can introduce the function to other scope.
+//! It can be introduced to other scope.
 
 // NOLINTBEGIN
 /// Log a message at the trace level.
