@@ -30,8 +30,12 @@ public:
     /// Get the command queue that this context is associated with.
     [[nodiscard]] auto getCommandQueue() const { return gQueue; }
 
+    /// Get the global session that this context is associated with.
+    [[nodiscard]] auto getGlobalSession() const { return gSession; }
+
 protected:
     ComPtr<gfx::IDevice> gDevice{};
     ComPtr<gfx::ICommandQueue> gQueue{};
+    ComPtr<slang::IGlobalSession> gSession{};
 };
 } // namespace krd
