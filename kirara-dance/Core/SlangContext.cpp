@@ -19,5 +19,7 @@ SlangContext::SlangContext() {
 
     gfx::ICommandQueue::Desc queueDesc{.type = gfx::ICommandQueue::QueueType::Graphics};
     slangCheck(gDevice->createCommandQueue(queueDesc, gQueue.writeRef()));
+
+    slangCheck(slang::createGlobalSession(gSession.writeRef()));
 }
 } // namespace krd

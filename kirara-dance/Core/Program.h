@@ -2,7 +2,7 @@
 
 #include <slang-gfx.h>
 
-#include "Core/Object.h"
+#include "Object.h"
 
 using Slang::ComPtr;
 
@@ -14,11 +14,12 @@ class ProgramBuilder;
 /// \remark The shader program itself is immutable, and shouldn't be changed. New \c Program can
 /// only be created by \c ProgramBuilder.
 class Program final : public Object {
-private:
     Program() = default;
 
 public:
     friend class ProgramBuilder;
+    static Ref<Program> create() { return {new Program()}; }
+
     ~Program() override = default;
 
 public:

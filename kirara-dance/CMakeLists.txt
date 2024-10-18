@@ -69,6 +69,7 @@ add_library(
     kirara-backend STATIC
     #
     #
+    Core/DeviceUtils.cpp
     Core/ProgramBuilder.cpp
     Core/ShaderCursor.cpp
     Core/SlangContext.cpp

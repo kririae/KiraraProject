@@ -207,7 +207,7 @@ void SlangGraphicsContext::setupRenderPassLayout() {
 }
 
 void SlangGraphicsContext::setupPipelineState() {
-    shaderProgram = this->programBuilder.link(gDevice);
+    shaderProgram = this->programBuilder.link(this);
 
     gfx::InputElementDesc inputElements[] = {
         {"POSITION", 0, gfx::Format::R32G32B32_FLOAT, offsetof(Vertex, position)},
