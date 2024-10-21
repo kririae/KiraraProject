@@ -13,6 +13,9 @@ CPMAddPackage(
     GIT_TAG 3.4
     OPTIONS "GLFW_BUILD_EXAMPLES OFF" "GLFW_BUILD_TESTS OFF" "GLFW_BUILD_DOCS OFF")
 
+#
+# Currently assimp don't have good support for OpenUSD. We might load directly from `USDZ` file in the future.
+#
 CPMAddPackage(
     NAME assimp
     URL "https://github.com/assimp/assimp/archive/refs/tags/v5.4.3.tar.gz"
