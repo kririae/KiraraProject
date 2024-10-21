@@ -17,7 +17,7 @@ int main() try {
     // SlangGraphicsContext: the abstraction of the graphics API (per-window)
 
     SceneBuilder builder{};
-    builder.loadFromFile(R"(C:\Users\kriae\KiraraProject\kirara-dance\Data\BoxAnimated.glb)");
+    builder.loadFromFile(R"(C:\Users\kriae\Downloads\Compressed\glTF-Sample-Assets-main_4\glTF-Sample-Assets-main\Models\Duck\glTF\Duck.gltf)");
 
     auto const scene = builder.buildScene();
 
@@ -45,7 +45,7 @@ int main() try {
         context->renderFrame();
     });
 
-    // Should not be RAII-ed.
+    // Shouldn't be RAII-ed.
     context->synchronize();
 } catch (std::exception const &e) {
     //
