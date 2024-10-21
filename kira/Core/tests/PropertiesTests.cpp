@@ -216,16 +216,20 @@ TEST_F(PropertiesTests, PropertiesSetComprehensive) {
 
     newProps.set<int>("int32_max", std::numeric_limits<int>::max());
     newProps.set<int>("int32_min", std::numeric_limits<int>::min());
+    newProps.set<int>("int32_lowest", std::numeric_limits<int>::lowest());
     newProps.set<int64_t>("int64_max", std::numeric_limits<int64_t>::max());
     newProps.set<int64_t>("int64_min", std::numeric_limits<int64_t>::min());
+    newProps.set<int64_t>("int64_lowest", std::numeric_limits<int64_t>::lowest());
     newProps.set<uint32_t>("uint32_max", std::numeric_limits<uint32_t>::max());
 
     newProps.set<float>("float_pi", 3.14159f);
     newProps.set<float>("float_max", std::numeric_limits<float>::max());
     newProps.set<float>("float_min", std::numeric_limits<float>::min());
+    newProps.set<float>("float_lowest", std::numeric_limits<float>::lowest());
     newProps.set<double>("double_pi", 3.14159265358979323846);
     newProps.set<double>("double_max", std::numeric_limits<double>::max());
     newProps.set<double>("double_min", std::numeric_limits<double>::min());
+    newProps.set<double>("double_lowest", std::numeric_limits<double>::lowest());
 
     newProps.set<std::string>("string_empty", "");
     newProps.set<std::string>("string_hello", "Hello, World!");
@@ -234,15 +238,18 @@ TEST_F(PropertiesTests, PropertiesSetComprehensive) {
     EXPECT_FALSE(newProps.get<bool>("bool_false"));
     EXPECT_EQ(newProps.get<int>("int32_max"), std::numeric_limits<int>::max());
     EXPECT_EQ(newProps.get<int>("int32_min"), std::numeric_limits<int>::min());
+    EXPECT_EQ(newProps.get<int>("int32_lowest"), std::numeric_limits<int>::lowest());
     EXPECT_EQ(newProps.get<int64_t>("int64_max"), std::numeric_limits<int64_t>::max());
     EXPECT_EQ(newProps.get<int64_t>("int64_min"), std::numeric_limits<int64_t>::min());
+    EXPECT_EQ(newProps.get<int64_t>("int64_lowest"), std::numeric_limits<int64_t>::lowest());
     EXPECT_EQ(newProps.get<uint32_t>("uint32_max"), std::numeric_limits<uint32_t>::max());
     EXPECT_EQ(newProps.get<float>("float_pi"), 3.14159f);
     EXPECT_EQ(newProps.get<float>("float_max"), std::numeric_limits<float>::max());
     EXPECT_EQ(newProps.get<float>("float_min"), std::numeric_limits<float>::min());
+    EXPECT_EQ(newProps.get<float>("float_lowest"), std::numeric_limits<float>::lowest());
     EXPECT_EQ(newProps.get<double>("double_pi"), 3.14159265358979323846);
     EXPECT_EQ(newProps.get<double>("double_max"), std::numeric_limits<double>::max());
-    EXPECT_EQ(newProps.get<double>("double_min"), std::numeric_limits<double>::min());
+    EXPECT_EQ(newProps.get<double>("double_lowest"), std::numeric_limits<double>::lowest());
     EXPECT_EQ(newProps.get<std::string>("string_empty"), "");
     EXPECT_EQ(newProps.get<std::string>("string_hello"), "Hello, World!");
 
