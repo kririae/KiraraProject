@@ -13,7 +13,7 @@ CPMAddPackage(NAME fmt URL "https://github.com/fmtlib/fmt/archive/refs/tags/11.0
 
 CPMAddPackage(
     NAME spdlog
-    URL "https://github.com/gabime/spdlog/archive/refs/tags/v1.14.1.tar.gz"
+    URL "https://github.com/gabime/spdlog/archive/refs/tags/v1.15.0.tar.gz"
     OPTIONS "SPDLOG_BUILD_SHARED OFF" "SPDLOG_INSTALL ON" "SPDLOG_FMT_EXTERNAL_HO ON")
 
 # We do need a typed-array constexpr container. So let's use mp~!
