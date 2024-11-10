@@ -27,14 +27,14 @@ krr_message(INFO "Pulling slang binaries... This might take long")
 if(UNIX AND NOT APPLE)
     CPMAddPackage(
         NAME slang
-        URL "https://github.com/shader-slang/slang/releases/download/v2024.13/slang-2024.13-linux-x86_64.tar.gz"
-        VERSION 2024.13
+        URL "https://github.com/shader-slang/slang/releases/download/v2024.14.5/slang-2024.14.5-linux-x86_64.tar.gz"
+        VERSION 2024.14.5
         DOWNLOAD_ONLY)
 elseif(WIN32)
     CPMAddPackage(
         NAME slang
-        URL "https://github.com/shader-slang/slang/releases/download/v2024.13/slang-2024.13-windows-x86_64.tar.gz"
-        VERSION 2024.13
+        URL "https://github.com/shader-slang/slang/releases/download/v2024.14.5/slang-2024.14.5-windows-x86_64.tar.gz"
+        VERSION 2024.14.5
         DOWNLOAD_ONLY)
 else()
     krr_message(ERROR "Unsupported platform: Only Linux/Windows x64 is supported by Kirara Project")
