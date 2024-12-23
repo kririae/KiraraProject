@@ -31,7 +31,7 @@ public:
     virtual bool pull() { return false; }
 
 protected:
-    /// Construct a instant scene object and registers it to the instant scene.
+    /// Construct an instant scene object and registers it to the instant scene.
     explicit InstantObject(InstantScene *instantScene) noexcept;
 
 private:

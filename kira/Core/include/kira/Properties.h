@@ -48,11 +48,6 @@ public:
     /// Check if the table is empty.
     [[nodiscard]] bool empty() const noexcept { return table.empty(); }
 
-public:
-    using ReflectionType = std::string;
-    Properties(ReflectionType const &archive) : Properties(toml::parse(archive), archive) {}
-    [[nodiscard]] ReflectionType reflection() const { return to_toml(); }
-
 private:
     /// Get the underlying table.
     [[nodiscard]] toml::table &get_table_() noexcept { return table; }

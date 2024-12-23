@@ -322,7 +322,7 @@ public:
 
     [[nodiscard]] constexpr auto to_array() = delete;
 
-    [[nodiscard]] constexpr auto realloc(std::size_t size) {
+    constexpr auto realloc(std::size_t size) {
         auto newStorage = VecteurStorage(size);
         using std::swap;
         swap(*this, newStorage);

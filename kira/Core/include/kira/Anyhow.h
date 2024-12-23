@@ -67,11 +67,6 @@ public:
         LogFlush();
     }
 
-public:
-    using ReflectionType = std::string;
-    explicit Anyhow(ReflectionType message) : message(std::move(message)) {}
-    [[nodiscard]] ReflectionType reflection() const { return message; }
-
 private:
     /// The message associated with the exception.
     std::string message;

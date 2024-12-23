@@ -71,7 +71,7 @@ template <typename T> struct AnimationSequence : kira::SmallVector<AnimationKey<
                     return this->front().value;
                 auto const rTime =
                     positiveMod(time - getStartTime(), getEndTime() - getStartTime());
-                KRD_ASSERT(rTime > 0, "Animation: rTime should be positive");
+                KRD_ASSERT(rTime >= 0, "Animation: rTime should be positive");
                 return getAtTime<useQuaternion>(
                     rTime + getStartTime(), preState, postState, defVal
                 );
@@ -90,7 +90,7 @@ template <typename T> struct AnimationSequence : kira::SmallVector<AnimationKey<
                     return this->back().value;
                 auto const rTime =
                     positiveMod(time - getStartTime(), getEndTime() - getStartTime());
-                KRD_ASSERT(rTime > 0, "Animation: rTime should be positive");
+                KRD_ASSERT(rTime >= 0, "Animation: rTime should be positive");
                 return getAtTime<useQuaternion>(
                     rTime + getStartTime(), preState, postState, defVal
                 );

@@ -15,7 +15,6 @@
 // the following modifications:
 // - LLVM_GSL_OWNER -> KIRA_GSL_OWNER
 // - add [[nodiscard]] to suppress warnings
-// - add reflection support
 // NOLINTBEGIN
 
 #pragma once
