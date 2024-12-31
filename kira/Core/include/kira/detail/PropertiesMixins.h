@@ -176,7 +176,7 @@ private:
 
 /// \brief Mixin class for properties that can be marked as used.
 ///
-/// This mixin class keep tracks of only flat keys and their usage status, i.e., recursive keys are
+/// This mixin class keeps tracks of only flat keys and their usage status, i.e., recursive keys are
 /// not tracked. Similarly, \c PropertiesView classes hold their own usage status instead of
 /// modifying the source's one.
 class PropertiesUseQueryMixin {

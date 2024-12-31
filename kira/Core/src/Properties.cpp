@@ -1,6 +1,7 @@
 // clang-format off
 #define TOML_IMPLEMENTATION
 #include "kira/Properties.h"
+#include "kira/Properties2.h"
 // clang-format on
 
 #include <fmt/color.h>
@@ -83,14 +84,44 @@ std::optional<std::string> Properties::get_diagnostic_(toml::source_region const
 }
 
 template <>
-std::optional<std::string> PropertiesView<true>::get_diagnostic_(toml::source_region const &region
-) const {
+std::optional<std::string>
+PropertiesView<true>::get_diagnostic_(toml::source_region const &region) const {
     return get_diagnostic_impl(region, sourceLinesView);
 }
 
 template <>
-std::optional<std::string> PropertiesView<false>::get_diagnostic_(toml::source_region const &region
-) const {
+std::optional<std::string>
+PropertiesView<false>::get_diagnostic_(toml::source_region const &region) const {
     return get_diagnostic_impl(region, sourceLinesView);
 }
 } // namespace kira
+
+namespace kira::v2 {
+Properties::Properties() : pImpl{std::make_unique<detail::PropertiesInstanceImpl>()} {
+    populate_use_map_();
+}
+
+Properties::Properties(toml::table table, std::string_view source)
+    : pImpl{std::make_unique<detail::PropertiesInstanceImpl>(std::move(table), source)} {
+    populate_use_map_();
+}
+
+Properties::Properties(toml::table table, SmallVector<std::string> source)
+    : pImpl{std::make_unique<detail::PropertiesInstanceImpl>(std::move(table), std::move(source))
+      } {
+    populate_use_map_();
+}
+
+Properties::Properties(
+    toml::node_view<toml::node> tableView, std::span<std::string const> sourceLinesView
+)
+    : pImpl{std::make_unique<detail::PropertiesViewImpl>(
+          std::move(tableView), std::move(sourceLinesView)
+      )} {
+    populate_use_map_();
+}
+
+std::optional<std::string> Properties::get_diagnostic_(toml::source_region const &region) const {
+    return get_diagnostic_impl(region, pImpl->get_source_lines());
+}
+} // namespace kira::v2

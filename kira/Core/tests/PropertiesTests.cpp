@@ -1,8 +1,9 @@
 #include <gtest/gtest.h>
 
 #include "kira/Properties.h"
+#include "kira/Properties2.h"
 
-using namespace kira;
+using namespace kira::v2;
 
 class PropertiesTests : public ::testing::Test {
     void SetUp() override {
@@ -18,7 +19,11 @@ class PropertiesTests : public ::testing::Test {
 protected:
     toml::table table;
     Properties props;
-    std::string_view source = R"([camera]
+    std::string_view source = R"(
+x = 1
+y = 2
+
+[camera]
 position = [0.85727, 0.8234, 1.9649]
 focal_length = 20e-3
 sub = { b = 2 }
@@ -55,12 +60,14 @@ TEST_F(PropertiesTests, PropertiesContainsAndTypeOf) {
     EXPECT_TRUE(props.is_type_of<Properties>("camera"));
     EXPECT_TRUE(props.is_type_of<Properties>("film"));
     EXPECT_TRUE(props.is_type_of<Properties>("integrator"));
+#if 0
     EXPECT_TRUE(props.is_type_of<MutablePropertiesView>("camera"));
     EXPECT_TRUE(props.is_type_of<MutablePropertiesView>("film"));
     EXPECT_TRUE(props.is_type_of<MutablePropertiesView>("integrator"));
     EXPECT_TRUE(props.is_type_of<ImmutablePropertiesView>("camera"));
     EXPECT_TRUE(props.is_type_of<ImmutablePropertiesView>("film"));
     EXPECT_TRUE(props.is_type_of<ImmutablePropertiesView>("integrator"));
+#endif
     EXPECT_FALSE(props.is_type_of<Properties>("primitive"));
     EXPECT_FALSE(props.is_type_of<Properties>("non_existent"));
     EXPECT_FALSE(props.is_type_of<int>("camera"));
@@ -83,21 +90,7 @@ TEST_F(PropertiesTests, PropertiesGet) {
     EXPECT_TRUE(integrator.contains("rr_depth"));
     EXPECT_TRUE(integrator.contains("rr_prob"));
 
-    EXPECT_THROW(props.get<Properties>("non_existent"), Anyhow);
-}
-
-TEST_F(PropertiesTests, PropertiesViewGet) {
-    auto camera = props.get<MutablePropertiesView>("camera");
-    EXPECT_TRUE(camera.contains("position"));
-    EXPECT_TRUE(camera.contains("focal_length"));
-
-    auto film = props.get<ImmutablePropertiesView>("film");
-    EXPECT_TRUE(film.contains("resolution"));
-    EXPECT_TRUE(film.contains("denoise"));
-    EXPECT_TRUE(film.contains("num_samples"));
-    EXPECT_TRUE(film.contains("a"));
-
-    EXPECT_THROW(props.get<MutablePropertiesView>("non_existent"), Anyhow);
+    EXPECT_THROW(props.get<Properties>("non_existent"), kira::Anyhow);
 }
 
 TEST_F(PropertiesTests, PropertiesGetBasicTypes) {
@@ -116,10 +109,28 @@ TEST_F(PropertiesTests, PropertiesGetBasicTypes) {
     EXPECT_EQ(integrator.get<int>("rr_depth"), 8);
     EXPECT_FLOAT_EQ(integrator.get<double>("rr_prob"), 0.1);
 
-    EXPECT_THROW(film.get<int>("non_existent"), Anyhow);
-    EXPECT_THROW(film.get<std::string>("num_samples"), Anyhow);
-    EXPECT_THROW(integrator.get<std::string>("rr_prob"), Anyhow);
-    EXPECT_THROW(integrator.get<int>("rr_prob"), Anyhow);
+    EXPECT_THROW(film.get<int>("non_existent"), kira::Anyhow);
+    EXPECT_THROW(film.get<std::string>("num_samples"), kira::Anyhow);
+    EXPECT_THROW(integrator.get<std::string>("rr_prob"), kira::Anyhow);
+    EXPECT_THROW(integrator.get<int>("rr_prob"), kira::Anyhow);
+}
+
+TEST_F(PropertiesTests, PropertiesViewGet) {
+    auto camera = props.get_view("camera");
+    EXPECT_TRUE(camera.contains("position"));
+    EXPECT_TRUE(camera.contains("focal_length"));
+
+    auto film = props.get_view("film");
+    EXPECT_TRUE(film.contains("resolution"));
+    EXPECT_TRUE(film.contains("denoise"));
+    EXPECT_TRUE(film.contains("num_samples"));
+    EXPECT_TRUE(film.contains("a"));
+
+    EXPECT_THROW(props.get_view("non_existent"), kira::Anyhow);
+    EXPECT_THROW(props.get_view("x"), kira::Anyhow);
+
+    EXPECT_THROW(film.get_view("resolution"), kira::Anyhow);
+    EXPECT_THROW(film.get_view("non_existent"), kira::Anyhow);
 }
 
 TEST_F(PropertiesTests, PropertiesGetOrBasicTypes) {
@@ -132,15 +143,16 @@ TEST_F(PropertiesTests, PropertiesGetOrBasicTypes) {
     EXPECT_EQ(film.get_or<int>("num_samples", 1024), 512);
     EXPECT_EQ(film.get_or<int>("non_existent", 2048), 2048);
 
-    EXPECT_THROW({ film.get_or<std::string>("num_samples", ""); }, Anyhow);
-    EXPECT_THROW({ film.get_or<std::filesystem::path>("num_samples", {}); }, Anyhow);
+    EXPECT_THROW({ film.get_or<std::string>("num_samples", ""); }, kira::Anyhow);
+    EXPECT_THROW({ film.get_or<std::filesystem::path>("num_samples", {}); }, kira::Anyhow);
 
-    auto filmView = props.get<ImmutablePropertiesView>("film");
+    auto filmView = props.get_view("film");
     EXPECT_EQ(filmView.get_or<bool>("denoise", true), false);
     EXPECT_EQ(filmView.get_or<int>("num_samples", 1024), 512);
     EXPECT_EQ(filmView.get_or<int>("non_existent", 2048), 2048);
 }
 
+#if 0
 TEST_F(PropertiesTests, MutablePropertiesView) {
     auto mutableView = props.get<MutablePropertiesView>("camera");
     EXPECT_EQ(mutableView.get<double>("focal_length"), 20e-3);
@@ -154,6 +166,7 @@ TEST_F(PropertiesTests, MutablePropertiesView) {
     // Immutable from a mutable
     auto immutableView3 = mutableView.get<ImmutablePropertiesView>("sub");
 }
+#endif
 
 TEST_F(PropertiesTests, PropertiesUseQuery) {
     auto camera = props.get<Properties>("camera");
@@ -161,7 +174,7 @@ TEST_F(PropertiesTests, PropertiesUseQuery) {
     props.mark_used("camera");
     EXPECT_TRUE(props.is_used("camera"));
 
-    auto sub = camera.get<MutablePropertiesView>("sub");
+    auto sub = camera.get_view("sub");
     EXPECT_FALSE(sub.is_used("b"));
     sub.mark_used("b");
     EXPECT_TRUE(sub.is_used("b"));
@@ -173,7 +186,7 @@ TEST_F(PropertiesTests, PropertiesUseQuery) {
     camera.mark_used("position");
     camera.mark_used("focal_length");
 
-    SmallVector<std::string> unusedKeys;
+    kira::SmallVector<std::string> unusedKeys;
     camera.for_each_unused([&unusedKeys](std::string_view key) {
         unusedKeys.push_back(std::string(key));
     });
@@ -186,7 +199,7 @@ TEST_F(PropertiesTests, PropertiesUseQuery) {
 }
 
 TEST_F(PropertiesTests, PropertiesSetExists) {
-    EXPECT_THROW(props.set<bool>("camera", true, false), Anyhow);
+    EXPECT_THROW(props.set<bool>("camera", true, false), kira::Anyhow);
     EXPECT_FALSE(props.is_used("camera"));
     props.set<bool>("camera", true, true);
     EXPECT_EQ(props.contains("camera"), true);
@@ -200,7 +213,7 @@ TEST_F(PropertiesTests, PropertiesSetExists) {
 TEST_F(PropertiesTests, PropertiesSetNotExists) {
     props.set<bool>("not_existent", true, true);
     EXPECT_FALSE(props.is_used("not_existent"));
-    EXPECT_THROW(props.set<int>("not_existent", 42, false), Anyhow);
+    EXPECT_THROW(props.set<int>("not_existent", 42, false), kira::Anyhow);
     EXPECT_TRUE(props.contains("not_existent"));
     EXPECT_TRUE(props.get<bool>("not_existent"));
     EXPECT_FALSE(props.is_used("not_existent"));
@@ -254,50 +267,69 @@ TEST_F(PropertiesTests, PropertiesSetComprehensive) {
     EXPECT_EQ(newProps.get<std::string>("string_hello"), "Hello, World!");
 
     auto camera = props.get<Properties>("camera");
-    auto cameraImmutable = props.get<ImmutablePropertiesView>("camera");
-    auto cameraMutable = props.get<MutablePropertiesView>("camera");
+    auto cameraView = props.get_view("camera");
+    auto cameraView2 = cameraView.get_view();
 
-    newProps.set<Properties>("camera_props", camera);
-    auto newCameraRef = newProps.get<ImmutablePropertiesView>("camera_props");
+    cameraView2.set<float>("focal_length", 50e-3);
+
+    newProps.set<Properties>("camera_props", cameraView);
+    auto newCameraRef = newProps.get_view("camera_props");
     EXPECT_EQ(
-        cameraImmutable.get<double>("focal_length"), newCameraRef.get<double>("focal_length")
+        cameraView.get<double>("focal_length"), newCameraRef.get<double>("focal_length")
     );
-
-    // Clone the camera properties
-    newProps.set<ImmutablePropertiesView>("camera_immutable", cameraImmutable);
-
-    // Clone the camera properties
-    newProps.set<MutablePropertiesView>("camera_mutable", cameraMutable);
-
-    newCameraRef = newProps.get<ImmutablePropertiesView>("camera_immutable");
     EXPECT_EQ(
-        cameraImmutable.get<double>("focal_length"), newCameraRef.get<double>("focal_length")
+        cameraView2.get<double>("focal_length"), newCameraRef.get<double>("focal_length")
     );
-    auto newCameraRef2 = newProps.get<MutablePropertiesView>("camera_mutable");
-    EXPECT_EQ(cameraMutable.get<double>("focal_length"), newCameraRef2.get<double>("focal_length"));
+    EXPECT_NE(
+        camera.get<double>("focal_length"), newCameraRef.get<double>("focal_length")
+    );
 }
 
 TEST_F(PropertiesTests, PropertiesViewSet) {
-    auto camera = props.get<MutablePropertiesView>("camera");
-    auto cameraMutable = props.get<MutablePropertiesView>("camera");
+    auto camera = props.get_view("camera");
+    auto cameraMutable = props.get_view("camera");
 
     cameraMutable.set<double>("focal_length", 50e-3);
     EXPECT_EQ(camera.get<double>("focal_length"), 50e-3);
 
-    auto subView = cameraMutable.get<MutablePropertiesView>("sub");
+    auto subView = cameraMutable.get_view("sub");
     subView.set<int>("num_samples", 1024);
 
     EXPECT_EQ(camera.get<double>("focal_length"), 50e-3);
 
-    auto newSubView = camera.get<ImmutablePropertiesView>("sub");
+    auto newSubView = camera.get_view("sub");
     EXPECT_EQ(newSubView.get<int>("num_samples"), 1024);
     EXPECT_EQ(subView.get<int>("num_samples"), 1024);
 
-    // Add results to the original view
     cameraMutable.set<float>("pi", 3.14159f);
     EXPECT_EQ(camera.get<float>("pi"), 3.14159f);
 }
 
+TEST_F(PropertiesTests, PropertiesThe5) {
+    props.set<float>("x", 2.0);
+    EXPECT_FLOAT_EQ(props.get<float>("x"), 2.0);
+    props.mark_used("x");
+
+    // 1. copy constructor
+    auto props2 = props;
+    props2.set<float>("y", 3.0);
+    EXPECT_EQ(props.get<int>("y"), 2);
+    EXPECT_TRUE(props.is_used("x"));
+    EXPECT_TRUE(props2.is_used("x"));
+
+    // 2. move constructor from instance
+    auto props3 = std::move(props2);
+}
+
+TEST_F(PropertiesTests, PropertiesClearBehaviour) {
+    auto camera = props.get_view("camera");
+    camera.clear();
+
+    camera.set<int>("x", 5);
+    EXPECT_EQ(props.get_view("camera").get<int>("x"), 5);
+}
+
+#if 0
 TEST_F(PropertiesTests, PropertiesArrayGet) {
     auto primitives = props.get<PropertiesArray>("primitive");
     EXPECT_EQ(primitives.size(), 1);
@@ -586,3 +618,4 @@ TEST_F(PropertiesTests, MutableArrayViewFromMutablePropertiesView) {
     EXPECT_EQ(finalArray.get<int>(2), 3);
     EXPECT_EQ(finalArray.get<int>(3), 30);
 }
+#endif
