@@ -84,14 +84,14 @@ std::optional<std::string> Properties::get_diagnostic_(toml::source_region const
 }
 
 template <>
-std::optional<std::string>
-PropertiesView<true>::get_diagnostic_(toml::source_region const &region) const {
+std::optional<std::string> PropertiesView<true>::get_diagnostic_(toml::source_region const &region
+) const {
     return get_diagnostic_impl(region, sourceLinesView);
 }
 
 template <>
-std::optional<std::string>
-PropertiesView<false>::get_diagnostic_(toml::source_region const &region) const {
+std::optional<std::string> PropertiesView<false>::get_diagnostic_(toml::source_region const &region
+) const {
     return get_diagnostic_impl(region, sourceLinesView);
 }
 } // namespace kira
@@ -107,21 +107,27 @@ Properties::Properties(toml::table table, std::string_view source)
 }
 
 Properties::Properties(toml::table table, SmallVector<std::string> source)
-    : pImpl{std::make_unique<detail::PropertiesInstanceImpl>(std::move(table), std::move(source))
-      } {
+    : pImpl{std::make_unique<detail::PropertiesInstanceImpl>(std::move(table), std::move(source))} {
     populate_use_map_();
 }
 
 Properties::Properties(
     toml::node_view<toml::node> tableView, std::span<std::string const> sourceLinesView
 )
-    : pImpl{std::make_unique<detail::PropertiesViewImpl>(
-          std::move(tableView), std::move(sourceLinesView)
-      )} {
+    : pImpl{std::make_unique<detail::PropertiesViewImpl>(tableView, sourceLinesView)} {
     populate_use_map_();
 }
 
 std::optional<std::string> Properties::get_diagnostic_(toml::source_region const &region) const {
     return get_diagnostic_impl(region, pImpl->get_source_lines());
 }
+
+PropertiesArray::PropertiesArray()
+    : pImpl{std::make_unique<detail::PropertiesArrayInstanceImpl>()} {}
+
+PropertiesArray::PropertiesArray(toml::array array)
+    : pImpl{std::make_unique<detail::PropertiesArrayInstanceImpl>(std::move(array))} {}
+
+PropertiesArray::PropertiesArray(toml::node_view<toml::node> arrayView)
+    : pImpl{std::make_unique<detail::PropertiesArrayViewImpl>(arrayView)} {}
 } // namespace kira::v2

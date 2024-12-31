@@ -20,6 +20,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/ClangToolchain.cmake",
+        "CMAKE_C_COMPILER_LAUNCHER": "sccache",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "sccache",
         "KRR_BUILD_KIRARA_DANCE": "ON",
         "KRR_BUILD_TESTS": "ON",
         "KRR_USE_MOLD": "ON"

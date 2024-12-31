@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <numbers>
+
 #include "kira/Properties.h"
 #include "kira/Properties2.h"
 
@@ -274,15 +276,9 @@ TEST_F(PropertiesTests, PropertiesSetComprehensive) {
 
     newProps.set<Properties>("camera_props", cameraView);
     auto newCameraRef = newProps.get_view("camera_props");
-    EXPECT_EQ(
-        cameraView.get<double>("focal_length"), newCameraRef.get<double>("focal_length")
-    );
-    EXPECT_EQ(
-        cameraView2.get<double>("focal_length"), newCameraRef.get<double>("focal_length")
-    );
-    EXPECT_NE(
-        camera.get<double>("focal_length"), newCameraRef.get<double>("focal_length")
-    );
+    EXPECT_EQ(cameraView.get<double>("focal_length"), newCameraRef.get<double>("focal_length"));
+    EXPECT_EQ(cameraView2.get<double>("focal_length"), newCameraRef.get<double>("focal_length"));
+    EXPECT_NE(camera.get<double>("focal_length"), newCameraRef.get<double>("focal_length"));
 }
 
 TEST_F(PropertiesTests, PropertiesViewSet) {
@@ -301,8 +297,8 @@ TEST_F(PropertiesTests, PropertiesViewSet) {
     EXPECT_EQ(newSubView.get<int>("num_samples"), 1024);
     EXPECT_EQ(subView.get<int>("num_samples"), 1024);
 
-    cameraMutable.set<float>("pi", 3.14159f);
-    EXPECT_EQ(camera.get<float>("pi"), 3.14159f);
+    cameraMutable.set<float>("pi", std::numbers::pi_v<float>);
+    EXPECT_FLOAT_EQ(camera.get<float>("pi"), std::numbers::pi_v<float>);
 }
 
 TEST_F(PropertiesTests, PropertiesThe5) {
@@ -318,7 +314,11 @@ TEST_F(PropertiesTests, PropertiesThe5) {
     EXPECT_TRUE(props2.is_used("x"));
 
     // 2. move constructor from instance
+    auto props2View = props2.get_view();
     auto props3 = std::move(props2);
+
+    EXPECT_FLOAT_EQ(props2View.get<float>("y"), 3.0);
+    EXPECT_FLOAT_EQ(props3.get<float>("y"), 3.0);
 }
 
 TEST_F(PropertiesTests, PropertiesClearBehaviour) {
@@ -329,17 +329,16 @@ TEST_F(PropertiesTests, PropertiesClearBehaviour) {
     EXPECT_EQ(props.get_view("camera").get<int>("x"), 5);
 }
 
-#if 0
 TEST_F(PropertiesTests, PropertiesArrayGet) {
     auto primitives = props.get<PropertiesArray>("primitive");
     EXPECT_EQ(primitives.size(), 1);
     EXPECT_FALSE(primitives.empty());
 
-    auto primitiveView = props.get<PropertiesArrayView<true>>("primitive");
+    auto primitiveView = props.get<PropertiesArray>("primitive");
     EXPECT_EQ(primitiveView.size(), 1);
     EXPECT_FALSE(primitiveView.empty());
 
-    auto primitiveView2 = props.get<PropertiesArrayView<false>>("primitive");
+    auto primitiveView2 = props.get<PropertiesArray>("primitive");
     EXPECT_EQ(primitiveView2.size(), 1);
     EXPECT_FALSE(primitiveView2.empty());
 
@@ -358,18 +357,8 @@ TEST_F(PropertiesTests, PropertiesArrayGet) {
     };
 
     checkPrimitive(primitives.get<Properties>(0));
-    checkPrimitive(primitives.get<PropertiesView<false>>(0));
-    checkPrimitive(primitives.get<PropertiesView<true>>(0));
-
     checkPrimitive(primitiveView.get<Properties>(0));
-    checkPrimitive(primitiveView.get<PropertiesView<false>>(0));
-    checkPrimitive(primitiveView.get<PropertiesView<true>>(0));
-
     checkPrimitive(primitiveView2.get<Properties>(0));
-    checkPrimitive(primitiveView2.get<PropertiesView<false>>(0));
-
-    // This should fail because the view is immutable
-    // checkPrimitive(primitiveView2.get<PropertiesView<true>>(0));
 }
 
 TEST_F(PropertiesTests, PropertiesArrayPushback1) {
@@ -383,7 +372,7 @@ TEST_F(PropertiesTests, PropertiesArrayPushback1) {
 
     EXPECT_TRUE(props.is_type_of<PropertiesArray>("arr1"));
 
-    auto retrievedArr = props.get<PropertiesArrayView<true>>("arr1");
+    auto retrievedArr = props.get_array_view("arr1");
     EXPECT_EQ(retrievedArr.size(), 3);
     EXPECT_EQ(retrievedArr.get<int>(0), 1);
     EXPECT_EQ(retrievedArr.get<int>(1), 2);
@@ -405,7 +394,7 @@ TEST_F(PropertiesTests, PropertiesArrayPushback1) {
     EXPECT_EQ(retrievedArr.get<std::string>(0), "string");
     EXPECT_DOUBLE_EQ(retrievedArr.get<double>(1), 3.14);
     EXPECT_EQ(retrievedArr.get<bool>(2), true);
-    EXPECT_THROW(retrievedArr.get<int>(3), Anyhow);
+    EXPECT_THROW(retrievedArr.get<int>(3), kira::Anyhow);
 
     auto updatedArr = props.get<PropertiesArray>("arr1");
     EXPECT_EQ(updatedArr.size(), 3);
@@ -419,8 +408,8 @@ TEST_F(PropertiesTests, PropertiesArrayPushBack2) {
     arr.push_back(1);
     arr.push_back(2);
 
-    EXPECT_THROW(arr.set<int>(2, 3), Anyhow);
-    EXPECT_THROW(arr.set<int>(10, 3), Anyhow);
+    EXPECT_THROW(arr.set<int>(2, 3), kira::Anyhow);
+    EXPECT_THROW(arr.set<int>(10, 3), kira::Anyhow);
 
     for (int i = 0; i < 1000; ++i)
         arr.push_back(i);
@@ -436,7 +425,7 @@ TEST_F(PropertiesTests, PropertiesArrayViewSet) {
 
     // 1. Setting to PropertiesArray doesn't change its base
     {
-        auto immutableView = props.get<PropertiesArrayView<false>>("base_arr");
+        auto immutableView = props.get_array_view("base_arr");
         EXPECT_EQ(immutableView.size(), 3);
 
         // This should not compile
@@ -451,7 +440,7 @@ TEST_F(PropertiesTests, PropertiesArrayViewSet) {
 
     // 2. Setting to MutablePropertiesArray changes its base
     {
-        auto mutableView = props.get<PropertiesArrayView<true>>("base_arr");
+        auto mutableView = props.get_array_view("base_arr");
         EXPECT_EQ(mutableView.size(), 3);
 
         mutableView.set<int>(0, 10);
@@ -468,7 +457,7 @@ TEST_F(PropertiesTests, PropertiesArrayViewSet) {
 
     // 3. Setting MutablePropertiesArray to base then changing it doesn't affect its base
     {
-        auto mutableView = props.get<PropertiesArrayView<true>>("base_arr");
+        auto mutableView = props.get_array_view("base_arr");
         PropertiesArray newArr = mutableView.clone();
 
         newArr.set<int>(0, 100);
@@ -511,11 +500,11 @@ TEST_F(PropertiesTests, PropertiesArrayComprehensive) {
     EXPECT_TRUE(arr.is_type_of<std::string>(2));
     EXPECT_TRUE(arr.is_type_of<bool>(3));
 
-    EXPECT_THROW(arr.get<int>(1), Anyhow);
-    EXPECT_THROW(arr.get<bool>(2), Anyhow);
-    EXPECT_THROW(arr.get<std::string>(3), Anyhow);
+    EXPECT_THROW(arr.get<int>(1), kira::Anyhow);
+    EXPECT_THROW(arr.get<bool>(2), kira::Anyhow);
+    EXPECT_THROW(arr.get<std::string>(3), kira::Anyhow);
 
-    EXPECT_THROW(arr.get<int>(4), Anyhow);
+    EXPECT_THROW(arr.get<int>(4), kira::Anyhow);
 
     arr.clear();
     EXPECT_EQ(arr.size(), 0);
@@ -546,7 +535,7 @@ TEST_F(PropertiesTests, PropertiesArrayComprehensive) {
     auto retrievedArr = props.get<PropertiesArray>("test_array");
     EXPECT_EQ(retrievedArr.size(), 2);
 
-    auto arrView = props.get<PropertiesArrayView<true>>("test_array");
+    auto arrView = props.get_array_view("test_array");
     EXPECT_EQ(arrView.size(), 2);
     auto nestedArrFromView = arrView.get<PropertiesArray>(0);
     EXPECT_EQ(nestedArrFromView.get<int>(0), 1);
@@ -571,10 +560,10 @@ TEST_F(PropertiesTests, MutableArrayViewFromMutablePropertiesView) {
     props.set<Properties>("base_props", baseProps);
 
     // Get a MutablePropertiesView of the base properties
-    auto mutablePropsView = props.get<MutablePropertiesView>("base_props");
+    auto mutablePropsView = props.get_view("base_props");
 
     // Derive a MutableArrayView from the MutablePropertiesView
-    auto mutableArrayView = mutablePropsView.get<PropertiesArrayView<true>>("array");
+    auto mutableArrayView = mutablePropsView.get_array_view("array");
 
     // Verify initial state
     EXPECT_EQ(mutableArrayView.size(), 3);
@@ -618,4 +607,30 @@ TEST_F(PropertiesTests, MutableArrayViewFromMutablePropertiesView) {
     EXPECT_EQ(finalArray.get<int>(2), 3);
     EXPECT_EQ(finalArray.get<int>(3), 30);
 }
-#endif
+
+TEST_F(PropertiesTests, PropertiesArrayRecursiveAccess) {
+    Properties baseProps;
+    baseProps.set("x", 1);
+    baseProps.set("y", 2);
+    baseProps.set("z", 3);
+
+    PropertiesArray arr;
+    arr.push_back(baseProps);
+    arr.push_back(baseProps);
+    arr.push_back(baseProps);
+    arr.push_back(arr);
+
+    auto comp1 = arr.get_view(0);
+    auto comp2 = arr.get_view(2);
+
+    comp1.set("x", 4);
+    comp2.set("z", 5);
+
+    EXPECT_EQ(arr.get_view(0).get<int>("x"), 4);
+    EXPECT_EQ(arr.get_view(0).get<int>("y"), 2);
+    EXPECT_EQ(arr.get_view(0).get<int>("z"), 3);
+
+    EXPECT_EQ(arr.get_view(2).get<int>("x"), 1);
+    EXPECT_EQ(arr.get_view(2).get<int>("y"), 2);
+    EXPECT_EQ(arr.get_view(2).get<int>("z"), 5);
+}

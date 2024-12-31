@@ -1,139 +1,12 @@
 #pragma once
 
-// clang-format off
-#define TOML_HEADER_ONLY 0
-#include <toml++/toml.hpp>
-// clang-format on
-
 #include <magic_enum.hpp>
-#include <span>
 
-#include "Assertions.h"
 #include "kira/Anyhow.h"
+#include "kira/detail/PropertiesImpl.h"
 
 namespace kira::v2 {
-namespace detail {
-class PropertiesImpl {
-public:
-    virtual ~PropertiesImpl() = default;
-
-    /// Clear the table.
-    virtual void clear() = 0;
-
-    /// Create a deep copy of the current \c PropertiesImpl object.
-    ///
-    /// If the underlying table is a view, a new view is created.
-    virtual std::unique_ptr<PropertiesImpl> clone() const = 0;
-
-    /// Indicates whether this \c PropertiesImpl object is a view of
-    /// an existing TOML table.
-    ///
-    /// \return \c true if this object is a view, \c false if it's an independent instance.
-    [[nodiscard]] virtual bool is_view() const noexcept = 0;
-
-    /// Provides a direct reference to the underlying TOML table.
-    ///
-    /// \return A reference to the \c toml::table object.
-    ///
-    /// \remark This function does not enforce const correctness, as `toml::table` is mutable.
-    [[nodiscard]] virtual toml::table &get_table() const noexcept = 0;
-
-    /// Provides access to the source lines associated with this \c Propperty.
-    ///
-    /// \return A span of constant strings representing the source lines of the table.
-    [[nodiscard]] virtual std::span<std::string const> get_source_lines() const noexcept = 0;
-};
-
-class PropertiesInstanceImpl final : public PropertiesImpl {
-public:
-    /// Create a new table container.
-    PropertiesInstanceImpl() : table{std::make_unique<toml::table>()} {}
-    /// Create a new table container from a TOML table and the corresponding source file.
-    PropertiesInstanceImpl(toml::table table, std::string_view source)
-        : table{std::make_unique<toml::table>(std::move(table))} {
-        std::istringstream stream{std::string{source}};
-        std::string line;
-        while (std::getline(stream, line))
-            sourceLines.push_back(std::move(line));
-    }
-    /// Create a new table container from a TOML table and the corresponding source content.
-    PropertiesInstanceImpl(toml::table table, SmallVector<std::string> source)
-        : table{std::make_unique<toml::table>(std::move(table))}, sourceLines{std::move(source)} {}
-    /// Copy construct from another \c PropertiesInstanceImpl object.
-    PropertiesInstanceImpl(PropertiesInstanceImpl const &other)
-        : table{std::make_unique<toml::table>(*other.table)}, sourceLines{other.sourceLines} {}
-    PropertiesInstanceImpl(PropertiesInstanceImpl &&other) noexcept = default;
-    /// Copy and swap from another \c PropertiesInstanceImpl object.
-    PropertiesInstanceImpl &operator=(PropertiesInstanceImpl other) {
-        using std::swap;
-        swap(table, other.table);
-        swap(sourceLines, other.sourceLines);
-        return *this;
-    }
-
-public:
-    /// \see Properties::clear
-    void clear() override {
-        table->clear();
-        sourceLines.clear();
-    }
-
-    /// \see Properties::clone
-    [[nodiscard]] std::unique_ptr<PropertiesImpl> clone() const override {
-        return std::make_unique<PropertiesInstanceImpl>(*this);
-    }
-
-    /// \see Properties::is_view
-    [[nodiscard]] bool is_view() const noexcept override { return false; }
-    /// \see Properties::get_table
-    [[nodiscard]] toml::table &get_table() const noexcept override { return *table; }
-    /// \see Properties::get_source_lines
-    [[nodiscard]] std::span<std::string const> get_source_lines() const noexcept override {
-        return sourceLines;
-    }
-
-private:
-    std::unique_ptr<toml::table> table;
-    SmallVector<std::string> sourceLines;
-};
-
-class PropertiesViewImpl final : public PropertiesImpl {
-public:
-    /// Create a new table view.
-    PropertiesViewImpl(
-        toml::node_view<toml::node> tableView, std::span<std::string const> sourceLinesView
-    )
-        : tableView{tableView}, sourceLinesView{sourceLinesView} {}
-
-    void clear() override {
-        KIRA_ASSERT(tableView.is_table(), "The view must be a table");
-        tableView.as_table()->clear();
-        sourceLinesView = {};
-    }
-
-    /// \see Properties::clone
-    [[nodiscard]] std::unique_ptr<PropertiesImpl> clone() const override {
-        return std::make_unique<PropertiesViewImpl>(*this);
-    }
-
-    /// \see Properties::is_view
-    [[nodiscard]] bool is_view() const noexcept override { return true; }
-    /// \see Properties::get_table
-    [[nodiscard]] toml::table &get_table() const noexcept override {
-        KIRA_ASSERT(tableView.is_table(), "The view must be a table");
-        return *tableView.as_table();
-    }
-
-    /// \see Properties::get_source_lines
-    [[nodiscard]] std::span<std::string const> get_source_lines() const noexcept override {
-        return sourceLinesView;
-    }
-
-private:
-    toml::node_view<toml::node> tableView;
-    std::span<std::string const> sourceLinesView;
-};
-} // namespace detail
+class PropertiesArray;
 
 /// The to-be-specialized PropertyProcessor class that converts TOML native types <-> C++ types.
 template <class> struct PropertyProcessor : std::false_type {};
@@ -145,6 +18,7 @@ template <class> struct PropertyProcessor : std::false_type {};
 class Properties {
 public:
     template <typename T> friend struct PropertyProcessor;
+
     Properties();
 
     /// Copy construct from another \c Properties object.
@@ -182,6 +56,14 @@ public:
 
     /// Check if the table is empty.
     [[nodiscard]] bool empty() const noexcept { return pImpl->get_table().empty(); }
+
+    /// Check if the table is a view or instance.
+    [[nodiscard]] bool is_view() const noexcept { return pImpl->is_view(); }
+
+    /// Clone a copy of the underlying table.
+    ///
+    /// This is useful when you want to create a new \c Properties out of a view object.
+    [[nodiscard]] Properties clone() const { return {pImpl->get_table(), std::string_view{}}; }
 
 public:
     /// Check if the table contains the given key neglecting the type.
@@ -264,7 +146,7 @@ public:
     ///
     /// \return A view to the property with the given key.
     /// \throw Anyhow if the key does not exist or the key is not a table.
-    Properties get_view(std::string_view const name) const {
+    [[nodiscard]] Properties get_view(std::string_view const name) const {
         auto *node = get_node_(name);
         if (!node)
             throw Anyhow("Key '{}' does not exist", name);
@@ -287,9 +169,12 @@ public:
     /// Get a view to this property.
     ///
     /// \return A view to this property.
-    Properties get_view() const {
+    [[nodiscard]] Properties get_view() const {
         return {toml::node_view{pImpl->get_table()}, pImpl->get_source_lines()};
     }
+
+    /// Get a view to the array property with the given key.
+    [[nodiscard]] inline PropertiesArray get_array_view(std::string_view const name) const;
 
     /// Generic setter method to set properties.
     ///
@@ -381,8 +266,8 @@ private:
     }
 
     /// Get the diagnostic message for the given source region.
-    [[nodiscard]] std::optional<std::string>
-    get_diagnostic_(toml::source_region const &region) const;
+    [[nodiscard]] std::optional<std::string> get_diagnostic_(toml::source_region const &region
+    ) const;
 
     /// Populate the use map from the table.
     void populate_use_map_() {
@@ -396,6 +281,244 @@ private:
     ///
     std::unordered_map<std::string, bool> useMap;
 };
+
+/// The array structure that stores TOML nodes.
+class PropertiesArray {
+public:
+    template <typename T> friend struct PropertyProcessor;
+
+    PropertiesArray();
+
+    /// Copy construct from another \c PropertiesArray object.
+    ///
+    /// \remark This is a deep copy operation, i.e., the underlying array is copied.
+    PropertiesArray(PropertiesArray const &other) : pImpl{other.pImpl->clone()} {}
+
+    /// Move construct from another \c PropertiesArray object.
+    PropertiesArray(PropertiesArray &&) noexcept = default;
+
+    /// Copy and swap from another \c Properties object.
+    PropertiesArray &operator=(PropertiesArray other) {
+        using std::swap;
+        swap(pImpl, other.pImpl);
+        return *this;
+    }
+
+    /// Construct a new \c Properties object from a TOML table and the corresponding source file.
+    PropertiesArray(toml::array array);
+
+    /// Construct a new \c Properties object from a TOML array node view and the corresponding
+    /// source
+    PropertiesArray(toml::node_view<toml::node> arrayView);
+
+    /// Clear the array and source.
+    ///
+    /// \remark This is an unsafe operation, as it will invalidate all the views to the \c
+    /// PropertiesArray.
+    void clear() const noexcept { pImpl->clear(); }
+
+    /// Check if the array is empty.
+    [[nodiscard]] bool empty() const noexcept { return pImpl->get_array().empty(); }
+
+    /// Check if the array is a view or instance.
+    [[nodiscard]] bool is_view() const noexcept { return pImpl->is_view(); }
+
+    /// Get the size of the array.
+    [[nodiscard]] size_t size() const noexcept { return pImpl->get_array().size(); }
+
+    /// Clone a copy of the underlying array.
+    ///
+    /// This is useful when you want to create a new \c PropertiesArray out of a view object.
+    [[nodiscard]] PropertiesArray clone() const { return {get_array_()}; }
+
+public:
+    /// Check if the i-th element is of the given type.
+    ///
+    /// This tests the possibility of invoking \c get<T>(index) without throwing an exception.
+    ///
+    /// \tparam T The type to check for conversion.
+    ///
+    /// \param index The index of the element to check.
+    ///
+    /// \return \c true if the element exists and can be converted to type \c T, \c false otherwise.
+    /// \see Properties::is_type_of
+    template <typename T> [[nodiscard]] bool is_type_of(std::size_t index) const noexcept {
+        auto *node = get_array_().get(index);
+        if (!node)
+            return false;
+        try {
+            PropertyProcessor<T>::from_toml(*node);
+            return true;
+        } catch (...) { return false; }
+    }
+
+    /// Generic getter method to retrieve properties.
+    ///
+    /// \tparam T The type of the property to retrieve.
+    ///
+    /// \param index The index of the element to retrieve.
+    /// \return The property value of type \c T.
+    ///
+    /// \throw Anyhow if the index is out of bounds or the element cannot be converted to type \c T.
+    template <typename T>
+    T get(std::size_t index) const
+        requires(PropertyProcessor<T>::value)
+    {
+        auto *node = get_array_().get(index);
+        if (!node) {
+            std::ostringstream oss;
+            oss << get_array_();
+            throw Anyhow("Index '{}' out of bounds in the array: \n{}\n", index, oss.str());
+        }
+
+        try {
+            return PropertyProcessor<T>::from_toml(*node);
+        } catch (std::exception const &e) {
+            // TODO(krr): No diagnostic info is available for array elements for now, because of
+            // this weird design:
+            // https://github.com/marzer/tomlplusplus/issues/49#issuecomment-665089577
+            //
+            // I don't really understand why the source info is not copied and there is no other
+            // approach to copy it without forking the library, do it later.
+            std::ostringstream oss;
+            oss << get_array_();
+            throw Anyhow(
+                "Failed to convert element at index {} to type {}: {} in the array: \n{}\n", index,
+                PropertyProcessor<T>::name, e.what(), oss.str()
+            );
+        }
+    }
+
+    /// Generic getter method to retrieve properties with a default value.
+    ///
+    /// \tparam T The type of the property to retrieve.
+    ///
+    /// \param index The index of the element to retrieve.
+    /// \param defaultValue The default value to return if the index is out of bounds.
+    ///
+    /// \return The property value of type \c T, or the default value if the index is out of bounds.
+    template <typename T>
+    T get_or(std::size_t index, T const &defaultValue)
+        requires(PropertyProcessor<T>::value)
+    {
+        auto *node = get_array_().get(index);
+        if (!node)
+            return defaultValue;
+        return get<T>(index);
+    }
+
+    /// \copydoc get_or(std::size_t, T const &)
+    template <typename T>
+    T get_or(std::size_t index, T const &defaultValue) const
+        requires(PropertyProcessor<T>::value)
+    {
+        auto *node = get_array_().get(index);
+        if (!node)
+            return defaultValue;
+        return get<T>(index);
+    }
+
+    /// Get a view to the property with the given index.
+    [[nodiscard]] Properties get_view(std::size_t index) const {
+        auto *node = get_array_().get(index);
+        if (!node) {
+            std::ostringstream oss;
+            oss << get_array_();
+            throw Anyhow("Index '{}' out of bounds in the array: \n{}\n", index, oss.str());
+        }
+
+        if (node->is_table()) {
+            auto *table = node->as_table();
+            return {toml::node_view{*table}, std::span<std::string const>{}};
+        }
+
+        throw Anyhow("Expected an array, but got a(an) {}", magic_enum::enum_name(node->type()));
+    }
+
+    /// Get a view to the array property with the given index.
+    [[nodiscard]] PropertiesArray get_array_view(std::size_t index) const {
+        auto *node = get_array_().get(index);
+        if (!node) {
+            std::ostringstream oss;
+            oss << get_array_();
+            throw Anyhow("Index '{}' out of bounds in the array: \n{}\n", index, oss.str());
+        }
+
+        if (node->is_array()) {
+            auto *array = node->as_array();
+            return {toml::node_view{*array}};
+        }
+
+        throw Anyhow("Expected an array, but got a(an) {}", magic_enum::enum_name(node->type()));
+    }
+
+    /// Get a view to this array.
+    [[nodiscard]] PropertiesArray get_array_view() const { return {toml::node_view{get_array_()}}; }
+
+    /// Generic setter method to set properties.
+    ///
+    /// \tparam T The type of the property to set.
+    ///
+    /// \param index The index of the element to set.
+    /// \param value The value to set the property to.
+    ///
+    /// \throw std::exception if the index is out of bounds.
+    template <typename T>
+    void set(std::size_t index, T const &value)
+        requires(PropertyProcessor<T>::value)
+    {
+        if (index >= get_array_().size()) {
+            std::ostringstream oss;
+            oss << get_array_();
+            throw Anyhow("Index '{}' out of bounds in the array: \n{}\n", index, oss.str());
+        }
+
+        auto const begin = get_array_().begin();
+        get_array_().replace(
+            begin + static_cast<ptrdiff_t>(index), PropertyProcessor<T>::to_toml(value),
+            toml::preserve_source_value_flags
+        );
+    }
+
+    /// Push a value to the back of the array.
+    ///
+    /// \tparam T The type of the property to push.
+    ///
+    /// \param value The value to push to the back of the array.
+    template <typename T>
+    void push_back(T const &value)
+        requires(PropertyProcessor<T>::value)
+    {
+        get_array_().push_back(PropertyProcessor<T>::to_toml(value));
+    }
+
+private:
+    /// Get the underlying array.
+    [[nodiscard]] toml::array &get_array_() const noexcept { return pImpl->get_array(); }
+
+    std::unique_ptr<detail::PropertiesArrayImpl> pImpl;
+};
+
+// postpone the definition of get_array_view
+PropertiesArray Properties::get_array_view(std::string_view const name) const {
+    auto *node = get_node_(name);
+    if (!node)
+        throw Anyhow("Key '{}' does not exist", name);
+
+    if (node->is_array()) {
+        auto *array = node->as_array();
+        return {toml::node_view{*array}};
+    }
+
+    if (auto const diagnostic = get_diagnostic_(node->source())) {
+        throw Anyhow(
+            "Expected an array, but got a(an) {}: {}", magic_enum::enum_name(node->type()),
+            diagnostic.value()
+        );
+    }
+
+    throw Anyhow("Expected an array, but got a(an) {}", magic_enum::enum_name(node->type()));
+}
 
 #define KIRA_PROPERTY_PROCESSOR(T)                                                                 \
     template <> struct PropertyProcessor<T> : std::true_type {                                     \
@@ -447,6 +570,16 @@ template <> struct PropertyProcessor<Properties> : std::true_type {
         if (!node.is_table())
             throw Anyhow("Expected a table, but got a(an) {}", magic_enum::enum_name(node.type()));
         return Properties{*node.as_table(), std::string_view{}};
+    }
+};
+
+template <> struct PropertyProcessor<PropertiesArray> : std::true_type {
+    static constexpr std::string_view name = "kira::PropertiesArray";
+    static auto to_toml(auto const &props) { return props.get_array_(); }
+    static auto from_toml(auto &node, auto...) {
+        if (!node.is_array())
+            throw Anyhow("Expected an array, but got a(an) {}", magic_enum::enum_name(node.type()));
+        return PropertiesArray{*node.as_array()};
     }
 };
 } // namespace kira::v2
