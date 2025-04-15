@@ -27,7 +27,7 @@ krr_message(INFO "Pulling slang binaries... This might take long")
 if(UNIX AND NOT APPLE)
     CPMAddPackage(
         NAME slang
-        URL "https://github.com/shader-slang/slang/releases/download/v2024.14.5/slang-2024.14.5-linux-x86_64.tar.gz"
+        URL "https://github.com/shader-slang/slang/releases/download/v2025.6.4/slang-2025.6.4-linux-x86_64.tar.gz"
         VERSION 2024.14.5
         DOWNLOAD_ONLY)
 elseif(WIN32)
