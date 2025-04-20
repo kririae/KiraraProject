@@ -20,10 +20,12 @@ Window::Window(Desc const &desc) {
     width = desc.width, height = desc.height;
     window = glfwCreateWindow(width, height, desc.title.c_str(), nullptr, nullptr);
 
-#if _WIN32
+#if defined(_WIN32)
     handle = gfx::WindowHandle::FromHwnd(glfwGetWin32Window(window));
-#elif __linux__
+#elif defined(__linux__)
     handle = gfx::WindowHandle::FromXWindow(glfwGetX11Display(), glfwGetX11Window(window));
+#elif defined(__APPLE__)
+    handle = gfx::WindowHandle::FromNSWindow(glfwGetCocoaWindow(window));
 #else
 #error "Platform not supported"
 #endif

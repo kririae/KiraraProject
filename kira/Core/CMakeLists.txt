@@ -9,11 +9,11 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/kira/Version.h.in ${CMAKE_CUR
 # ----------------------------------------------------------
 # Setup module-specific dependencies
 # ----------------------------------------------------------
-CPMAddPackage(NAME fmt URL "https://github.com/fmtlib/fmt/archive/refs/tags/11.0.2.tar.gz")
+CPMAddPackage(NAME fmt URL "https://github.com/fmtlib/fmt/archive/refs/tags/11.1.4.tar.gz")
 
 CPMAddPackage(
     NAME spdlog
-    URL "https://github.com/gabime/spdlog/archive/refs/tags/v1.15.0.tar.gz"
+    URL "https://github.com/gabime/spdlog/archive/refs/tags/v1.15.2.tar.gz"
     OPTIONS "SPDLOG_BUILD_SHARED OFF" "SPDLOG_INSTALL ON" "SPDLOG_FMT_EXTERNAL_HO ON")
 
 # We do need a typed-array constexpr container. So let's use mp~!

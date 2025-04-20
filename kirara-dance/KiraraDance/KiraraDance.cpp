@@ -17,7 +17,7 @@ int main() try {
     // SlangGraphicsContext: the abstraction of the graphics API (per-window)
 
     SceneBuilder builder{};
-    builder.loadFromFile(R"(C:\Users\kriae\Downloads\Compressed\glTF-Sample-Assets-main_4\glTF-Sample-Assets-main\Models\Duck\glTF\Duck.gltf)");
+    builder.loadFromFile(R"(/Users/krr/Documents/Projects/KiraraProject/BoxAnimated.gltf)");
 
     auto const scene = builder.buildScene();
 

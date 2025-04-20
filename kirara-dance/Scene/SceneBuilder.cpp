@@ -111,7 +111,7 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
     aiScene const *aiScene = importer.ReadFile(path.string(), aiProcess_Triangulate);
     if (!aiScene || !aiScene->mRootNode || aiScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE)
         throw kira::Anyhow(
-            "SceneBuilder: Failed to load the scene from '{:s}': {:s}", path.string(),
+            "SceneBuilder: Failed to load the scene from \"{:s}\": {:s}", path.string(),
             importer.GetErrorString()
         );
 

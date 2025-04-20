@@ -16,28 +16,50 @@ CPMAddPackage(
 #
 # Currently assimp don't have good support for OpenUSD. We might load directly from `USDZ` file in the future.
 #
+
 CPMAddPackage(
     NAME assimp
     URL "https://github.com/assimp/assimp/archive/refs/tags/v5.4.3.tar.gz"
     VERSION 5.4.3
-    OPTIONS "ASSIMP_BUILD_TESTS OFF" "ASSIMP_BUILD_USD_IMPORTER OFF")
+    OPTIONS "ASSIMP_BUILD_TESTS OFF" "ASSIMP_BUILD_USD_IMPORTER OFF"
+            # see https://github.com/assimp/assimp/issues/5908
+            "ASSIMP_WARNINGS_AS_ERRORS OFF")
 
 krr_message(INFO "Pulling slang binaries... This might take long")
 
+# Boost the version if needed
+set(KRD_SLANG_VERSION 2025.6.4)
+
 if(UNIX AND NOT APPLE)
+    if(CMAKE_SYSTEM_PROCESSOR NOT STREQUAL "x86_64")
+        krr_message(ERROR "Kirara Project only supports x86_64 architecture on Linux")
+    endif()
     CPMAddPackage(
         NAME slang
-        URL "https://github.com/shader-slang/slang/releases/download/v2025.6.4/slang-2025.6.4-linux-x86_64.tar.gz"
-        VERSION 2024.14.5
+        URL "https://github.com/shader-slang/slang/releases/download/v${KRD_SLANG_VERSION}/slang-${KRD_SLANG_VERSION}-linux-x86_64.tar.gz"
+        VERSION ${KRD_SLANG_VERSION}
         DOWNLOAD_ONLY)
 elseif(WIN32)
+    if(CMAKE_SYSTEM_PROCESSOR NOT STREQUAL "x86_64")
+        krr_message(ERROR "Kirara Project only supports x86_64 architecture on Windows")
+    endif()
     CPMAddPackage(
         NAME slang
-        URL "https://github.com/shader-slang/slang/releases/download/v2024.14.5/slang-2024.14.5-windows-x86_64.tar.gz"
-        VERSION 2024.14.5
+        URL "https://github.com/shader-slang/slang/releases/download/v${KRD_SLANG_VERSION}/slang-${KRD_SLANG_VERSION}-windows-x86_64.tar.gz"
+        VERSION ${KRD_SLANG_VERSION}
         DOWNLOAD_ONLY)
+elseif(APPLE)
+    if(CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+        CPMAddPackage(
+            NAME slang
+            URL "https://github.com/shader-slang/slang/releases/download/v${KRD_SLANG_VERSION}/slang-${KRD_SLANG_VERSION}-macos-aarch64.tar.gz"
+            VERSION ${KRD_SLANG_VERSION}
+            DOWNLOAD_ONLY)
+    else()
+        krr_message(ERROR "Kirara Project only supports arm64 architecture on MacOS")
+    endif()
 else()
-    krr_message(ERROR "Unsupported platform: Only Linux/Windows x64 is supported by Kirara Project")
+    krr_message(ERROR "Unsupported platform: Only Linux x64/Windows x64/MacOS is supported by Kirara Project")
 endif()
 
 if(slang_ADDED)
@@ -62,6 +84,11 @@ if(slang_ADDED)
             PROPERTIES IMPORTED_LOCATION "${SLANG_ROOT}/bin/gfx.dll"
                        IMPORTED_IMPLIB "${SLANG_ROOT}/lib/gfx.lib"
                        INTERFACE_INCLUDE_DIRECTORIES "${SLANG_ROOT}/include")
+    elseif(APPLE)
+        set_target_properties(slang::slang PROPERTIES IMPORTED_LOCATION "${SLANG_ROOT}/lib/libslang.dylib"
+                                                      INTERFACE_INCLUDE_DIRECTORIES "${SLANG_ROOT}/include")
+        set_target_properties(slang::gfx PROPERTIES IMPORTED_LOCATION "${SLANG_ROOT}/lib/libgfx.dylib"
+                                                    INTERFACE_INCLUDE_DIRECTORIES "${SLANG_ROOT}/include")
     endif()
 endif()
 

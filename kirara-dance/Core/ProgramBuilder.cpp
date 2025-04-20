@@ -44,11 +44,15 @@ Ref<Program> ProgramBuilder::link(SlangContext *context) {
         switch (device->getDeviceInfo().deviceType) {
         case gfx::DeviceType::DirectX12:
             targetDesc.format = SLANG_DXIL;
-            targetName = "KIRA_D3D12";
+            targetName = "KRR_D3D12";
             break;
         case gfx::DeviceType::Vulkan:
             targetDesc.format = SLANG_SPIRV;
-            targetName = "KIRA_VULKAN";
+            targetName = "KRR_VULKAN";
+            break;
+        case gfx::DeviceType::Metal:
+            targetDesc.format = SLANG_METAL;
+            targetName = "KRR_METAL";
             break;
         default:
             throw kira::Anyhow(
