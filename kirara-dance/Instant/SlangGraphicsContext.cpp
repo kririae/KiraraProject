@@ -106,7 +106,9 @@ void SlangGraphicsContext::renderFrame() {
 
         gfx::ClearValue clearValue{};
         clearValue.color = {gClearValue.x, gClearValue.y, gClearValue.z, gClearValue.w};
+#if !defined(__APPLE__)
         renderEncoder->clearResourceView(rtv, &clearValue, gfx::ClearResourceViewFlags::None);
+#endif
     }
 
     auto const camera = getRenderScene()->getActiveCamera();
@@ -146,9 +148,11 @@ void SlangGraphicsContext::renderFrame() {
         auto modelShaderObject = gDevice->createShaderObject(perModel);
         gfx::ShaderCursor cursor(modelShaderObject);
         slangCheck(cursor["modelMatrix"].setData(rObj->getModelMatrix(), sizeof(float) * 4 * 4));
-        slangCheck(cursor["inverseTransposedModelMatrix"].setData(
-            rObj->getInverseTransposedModelMatrix(), sizeof(float) * 4 * 4
-        ));
+        slangCheck(
+            cursor["inverseTransposedModelMatrix"].setData(
+                rObj->getInverseTransposedModelMatrix(), sizeof(float) * 4 * 4
+            )
+        );
 
         slangCheck(rootCursor["gViewParams"].setObject(viewShaderObject));
         slangCheck(rootCursor["gModelParams"].setObject(modelShaderObject));

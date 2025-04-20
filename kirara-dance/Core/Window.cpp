@@ -20,16 +20,6 @@ Window::Window(Desc const &desc) {
     width = desc.width, height = desc.height;
     window = glfwCreateWindow(width, height, desc.title.c_str(), nullptr, nullptr);
 
-#if defined(_WIN32)
-    handle = gfx::WindowHandle::FromHwnd(glfwGetWin32Window(window));
-#elif defined(__linux__)
-    handle = gfx::WindowHandle::FromXWindow(glfwGetX11Display(), glfwGetX11Window(window));
-#elif defined(__APPLE__)
-    handle = gfx::WindowHandle::FromNSWindow(glfwGetCocoaWindow(window));
-#else
-#error "Platform not supported"
-#endif
-
     glfwShowWindow(window);
     glfwFocusWindow(window);
     glfwSetWindowUserPointer(window, this);
@@ -58,13 +48,27 @@ Window::Window(Desc const &desc) {
             }
         } catch (std::exception const &e) { LogError("{:s}", e.what()); }
     });
+
+#if defined(_WIN32)
+    handle = gfx::WindowHandle::FromHwnd(glfwGetWin32Window(window));
+#elif defined(__linux__)
+    handle = gfx::WindowHandle::FromXWindow(glfwGetX11Display(), glfwGetX11Window(window));
+#elif defined(__APPLE__)
+    handle = gfx::WindowHandle::FromNSWindow(glfwGetCocoaWindow(window));
+#else
+#error "Platform not supported"
+#endif
 }
 
 Window::~Window() {
+#if !defined(__APPLE__)
     if (window != nullptr)
         glfwDestroyWindow(window);
     glfwTerminate();
     LogTrace("Window: destructed");
+#else
+    LogTrace("Window: destructed but not terminated because of \"https://github.com/glfw/glfw/issues/1018\"");
+#endif
 }
 
 void Window::mainLoop(std::function<void(float)> const &onNewFrame) const {

@@ -101,6 +101,8 @@ void loadFromAnimChannel(SceneNodeAnimation *snAnim, aiNodeAnim const *nodeAnim)
 }
 } // namespace
 
+SceneBuilder::SceneBuilder() : scene(Scene::create({})) {}
+
 void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
     if (scene)
         scene.reset();

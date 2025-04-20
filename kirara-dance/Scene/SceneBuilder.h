@@ -13,7 +13,7 @@ class Scene;
 class SceneBuilder {
 public:
     ///
-    SceneBuilder() = default;
+    SceneBuilder();
 
     ///
     ~SceneBuilder() = default;

@@ -6,7 +6,7 @@
 
 namespace kira::detail {
 template <typename Condition> // NOLINTNEXTLINE
-constexpr auto __assert(auto cond_str, auto file, auto line, Condition &&cond) {
+constexpr auto __kira_assert(auto cond_str, auto file, auto line, Condition &&cond) {
     if (KIRA_UNLIKELY(!(std::forward<Condition>(cond)))) {
         fmt::print(stderr, "Assertion ({:s}) failed at [{:s}:{:d}]\n", cond_str, file, line);
         std::fflush(stderr);
@@ -15,7 +15,7 @@ constexpr auto __assert(auto cond_str, auto file, auto line, Condition &&cond) {
 }
 
 template <typename Condition, typename... Args> // NOLINTNEXTLINE
-constexpr auto __assert(
+constexpr auto __kira_assert(
     auto cond_str, auto file, auto line, Condition &&cond, fmt::format_string<Args...> fmt,
     Args &&...args
 ) {
@@ -30,7 +30,7 @@ constexpr auto __assert(
 }
 
 // NOLINTNEXTLINE
-consteval std::string_view __filename(std::string_view sv) {
+consteval std::string_view __kira_filename(std::string_view sv) {
     auto pos = sv.rfind('/');
     if (pos == std::string_view::npos)
         pos = sv.rfind('\\');
@@ -38,7 +38,7 @@ consteval std::string_view __filename(std::string_view sv) {
 }
 } // namespace kira::detail
 
-#define __FILENAME__ ::kira::detail::__filename(__FILE__) /**/
+#define __FILENAME__ ::kira::detail::__kira_filename(__FILE__) /**/
 
 /// \brief Macro to force an assertion even in release builds.
 ///
@@ -47,7 +47,9 @@ consteval std::string_view __filename(std::string_view sv) {
 #define KIRA_FORCE_ASSERT(cond, ...)                                                               \
     do {                                                                                           \
         constexpr auto filename = __FILENAME__;                                                    \
-        ::kira::detail::__assert(#cond, filename, __LINE__, (cond)__VA_OPT__(, ) __VA_ARGS__);     \
+        ::kira::detail::__kira_assert(                                                             \
+            #cond, filename, __LINE__, (cond)__VA_OPT__(, ) __VA_ARGS__                            \
+        );                                                                                         \
     } while (false)
 
 #if !defined(NDEBUG)

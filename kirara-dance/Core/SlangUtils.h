@@ -67,14 +67,20 @@ inline auto slangTrim(std::string const &str) -> std::string {
 };
 
 /// Log the diagnostic message from Slang.
-inline auto slangDiagnostic(slang::IBlob *diagnostics) -> void {
+inline auto slangDiagnostic(
+    slang::IBlob *diagnostics, std::source_location loc = std::source_location::current()
+) -> void {
     if (KIRA_UNLIKELY(!diagnostics))
         return;
     LogWarn(
-        "slangDiagnostic(): {:s}",
-        slangTrim(std::string{
-            static_cast<char const *>(diagnostics->getBufferPointer()), diagnostics->getBufferSize()
-        })
+        "slangDiagnostic(): {:s} at {:s}:{:d}",
+        slangTrim(
+            std::string{
+                static_cast<char const *>(diagnostics->getBufferPointer()),
+                diagnostics->getBufferSize()
+            }
+        ),
+        loc.file_name(), loc.line()
     );
 }
 

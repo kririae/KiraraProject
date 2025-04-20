@@ -44,14 +44,17 @@ Ref<Program> ProgramBuilder::link(SlangContext *context) {
         switch (device->getDeviceInfo().deviceType) {
         case gfx::DeviceType::DirectX12:
             targetDesc.format = SLANG_DXIL;
+            profile = "sm_6_1";
             targetName = "KRR_D3D12";
             break;
         case gfx::DeviceType::Vulkan:
             targetDesc.format = SLANG_SPIRV;
+            profile = "sm_6_1";
             targetName = "KRR_VULKAN";
             break;
         case gfx::DeviceType::Metal:
-            targetDesc.format = SLANG_METAL;
+            targetDesc.format = SLANG_METAL_LIB;
+            profile = "spirv_1_5";
             targetName = "KRR_METAL";
             break;
         default:
@@ -61,10 +64,11 @@ Ref<Program> ProgramBuilder::link(SlangContext *context) {
             );
         }
 
+#if !defined(__APPLE__)
         if (!isShaderModelSupported(device.get(), 6, 1))
             throw kira::Anyhow("ProgramBuilder: Shader model 6.1 is not supported on the device");
+#endif
 
-        profile = std::string("sm_6_1");
         targetDesc.profile = globalSession->findProfile(profile.c_str());
         if (targetDesc.profile == SLANG_PROFILE_UNKNOWN)
             throw kira::Anyhow(
@@ -88,6 +92,7 @@ Ref<Program> ProgramBuilder::link(SlangContext *context) {
         sessionDesc.preprocessorMacroCount = static_cast<SlangInt>(preprocessorMacros.size());
 
         slangCheck(globalSession->createSession(sessionDesc, slangSession.writeRef()));
+        LogInfo("ProgramBuilder: Created Slang session");
     }
 
     kira::SmallVector<ComPtr<slang::IEntryPoint>> entryPoints;
