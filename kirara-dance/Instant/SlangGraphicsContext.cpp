@@ -51,14 +51,14 @@ void SlangGraphicsContext::onResize(int newWidth, int newHeight) {
     LogTrace("SlangGraphicsContext: resizing to width={}, height={}...", newWidth, newHeight);
     this->width = newWidth, this->height = newHeight;
 
-    gFrameBuffer.clear();   // (4)
-    gTransientHeap.clear(); // (5)
+    gFrameBuffer.clear();   // (5)
+    gTransientHeap.clear(); // (6)
 
     // We don't have to re-create the swapchain.
     gSwapchain->resize(newWidth, newHeight);
 
-    setupFramebuffer();   // (4)
-    setupTransientHeap(); // (5)
+    setupFramebuffer();   // (5)
+    setupTransientHeap(); // (6)
     LogTrace("SlangGraphicsContext: resized to width={}, height={}", newWidth, newHeight);
 }
 
@@ -139,13 +139,9 @@ void SlangGraphicsContext::renderFrame() {
 
     auto *perModel = slangReflection->findTypeByName("PerModel");
 
-    //! Set the vertex buffer and render the triangles.
+    // Set the vertex buffer and render the triangles.
     for (auto const &rObj : getRenderScene()->getInstantObjectOfType<InstantTriangleMesh>()) {
         auto const deviceData = rObj->upload(this);
-
-        //! Bind the pipeline state to shader objects.
-        auto *rootObject = renderEncoder->bindPipeline(gPipelineState);
-        gfx::ShaderCursor rootCursor{rootObject};
 
         auto modelShaderObject = gDevice->createShaderObject(perModel);
         gfx::ShaderCursor cursor(modelShaderObject);
@@ -155,6 +151,10 @@ void SlangGraphicsContext::renderFrame() {
                 rObj->getInverseTransposedModelMatrix(), sizeof(float) * 4 * 4
             )
         );
+
+        // Bind the pipeline state to shader objects.
+        auto *rootObject = renderEncoder->bindPipeline(gPipelineState);
+        gfx::ShaderCursor rootCursor{rootObject};
 
         slangCheck(rootCursor["gViewParams"].setObject(viewShaderObject));
         slangCheck(rootCursor["gModelParams"].setObject(modelShaderObject));
