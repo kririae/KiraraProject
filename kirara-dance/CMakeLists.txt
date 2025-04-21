@@ -31,7 +31,7 @@ krr_message(INFO "Pulling slang binaries... This might take long")
 set(KRD_SLANG_VERSION 2025.6.4)
 
 if(UNIX AND NOT APPLE)
-    if(CMAKE_SYSTEM_PROCESSOR NOT STREQUAL "x86_64")
+    if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
         krr_message(ERROR "Kirara Project only supports x86_64 architecture on Linux")
     endif()
     CPMAddPackage(
@@ -40,7 +40,7 @@ if(UNIX AND NOT APPLE)
         VERSION ${KRD_SLANG_VERSION}
         DOWNLOAD_ONLY)
 elseif(WIN32)
-    if(CMAKE_SYSTEM_PROCESSOR NOT STREQUAL "x86_64")
+    if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
         krr_message(ERROR "Kirara Project only supports x86_64 architecture on Windows")
     endif()
     CPMAddPackage(
