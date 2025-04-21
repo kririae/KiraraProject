@@ -106,6 +106,8 @@ void SlangGraphicsContext::renderFrame() {
 
         gfx::ClearValue clearValue{};
         clearValue.color = {gClearValue.x, gClearValue.y, gClearValue.z, gClearValue.w};
+
+        // TODO(krr): not yet supported on Metal
 #if !defined(__APPLE__)
         renderEncoder->clearResourceView(rtv, &clearValue, gfx::ClearResourceViewFlags::None);
 #endif

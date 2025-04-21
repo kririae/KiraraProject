@@ -63,6 +63,7 @@ public:
     /// Discard a scene object from the scene.
     ///
     /// \remark This function potentially invokes destructors.
+    /// \remark Other reference to the object might be still valid after this call.
     bool discardSceneObject(uint64_t sObjId) noexcept;
 
     /// Mark the scene object as the active camera.

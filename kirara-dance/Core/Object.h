@@ -202,12 +202,13 @@ public:
 
     /// Cast the \c Ref<T> to \c Ref<T2> using \c dynamic_cast.
     ///
-    /// \remark No new reference count is added.
+    /// \remark New reference count is added.
     /// \remark If the cast fails, the returned \c Ref<T2> will be \c nullptr.
     template <typename T2> [[nodiscard]] auto dyn_cast() const {
         return Ref<T2>{dynamic_cast<T2 *>(ptr)};
     }
 
+#if 0
     /// Decay the \c Ref<T> to \c UniqueRef<T> with runtime check.
     ///
     /// \return If the reference count is 1, the ownership is transferred to the \c UniqueRef<T>.
@@ -226,6 +227,7 @@ public:
             return UniqueRef<T>(std::exchange(ptr, nullptr));
         throw kira::Anyhow("Ref: Failed to decay the reference");
     }
+#endif
 
 private:
     T *ptr{nullptr};
