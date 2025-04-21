@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        clang-version: [16, 18]
+        clang-version: [18]
 
     steps:
       - name: Checkout code
