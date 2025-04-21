@@ -100,7 +100,7 @@ private:
     void initCameras();                   // (2)
 
 private:
-    // Destruction order matters here. sObj will potentially be managed by rObj, so rObj destructs
+    // Destruction order matters here. sObj will potentially be managed by iObj, so iObj destructs
     // first.
     uint64_t activeCameraId{0};
 

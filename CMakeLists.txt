@@ -9,7 +9,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_PCH_WARN_INVALID ON)
 
 set(KRR_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-mark_as_advanced(KRR_ROOT_DIR)
 
 if(MSVC)
     add_compile_options(/Zc:preprocessor)
@@ -65,6 +64,13 @@ else()
     set(KRR_BUILD_FOR_LINUX OFF)
 endif()
 
+if(APPLE)
+    set(KRR_BUILD_FOR_MACOS ON)
+    krr_message(INFO "Configured to build for MacOS")
+else()
+    set(KRR_BUILD_FOR_MACOS OFF)
+endif()
+
 # ----------------------------------------------------------
 # User options
 # ----------------------------------------------------------
@@ -79,7 +85,12 @@ cmake_dependent_option(
     OFF)
 option(KRR_BUILD_FOR_NATIVE "Build with -march=native -mtune=native" OFF)
 
-option(KRR_USE_MOLD "Use mold as the linker" OFF)
+cmake_dependent_option(
+    KRR_USE_MOLD
+    "Use mold as the linker"
+    OFF
+    "NOT KRR_BUILD_FOR_MACOS"
+    OFF)
 
 option(KRR_ENABLE_LSAN "Enable LSAN (leak sanitizer)" OFF)
 option(KRR_ENABLE_ASAN "Enable ASAN (address sanitizer)" OFF)

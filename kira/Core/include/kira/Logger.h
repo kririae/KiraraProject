@@ -50,7 +50,7 @@ private:
 /// Returns an existing logger if available, or creates a new one with default
 /// configuration if not. The logger creation is thread-safe.
 ///
-/// \tparam name The name of the logger as a string literal.
+/// \param name The name of the logger as a string literal.
 ///
 /// \return A pointer to the spdlog logger.
 /// \throw std::runtime_error If logger initialization fails.
