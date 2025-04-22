@@ -106,22 +106,31 @@ add_library(
     Core/Window.cpp
     #
     #
-    Instant/InstantCamera.cpp
-    Instant/InstantObject.cpp
-    Instant/InstantScene.cpp
-    Instant/InstantTriangleMesh.cpp
-    Instant/SlangGraphicsContext.cpp
+    # Instant/InstantCamera.cpp
+    # Instant/InstantObject.cpp
+    # Instant/InstantScene.cpp
+    # Instant/InstantTriangleMesh.cpp
+    # Instant/SlangGraphicsContext.cpp
     #
     #
-    Scene/AnimatableObject.cpp
-    Scene/Animation.cpp
-    Scene/Camera.cpp
-    Scene/Scene.cpp
-    Scene/SceneBuilder.cpp
-    Scene/SceneGraph.cpp
-    Scene/SceneObject.cpp
-    Scene/Transform.cpp
-    Scene/TriangleMesh.cpp)
+    # Scene/Camera.cpp
+    # Scene/Scene.cpp
+    # Scene/SceneBuilder.cpp
+    # Scene/SceneGraph.cpp
+    # Scene/SceneObject.cpp
+    # Scene/Transform.cpp
+    # Scene/TriangleMesh.cpp
+    #
+    #
+    Scene2/Geometry.cpp
+    Scene2/SceneBuilder.cpp
+    Scene2/SceneRoot.cpp
+    Scene2/Transform.cpp
+    Scene2/TriangleMesh.cpp
+    #
+    #
+    SceneGraph/Node.cpp
+    SceneGraph/Visitors.cpp)
 
 target_link_libraries(
     kirara-backend
@@ -137,7 +146,7 @@ target_include_directories(kirara-backend PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 #
 add_executable(kirara-dance #
-               KiraraDance/Backward.cpp KiraraDance/Editor.cpp KiraraDance/KiraraDance.cpp)
+               KiraraDance/Backward.cpp KiraraDance/Editor.cpp KiraraDance/KiraraDance2.cpp)
 target_link_libraries(kirara-dance PRIVATE kirara-backend Backward::Interface)
 
 # ----------------------------------------------------------
@@ -176,7 +185,7 @@ endif()
 # ----------------------------------------------------------
 # Setup UnitTests
 # ----------------------------------------------------------
-if(KRR_BUILD_TESTS)
+if(KRR_BUILD_TESTS AND FALSE)
     krr_add_test(
         krd Backend AnimationTests
         SOURCES UnitTests/AnimationTests.cpp

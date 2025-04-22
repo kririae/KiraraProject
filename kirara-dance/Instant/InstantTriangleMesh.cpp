@@ -9,6 +9,7 @@ InstantTriangleMesh::InstantTriangleMesh(InstantScene *instantScene, Ref<Triangl
 }
 
 bool InstantTriangleMesh::pull() {
+#if 0
     auto mMatrix = mesh->getGlobalTransformMatrix();
     auto itMatrix = transpose(inverse(mMatrix));
 
@@ -18,6 +19,7 @@ bool InstantTriangleMesh::pull() {
     std::memcpy(
         inverseTransposedModelMatrix.data(), &itMatrix, sizeof(inverseTransposedModelMatrix)
     );
+#endif
 
     if (!vertices.empty())
         return false;

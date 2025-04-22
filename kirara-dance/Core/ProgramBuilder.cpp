@@ -64,6 +64,7 @@ Ref<Program> ProgramBuilder::link(SlangContext *context) {
             );
         }
 
+        // TODO(krr): we might remove this check in the future
 #if !defined(__APPLE__)
         if (!isShaderModelSupported(device.get(), 6, 1))
             throw kira::Anyhow("ProgramBuilder: Shader model 6.1 is not supported on the device");
@@ -92,7 +93,7 @@ Ref<Program> ProgramBuilder::link(SlangContext *context) {
         sessionDesc.preprocessorMacroCount = static_cast<SlangInt>(preprocessorMacros.size());
 
         slangCheck(globalSession->createSession(sessionDesc, slangSession.writeRef()));
-        LogInfo("ProgramBuilder: Created Slang session");
+        LogTrace("ProgramBuilder: Created Slang session");
     }
 
     kira::SmallVector<ComPtr<slang::IEntryPoint>> entryPoints;

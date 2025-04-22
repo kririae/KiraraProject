@@ -7,9 +7,10 @@
 
 namespace krd {
 class SceneGraph;
+class TriangleMesh;
 
 ///
-class SceneNode final : public Object {
+class SceneNode : public Object {
     ///
     SceneNode(std::string name, Transform const &transform, SceneNode *parent)
         : name(std::move(name)), transform(transform), parent(parent) {}
@@ -26,10 +27,6 @@ public:
     }
 
     ///
-    void setParent(SceneNode *parent) { this->parent = parent; }
-    ///
-    [[nodiscard]] SceneNode *getParent() const { return parent; }
-    ///
     void setLocalTransform(Transform const &transform) { this->transform = transform; }
     ///
     [[nodiscard]] Transform const &getLocalTransform() const { return transform; }
@@ -44,6 +41,13 @@ public:
     /// Transform a position from the local space to the global space.
     [[nodiscard]] float3 getGlobalPosition(float3 position) const;
 
+    /// 
+    void appendMesh(Ref<TriangleMesh> mesh) { this->mesh.push_back(std::move(mesh)); }
+
+    ///
+    void setParent(SceneNode *parent) { this->parent = parent; }
+    ///
+    [[nodiscard]] SceneNode *getParent() const { return parent; }
     ///
     void addChild(Ref<SceneNode> const &child) {
         children.push_back(child);
@@ -55,6 +59,8 @@ private:
     std::string name;
     ///
     Transform transform;
+    ///
+    std::vector<Ref<TriangleMesh>> mesh;
 
     ///
     SceneNode *parent{nullptr};

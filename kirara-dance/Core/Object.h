@@ -194,6 +194,9 @@ public:
     /// Gets the current reference count.
     [[nodiscard]] auto getRefCount() const { return ptr != nullptr ? ptr->getRefCount() : 0; }
 
+    /// Checks if the reference is exclusive.
+    [[nodiscard]] bool isExclusive() const noexcept { return ptr != nullptr && getRefCount() == 1; }
+
     /// Resets the reference to \c nullptr.
     void reset() noexcept {
         Ref other{};
