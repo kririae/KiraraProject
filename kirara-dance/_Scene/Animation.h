@@ -17,9 +17,17 @@ enum class AnimationBehaviour : uint8_t {
     Repeat,      /// The animation is repeated.
 };
 
+enum class AnimationInterpolation : uint8_t {
+    Step,            /// Step interpolation.
+    Linear,          /// Linear interpolation.
+    SphericalLinear, /// Spherical linear interpolation.
+    CubicSpline,     /// Cubic spline interpolation.
+};
+
 template <typename T> struct AnimationKey {
     double time;
     T value;
+    AnimationInterpolation interp;
 
     /// Compare two keys by time.
     [[nodiscard]] bool operator<(AnimationKey const &other) const { return time < other.time; }

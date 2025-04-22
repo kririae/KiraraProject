@@ -17,7 +17,7 @@ int main() try {
     // SlangGraphicsContext: the abstraction of the graphics API (per-window)
 
     SceneBuilder builder{};
-    builder.loadFromFile(R"(/Users/krr/Documents/Projects/KiraraProject/BoxAnimated.gltf)");
+    builder.loadFromFile(R"(/home/krr/Downloads/InterpolationTest.glb)");
 
     auto const scene = builder.buildScene();
 

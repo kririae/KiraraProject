@@ -9,7 +9,7 @@
 #include "Scene/Scene.h"
 
 namespace krd {
-TriangleMesh::TriangleMesh(Scene *scene) : AnimatableObject(scene) {}
+TriangleMesh::TriangleMesh(Scene *scene) : SceneObject(scene) {}
 
 void TriangleMesh::loadFromAssimp(aiMesh const *mesh, std::string_view name) {
     // Validate the `inMesh`
@@ -71,15 +71,6 @@ void TriangleMesh::loadFromFile(std::filesystem::path const &path) {
 
     aiMesh const *mesh = scene->mMeshes[0];
     loadFromAssimp(mesh, path.string());
-}
-
-Transform TriangleMesh::getLocalTransform() const {
-    return getSceneNode() != nullptr ? getSceneNode()->getLocalTransform() : Transform::identity();
-}
-
-float4x4 TriangleMesh::getGlobalTransformMatrix() const {
-    return getSceneNode() != nullptr ? getSceneNode()->getGlobalTransformMatrix()
-                                     : float4x4(identity);
 }
 
 void TriangleMesh::calculateNormal(TriangleMesh::NormalWeightingType weighting) {

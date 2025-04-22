@@ -1,10 +1,9 @@
 #pragma once
 
-#include "Core/KIRA.h"
 #include "Core/Object.h"
 
 namespace krd {
-class Scene;
+class SceneRoot;
 
 /// The facade to construct the scene through different configurations, e.g.,
 /// raw TOML, glTF, etc.
@@ -27,10 +26,10 @@ public:
 
 public:
     /// Get the scene.
-    [[nodiscard]] Ref<Scene> buildScene() { return std::move(scene); }
+    [[nodiscard]] Ref<SceneRoot> buildScene() { return std::move(sceneRoot); }
 
 private:
     // TODO(krr): change it to lazy loading later. Multiple configurations can be loaded.
-    Ref<Scene> scene;
+    Ref<SceneRoot> sceneRoot;
 };
 } // namespace krd
