@@ -3,6 +3,7 @@
 #include "Core/ProgramBuilder.h"
 #include "Core/SlangContext.h"
 #include "Core/Window.h"
+#include "Core/Math.h"
 
 namespace krd {
 class SlangGraphicsContext;
@@ -20,7 +21,7 @@ private:
 };
 
 ///
-class SlangGraphicsContext : public SlangContext {
+class SlangGraphicsContext final : public SlangContext {
 public:
     struct Desc {
         //

@@ -96,14 +96,14 @@ void loadFromAnimChannel(SceneNodeAnimation *snAnim, aiNodeAnim const *nodeAnim)
 /// Visitor to insert geometries into the scene graph.
 ///
 ///
-class GeomInsertFromAssimpVisitor : public Visitor {
-    explicit GeomInsertFromAssimpVisitor(TriangleMeshMap triMap, aiNode const *node)
+class GeomInsertFromAssimp : public Visitor {
+    explicit GeomInsertFromAssimp(TriangleMeshMap triMap, aiNode const *node)
         : triMap(std::move(triMap)), node(node) {}
 
 public:
-    [[nodiscard]] static Ref<GeomInsertFromAssimpVisitor>
+    [[nodiscard]] static Ref<GeomInsertFromAssimp>
     create(TriangleMeshMap triMap, aiNode const *node) {
-        return {new GeomInsertFromAssimpVisitor(std::move(triMap), node)};
+        return {new GeomInsertFromAssimp(std::move(triMap), node)};
     }
 
     void apply(SceneRoot &sceneRoot) override {
@@ -180,7 +180,7 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
         triMap.emplace(meshId, mesh.get());
     }
 
-    auto geomVisitor = GeomInsertFromAssimpVisitor::create(std::move(triMap), aiScene->mRootNode);
+    auto geomVisitor = GeomInsertFromAssimp::create(std::move(triMap), aiScene->mRootNode);
     sceneRoot->accept(*geomVisitor);
 
 #if 0
