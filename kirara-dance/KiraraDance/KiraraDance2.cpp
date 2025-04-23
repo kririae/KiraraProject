@@ -1,7 +1,7 @@
 #include "Core/Window.h"
 #include "Scene2/SceneBuilder.h"
 #include "Scene2/SceneRoot.h"
-#include "Scene2/Visitors/PrintStatsVisitor.hpp"
+#include "Scene2/Visitors/GeometryInfo.hpp"
 
 int main() try {
     using namespace krd;
@@ -12,7 +12,7 @@ int main() try {
     builder.loadFromFile(R"(/home/krr/Downloads/Duck.glb)");
 
     auto const sceneRoot = builder.buildScene();
-    PrintStatsVisitor psVisitor;
+    GeometryInfo psVisitor;
     sceneRoot->accept(psVisitor);
     return 0;
 } catch (std::exception const &e) {

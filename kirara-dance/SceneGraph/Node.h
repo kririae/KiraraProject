@@ -8,7 +8,7 @@ namespace krd {
 ///
 class Node : public Object {
 public:
-    virtual ~Node() = default;
+    ~Node() override = default;
 
     ///
     virtual void accept(Visitor &visitor) { visitor.apply(*this); }
@@ -22,10 +22,10 @@ public:
     ///
     /// \remark This can be used to identify the node in the graphs.
     /// \remark IDs are not reused and is non-decreasing.
-    [[nodiscard]] auto getId() { return id; }
+    [[nodiscard]] auto getId() const { return id; }
 
 protected:
-    static std::atomic_uint64_t nodeCount;
+    static inline std::atomic_uint64_t nodeCount;
     uint64_t id{0}; // The ID of the node. This is used to identify the node in the scene graph.
 
     /// Node should not be directly created.

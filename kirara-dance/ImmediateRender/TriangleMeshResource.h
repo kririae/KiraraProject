@@ -4,7 +4,10 @@
 #include "SlangGraphicsContext.h"
 
 namespace krd {
-class TriangleMeshResource : public Node {
+///
+///
+///
+class TriangleMeshResource final : public Node {
 public:
     struct DeviceData {
         ComPtr<gfx::IBufferResource> vertexBuffer;

@@ -7,16 +7,16 @@
 #include "SceneGraph/Node.h"
 
 namespace krd {
-class PrintStatsVisitor final : public ConstVisitor {
+class GeometryInfo final : public ConstVisitor {
 public:
     /// Create a new PrintStatsVisitor.
     ///
     /// \remark PrintStatsVisitor can be created on stack or heap.
-    PrintStatsVisitor() = default;
+    GeometryInfo() = default;
 
-    [[nodiscard]] static Ref<PrintStatsVisitor> create() { return {new PrintStatsVisitor}; }
+    [[nodiscard]] static Ref<GeometryInfo> create() { return {new GeometryInfo}; }
 
-    ~PrintStatsVisitor() override = default;
+    ~GeometryInfo() override = default;
 
     void apply(Node const &t) override { t.traverse(*this); }
 
