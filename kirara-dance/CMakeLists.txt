@@ -92,6 +92,11 @@ if(slang_ADDED)
     endif()
 endif()
 
+CPMAddPackage(
+    NAME range-v3
+    GITHUB_REPOSITORY ericniebler/range-v3
+    GIT_TAG 0.12.0)
+
 # ----------------------------------------------------------
 # Executable setup
 # ----------------------------------------------------------
@@ -139,7 +144,8 @@ target_link_libraries(
            igl::core
            kira::kira
            slang::gfx
-           slang::slang)
+           slang::slang
+           range-v3::range-v3)
 
 # Include towards current directory.
 target_include_directories(kirara-backend PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

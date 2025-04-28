@@ -3,6 +3,7 @@
 #include "Core/Math.h"
 #include "SceneGraph/Group.h"
 #include "SceneGraph/Node.h"
+#include "range/v3/view/single.hpp"
 
 namespace krd {
 class Transform : public Node {
@@ -29,10 +30,14 @@ public:
     [[nodiscard]] float4x4 getMatrix() const;
 
     void accept(Visitor &visitor) override { visitor.apply(*this); }
-    void traverse(Visitor &visitor) override { children->accept(visitor); }
+    ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
+        return ranges::views::single(children);
+    }
 
     void accept(ConstVisitor &visitor) const override { visitor.apply(*this); }
-    void traverse(ConstVisitor &visitor) const override { children->accept(visitor); }
+    ranges::any_view<Ref<Node>> traverse(ConstVisitor &visitor) const override {
+        return ranges::views::single(children);
+    }
 
     /// Add a child node to this transform node.
     void addChild(Ref<Node> child) { children->addChild(std::move(child)); }

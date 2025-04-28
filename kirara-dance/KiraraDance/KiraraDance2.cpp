@@ -9,7 +9,7 @@ int main() try {
         Window::create(Window::Desc{.width = 1280, .height = 720, .title = "Kirara Dance"});
 
     SceneBuilder builder;
-    builder.loadFromFile(R"(/home/krr/Downloads/Duck.glb)");
+    builder.loadFromFile(R"(/Users/krr/Downloads/Duck.glb)");
 
     auto const sceneRoot = builder.buildScene();
     GeometryInfo psVisitor;

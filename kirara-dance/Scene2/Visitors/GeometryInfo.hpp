@@ -1,9 +1,6 @@
 #pragma once
 
 #include "Scene2/Geometry.h"
-#include "Scene2/SceneRoot.h"
-#include "Scene2/Transform.h"
-#include "SceneGraph/Group.h"
 #include "SceneGraph/Node.h"
 
 namespace krd {
@@ -18,7 +15,16 @@ public:
 
     ~GeometryInfo() override = default;
 
-    void apply(Node const &t) override { t.traverse(*this); }
+    void apply(Node const &t) override {
+        LogInfo("{}", t.getId());
+        auto child = t.traverse(*this);
+        auto const currId = t.getId();
+        for (auto const &node : child)
+            if (node->getId() != currId)
+                node->accept(*this);
+            else
+                LogInfo("Recursive NodeID encountered: {:d}", node->getId());
+    }
 
     void apply(Geometry const &t) override {
         LogInfo("Geometry is reached");
