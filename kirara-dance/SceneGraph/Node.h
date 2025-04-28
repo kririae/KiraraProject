@@ -44,7 +44,7 @@ public:
     /// \brief Get the type name of the node.
     ///
     /// \see NodeMixin::getTypeName()
-    [[nodiscard]] virtual constexpr std::string getTypeName() const = 0;
+    [[nodiscard]] virtual std::string getTypeName() const = 0;
 
 protected:
     static inline std::atomic_uint64_t nodeCount;
