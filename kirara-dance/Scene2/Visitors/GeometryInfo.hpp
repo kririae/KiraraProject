@@ -10,28 +10,27 @@ public:
     ///
     /// \remark PrintStatsVisitor can be created on stack or heap.
     GeometryInfo() = default;
-
     [[nodiscard]] static Ref<GeometryInfo> create() { return {new GeometryInfo}; }
-
     ~GeometryInfo() override = default;
 
+public:
     void apply(Node const &t) override {
-        LogInfo("{}", t.getId());
+        LogTrace("Visiting {}:{}", t.getTypeName(), t.getId());
         auto child = t.traverse(*this);
         auto const currId = t.getId();
         for (auto const &node : child)
             if (node->getId() != currId)
                 node->accept(*this);
             else
-                LogInfo("Recursive NodeID encountered: {:d}", node->getId());
+                LogError("Recursive NodeID encountered: {:d}", node->getId());
     }
 
     void apply(Geometry const &t) override {
-        LogInfo("Geometry is reached");
+        LogInfo("Geometry {} is reached", t.getId());
         if (t.getMesh()) {
             LogInfo("Mesh is linked");
-            LogInfo("Num vertices: {:d}", t.getMesh()->getNumVertices());
-            LogInfo("Num faces: {:d}", t.getMesh()->getNumFaces());
+            LogInfo("Num vertices: {}", t.getMesh()->getNumVertices());
+            LogInfo("Num faces:    {}", t.getMesh()->getNumFaces());
         } else {
             LogInfo("No mesh is linked");
         }

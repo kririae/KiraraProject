@@ -12,8 +12,8 @@ int main() try {
     builder.loadFromFile(R"(/Users/krr/Downloads/Duck.glb)");
 
     auto const sceneRoot = builder.buildScene();
-    GeometryInfo psVisitor;
-    sceneRoot->accept(psVisitor);
+    GeometryInfo gVisitor;
+    sceneRoot->accept(gVisitor);
     return 0;
 } catch (std::exception const &e) {
     krd::LogError("{}", e.what());

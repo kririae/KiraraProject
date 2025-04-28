@@ -1,18 +1,19 @@
 #pragma once
 
 #include "SceneGraph/Group.h"
-#include "SceneGraph/Node.h"
+#include "SceneGraph/NodeMixin.h"
 #include "range/v3/view/concat.hpp"
 #include "range/v3/view/single.hpp"
 
 namespace krd {
-class SceneRoot : public Node {
+class SceneRoot : public NodeMixin<SceneRoot, Node> {
 public:
     [[nodiscard]] static Ref<SceneRoot> create() { return {new SceneRoot}; }
     ~SceneRoot() override = default;
 
 public:
     void accept(Visitor &visitor) override { visitor.apply(*this); }
+    void accept(ConstVisitor &visitor) const override { visitor.apply(*this); }
 
     ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
         (void)(visitor);
@@ -20,8 +21,6 @@ public:
             ranges::views::single(meshGroup), ranges::views::single(geomGroup)
         );
     }
-
-    void accept(ConstVisitor &visitor) const override { visitor.apply(*this); }
 
     ranges::any_view<Ref<Node>> traverse(ConstVisitor &visitor) const override {
         (void)(visitor);

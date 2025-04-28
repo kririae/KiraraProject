@@ -14,7 +14,7 @@
 namespace krd {
 namespace {
 using TriangleMeshMap = std::unordered_map<
-    /* index in the original array */ uint32_t, /* pointer to the mesh */ TriangleMesh *>;
+    /* index in the original array */ uint32_t, /* pointer to the mesh */ Ref<TriangleMesh>>;
 #if 0
 using NodeMap = std::unordered_map<
     /* node name */ std::string, /* pointer to the node */ SceneNode *>;
@@ -107,7 +107,6 @@ public:
     }
 
     void apply(SceneRoot &sceneRoot) override {
-        // Add the geometry to the scene graph.
         sceneRoot.getGeomGroup()->addChild(addToSceneGraph(this->triMap, this->node));
     }
 
@@ -125,7 +124,7 @@ private:
             auto geom = Geometry::create();
             // For the special case where the node has meshes, attach the meshes to the scene node.
             for (uint32_t i = 0; i < node->mNumMeshes; ++i) {
-                auto *triMesh = triMap.at(node->mMeshes[i]);
+                auto const &triMesh = triMap.at(node->mMeshes[i]);
                 geom->linkMesh(triMesh);
             }
 
@@ -179,6 +178,8 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
         mesh->loadFromAssimp(aiScene->mMeshes[meshId], std::string_view{});
         triMap.emplace(meshId, mesh.get());
     }
+
+    LogInfo("Num meshes inserted: {:d}", aiScene->mNumMeshes);
 
     auto geomVisitor = GeomInsertFromAssimp::create(std::move(triMap), aiScene->mRootNode);
     sceneRoot->accept(*geomVisitor);

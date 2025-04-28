@@ -4,12 +4,13 @@
 
 #include "Core/Object.h"
 #include "SceneGraph/Node.h"
+#include "SceneGraph/NodeMixin.h"
 
 struct aiMesh;
 
 namespace krd {
 /// A triangle mesh in the most general format.
-class TriangleMesh final : public Node {
+class TriangleMesh final : public NodeMixin<TriangleMesh, Node> {
 public:
     /// \see igl::PerVertexNormalsWeightingType
     enum class NormalWeightingType : uint8_t {
