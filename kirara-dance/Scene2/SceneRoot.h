@@ -2,6 +2,8 @@
 
 #include "SceneGraph/Group.h"
 #include "SceneGraph/Node.h"
+#include "range/v3/view/concat.hpp"
+#include "range/v3/view/single.hpp"
 
 namespace krd {
 class SceneRoot : public Node {
@@ -11,14 +13,21 @@ public:
 
 public:
     void accept(Visitor &visitor) override { visitor.apply(*this); }
-    void traverse(Visitor &visitor) override {
-        meshGroup->accept(visitor);
-        geomGroup->accept(visitor);
+
+    ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
+        (void)(visitor);
+        return ranges::views::concat(
+            ranges::views::single(meshGroup), ranges::views::single(geomGroup)
+        );
     }
+
     void accept(ConstVisitor &visitor) const override { visitor.apply(*this); }
-    void traverse(ConstVisitor &visitor) const override {
-        meshGroup->accept(visitor);
-        geomGroup->accept(visitor);
+
+    ranges::any_view<Ref<Node>> traverse(ConstVisitor &visitor) const override {
+        (void)(visitor);
+        return ranges::views::concat(
+            ranges::views::single(meshGroup), ranges::views::single(geomGroup)
+        );
     }
 
     Ref<Group> getMeshGroup() { return meshGroup; }

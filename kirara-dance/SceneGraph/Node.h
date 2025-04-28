@@ -2,6 +2,7 @@
 
 #include "Core/Object.h"
 #include "Visitors.h"
+#include "range/v3/view/any_view.hpp"
 
 namespace krd {
 /// \brief A node in the scene graph.
@@ -12,11 +13,27 @@ public:
 
     ///
     virtual void accept(Visitor &visitor) { visitor.apply(*this); }
-    virtual void traverse(Visitor &visitor) {}
 
+    /// \brief Traverse the node and apply the visitor to all children.
     ///
+    /// This returns a view of the children of the node, that the visitor can used to record the
+    /// tree information or go deeper.
+    ///
+    /// \note The visitor itself should take care of the traversal and not to modify the node
+    /// itself.
+    [[nodiscard]] virtual ranges::any_view<Ref<Node>> traverse(Visitor &visitor) {
+        (void)(visitor);
+        return {};
+    }
+
+    /// \copydoc accept(Visitor &visitor)
     virtual void accept(ConstVisitor &visitor) const { visitor.apply(*this); }
-    virtual void traverse(ConstVisitor &visitor) const {}
+
+    /// \copydoc traverse(Visitor &visitor)
+    [[nodiscard]] virtual ranges::any_view<Ref<Node>> traverse(ConstVisitor &visitor) const {
+        (void)(visitor);
+        return {};
+    }
 
     /// \brief Return the ID of the node accumulated from the node count.
     ///
@@ -31,7 +48,7 @@ protected:
     /// Node should not be directly created.
     Node() noexcept {
         // Increment the node count when a new node is created.
-        nodeCount.fetch_add(1);
+        id = nodeCount.fetch_add(1);
     }
 };
 } // namespace krd
