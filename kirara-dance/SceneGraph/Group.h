@@ -1,14 +1,17 @@
 #pragma once
 
 #include "Node.h"
+#include "NodeMixin.h"
 
 namespace krd {
-class Group : public Node {
+/// \brief A group of nodes in the scene graph.
+///
+/// \remark This class manages child nodes and provides traversal functionality.
+class Group : public NodeMixin<Group, Node> {
 public:
     /// \brief Create a new group.
     /// \return A reference to the new group.
     [[nodiscard]] static Ref<Group> create() { return {new Group}; }
-
     ~Group() override = default;
 
     /// \brief Add a child node to the group.

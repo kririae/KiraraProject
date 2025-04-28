@@ -14,6 +14,9 @@ public:
     ///
     virtual void accept(Visitor &visitor) { visitor.apply(*this); }
 
+    /// \copydoc accept(Visitor &visitor)
+    virtual void accept(ConstVisitor &visitor) const { visitor.apply(*this); }
+
     /// \brief Traverse the node and apply the visitor to all children.
     ///
     /// This returns a view of the children of the node, that the visitor can used to record the
@@ -26,9 +29,6 @@ public:
         return {};
     }
 
-    /// \copydoc accept(Visitor &visitor)
-    virtual void accept(ConstVisitor &visitor) const { visitor.apply(*this); }
-
     /// \copydoc traverse(Visitor &visitor)
     [[nodiscard]] virtual ranges::any_view<Ref<Node>> traverse(ConstVisitor &visitor) const {
         (void)(visitor);
@@ -40,6 +40,11 @@ public:
     /// \remark This can be used to identify the node in the graphs.
     /// \remark IDs are not reused and is non-decreasing.
     [[nodiscard]] auto getId() const { return id; }
+
+    /// \brief Get the type name of the node.
+    ///
+    /// \see NodeMixin::getTypeName()
+    [[nodiscard]] virtual constexpr std::string getTypeName() const = 0;
 
 protected:
     static inline std::atomic_uint64_t nodeCount;
