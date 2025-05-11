@@ -3,6 +3,9 @@
 #include "Core/ProgramBuilder.h"
 #include "Core/ShaderCursor.h"
 #include "Core/SlangUtils.h"
+#include "ImmediateRender/IssueDrawCommand.h"
+#include "Scene2/Camera.h"
+#include "Scene2/SceneRoot.h"
 #include "TriangleMeshResource.h"
 
 namespace krd {
@@ -66,7 +69,7 @@ void SlangGraphicsContext::onResize(int newWidth, int newHeight) {
     LogTrace("SlangGraphicsContext: resized to width={}, height={}", newWidth, newHeight);
 }
 
-void SlangGraphicsContext::renderFrame() {
+void SlangGraphicsContext::renderFrame(SceneRoot *sceneRoot, Camera *camera) {
     if (enableGFXFix_07783) {
         // Because of the bug in GFX, we need to wait for the fence to be signaled.
         gfx::IFence *fences[] = {gFrameFence.get()};
@@ -117,8 +120,6 @@ void SlangGraphicsContext::renderFrame() {
 #endif
     }
 
-#if 0
-    auto const camera = getRenderScene()->getActiveCamera();
     float4x4 viewProjection =
         mul(camera->getProjectionMatrix(static_cast<float>(width) / static_cast<float>(height)),
             camera->getViewMatrix());
@@ -144,6 +145,16 @@ void SlangGraphicsContext::renderFrame() {
 
     auto *perModel = slangReflection->findTypeByName("PerModel");
 
+    {
+        IssueDrawCommand iDrawCmd{
+            [&](TriangleMeshResource const *resource, float4x4 modelMatrix) -> void {
+            // Implement the callback
+        }
+        };
+        sceneRoot->accept(iDrawCmd);
+    }
+
+#if 0
     // Set the vertex buffer and render the triangles.
     for (auto const &rObj : getRenderScene()->getInstantObjectOfType<InstantTriangleMesh>()) {
         auto const deviceData = rObj->upload(this);
@@ -167,7 +178,6 @@ void SlangGraphicsContext::renderFrame() {
         renderEncoder->setVertexBuffer(0, deviceData->vertexBuffer);
         renderEncoder->setIndexBuffer(deviceData->indexBuffer, gfx::Format::R32_UINT);
         renderEncoder->setPrimitiveTopology(gfx::PrimitiveTopology::TriangleList);
-
         renderEncoder->drawIndexed(rObj->getNumIndices(), 0);
     }
 #endif

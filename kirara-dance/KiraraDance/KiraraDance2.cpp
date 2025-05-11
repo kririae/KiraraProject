@@ -1,4 +1,5 @@
 #include "Core/Window.h"
+#include "ImmediateRender/IssueDrawCommand.h"
 #include "ImmediateRender/PopulateResource.h"
 #include "ImmediateRender/SlangGraphicsContext.h"
 #include "Scene2/SceneBuilder.h"
@@ -17,7 +18,7 @@ int main() try {
     auto const sceneRoot = builder.buildScene();
 
     // Create the graphics context
-    auto context = SlangGraphicsContext::create(
+    auto SGC = SlangGraphicsContext::create(
         SlangGraphicsContext::Desc{
             .swapchainImageCnt = 2,
             .enableVSync = true,
@@ -38,18 +39,11 @@ int main() try {
 
     // (2)
     {
-        TreeInfo tInfo;
-        sceneRoot->accept(tInfo);
-    }
-
-    // (3)
-    {
-        PopulateResource pResource(context.get());
+        PopulateResource pResource(SGC.get());
         sceneRoot->accept(pResource);
     }
 
-    LogInfo("//////////////////////////");
-    // (4)
+    // (3)
     {
         TreeInfo tInfo;
         sceneRoot->accept(tInfo);

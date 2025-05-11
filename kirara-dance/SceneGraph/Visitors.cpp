@@ -1,10 +1,16 @@
 #include "Visitors.h"
 
+//
 #include "Group.h"
 #include "Node.h"
+
+//
 #include "Scene2/Geometry.h"
 #include "Scene2/SceneRoot.h"
 #include "Scene2/Transform.h"
+
+//
+#include "ImmediateRender/TriangleMeshResource.h"
 
 namespace krd {
 void Visitor::apply(Node &val) { (void)(val); }
@@ -19,4 +25,5 @@ DEFAULT_VISIT_NODE(SceneRoot)
 DEFAULT_VISIT_NODE(Transform)
 DEFAULT_VISIT_NODE(Geometry)
 DEFAULT_VISIT_NODE(TriangleMesh)
+DEFAULT_VISIT_NODE(TriangleMeshResource)
 } // namespace krd

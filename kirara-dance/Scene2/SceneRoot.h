@@ -15,31 +15,38 @@ public:
     ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
         (void)(visitor);
         return ranges::views::concat(
-            ranges::views::single(meshGroup), ranges::views::single(geomGroup)
+            ranges::views::single(meshGroup), ranges::views::single(geomGroup),
+            ranges::views::single(cameraGroup)
         );
     }
 
     ranges::any_view<Ref<Node>> traverse(ConstVisitor &visitor) const override {
         (void)(visitor);
         return ranges::views::concat(
-            ranges::views::single(meshGroup), ranges::views::single(geomGroup)
+            ranges::views::single(meshGroup), ranges::views::single(geomGroup),
+            ranges::views::single(cameraGroup)
         );
     }
 
     Ref<Group> getMeshGroup() { return meshGroup; }
     Ref<Group> getGeomGroup() { return geomGroup; }
+    Ref<Group> getMeshGroup() const { return meshGroup; }
+    Ref<Group> getGeomGroup() const { return geomGroup; }
 
 protected:
-    SceneRoot() : meshGroup(Group::create()), geomGroup(Group::create()) {}
+    SceneRoot() = default;
 
 private:
     /// \brief A list of all the meshes in the scene.
     ///
     /// Each subtree of this group represents a hierarchy of structure and should not contain other
     /// types of nodes.
-    Ref<Group> meshGroup;
+    Ref<Group> meshGroup{Group::create()};
 
     /// A hierarchy of geometries
-    Ref<Group> geomGroup;
+    Ref<Group> geomGroup{Group::create()};
+
+    /// A flat list of cameras
+    Ref<Group> cameraGroup{Group::create()};
 };
 } // namespace krd
