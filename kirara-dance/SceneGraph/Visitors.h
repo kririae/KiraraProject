@@ -6,10 +6,12 @@ namespace krd {
 class Node;
 class Group;
 
+class Animation;
+class Geometry;
 class SceneRoot;
 class Transform;
-class Geometry;
 class TriangleMesh;
+class TransformAnimationChannel;
 
 class TriangleMeshResource;
 
@@ -35,16 +37,25 @@ public:
     virtual void apply(Group &val);
 
     // Scene nodes
+    virtual void apply(Animation &val);
     virtual void apply(SceneRoot &val);
     virtual void apply(Transform &val);
     virtual void apply(Geometry &val);
     virtual void apply(TriangleMesh &val);
+    virtual void apply(TransformAnimationChannel &val);
 
     // Immediate render nodes
     virtual void apply(TriangleMeshResource &val);
 
 protected:
     Visitor() = default;
+
+    /// A shortcut to continue the traversal of the node.
+    template <IsNode T> void traverse(T const &val) {
+        auto children = val.traverse(*this);
+        for (auto const &child : children)
+            child->accept(*this);
+    }
 };
 
 /// \brief A const visitor for the scene graph.
@@ -59,10 +70,12 @@ public:
     virtual void apply(Group const &val);
 
     // Scene nodes
+    virtual void apply(Animation const &val);
     virtual void apply(Geometry const &val);
     virtual void apply(SceneRoot const &val);
     virtual void apply(Transform const &val);
     virtual void apply(TriangleMesh const &val);
+    virtual void apply(TransformAnimationChannel const &val);
 
     virtual void apply(TriangleMeshResource const &val);
 

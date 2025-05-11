@@ -13,7 +13,7 @@ int main() try {
         Window::create(Window::Desc{.width = 1280, .height = 720, .title = "Kirara Dance"});
 
     SceneBuilder builder;
-    builder.loadFromFile(R"(/Users/krr/Documents/Projects/KiraraProject/Duck.glb)");
+    builder.loadFromFile(R"(/home/krr/Downloads/InterpolationTest.glb)");
 
     auto const sceneRoot = builder.buildScene();
 
@@ -39,14 +39,15 @@ int main() try {
     PopulateResource pResource(SGC.get());
     sceneRoot->accept(pResource);
 
-    // (3)
-    TreeInfo tInfo;
-    sceneRoot->accept(tInfo);
-
     auto const camera = Camera::create();
     camera->setPosition(krd::float3(0, 1, 4));
     camera->setTarget(krd::float3(0, 0, 0));
     camera->setUpDirection(krd::float3(0, 1, 0));
+    sceneRoot->getAuxGroup()->addChild(camera);
+
+    // (3)
+    TreeInfo tInfo;
+    sceneRoot->accept(tInfo);
 
     //
     window->attachController(camera->getController());

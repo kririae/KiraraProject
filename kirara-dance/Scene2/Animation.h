@@ -1,14 +1,13 @@
 #pragma once
 
-#include <kira/SmallVector.h>
+#include <range/v3/view/single.hpp>
 
 #include "Core/Math.h"
-#include "Scene/SceneObject.h"
-#include "Scene/Transform.h"
+#include "SceneGraph/Group.h"
+#include "SceneGraph/Node.h"
+#include "SceneGraph/NodeMixin.h"
 
 namespace krd {
-class SceneNode;
-
 /// Defines how an animation behaves outside the defined time range.
 enum class AnimationBehaviour : uint8_t {
     Default = 0, /// Default transformation of the node.
@@ -120,7 +119,7 @@ template <typename T> struct AnimationSequence : kira::SmallVector<AnimationKey<
     }
 };
 
-class SceneNodeAnimation final : public Object {
+class TransformAnimationChannel final : public NodeMixin<TransformAnimationChannel, Node> {
 public:
     using TranslationSeq = AnimationSequence<float3>;
     using RotationSeq = AnimationSequence<float4>;
@@ -128,7 +127,7 @@ public:
 
 protected:
     ///
-    SceneNodeAnimation() = default;
+    TransformAnimationChannel() = default;
 
 public:
     /// Create an animation.
@@ -138,21 +137,28 @@ public:
     /// - all corresponding keys are set by \c setTranslationSeq, \c setRotationSeq, and \c
     /// setScalingSeq.
     /// - The keys are sorted by \c sortKeys.
-    static Ref<SceneNodeAnimation> create() { return {new SceneNodeAnimation}; }
+    static Ref<TransformAnimationChannel> create() { return {new TransformAnimationChannel}; }
 
     ///
-    ~SceneNodeAnimation() override = default;
+    ~TransformAnimationChannel() override = default;
 
     ///
-    void bindSceneNode(Ref<SceneNode> inSceneNode) { this->sceneNode = std::move(inSceneNode); }
+    void bindTransform(Ref<Transform> inTransform) { this->transform = std::move(inTransform); }
     ///
-    void unbindSceneNode() { sceneNode.reset(); }
+    Ref<Transform> getTransform() const {
+        KRD_ASSERT(transform, "TransformAnimationChannel: transform should not be empty");
+        return transform;
+    }
+    ///
+    void unbindTransform() { transform.reset(); }
 
     ///
     void doAnim(float curTime);
 
+#if 0
     ///
     Transform getTransformationAtTime(float time) const;
+#endif
 
     /// Sort all sequences in-place by time.
     void sortSeq();
@@ -183,7 +189,7 @@ public:
 
 private:
     /// The scene node to modify.
-    Ref<SceneNode> sceneNode;
+    Ref<Transform> transform;
 
     TranslationSeq translationSeq;
     RotationSeq rotationSeq;
@@ -195,27 +201,30 @@ private:
     AnimationBehaviour postState{AnimationBehaviour::Default};
 };
 
-class Animation final : public SceneObject {
+class Animation final : public NodeMixin<Animation, Node> {
 protected:
-    ///
-    explicit Animation(Scene *scene) : SceneObject(scene) {}
+    Animation() = default;
 
 public:
     ///
-    static Ref<Animation> create(Scene *scene) { return {new Animation(scene)}; }
-    ///
-    ~Animation() override = default;
-
-    /// \see SceneObject::resetAnimation
-    void resetAnimation() override;
-    /// \see SceneObject::tick
-    void tick(float deltaTime) override;
+    static Ref<Animation> create() { return {new Animation}; }
 
 public:
+    ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
+        return ranges::views::single(tAnims);
+    }
+
+    ranges::any_view<Ref<Node>> traverse(ConstVisitor &visitor) const override {
+        return ranges::views::single(tAnims);
+    }
+
+public:
+    void resetAnimation();
+    void tick(float deltaTime);
     ///
-    void addChannel(Ref<SceneNodeAnimation> snAnim) { snAnims.push_back(std::move(snAnim)); }
-    ///
-    void clearChannels() { snAnims.clear(); }
+    void addTransformChannel(Ref<TransformAnimationChannel> tAnim) {
+        tAnims->addChild(std::move(tAnim));
+    }
 
 private:
 #if 0
@@ -229,6 +238,6 @@ private:
     float curTime{0};
 
     /// Different animation channels.
-    kira::SmallVector<Ref<SceneNodeAnimation>> tAnims;
+    Ref<Group> tAnims{Group::create()};
 };
 } // namespace krd

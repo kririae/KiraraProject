@@ -1,12 +1,12 @@
 #pragma once
 
 #include <Eigen/Core>
+#include <range/v3/view/single.hpp>
 
 #include "Core/Object.h"
 #include "SceneGraph/Group.h"
 #include "SceneGraph/Node.h"
 #include "SceneGraph/NodeMixin.h"
-#include "range/v3/view/single.hpp"
 
 struct aiMesh;
 

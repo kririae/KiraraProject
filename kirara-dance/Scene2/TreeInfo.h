@@ -2,6 +2,7 @@
 
 #include <string>
 
+#include "Scene2/Animation.h"
 #include "Scene2/Geometry.h"
 #include "SceneGraph/Node.h"
 #include "kira/SmallVector.h"
@@ -58,6 +59,18 @@ public:
             LogInfo("{}├── Vertices: {}", prefix, t.getMesh()->getNumVertices());
             LogInfo("{}├── Faces: {}", prefix, t.getMesh()->getNumFaces());
             LogInfo("{}└──(weak): {}", prefix, t.getMesh()->getHumanReadable());
+        }
+    }
+
+    void apply(TransformAnimationChannel const &t) override {
+        if (isLastAtLevel.empty())
+            LogInfo(".");
+        else
+            LogInfo("{}{}", getPrefix(), t.getHumanReadable());
+
+        if (t.getTransform()) {
+            std::string prefix = getChildPrefix();
+            LogInfo("{}└──(weak): {}", prefix, t.getTransform()->getHumanReadable());
         }
     }
 
