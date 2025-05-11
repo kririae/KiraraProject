@@ -46,9 +46,16 @@ public:
     /// \see NodeMixin::getTypeName()
     [[nodiscard]] virtual std::string getTypeName() const = 0;
 
+    /// \brief Get a human-readable description of the node.
+    [[nodiscard]] virtual std::string getHumanReadable() const {
+        return std::format("[{} ({})]", getTypeName(), getId());
+    }
+
 protected:
     static inline std::atomic_uint64_t nodeCount;
     uint64_t id{0}; // The ID of the node. This is used to identify the node in the scene graph.
+
+    // mutable std::mutex visitorLock;
 
     /// Node should not be directly created.
     Node() noexcept {

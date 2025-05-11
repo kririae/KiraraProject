@@ -3,8 +3,10 @@
 #include <Eigen/Core>
 
 #include "Core/Object.h"
+#include "SceneGraph/Group.h"
 #include "SceneGraph/Node.h"
 #include "SceneGraph/NodeMixin.h"
+#include "range/v3/view/single.hpp"
 
 struct aiMesh;
 
@@ -77,8 +79,22 @@ public:
     /// returns true.
     void calculateNormal(NormalWeightingType weighting = NormalWeightingType::ByAngle);
 
+public:
+    ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
+        return ranges::views::single(children);
+    }
+
+    ranges::any_view<Ref<Node>> traverse(ConstVisitor &visitor) const override {
+        return ranges::views::single(children);
+    }
+
+    /// Add a child node to this transform node.
+    void addChild(Ref<Node> child) { children->addChild(std::move(child)); }
+
 private:
     Eigen::MatrixXf V, N;
     Eigen::MatrixX<uint32_t> F;
+
+    Ref<Group> children{Group::create()};
 };
 } // namespace krd

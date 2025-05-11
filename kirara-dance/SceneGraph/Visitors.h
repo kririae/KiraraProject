@@ -9,6 +9,7 @@ class Group;
 class SceneRoot;
 class Transform;
 class Geometry;
+class TriangleMesh;
 
 /// \brief A visitor for the scene graph.
 ///
@@ -32,6 +33,7 @@ public:
     virtual void apply(SceneRoot &val);
     virtual void apply(Transform &val);
     virtual void apply(Geometry &val);
+    virtual void apply(TriangleMesh &val);
 
 protected:
     Visitor() = default;
@@ -52,6 +54,7 @@ public:
     virtual void apply(Geometry const &val);
     virtual void apply(SceneRoot const &val);
     virtual void apply(Transform const &val);
+    virtual void apply(TriangleMesh const &val);
 
 protected:
     ConstVisitor() = default;

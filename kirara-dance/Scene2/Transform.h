@@ -41,7 +41,6 @@ public:
     void addChild(Ref<Node> child) { children->addChild(std::move(child)); }
 
 protected:
-    Transform() : children(Group::create()) {}
 #if 0
     ///
     Transform(float3 const &translation, float4 const &rotation, float3 const &scaling)
@@ -49,7 +48,7 @@ protected:
 #endif
 
     /// The children of this transform.
-    Ref<Group> children;
+    Ref<Group> children{Group::create()};
 
 private:
     // By default, TRS order is used.

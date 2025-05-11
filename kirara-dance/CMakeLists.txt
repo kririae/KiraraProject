@@ -111,6 +111,10 @@ add_library(
     Core/Window.cpp
     #
     #
+    ImmediateRender/SlangGraphicsContext.cpp
+    ImmediateRender/TriangleMeshResource.cpp
+    #
+    #
     # Instant/InstantCamera.cpp
     # Instant/InstantObject.cpp
     # Instant/InstantScene.cpp

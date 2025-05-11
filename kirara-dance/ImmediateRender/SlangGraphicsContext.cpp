@@ -1,19 +1,16 @@
-#include "Instant/SlangGraphicsContext.h"
+#include "SlangGraphicsContext.h"
 
 #include "Core/ProgramBuilder.h"
 #include "Core/ShaderCursor.h"
 #include "Core/SlangUtils.h"
-#include "Instant/InstantCamera.h"
-#include "Instant/InstantTriangleMesh.h"
+#include "TriangleMeshResource.h"
 
 namespace krd {
 void SlangGraphicsContextController::onResize(int width, int height) {
     context->onResize(width, height);
 }
 
-SlangGraphicsContext::SlangGraphicsContext(
-    Desc const &desc, Ref<Window> const &window, Ref<InstantScene> const &instantScene
-)
+SlangGraphicsContext::SlangGraphicsContext(Desc const &desc, Ref<Window> const &window)
     : controller(this) {
     // TODO(krr): is this robust enough?.. IDK but anyway
     //
@@ -24,13 +21,20 @@ SlangGraphicsContext::SlangGraphicsContext(
     // Can we just assume that the `InstantScene` and `SlangGraphicsContext` operates on a single
     // thread?
 
-    this->instantScene = instantScene;
     // Take the reference to the window to ensure that, window is destructed after the swapchain.
     this->window = window;
 
+    ProgramBuilder programBuilder;
+    // Return an instance of ProgramBuilder to avoid maintaining state.
+    std::filesystem::path const shadersPath = R"(Instant/VFMain.slang)";
+    // CMake will copy the source.
+    programBuilder.addSlangModuleFromPath(shadersPath)
+        .addEntryPoint("vertexMain")
+        .addEntryPoint("fragmentMain");
+
     width = window->getWidth(), height = window->getHeight(); // (0)
     windowHandle = window->getWindowHandle();                 // (0)
-    programBuilder = instantScene->createProgramBuilder();    // (2)
+    this->programBuilder = programBuilder;                    // (2)
     swapchainImageCnt = desc.swapchainImageCnt;               // (3)
     enableVSync = desc.enableVSync;                           // (3)
     enableGFXFix_07783 = desc.enableGFXFix_07783;             // (7)
@@ -113,6 +117,7 @@ void SlangGraphicsContext::renderFrame() {
 #endif
     }
 
+#if 0
     auto const camera = getRenderScene()->getActiveCamera();
     float4x4 viewProjection =
         mul(camera->getProjectionMatrix(static_cast<float>(width) / static_cast<float>(height)),
@@ -165,6 +170,7 @@ void SlangGraphicsContext::renderFrame() {
 
         renderEncoder->drawIndexed(rObj->getNumIndices(), 0);
     }
+#endif
 
     // Clean up the rendering of this frame and dispatch the rendering commands.
     renderEncoder->endEncoding();
@@ -221,7 +227,8 @@ void SlangGraphicsContext::setupPipelineState() {
     };
 
     ComPtr<gfx::IInputLayout> inputLayout;
-    slangCheck(gDevice->createInputLayout(sizeof(Vertex), inputElements, 2, inputLayout.writeRef())
+    slangCheck(
+        gDevice->createInputLayout(sizeof(Vertex), inputElements, 2, inputLayout.writeRef())
     );
 
     gfx::GraphicsPipelineStateDesc pipelineDesc{};
@@ -306,7 +313,8 @@ void SlangGraphicsContext::setupTransientHeap() {
         };
 
         ComPtr<gfx::ITransientResourceHeap> transientHeap;
-        slangCheck(gDevice->createTransientResourceHeap(transientHeapDesc, transientHeap.writeRef())
+        slangCheck(
+            gDevice->createTransientResourceHeap(transientHeapDesc, transientHeap.writeRef())
         );
         gTransientHeap.push_back(transientHeap);
     }

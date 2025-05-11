@@ -17,11 +17,14 @@ public:
     ~TreeInfo() override = default;
 
 public:
+    /// Clear the internal state.
+    void clear() { isLastAtLevel.clear(); }
+
     void apply(Node const &t) override {
         if (isLastAtLevel.empty())
             LogInfo(".");
         else
-            LogInfo("{}{} ({})", getPrefix(), t.getTypeName(), t.getId());
+            LogInfo("{}{}", getPrefix(), t.getHumanReadable());
 
         auto children = t.traverse(*this);
         kira::SmallVector<Ref<Node>> childVec;
@@ -47,14 +50,14 @@ public:
         if (isLastAtLevel.empty())
             LogInfo(".");
         else
-            LogInfo("{}{} ({})", getPrefix(), t.getTypeName(), t.getId());
+            LogInfo("{}{}", getPrefix(), t.getHumanReadable());
 
         if (t.getMesh()) {
             std::string prefix = getChildPrefix();
 
             LogInfo("{}├── Vertices: {}", prefix, t.getMesh()->getNumVertices());
             LogInfo("{}├── Faces: {}", prefix, t.getMesh()->getNumFaces());
-            LogInfo("{}└──(weak): krd::TriangleMesh ({})", prefix, t.getMesh()->getId());
+            LogInfo("{}└──(weak): {}", prefix, t.getMesh()->getHumanReadable());
         }
     }
 

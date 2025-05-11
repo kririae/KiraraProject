@@ -30,7 +30,7 @@ public:
     std::string_view getDiagnostic() const { return diagnostic; }
 
     /// Reset the visitor state to check a new tree.
-    void reset() {
+    void clear() {
         isTree = true;
         diagnostic.clear();
         parents.clear();

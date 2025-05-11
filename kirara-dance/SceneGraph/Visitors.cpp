@@ -8,16 +8,15 @@
 
 namespace krd {
 void Visitor::apply(Node &val) { (void)(val); }
-void Visitor::apply(Group &val) { apply(static_cast<Node &>(val)); }
-
-void Visitor::apply(SceneRoot &val) { apply(static_cast<Node &>(val)); }
-void Visitor::apply(Transform &val) { apply(static_cast<Node &>(val)); }
-void Visitor::apply(Geometry &val) { apply(static_cast<Transform &>(val)); }
-
 void ConstVisitor::apply(Node const &val) { (void)(val); }
-void ConstVisitor::apply(Group const &val) { apply(static_cast<Node const &>(val)); }
 
-void ConstVisitor::apply(SceneRoot const &val) { apply(static_cast<Node const &>(val)); }
-void ConstVisitor::apply(Transform const &val) { apply(static_cast<Node const &>(val)); }
-void ConstVisitor::apply(Geometry const &val) { apply(static_cast<Transform const &>(val)); }
+#define DEFAULT_VISIT_NODE(node)                                                                   \
+    void Visitor::apply(node &val) { apply(static_cast<node::Parent &>(val)); }                    \
+    void ConstVisitor::apply(node const &val) { apply(static_cast<node::Parent const &>(val)); }
+
+DEFAULT_VISIT_NODE(Group)
+DEFAULT_VISIT_NODE(SceneRoot)
+DEFAULT_VISIT_NODE(Transform)
+DEFAULT_VISIT_NODE(Geometry)
+DEFAULT_VISIT_NODE(TriangleMesh)
 } // namespace krd

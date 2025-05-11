@@ -22,6 +22,9 @@ inline std::string demangle(char const *mangled) {
 
 template <class Derived, class Base> class NodeMixin : public Base {
 public:
+    ///
+    using Parent = Base;
+
     // (1)
     void accept(Visitor &visitor) override {
         // Generate the derived class visitor application

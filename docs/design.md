@@ -30,3 +30,6 @@
 - Right-handed global coordinate system.
 
 - Scene Object is linear, while Scene Node is tree-structured
+- Traversable forms a tree and lifetime forms a graph
+- No loop is allowed in both, even implicit loop implemented with raw pointer
+- 
