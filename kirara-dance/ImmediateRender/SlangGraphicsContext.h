@@ -1,9 +1,9 @@
 #pragma once
 
+#include "Core/Math.h"
 #include "Core/ProgramBuilder.h"
 #include "Core/SlangContext.h"
 #include "Core/Window.h"
-#include "Core/Math.h"
 
 namespace krd {
 class SlangGraphicsContext;
@@ -34,15 +34,12 @@ public:
 
 private:
     ///
-    SlangGraphicsContext(
-        Desc const &desc, Ref<Window> const &window, Ref<InstantScene> const &instantScene
-    );
+    SlangGraphicsContext(Desc const &desc, Ref<Window> const &window);
 
 public:
     ///
-    static Ref<SlangGraphicsContext>
-    create(Desc const &desc, Ref<Window> const &window, Ref<InstantScene> const &instantScene) {
-        return {new SlangGraphicsContext(desc, window, instantScene)};
+    static Ref<SlangGraphicsContext> create(Desc const &desc, Ref<Window> const &window) {
+        return {new SlangGraphicsContext(desc, window)};
     }
 
     ~SlangGraphicsContext() override {
@@ -64,9 +61,6 @@ public:
     ///
     /// The effect will take place in the next frame.
     void setClearValue(float4 const &clearValue) { gClearValue = clearValue; }
-
-    /// Get the instant scene that this graphics context is associated with.
-    auto getRenderScene() const { return instantScene; }
 
     ///
     auto *getController() { return &controller; }
@@ -96,7 +90,6 @@ private:
 protected:
     SlangGraphicsContextController controller;
 
-    Ref<InstantScene> instantScene; // (0)
     Ref<Window>
         window; // (0) don't change the order, in fact SlangGraphicsContext does not own the window
     int width, height;              // (0)
