@@ -9,7 +9,6 @@ namespace krd {
 class Transform : public NodeMixin<Transform, Node> {
 public:
     [[nodiscard]] static Ref<Transform> create() { return {new Transform}; }
-    ~Transform() override = default;
 
     ///
     void setTranslation(float3 const &translation) { this->translation = translation; }

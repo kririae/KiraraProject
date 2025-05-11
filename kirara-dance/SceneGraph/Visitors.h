@@ -11,6 +11,11 @@ class Transform;
 class Geometry;
 class TriangleMesh;
 
+class TriangleMeshResource;
+
+template <typename T>
+concept IsNode = std::derived_from<T, Node> || std::is_same_v<T, Node>;
+
 /// \brief A visitor for the scene graph.
 ///
 /// When you inherit the Visitor class, you can override the \c apply methods or add new virtual
@@ -35,6 +40,9 @@ public:
     virtual void apply(Geometry &val);
     virtual void apply(TriangleMesh &val);
 
+    // Immediate render nodes
+    virtual void apply(TriangleMeshResource &val);
+
 protected:
     Visitor() = default;
 };
@@ -56,7 +64,16 @@ public:
     virtual void apply(Transform const &val);
     virtual void apply(TriangleMesh const &val);
 
+    virtual void apply(TriangleMeshResource const &val);
+
 protected:
     ConstVisitor() = default;
+
+    /// A shortcut to continue the traversal of the node.
+    template <IsNode T> void traverse(T const &val) {
+        auto children = val.traverse(*this);
+        for (auto const &child : children)
+            child->accept(*this);
+    }
 };
 } // namespace krd

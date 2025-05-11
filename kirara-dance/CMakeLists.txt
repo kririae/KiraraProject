@@ -131,6 +131,7 @@ add_library(
     # Scene/TriangleMesh.cpp
     #
     #
+    Scene2/Camera.cpp
     Scene2/Geometry.cpp
     Scene2/SceneBuilder.cpp
     Scene2/SceneRoot.cpp
