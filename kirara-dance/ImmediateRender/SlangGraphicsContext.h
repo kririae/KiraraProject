@@ -65,7 +65,7 @@ public:
     void setClearValue(float4 const &clearValue) { gClearValue = clearValue; }
 
     ///
-    auto *getController() { return &controller; }
+    [[nodiscard]] auto *getController() { return &controller; }
 
 public:
     ///

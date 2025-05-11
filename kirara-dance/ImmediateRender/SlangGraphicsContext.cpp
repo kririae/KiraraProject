@@ -147,8 +147,39 @@ void SlangGraphicsContext::renderFrame(SceneRoot *sceneRoot, Camera *camera) {
 
     {
         IssueDrawCommand iDrawCmd{
-            [&](TriangleMeshResource const *resource, float4x4 modelMatrix) -> void {
+            [&](TriangleMeshResource const *triMeshResource, float4x4 modelMatrix) -> void {
             // Implement the callback
+            auto const deviceData = triMeshResource->getDeviceData();
+
+            std::array<float, 16> modelMatrixPtr;
+            std::array<float, 16> iModelMatrixPtr;
+
+            auto iModelMatrix = inverse(modelMatrix);
+            modelMatrix = transpose(modelMatrix);
+            iModelMatrix = transpose(iModelMatrix);
+            std::memcpy(modelMatrixPtr.data(), &modelMatrix, sizeof(modelMatrixPtr));
+            std::memcpy(iModelMatrixPtr.data(), &iModelMatrix, sizeof(iModelMatrixPtr));
+
+            auto modelShaderObject = gDevice->createShaderObject(perModel);
+            gfx::ShaderCursor cursor(modelShaderObject);
+            slangCheck(cursor["modelMatrix"].setData(modelMatrixPtr.data(), sizeof(float) * 4 * 4));
+            slangCheck(
+                cursor["inverseTransposedModelMatrix"].setData(
+                    iModelMatrixPtr.data(), sizeof(float) * 4 * 4
+                )
+            );
+
+            // Bind the pipeline state to shader objects.
+            auto *rootObject = renderEncoder->bindPipeline(gPipelineState);
+            gfx::ShaderCursor rootCursor{rootObject};
+
+            slangCheck(rootCursor["gViewParams"].setObject(viewShaderObject));
+            slangCheck(rootCursor["gModelParams"].setObject(modelShaderObject));
+
+            renderEncoder->setVertexBuffer(0, deviceData->vertexBuffer);
+            renderEncoder->setIndexBuffer(deviceData->indexBuffer, gfx::Format::R32_UINT);
+            renderEncoder->setPrimitiveTopology(gfx::PrimitiveTopology::TriangleList);
+            renderEncoder->drawIndexed(triMeshResource->getNumIndices(), 0);
         }
         };
         sceneRoot->accept(iDrawCmd);

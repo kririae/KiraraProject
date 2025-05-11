@@ -11,11 +11,10 @@ namespace krd {
 /// under the \c TriangleMesh.
 class PopulateResource final : public Visitor {
 public:
-    PopulateResource(SlangGraphicsContext *context) : context(context) {}
+    PopulateResource(SlangGraphicsContext *context) : SGC(context) {}
     [[nodiscard]] static Ref<PopulateResource> create(SlangGraphicsContext *context) {
         return {new PopulateResource(context)};
     }
-    ~PopulateResource() override = default;
 
 public:
     void apply(Node &t) override {
@@ -26,11 +25,11 @@ public:
 
     void apply(TriangleMesh &triMesh) override {
         auto res = TriangleMeshResource::create();
-        res->upload(&triMesh, context);
+        res->upload(&triMesh, SGC);
         triMesh.addChild(res);
     }
 
 private:
-    SlangGraphicsContext *context{nullptr};
+    SlangGraphicsContext *SGC{nullptr};
 };
 } // namespace krd
