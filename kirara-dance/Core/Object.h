@@ -125,6 +125,9 @@ template <typename T> class Ref {
     using element_type = T;
 
 public:
+    template <typename T2> friend class Ref;
+    template <typename T2> friend class UniqueRef;
+
     /// Default constructor.
     Ref() = default;
 
@@ -141,7 +144,7 @@ public:
             ptr->incRef();
     }
 
-    Ref(Ref &&r) noexcept : ptr(r.ptr) { r.ptr = nullptr; }
+    Ref(Ref &&r) noexcept : ptr(std::exchange(r.ptr, nullptr)) {}
 
     template <typename T2>
         requires(std::is_convertible_v<T2 *, T *>)
@@ -158,6 +161,11 @@ public:
         if (ptr)
             ptr->incRef();
     }
+
+    template <typename T2>
+        requires(std::is_convertible_v<T2 *, T *>)
+    Ref(Ref<T2> &&r) // NOLINT: allow implicit conversion
+        : ptr(static_cast<T *>(std::exchange(r.ptr, nullptr))) {}
 
     // see https://en.cppreference.com/w/cpp/memory/shared_ptr/shared_ptr
     template <typename T2>

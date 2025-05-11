@@ -1,22 +1,22 @@
 #pragma once
 
+#include <range/v3/view/concat.hpp>
+#include <range/v3/view/single.hpp>
+
 #include "SceneGraph/Group.h"
 #include "SceneGraph/NodeMixin.h"
-#include "range/v3/view/concat.hpp"
-#include "range/v3/view/single.hpp"
 
 namespace krd {
 class SceneRoot : public NodeMixin<SceneRoot, Node> {
 public:
     [[nodiscard]] static Ref<SceneRoot> create() { return {new SceneRoot}; }
-    ~SceneRoot() override = default;
 
 public:
     ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
         (void)(visitor);
         return ranges::views::concat(
             ranges::views::single(meshGroup), ranges::views::single(geomGroup),
-            ranges::views::single(cameraGroup)
+            ranges::views::single(auxGroup)
         );
     }
 
@@ -24,14 +24,16 @@ public:
         (void)(visitor);
         return ranges::views::concat(
             ranges::views::single(meshGroup), ranges::views::single(geomGroup),
-            ranges::views::single(cameraGroup)
+            ranges::views::single(auxGroup)
         );
     }
 
     Ref<Group> getMeshGroup() { return meshGroup; }
     Ref<Group> getGeomGroup() { return geomGroup; }
+    Ref<Group> getAuxGroup() { return auxGroup; }
     Ref<Group> getMeshGroup() const { return meshGroup; }
     Ref<Group> getGeomGroup() const { return geomGroup; }
+    Ref<Group> getAuxGroup() const { return auxGroup; }
 
 protected:
     SceneRoot() = default;
@@ -46,7 +48,7 @@ private:
     /// A hierarchy of geometries
     Ref<Group> geomGroup{Group::create()};
 
-    /// A flat list of cameras
-    Ref<Group> cameraGroup{Group::create()};
+    /// A flat list of auxiliary groups.
+    Ref<Group> auxGroup{Group::create()};
 };
 } // namespace krd

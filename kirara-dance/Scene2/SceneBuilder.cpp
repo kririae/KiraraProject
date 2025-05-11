@@ -6,6 +6,7 @@
 #include <assimp/Importer.hpp>
 #include <utility>
 
+#include "Animation.h"
 #include "Geometry.h"
 #include "SceneRoot.h"
 #include "Transform.h"
@@ -15,13 +16,10 @@ namespace krd {
 namespace {
 using TriangleMeshMap = std::unordered_map<
     /* index in the original array */ uint32_t, /* pointer to the mesh */ Ref<TriangleMesh>>;
-#if 0
-using NodeMap = std::unordered_map<
-    /* node name */ std::string, /* pointer to the node */ SceneNode *>;
-#endif
+using TransformMap = std::unordered_map<
+    /* node name */ std::string, /* pointer to the node */ Transform *>;
 
-#if 0
-void loadFromAnimChannel(SceneNodeAnimation *snAnim, aiNodeAnim const *nodeAnim) {
+void loadFromAnimChannel(TransformAnimationChannel *snAnim, aiNodeAnim const *nodeAnim) {
     AnimationSequence<float3> tSeq;
     AnimationSequence<float4> rSeq;
     AnimationSequence<float3> sSeq;
@@ -91,32 +89,35 @@ void loadFromAnimChannel(SceneNodeAnimation *snAnim, aiNodeAnim const *nodeAnim)
     snAnim->setPreState(aiAnimBehaviourToLocal(nodeAnim->mPreState));
     snAnim->setPostState(aiAnimBehaviourToLocal(nodeAnim->mPostState));
 }
-#endif
 
 /// Visitor to insert geometries into the scene graph.
 ///
-///
-class GeomInsertFromAssimp : public Visitor {
-    explicit GeomInsertFromAssimp(TriangleMeshMap triMap, aiNode const *node)
+class InsertFromAssimp : public Visitor {
+    explicit InsertFromAssimp(TriangleMeshMap triMap, aiNode const *node)
         : triMap(std::move(triMap)), node(node) {}
 
 public:
-    [[nodiscard]] static Ref<GeomInsertFromAssimp>
-    create(TriangleMeshMap triMap, aiNode const *node) {
-        return {new GeomInsertFromAssimp(std::move(triMap), node)};
+    [[nodiscard]] static Ref<InsertFromAssimp> create(TriangleMeshMap triMap, aiNode const *node) {
+        return {new InsertFromAssimp(std::move(triMap), node)};
     }
 
     void apply(SceneRoot &sceneRoot) override {
-        sceneRoot.getGeomGroup()->addChild(addToSceneGraph(this->triMap, this->node));
+        sceneRoot.getGeomGroup()->addChild(addToSceneGraph(this->triMap, this->node, tMap));
         for (auto &[_, triMesh] : triMap)
             sceneRoot.getMeshGroup()->addChild(triMesh);
     }
+
+    /// Examine the recorded transform map.
+    [[nodiscard]] auto &getTransformMap() { return tMap; }
 
 private:
     TriangleMeshMap triMap;
     aiNode const *node;
 
-    static Ref<Transform> addToSceneGraph(TriangleMeshMap const &triMap, aiNode const *node) {
+    TransformMap tMap;
+
+    static Ref<Transform>
+    addToSceneGraph(TriangleMeshMap const &triMap, aiNode const *node, TransformMap &tMap) {
         aiVector3t<float> scaling, position;
         aiQuaterniont<float> rotation;
         node->mTransformation.Decompose(scaling, rotation, position);
@@ -139,10 +140,11 @@ private:
         transform->setTranslation(float3{position.x, position.y, position.z});
 
         for (uint32_t i = 0; i < node->mNumChildren; ++i) {
-            auto children = addToSceneGraph(triMap, node->mChildren[i]);
+            auto children = addToSceneGraph(triMap, node->mChildren[i], tMap);
             transform->addChild(children);
         }
 
+        tMap.emplace(node->mName.C_Str(), transform.get());
         return transform;
     }
 };
@@ -183,14 +185,15 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
 
     LogInfo("Num meshes inserted: {:d}", aiScene->mNumMeshes);
 
-    auto geomVisitor = GeomInsertFromAssimp::create(std::move(triMap), aiScene->mRootNode);
-    sceneRoot->accept(*geomVisitor);
+    auto iFromAssimp = InsertFromAssimp::create(std::move(triMap), aiScene->mRootNode);
+    sceneRoot->accept(*iFromAssimp);
 
-#if 0
+    auto tMap = std::move(iFromAssimp->getTransformMap());
+
     //
     for (uint32_t animId = 0; animId < aiScene->mNumAnimations; ++animId) {
         auto const *aiAnim = aiScene->mAnimations[animId];
-        auto const anim = scene->create<Animation>();
+        auto const anim = Animation::create();
 
         if (aiAnim->mName.length == 0)
             LogInfo("SceneBuilder: Loading animation with {:d} channels...", aiAnim->mNumChannels);
@@ -202,14 +205,14 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
 
         for (uint32_t channelId = 0; channelId < aiAnim->mNumChannels; ++channelId) {
             auto const *channel = aiAnim->mChannels[channelId];
-            auto *node = nodeMap[channel->mNodeName.C_Str()];
+            auto *node = tMap[channel->mNodeName.C_Str()];
 
-            auto snAnim = SceneNodeAnimation::create();
-            snAnim->bindSceneNode(node);
-            loadFromAnimChannel(snAnim.get(), channel);
+            auto tAnim = TransformAnimationChannel::create();
+            tAnim->bindTransform(node);
+            loadFromAnimChannel(tAnim.get(), channel);
 
             // Add the channel into the animation instance.
-            anim->addChannel(std::move(snAnim));
+            anim->addTransformChannel(std::move(tAnim));
         }
 
         if (aiAnim->mNumMeshChannels > 0) {
@@ -226,8 +229,10 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
                 aiAnim->mNumMorphMeshChannels
             );
         }
+
+        // Attach the animation to the scene root.
+        sceneRoot->getAuxGroup()->addChild(anim);
     }
-#endif
 
     LogTrace("SceneBuilder: Scene is built");
 }

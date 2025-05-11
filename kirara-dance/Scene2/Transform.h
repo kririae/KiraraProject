@@ -1,9 +1,10 @@
 #pragma once
 
+#include <range/v3/view/single.hpp>
+
 #include "Core/Math.h"
 #include "SceneGraph/Group.h"
 #include "SceneGraph/NodeMixin.h"
-#include "range/v3/view/single.hpp"
 
 namespace krd {
 class Transform : public NodeMixin<Transform, Node> {
@@ -40,7 +41,8 @@ public:
     void addChild(Ref<Node> child) { children->addChild(std::move(child)); }
 
 protected:
-#if 0
+#if 1
+    Transform() = default;
     ///
     Transform(float3 const &translation, float4 const &rotation, float3 const &scaling)
         : translation(translation), rotation(rotation), scaling(scaling) {}

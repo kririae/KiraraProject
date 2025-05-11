@@ -5,6 +5,7 @@
 #include "Node.h"
 
 //
+#include "Scene2/Animation.h"
 #include "Scene2/Geometry.h"
 #include "Scene2/SceneRoot.h"
 #include "Scene2/Transform.h"
@@ -21,9 +22,12 @@ void ConstVisitor::apply(Node const &val) { (void)(val); }
     void ConstVisitor::apply(node const &val) { apply(static_cast<node::Parent const &>(val)); }
 
 DEFAULT_VISIT_NODE(Group)
+
+DEFAULT_VISIT_NODE(Animation)
 DEFAULT_VISIT_NODE(SceneRoot)
 DEFAULT_VISIT_NODE(Transform)
 DEFAULT_VISIT_NODE(Geometry)
 DEFAULT_VISIT_NODE(TriangleMesh)
 DEFAULT_VISIT_NODE(TriangleMeshResource)
+DEFAULT_VISIT_NODE(TransformAnimationChannel)
 } // namespace krd

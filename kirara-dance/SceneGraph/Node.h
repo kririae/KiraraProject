@@ -1,8 +1,9 @@
 #pragma once
 
+#include <range/v3/view/any_view.hpp>
+
 #include "Core/Object.h"
 #include "Visitors.h"
-#include "range/v3/view/any_view.hpp"
 
 namespace krd {
 /// \brief A node in the scene graph.

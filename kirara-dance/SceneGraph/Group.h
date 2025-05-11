@@ -24,11 +24,6 @@ public:
     ///
     [[nodiscard]] kira::SmallVector<Ref<Node>> const &getChildren() const { return children; }
 
-    /// Accept a visitor and visit all children.
-    void accept(Visitor &visitor) override { visitor.apply(*this); }
-    /// Accept a const visitor and visit all children.
-    void accept(ConstVisitor &visitor) const override { visitor.apply(*this); }
-
     /// Traverse the group and apply the visitor to all children.
     ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
         return ranges::views::all(children);

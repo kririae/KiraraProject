@@ -17,7 +17,7 @@ void TriangleMeshResource::upload(TriangleMesh *triMesh, SlangGraphicsContext *c
         oFaces.rows()
     );
 
-    KRD_ASSERT(oVertices.rows() == mesh->getNumVertices());
+    KRD_ASSERT(oVertices.rows() == triMesh->getNumVertices());
     KRD_ASSERT(oVertices.rows() == oNormals.rows());
 
     vertices.resize(triMesh->getNumVertices());
