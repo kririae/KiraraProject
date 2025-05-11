@@ -37,10 +37,10 @@ class Camera final : public NodeMixin<Camera, Node> {
 
 public:
     friend class CameraController;
-    ~Camera() override;
+    ~Camera() override = default;
 
     ///
-    static Ref<Camera> create() { return {new Camera}; }
+    [[nodiscard]] static Ref<Camera> create() { return {new Camera}; }
 
     ///
     void setPosition(float3 const &pos) { position = pos; }
@@ -55,10 +55,9 @@ public:
     ///
     void setTarget(float3 const &tgt) { target = tgt; }
     ///
-    auto getTarget() const { return target; }
-
+    [[nodiscard]] auto getTarget() const { return target; }
     ///
-    auto *getController() { return &controller; }
+    [[nodiscard]] auto *getController() { return &controller; }
 
 public:
     ///

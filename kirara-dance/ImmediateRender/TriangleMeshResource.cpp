@@ -45,6 +45,10 @@ void TriangleMeshResource::upload(TriangleMesh *triMesh, SlangGraphicsContext *c
     }
 
     //
+    numVertices = triMesh->getNumVertices();
+    numIndices = triMesh->getNumFaces() * 3;
+
+    //
     gfx::IBufferResource::Desc vertexBufferDesc;
     vertexBufferDesc.type = gfx::IResource::Type::Buffer;
     vertexBufferDesc.sizeInBytes = vertices.size() * sizeof(Vertex);

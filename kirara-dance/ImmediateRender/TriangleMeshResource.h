@@ -26,8 +26,15 @@ public:
 
     /// Upload the mesh data to the GPU and record it into the member.
     void upload(TriangleMesh *triMesh, SlangGraphicsContext *context);
+    ///
+    std::shared_ptr<DeviceData> getDeviceData() const { return deviceData; }
+    ///
+    [[nodiscard]] auto getNumVertices() const { return numVertices; }
+    ///
+    [[nodiscard]] auto getNumIndices() const { return numIndices; }
 
 private:
+    uint64_t numVertices{0}, numIndices{0};
     std::shared_ptr<DeviceData> deviceData;
 };
 } // namespace krd
