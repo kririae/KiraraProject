@@ -108,6 +108,8 @@ public:
 
     void apply(SceneRoot &sceneRoot) override {
         sceneRoot.getGeomGroup()->addChild(addToSceneGraph(this->triMap, this->node));
+        for (auto &[_, tMesh] : triMap)
+            sceneRoot.getMeshGroup()->addChild(tMesh);
     }
 
 private:

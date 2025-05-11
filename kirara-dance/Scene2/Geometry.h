@@ -23,6 +23,7 @@ public:
     Ref<TriangleMesh> getMesh() const { return mesh; }
 
 private:
+    // NOTE(krr): no traversable reference is established to this mesh instance.
     Ref<TriangleMesh> mesh;
 };
 } // namespace krd
