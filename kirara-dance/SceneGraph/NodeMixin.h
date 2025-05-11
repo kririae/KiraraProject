@@ -19,6 +19,7 @@ inline std::string demangle(char const *mangled) {
 }
 #endif
 } // namespace details
+
 template <class Derived, class Base> class NodeMixin : public Base {
 public:
     // (1)

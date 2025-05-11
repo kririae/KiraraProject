@@ -1,10 +1,10 @@
 #pragma once
 
 #include <string>
-#include <vector>
 
 #include "Scene2/Geometry.h"
 #include "SceneGraph/Node.h"
+#include "kira/SmallVector.h"
 
 namespace krd {
 class TreeInfo final : public ConstVisitor {
@@ -24,7 +24,7 @@ public:
             LogInfo("{}{} ({})", getPrefix(), t.getTypeName(), t.getId());
 
         auto children = t.traverse(*this);
-        std::vector<Ref<Node>> childVec;
+        kira::SmallVector<Ref<Node>> childVec;
         for (auto const &child : children)
             childVec.push_back(child);
 
@@ -53,12 +53,13 @@ public:
             std::string prefix = getChildPrefix();
 
             LogInfo("{}├── Vertices: {}", prefix, t.getMesh()->getNumVertices());
-            LogInfo("{}└── Faces: {}", prefix, t.getMesh()->getNumFaces());
+            LogInfo("{}├── Faces: {}", prefix, t.getMesh()->getNumFaces());
+            LogInfo("{}└──(weak): krd::TriangleMesh ({})", prefix, t.getMesh()->getId());
         }
     }
 
 private:
-    std::vector<bool> isLastAtLevel;
+    kira::SmallVector<bool> isLastAtLevel;
     std::string getPrefix() const {
         if (isLastAtLevel.empty())
             return "";

@@ -12,9 +12,6 @@ public:
     ~SceneRoot() override = default;
 
 public:
-    void accept(Visitor &visitor) override { visitor.apply(*this); }
-    void accept(ConstVisitor &visitor) const override { visitor.apply(*this); }
-
     ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
         (void)(visitor);
         return ranges::views::concat(
@@ -36,8 +33,12 @@ protected:
     SceneRoot() : meshGroup(Group::create()), geomGroup(Group::create()) {}
 
 private:
-    /// A list of all the meshes in the scene
+    /// \brief A list of all the meshes in the scene.
+    ///
+    /// Each subtree of this group represents a hierarchy of structure and should not contain other
+    /// types of nodes.
     Ref<Group> meshGroup;
+
     /// A hierarchy of geometries
     Ref<Group> geomGroup;
 };
