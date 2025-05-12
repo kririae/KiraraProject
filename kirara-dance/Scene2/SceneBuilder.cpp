@@ -236,6 +236,13 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
         sceneRoot->getAuxGroup()->addChild(anim);
     }
 
+    if (aiScene->hasSkeletons()) {
+        LogWarn(
+            "SceneBuilder: Skeletons are not supported yet, skipping {:d} skeletons",
+            aiScene->mNumSkeletons
+        );
+    }
+
     LogTrace("SceneBuilder: Scene is built");
 }
 } // namespace krd

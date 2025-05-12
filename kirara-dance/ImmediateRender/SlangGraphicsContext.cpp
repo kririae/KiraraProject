@@ -341,6 +341,7 @@ void SlangGraphicsContext::setupSkelPipelineState() {
     pipelineDesc.primitiveType = gfx::PrimitiveType::Line;
     pipelineDesc.depthStencil.depthFunc = gfx::ComparisonFunc::LessEqual;
     pipelineDesc.depthStencil.depthTestEnable = true;
+    pipelineDesc.rasterizer.antialiasedLineEnable = true;
 
     slangCheck(gDevice->createGraphicsPipelineState(pipelineDesc, skelPipelineState.writeRef()));
 }
