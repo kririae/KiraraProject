@@ -48,6 +48,7 @@ public:
     }
 
     void apply(Geometry const &val) override {
+        // In case of the geometry node, we issue the draw command following the transform.
         auto cachedModelMatrix = modelMatrix;
         modelMatrix = mul(modelMatrix, val.getMatrix());
         issue(val);
@@ -67,7 +68,7 @@ private:
 
         // (2) Find the \c TriangleMeshResource in the mesh.
         auto mesh = val.getMesh();
-        ExtractTypeOf<TriangleMeshResource> extractor;
+        ExtractTypeOf<TriangleMeshResource const> extractor;
         mesh->accept(extractor);
 
         if (extractor.size() != 1)

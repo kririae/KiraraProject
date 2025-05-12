@@ -4,6 +4,7 @@
 #include "Scene2/Camera.h"
 #include "Scene2/SceneBuilder.h"
 #include "Scene2/SceneRoot.h"
+#include "Scene2/TickAnimations.h"
 #include "Scene2/TreeChecker.h"
 #include "Scene2/TreeInfo.h"
 
@@ -13,7 +14,7 @@ int main() try {
         Window::create(Window::Desc{.width = 1280, .height = 720, .title = "Kirara Dance"});
 
     SceneBuilder builder;
-    builder.loadFromFile(R"(/home/krr/Downloads/InterpolationTest.glb)");
+    builder.loadFromFile(R"(/home/krr/Downloads/BrainStem.glb)");
 
     auto const sceneRoot = builder.buildScene();
 
@@ -40,7 +41,7 @@ int main() try {
     sceneRoot->accept(pResource);
 
     auto const camera = Camera::create();
-    camera->setPosition(krd::float3(0, 1, 4));
+    camera->setPosition(krd::float3(0, 1, 12));
     camera->setTarget(krd::float3(0, 0, 0));
     camera->setUpDirection(krd::float3(0, 1, 0));
     sceneRoot->getAuxGroup()->addChild(camera);
@@ -53,7 +54,8 @@ int main() try {
     window->attachController(camera->getController());
     window->attachController(SGC->getController());
     window->mainLoop([&](float deltaTime) -> void {
-        (void)(deltaTime);
+        TickAnimations tAnim(deltaTime);
+        sceneRoot->accept(tAnim);
         //
         SGC->renderFrame(sceneRoot.get(), camera.get());
     });

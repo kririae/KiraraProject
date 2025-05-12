@@ -19,7 +19,7 @@ using TriangleMeshMap = std::unordered_map<
 using TransformMap = std::unordered_map<
     /* node name */ std::string, /* pointer to the node */ Transform *>;
 
-void loadFromAnimChannel(TransformAnimationChannel *snAnim, aiNodeAnim const *nodeAnim) {
+void loadFromAnimChannel(TransformAnimationChannel *tAnim, aiNodeAnim const *nodeAnim) {
     AnimationSequence<float3> tSeq;
     AnimationSequence<float4> rSeq;
     AnimationSequence<float3> sSeq;
@@ -70,10 +70,10 @@ void loadFromAnimChannel(TransformAnimationChannel *snAnim, aiNodeAnim const *no
         );
     }
 
-    snAnim->setTranslationSeq(std::move(tSeq));
-    snAnim->setRotationSeq(std::move(rSeq));
-    snAnim->setScalingSeq(std::move(sSeq));
-    snAnim->sortSeq();
+    tAnim->setTranslationSeq(std::move(tSeq));
+    tAnim->setRotationSeq(std::move(rSeq));
+    tAnim->setScalingSeq(std::move(sSeq));
+    tAnim->sortSeq();
 
     auto aiAnimBehaviourToLocal = [](aiAnimBehaviour const &behaviour) -> AnimationBehaviour {
         using enum AnimationBehaviour;
@@ -86,8 +86,8 @@ void loadFromAnimChannel(TransformAnimationChannel *snAnim, aiNodeAnim const *no
         }
     };
 
-    snAnim->setPreState(aiAnimBehaviourToLocal(nodeAnim->mPreState));
-    snAnim->setPostState(aiAnimBehaviourToLocal(nodeAnim->mPostState));
+    tAnim->setPreState(aiAnimBehaviourToLocal(nodeAnim->mPreState));
+    tAnim->setPostState(aiAnimBehaviourToLocal(nodeAnim->mPostState));
 }
 
 /// Visitor to insert geometries into the scene graph.
