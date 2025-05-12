@@ -6,59 +6,104 @@
 #include "Visitors.h"
 
 namespace krd {
-/// \brief A node in the scene graph.
+/// \brief Base class for all nodes in the scene graph.
 ///
+/// A Node represents an element within a hierarchical scene structure.
+/// It supports operations like accepting visitors for traversal and inspection.
 class Node : public Object {
 public:
     ~Node() override = default;
 
+    /// \brief Accepts a non-const visitor.
     ///
+    /// This method is part of the visitor design pattern and allows a `Visitor`
+    /// to operate on this node.
+    /// \param visitor The non-const visitor to accept.
     virtual void accept(Visitor &visitor) { visitor.apply(*this); }
 
-    /// \copydoc accept(Visitor &visitor)
+    /// \brief Accepts a const visitor.
+    ///
+    /// This method is part of the visitor design pattern and allows a `ConstVisitor`
+    /// to operate on this node without modifying it.
+    /// \param visitor The const visitor to accept.
     virtual void accept(ConstVisitor &visitor) const { visitor.apply(*this); }
 
-    /// \brief Traverse the node and apply the visitor to all children.
+    /// \brief Traverses the children of this node using a non-const visitor.
     ///
-    /// This returns a view of the children of the node, that the visitor can used to record the
-    /// tree information or go deeper.
+    /// This method returns a view of the direct children of this node. The visitor
+    /// can use this view to continue traversal or gather information.
+    /// The default implementation returns an empty view, indicating no children.
     ///
-    /// \note The visitor itself should take care of the traversal and not to modify the node
-    /// itself.
+    /// \note The visitor is responsible for implementing the actual traversal logic
+    ///       (e.g., depth-first, breadth-first) and should not modify the node itself
+    ///       during this specific `traverse` call. Modifications should typically
+    ///       happen within the visitor's `apply` methods.
+    /// \param visitor The non-const visitor to guide the traversal.
+    /// \return A `ranges::any_view` of `Ref<Node>` representing the children.
     [[nodiscard]] virtual ranges::any_view<Ref<Node>> traverse(Visitor &visitor) {
         (void)(visitor);
         return {};
     }
 
-    /// \copydoc traverse(Visitor &visitor)
+    /// \brief Traverses the children of this node using a const visitor.
+    ///
+    /// This method returns a view of the direct children of this node. The const visitor
+    /// can use this view to continue traversal or gather information without modifying
+    /// any part of the scene graph.
+    /// The default implementation returns an empty view, indicating no children.
+    ///
+    /// \note The visitor is responsible for implementing the actual traversal logic.
+    /// \param visitor The const visitor to guide the traversal.
+    /// \return A `ranges::any_view` of `Ref<Node>` representing the children.
     [[nodiscard]] virtual ranges::any_view<Ref<Node>> traverse(ConstVisitor &visitor) const {
         (void)(visitor);
         return {};
     }
 
-    /// \brief Return the ID of the node accumulated from the node count.
+    /// \brief Returns the unique identifier of the node.
     ///
-    /// \remark This can be used to identify the node in the graphs.
-    /// \remark IDs are not reused and is non-decreasing.
+    /// This ID is generated from a global atomic counter, ensuring uniqueness
+    /// across all node instances. IDs are non-decreasing and are not reused.
+    ///
+    /// \remark This ID can be used to uniquely identify nodes, for example, in graph visualizations
+    /// or debugging.
     [[nodiscard]] auto getId() const { return id; }
 
-    /// \brief Get the type name of the node.
+    /// \brief Gets the specific type name of the node.
     ///
-    /// \see NodeMixin::getTypeName()
+    /// This is a pure virtual function that must be implemented by derived classes
+    /// to return a string representation of their type (e.g., "MeshNode", "LightNode").
+    ///
+    /// \see NodeMixin::getTypeName() for a potential helper mixin.
+    /// \return A string representing the node's type.
     [[nodiscard]] virtual std::string getTypeName() const = 0;
 
-    /// \brief Get a human-readable description of the node.
+    /// \brief Gets a human-readable string representation of the node.
+    ///
+    /// By default, this returns a string containing the node's type name and its unique ID.
+    /// Derived classes can override this to provide more specific information.
+    /// \return A human-readable string.
     [[nodiscard]] virtual std::string getHumanReadable() const {
         return std::format("[{} ({})]", getTypeName(), getId());
     }
 
 protected:
+    /// \brief Global atomic counter to generate unique node IDs.
     static inline std::atomic_uint64_t nodeCount;
-    uint64_t id{0}; // The ID of the node. This is used to identify the node in the scene graph.
+    /// \brief The unique identifier for this node instance.
+    uint64_t id{0};
 
     // mutable std::mutex visitorLock;
 
-    /// Node should not be directly created.
+    ///
+    // uint64_t key{0};
+    // uint64_t range{0};
+
+    /// \brief Protected default constructor.
+    ///
+    /// Nodes are typically not meant to be created directly but rather through derived classes
+    /// or factory methods. This constructor initializes the unique `id` for the node
+    /// by incrementing the global `nodeCount`.
     Node() noexcept {
         // Increment the node count when a new node is created.
         id = nodeCount.fetch_add(1);

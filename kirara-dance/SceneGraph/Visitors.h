@@ -51,7 +51,7 @@ protected:
     Visitor() = default;
 
     /// A shortcut to continue the traversal of the node.
-    template <IsNode T> void traverse(T const &val) {
+    template <IsNode T> void traverse(T &val) {
         auto children = val.traverse(*this);
         for (auto const &child : children)
             child->accept(*this);

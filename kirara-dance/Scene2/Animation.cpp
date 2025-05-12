@@ -1,23 +1,23 @@
 #include "Animation.h"
 
 #include "Scene2/Transform.h"
+#include "SceneGraph/ExtractTypeOf.h"
 
 namespace krd {
-void TransformAnimationChannel::doAnim(float curTime) {}
-
-#if 0
-Transform TransformAnimationChannel::getTransformationAtTime(float time) const {
-    KRD_ASSERT(transform, "Transform: transform should not be empty");
-    auto defaultTransform = transform;
+void TransformAnimationChannel::doAnim(float curTime) {
+    if (!transform)
+        return;
     float3 const translation =
-        translationSeq.getAtTime(time, preState, postState, defaultTransform->getTranslation());
+        translationSeq.getAtTime(curTime, preState, postState, transform->getTranslation());
     float4 const rotation =
-        rotationSeq.getAtTime<true>(time, preState, postState, defaultTransform->getRotation());
+        rotationSeq.getAtTime<true>(curTime, preState, postState, transform->getRotation());
     float3 const scaling =
-        scalingSeq.getAtTime(time, preState, postState, defaultTransform->getScaling());
-    return {translation, rotation, scaling};
+        scalingSeq.getAtTime(curTime, preState, postState, transform->getScaling());
+
+    transform->setTranslation(translation);
+    transform->setRotation(rotation);
+    transform->setScaling(scaling);
 }
-#endif
 
 void TransformAnimationChannel::sortSeq() {
     std::stable_sort(translationSeq.begin(), translationSeq.end());
@@ -25,7 +25,12 @@ void TransformAnimationChannel::sortSeq() {
     std::stable_sort(scalingSeq.begin(), scalingSeq.end());
 }
 
-void Animation::resetAnimation() {}
+void Animation::tick(float deltaTime) {
+    ExtractTypeOf<TransformAnimationChannel> visitor;
+    anims->accept(visitor);
 
-void Animation::tick(float deltaTime) {}
+    for (auto const &tAnim : visitor)
+        tAnim->doAnim(curTime * 1000 /* ms */);
+    curTime += deltaTime;
+}
 } // namespace krd

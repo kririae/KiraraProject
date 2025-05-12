@@ -111,11 +111,22 @@ template <typename T> struct AnimationSequence : kira::SmallVector<AnimationKey<
         if (std::abs(next.time - prev.time) < 1e-5f)
             return prev.value;
 
-        auto const t = (time - prev.time) / (next.time - prev.time);
-        if constexpr (useQuaternion)
-            return qslerp(prev.value, next.value, static_cast<float>(t));
-        else
-            return lerp(prev.value, next.value, static_cast<float>(t));
+        switch (prev.interp) {
+        case AnimationInterpolation::Step: return prev.value;
+        case AnimationInterpolation::Linear:
+        case AnimationInterpolation::SphericalLinear:
+        case AnimationInterpolation::CubicSpline: {
+            auto const t = (time - prev.time) / (next.time - prev.time);
+            if constexpr (useQuaternion) {
+                // SphericalLinear should use qslerp, Linear with quaternions might also use qslerp
+                // or a normalized lerp depending on desired behavior.
+                // For now, if useQuaternion is true, we use qslerp for all these cases.
+                return qslerp(prev.value, next.value, static_cast<float>(t));
+            } else
+                return lerp(prev.value, next.value, static_cast<float>(t));
+        }
+        default: return prev.value;
+        }
     }
 };
 
@@ -145,20 +156,12 @@ public:
     ///
     void bindTransform(Ref<Transform> inTransform) { this->transform = std::move(inTransform); }
     ///
-    Ref<Transform> getTransform() const {
-        KRD_ASSERT(transform, "TransformAnimationChannel: transform should not be empty");
-        return transform;
-    }
+    Ref<Transform> getTransform() const { return transform; }
     ///
     void unbindTransform() { transform.reset(); }
 
     ///
     void doAnim(float curTime);
-
-#if 0
-    ///
-    Transform getTransformationAtTime(float time) const;
-#endif
 
     /// Sort all sequences in-place by time.
     void sortSeq();
@@ -211,19 +214,19 @@ public:
 
 public:
     ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
-        return ranges::views::single(tAnims);
+        return ranges::views::single(anims);
     }
 
     ranges::any_view<Ref<Node>> traverse(ConstVisitor &visitor) const override {
-        return ranges::views::single(tAnims);
+        return ranges::views::single(anims);
     }
 
 public:
-    void resetAnimation();
+    // void resetAnimation();
     void tick(float deltaTime);
     ///
     void addTransformChannel(Ref<TransformAnimationChannel> tAnim) {
-        tAnims->addChild(std::move(tAnim));
+        anims->addChild(std::move(tAnim));
     }
 
 private:
@@ -238,6 +241,6 @@ private:
     float curTime{0};
 
     /// Different animation channels.
-    Ref<Group> tAnims{Group::create()};
+    Ref<Group> anims{Group::create()};
 };
 } // namespace krd
