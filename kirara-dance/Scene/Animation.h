@@ -2,6 +2,7 @@
 
 #include <range/v3/view/single.hpp>
 
+#include "Core/KIRA.h"
 #include "Core/Math.h"
 #include "SceneGraph/Group.h"
 #include "SceneGraph/Node.h"
@@ -104,6 +105,7 @@ template <typename T> struct AnimationSequence : kira::SmallVector<AnimationKey<
             }
         }
 
+        KRD_ASSERT(this->size() > 1, "Animation: The sequence should have at least 2 keys");
         auto const &prev = *(it - 1);
         auto const &next = *it;
 
@@ -111,6 +113,7 @@ template <typename T> struct AnimationSequence : kira::SmallVector<AnimationKey<
         if (std::abs(next.time - prev.time) < 1e-5f)
             return prev.value;
 
+        // TODO(krr): Implement SphericalLinear and CubicSpline interpolations.
         switch (prev.interp) {
         case AnimationInterpolation::Step: return prev.value;
         case AnimationInterpolation::Linear:

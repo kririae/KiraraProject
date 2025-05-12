@@ -158,7 +158,8 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
 
     Assimp::Importer importer;
 
-    aiScene const *aiScene = importer.ReadFile(path.string(), aiProcess_Triangulate);
+    aiScene const *aiScene =
+        importer.ReadFile(path.string(), aiProcess_Triangulate | aiProcess_PopulateArmatureData);
     if (!aiScene || !aiScene->mRootNode || aiScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE)
         throw kira::Anyhow(
             "SceneBuilder: Failed to load the scene from \"{:s}\": {:s}", path.string(),
@@ -178,6 +179,13 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
     TriangleMeshMap triMap;
     for (uint32_t meshId = 0; meshId < aiScene->mNumMeshes; ++meshId) {
         auto mesh = TriangleMesh::create();
+        auto *inMesh = aiScene->mMeshes[meshId];
+        if (inMesh->mNumBones > 0) {
+            LogWarn(
+                "SceneBuilder: Mesh '{:s}' has {:d} bones, which is not supported yet",
+                inMesh->mName.C_Str(), inMesh->mNumBones
+            );
+        }
         mesh->loadFromAssimp(aiScene->mMeshes[meshId], std::string_view{});
         triMap.emplace(meshId, mesh.get());
 

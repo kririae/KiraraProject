@@ -83,15 +83,21 @@ public:
     ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
         return ranges::views::single(children);
     }
-
     ranges::any_view<Ref<Node>> traverse(ConstVisitor &visitor) const override {
         return ranges::views::single(children);
+    }
+
+    ///
+    std::string getHumanReadable() const override {
+        return fmt::format("[{} ({}): {}]", getTypeName(), getId(), name);
     }
 
     /// Add a child node to this transform node.
     void addChild(Ref<Node> child) { children->addChild(std::move(child)); }
 
 private:
+    std::string name;
+
     Eigen::MatrixXf V, N;
     Eigen::MatrixX<uint32_t> F;
 

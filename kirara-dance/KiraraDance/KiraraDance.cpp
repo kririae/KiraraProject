@@ -28,7 +28,7 @@ int main() try {
         Window::create(Window::Desc{.width = 1280, .height = 720, .title = "Kirara Dance"});
 
     SceneBuilder builder;
-    builder.loadFromFile(R"(/home/krr/Downloads/flag.gltf)");
+    builder.loadFromFile(R"(/home/krr/Downloads/RiggedSimple.glb)");
 
     auto const sceneRoot = builder.buildScene();
 
@@ -75,6 +75,7 @@ int main() try {
     else
         LogWarn("No animation ID found");
 
+#if 0
     window->mainLoop([&](float deltaTime) -> void {
         if (sAnim.getId()) {
             TickAnimations::Desc desc{.animId = sAnim.getId().value(), .deltaTime = deltaTime};
@@ -87,6 +88,7 @@ int main() try {
         //
         SGC->renderFrame(sceneRoot.get(), camera.get());
     });
+#endif
 
     return 0;
 } catch (std::exception const &e) {

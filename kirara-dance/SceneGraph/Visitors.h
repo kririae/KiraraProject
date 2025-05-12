@@ -18,6 +18,19 @@ class TriangleMeshResource;
 template <typename T>
 concept IsNode = std::derived_from<T, Node> || std::is_same_v<T, Node>;
 
+/// \brief The traversal mode of the scene graph.
+enum class TraversalMode : uint8_t {
+    /// \brief Traverse the scene tree in a depth-first manner.
+    OrgTree,
+    /// \brief Traverse the complete scene graph.
+    FullGraph,
+
+    /// \brief
+    FrustrumCulling,
+    /// \brief
+    DistanceCulling,
+};
+
 /// \brief A visitor for the scene graph.
 ///
 /// When you inherit the Visitor class, you can override the \c apply methods or add new virtual
@@ -32,6 +45,12 @@ class Visitor : public Object {
 public:
     virtual ~Visitor() = default;
 
+    /// \brief Returns the traversal mode of the visitor.
+    ///
+    /// \see TraversalMode
+    virtual TraversalMode getTraversalMode() const { return TraversalMode::OrgTree; }
+
+public:
     // General nodes
     virtual void apply(Node &val);
     virtual void apply(Group &val);
@@ -65,6 +84,12 @@ class ConstVisitor : public Object {
 public:
     virtual ~ConstVisitor() = default;
 
+    /// \brief Returns the traversal mode of the scene graph.
+    ///
+    /// \see TraversalMode
+    virtual TraversalMode getTraversalMode() const { return TraversalMode::OrgTree; }
+
+public:
     // General nodes
     virtual void apply(Node const &val);
     virtual void apply(Group const &val);
