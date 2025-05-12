@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Scene2/TriangleMesh.h"
+#include "Scene/TriangleMesh.h"
 #include "SceneGraph/Node.h"
 #include "SceneGraph/NodeMixin.h"
 #include "SlangGraphicsContext.h"

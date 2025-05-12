@@ -2,8 +2,8 @@
 
 #include <string>
 
-#include "Scene2/Animation.h"
-#include "Scene2/Geometry.h"
+#include "Scene/Animation.h"
+#include "Scene/Geometry.h"
 #include "SceneGraph/Node.h"
 #include "kira/SmallVector.h"
 

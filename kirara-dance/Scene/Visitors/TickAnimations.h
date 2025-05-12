@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Scene2/Animation.h"
+#include "Scene/Animation.h"
 #include "SceneGraph/Visitors.h"
 
 namespace krd {

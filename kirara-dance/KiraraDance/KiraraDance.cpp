@@ -1,53 +1,95 @@
-#include "Instant/InstantScene.h"
-#include "Instant/SlangGraphicsContext.h"
+#include "Core/Window.h"
+#include "FacadeRender/SlangGraphicsContext.h"
+#include "FacadeRender/Visitors/PopulateResource.h"
 #include "Scene/Camera.h"
-#include "Scene/Scene.h"
 #include "Scene/SceneBuilder.h"
-#include "Scene/TriangleMesh.h"
+#include "Scene/SceneRoot.h"
+#include "Scene/Visitors/TickAnimations.h"
+#include "Scene/Visitors/TreeChecker.h"
+#include "Scene/Visitors/TreeInfo.h"
+
+namespace {
+class SelectAnimation : public krd::Visitor {
+public:
+    void apply(krd::Node &val) override { traverse(val); }
+    void apply(krd::Animation &val) override { animId = val.getId(); }
+
+public:
+    std::optional<uint64_t> getId() const { return animId; }
+
+private:
+    std::optional<uint64_t> animId{std::nullopt};
+};
+} // namespace
 
 int main() try {
     using namespace krd;
-
-    // Scene: the abstraction of the global state, in other words, configuration (per-program)
-    // Scene can be ticked.
-    //
-    // InstantScene: the abstraction of render resource creation and manipulation (per-device)
-    // InstantScene shouldn't be ticked.
-    //
-    // SlangGraphicsContext: the abstraction of the graphics API (per-window)
-
-    SceneBuilder builder{};
-    builder.loadFromFile(R"(/home/krr/Downloads/InterpolationTest.glb)");
-
-    auto const scene = builder.buildScene();
-
-    auto const camera = scene->create<Camera>();
-    camera->setPosition(krd::float3(0, 1, 4));
-    camera->setTarget(krd::float3(0, 0, 0));
-    camera->setUpDirection(krd::float3(0, 1, 0));
-
-    auto const instScene = InstantScene::create(InstantScene::Desc{}, scene);
     auto const window =
         Window::create(Window::Desc{.width = 1280, .height = 720, .title = "Kirara Dance"});
 
-    SlangGraphicsContext::Desc desc{};
-    auto const context = SlangGraphicsContext::create(desc, window, instScene);
+    SceneBuilder builder;
+    builder.loadFromFile(R"(/home/krr/Downloads/flag.gltf)");
+
+    auto const sceneRoot = builder.buildScene();
+
+    // Create the graphics context
+    auto SGC = SlangGraphicsContext::create(
+        SlangGraphicsContext::Desc{
+            .swapchainImageCnt = 2,
+            .enableVSync = true,
+            .enableGFXFix_07783 = true,
+        },
+        window
+    );
+
+    // (1)
+    TreeChecker tChecker;
+    sceneRoot->accept(tChecker);
+    if (!tChecker.isValidTree())
+        throw kira::Anyhow(
+            "The traversable scene graph is not a valid tree: {}", tChecker.getDiagnostic()
+        );
+
+    // (2)
+    PopulateResource pResource(SGC.get());
+    sceneRoot->accept(pResource);
+
+    auto const camera = Camera::create();
+    camera->setPosition(krd::float3(-0, 1, 6));
+    camera->setTarget(krd::float3(0, 0, 0));
+    camera->setUpDirection(krd::float3(0, 1, 0));
+    sceneRoot->getAuxGroup()->addChild(camera);
+
+    // (3)
+    TreeInfo tInfo;
+    sceneRoot->accept(tInfo);
 
     //
     window->attachController(camera->getController());
-    window->attachController(context->getController());
+    window->attachController(SGC->getController());
 
-    // Enter the main loop.
-    window->mainLoop([&](float deltaTime) {
-        scene->tick(deltaTime);
+    SelectAnimation sAnim;
+    sceneRoot->accept(sAnim);
+    if (auto id = sAnim.getId())
+        LogInfo("Animation ID {} is selected to display", id.value());
+    else
+        LogWarn("No animation ID found");
 
-        instScene->pull();
-        context->renderFrame();
+    window->mainLoop([&](float deltaTime) -> void {
+        if (sAnim.getId()) {
+            TickAnimations::Desc desc{.animId = sAnim.getId().value(), .deltaTime = deltaTime};
+            TickAnimations tAnim(desc);
+            sceneRoot->accept(tAnim);
+            if (!tAnim.isMatched())
+                LogWarn("No animation ID is not matched");
+        }
+
+        //
+        SGC->renderFrame(sceneRoot.get(), camera.get());
     });
 
-    // Shouldn't be RAII-ed.
-    context->synchronize();
+    return 0;
 } catch (std::exception const &e) {
-    //
     krd::LogError("{}", e.what());
+    return -1;
 }

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "Core/Math.h"
-#include "Scene2/SceneRoot.h"
-#include "Scene2/Transform.h"
+#include "Scene/SceneRoot.h"
+#include "Scene/Transform.h"
 #include "SceneGraph/Visitors.h"
 
 namespace krd {

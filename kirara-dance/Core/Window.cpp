@@ -67,7 +67,8 @@ Window::~Window() {
     glfwTerminate();
     LogTrace("Window: destructed");
 #else
-    LogTrace("Window: destructed but not terminated because of \"https://github.com/glfw/glfw/issues/1018\"");
+    LogTrace("Window: destructed but not terminated because of "
+             "\"https://github.com/glfw/glfw/issues/1018\"");
 #endif
 }
 

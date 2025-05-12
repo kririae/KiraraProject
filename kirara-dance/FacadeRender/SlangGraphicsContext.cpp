@@ -3,10 +3,10 @@
 #include "Core/ProgramBuilder.h"
 #include "Core/ShaderCursor.h"
 #include "Core/SlangUtils.h"
-#include "ImmediateRender/ExtractDbgSkeleton.h"
-#include "ImmediateRender/IssueDrawCommand.h"
-#include "Scene2/Camera.h"
-#include "Scene2/SceneRoot.h"
+#include "FacadeRender/Visitors/ExtractDbgSkeleton.h"
+#include "FacadeRender/Visitors/IssueDrawCommand.h"
+#include "Scene/Camera.h"
+#include "Scene/SceneRoot.h"
 #include "TriangleMeshResource.h"
 
 namespace krd {
@@ -30,13 +30,13 @@ SlangGraphicsContext::SlangGraphicsContext(Desc const &desc, Ref<Window> const &
 
 #if 1
     ProgramBuilder programBuilder;
-    std::filesystem::path const shadersPath = R"(ImmediateRender/VFMain.slang)";
+    std::filesystem::path const shadersPath = R"(FacadeRender/VFMain.slang)";
     programBuilder.addSlangModuleFromPath(shadersPath)
         .addEntryPoint("vertexMain")
         .addEntryPoint("fragmentMain");
 
     ProgramBuilder skelProgramBuilder;
-    std::filesystem::path const skelShadersPath = R"(ImmediateRender/SKMain.slang)";
+    std::filesystem::path const skelShadersPath = R"(FacadeRender/SKMain.slang)";
     skelProgramBuilder.addSlangModuleFromPath(skelShadersPath)
         .addEntryPoint("vertexMain")
         .addEntryPoint("fragmentMain");
