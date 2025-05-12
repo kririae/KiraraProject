@@ -8,13 +8,27 @@
 #include "Scene2/TreeChecker.h"
 #include "Scene2/TreeInfo.h"
 
+namespace {
+class SelectAnimation : public krd::Visitor {
+public:
+    void apply(krd::Node &val) override { traverse(val); }
+    void apply(krd::Animation &val) override { animId = val.getId(); }
+
+public:
+    std::optional<uint64_t> getId() const { return animId; }
+
+private:
+    std::optional<uint64_t> animId{std::nullopt};
+};
+} // namespace
+
 int main() try {
     using namespace krd;
     auto const window =
         Window::create(Window::Desc{.width = 1280, .height = 720, .title = "Kirara Dance"});
 
     SceneBuilder builder;
-    builder.loadFromFile(R"(/home/krr/Downloads/fox.glb)");
+    builder.loadFromFile(R"(/home/krr/Downloads/flag.gltf)");
 
     auto const sceneRoot = builder.buildScene();
 
@@ -41,7 +55,7 @@ int main() try {
     sceneRoot->accept(pResource);
 
     auto const camera = Camera::create();
-    camera->setPosition(krd::float3(-100, 1, 120));
+    camera->setPosition(krd::float3(-0, 1, 6));
     camera->setTarget(krd::float3(0, 0, 0));
     camera->setUpDirection(krd::float3(0, 1, 0));
     sceneRoot->getAuxGroup()->addChild(camera);
@@ -53,12 +67,23 @@ int main() try {
     //
     window->attachController(camera->getController());
     window->attachController(SGC->getController());
+
+    SelectAnimation sAnim;
+    sceneRoot->accept(sAnim);
+    if (auto id = sAnim.getId())
+        LogInfo("Animation ID {} is selected to display", id.value());
+    else
+        LogWarn("No animation ID found");
+
     window->mainLoop([&](float deltaTime) -> void {
-        TickAnimations::Desc desc{.animId = 62, .deltaTime = deltaTime};
-        TickAnimations tAnim(desc);
-        sceneRoot->accept(tAnim);
-        if (!tAnim.isMatched())
-            LogWarn("No animation ID is not matched");
+        if (sAnim.getId()) {
+            TickAnimations::Desc desc{.animId = sAnim.getId().value(), .deltaTime = deltaTime};
+            TickAnimations tAnim(desc);
+            sceneRoot->accept(tAnim);
+            if (!tAnim.isMatched())
+                LogWarn("No animation ID is not matched");
+        }
+
         //
         SGC->renderFrame(sceneRoot.get(), camera.get());
     });
