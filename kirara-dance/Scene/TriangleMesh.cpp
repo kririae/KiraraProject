@@ -17,6 +17,8 @@ void TriangleMesh::loadFromAssimp(aiMesh const *mesh, std::string_view name) {
     if (name.empty())
         name = mesh->mName.C_Str();
 
+    this->name = name;
+
     V.resize(mesh->mNumVertices, 3);
     F.resize(mesh->mNumFaces, 3);
 

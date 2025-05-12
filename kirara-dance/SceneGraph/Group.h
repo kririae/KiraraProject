@@ -14,7 +14,6 @@ public:
     /// \brief Creates a new Group instance.
     /// \return A reference-counted pointer (Ref) to the newly created Group.
     [[nodiscard]] static Ref<Group> create() { return {new Group}; }
-    ~Group() override = default;
 
     /// \brief Adds a child node to this group.
     ///
