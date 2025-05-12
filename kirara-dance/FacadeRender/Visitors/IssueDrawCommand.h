@@ -1,12 +1,12 @@
 #pragma once
 
 #include "Core/Math.h"
-#include "ImmediateRender/TriangleMeshResource.h"
-#include "Scene2/Geometry.h"
-#include "Scene2/SceneRoot.h"
-#include "Scene2/Transform.h"
-#include "SceneGraph/ExtractTypeOf.h"
+#include "FacadeRender/TriangleMeshResource.h"
+#include "Scene/Geometry.h"
+#include "Scene/SceneRoot.h"
+#include "Scene/Transform.h"
 #include "SceneGraph/Visitors.h"
+#include "SceneGraph/Visitors/ExtractTypeOf.h"
 
 namespace krd {
 /// \brief A visitor to issue draw commands for the geometry hierarchy.

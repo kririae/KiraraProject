@@ -111,8 +111,8 @@ add_library(
     Core/Window.cpp
     #
     #
-    ImmediateRender/SlangGraphicsContext.cpp
-    ImmediateRender/TriangleMeshResource.cpp
+    FacadeRender/SlangGraphicsContext.cpp
+    FacadeRender/TriangleMeshResource.cpp
     #
     #
     # Instant/InstantCamera.cpp
@@ -131,13 +131,13 @@ add_library(
     # Scene/TriangleMesh.cpp
     #
     #
-    Scene2/Animation.cpp
-    Scene2/Camera.cpp
-    Scene2/Geometry.cpp
-    Scene2/SceneBuilder.cpp
-    Scene2/SceneRoot.cpp
-    Scene2/Transform.cpp
-    Scene2/TriangleMesh.cpp
+    Scene/Animation.cpp
+    Scene/Camera.cpp
+    Scene/Geometry.cpp
+    Scene/SceneBuilder.cpp
+    Scene/SceneRoot.cpp
+    Scene/Transform.cpp
+    Scene/TriangleMesh.cpp
     #
     #
     SceneGraph/Node.cpp
@@ -158,7 +158,7 @@ target_include_directories(kirara-backend PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 #
 add_executable(kirara-dance #
-               KiraraDance/Backward.cpp KiraraDance/Editor.cpp KiraraDance/KiraraDance2.cpp)
+               KiraraDance/Backward.cpp KiraraDance/Editor.cpp KiraraDance/KiraraDance.cpp)
 target_link_libraries(kirara-dance PRIVATE kirara-backend Backward::Interface)
 
 # ----------------------------------------------------------

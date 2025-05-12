@@ -1,7 +1,7 @@
 #include "Animation.h"
 
-#include "Scene2/Transform.h"
-#include "SceneGraph/ExtractTypeOf.h"
+#include "Scene/Transform.h"
+#include "SceneGraph/Visitors/ExtractTypeOf.h"
 
 namespace krd {
 void TransformAnimationChannel::doAnim(float curTime) {

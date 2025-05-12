@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Visitors.h"
+#include "../Visitors.h"
 
 namespace krd {
 /// \brief A visitor that extracts all nodes of a specific type T from a scene graph.

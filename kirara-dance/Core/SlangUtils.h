@@ -74,12 +74,9 @@ inline auto slangDiagnostic(
         return;
     LogWarn(
         "slangDiagnostic(): {:s} at {:s}:{:d}",
-        slangTrim(
-            std::string{
-                static_cast<char const *>(diagnostics->getBufferPointer()),
-                diagnostics->getBufferSize()
-            }
-        ),
+        slangTrim(std::string{
+            static_cast<char const *>(diagnostics->getBufferPointer()), diagnostics->getBufferSize()
+        }),
         loc.file_name(), loc.line()
     );
 }

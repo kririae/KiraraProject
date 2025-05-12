@@ -5,13 +5,13 @@
 #include "Node.h"
 
 //
-#include "Scene2/Animation.h"
-#include "Scene2/Geometry.h"
-#include "Scene2/SceneRoot.h"
-#include "Scene2/Transform.h"
+#include "Scene/Animation.h"
+#include "Scene/Geometry.h"
+#include "Scene/SceneRoot.h"
+#include "Scene/Transform.h"
 
 //
-#include "ImmediateRender/TriangleMeshResource.h"
+#include "FacadeRender/TriangleMeshResource.h"
 
 namespace krd {
 void Visitor::apply(Node &val) { (void)(val); }
