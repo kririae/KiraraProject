@@ -3,6 +3,7 @@
 #include "Core/ProgramBuilder.h"
 #include "Core/ShaderCursor.h"
 #include "Core/SlangUtils.h"
+#include "ImmediateRender/ExtractDbgSkeleton.h"
 #include "ImmediateRender/IssueDrawCommand.h"
 #include "Scene2/Camera.h"
 #include "Scene2/SceneRoot.h"
@@ -27,28 +28,38 @@ SlangGraphicsContext::SlangGraphicsContext(Desc const &desc, Ref<Window> const &
     // Take the reference to the window to ensure that, window is destructed after the swapchain.
     this->window = window;
 
+#if 1
     ProgramBuilder programBuilder;
-    // Return an instance of ProgramBuilder to avoid maintaining state.
-    std::filesystem::path const shadersPath = R"(Instant/VFMain.slang)";
-    // CMake will copy the source.
+    std::filesystem::path const shadersPath = R"(ImmediateRender/VFMain.slang)";
     programBuilder.addSlangModuleFromPath(shadersPath)
         .addEntryPoint("vertexMain")
         .addEntryPoint("fragmentMain");
 
+    ProgramBuilder skelProgramBuilder;
+    std::filesystem::path const skelShadersPath = R"(ImmediateRender/SKMain.slang)";
+    skelProgramBuilder.addSlangModuleFromPath(skelShadersPath)
+        .addEntryPoint("vertexMain")
+        .addEntryPoint("fragmentMain");
+#endif
+
     width = window->getWidth(), height = window->getHeight(); // (0)
     windowHandle = window->getWindowHandle();                 // (0)
-    this->programBuilder = programBuilder;                    // (2)
-    swapchainImageCnt = desc.swapchainImageCnt;               // (3)
-    enableVSync = desc.enableVSync;                           // (3)
+    this->programBuilder = programBuilder;                    // (3)
+    this->skelProgramBuilder = skelProgramBuilder;            // (3)
+    swapchainImageCnt = desc.swapchainImageCnt;               // (4)
+    enableVSync = desc.enableVSync;                           // (4)
     enableGFXFix_07783 = desc.enableGFXFix_07783;             // (7)
 
     setupFramebufferLayout(); // (1)
     setupRenderPassLayout();  // (2)
+
     setupPipelineState();     // (3)
-    setupSwapchain();         // (4)
-    setupFramebuffer();       // (5)
-    setupTransientHeap();     // (6)
-    setupFrameFence();        // (7)
+    setupSkelPipelineState(); // (3)
+
+    setupSwapchain();     // (4)
+    setupFramebuffer();   // (5)
+    setupTransientHeap(); // (6)
+    setupFrameFence();    // (7)
 }
 
 void SlangGraphicsContext::onResize(int newWidth, int newHeight) {
@@ -135,17 +146,63 @@ void SlangGraphicsContext::renderFrame(SceneRoot *sceneRoot, Camera *camera) {
     // "GLM is column-major"
     viewProjection = transpose(viewProjection);
 
-    auto *slangReflection = shaderProgram->getReflection();
-    auto *perView = slangReflection->findTypeByName("PerView");
-    auto viewShaderObject = gDevice->createShaderObject(perView);
-    {
-        gfx::ShaderCursor cursor(viewShaderObject);
-        slangCheck(cursor["viewProjection"].setData(&viewProjection, sizeof(float) * 4 * 4));
-    }
+#if 1
+    [&] {
+        ExtractDbgSkeleton::Desc desc{.startingDepth = 2};
+        ExtractDbgSkeleton eDbgSkeleton(desc);
+        sceneRoot->accept(eDbgSkeleton);
 
-    auto *perModel = slangReflection->findTypeByName("PerModel");
+        if (eDbgSkeleton.empty())
+            return;
 
+        ComPtr<gfx::IBufferResource> skeletonBuffer;
+
+        gfx::IBufferResource::Desc skeletonBufferDesc;
+        skeletonBufferDesc.type = gfx::IResource::Type::Buffer;
+        skeletonBufferDesc.sizeInBytes = eDbgSkeleton.size() * sizeof(SkelVertex) * 2;
+        skeletonBufferDesc.defaultState = gfx::ResourceState::VertexBuffer;
+        gSkeletonBuffer.setNull();
+        getDevice()->createBufferResource(
+            skeletonBufferDesc, eDbgSkeleton.data(), gSkeletonBuffer.writeRef()
+        );
+
+        auto *slangReflection = skelShaderProgram->getReflection();
+        auto *perView = slangReflection->findTypeByName("PerView");
+
+        auto viewShaderObject = gDevice->createShaderObject(perView);
+        {
+            gfx::ShaderCursor cursor(viewShaderObject);
+            slangCheck(cursor["viewProjection"].setData(&viewProjection, sizeof(float) * 4 * 4));
+        }
+
+        auto *rootObject = renderEncoder->bindPipeline(skelPipelineState);
+        gfx::ShaderCursor rootCursor{rootObject};
+        slangCheck(rootCursor["gViewParams"].setObject(viewShaderObject));
+
+        renderEncoder->setVertexBuffer(0, gSkeletonBuffer);
+        renderEncoder->setPrimitiveTopology(gfx::PrimitiveTopology::LineList);
+        renderEncoder->draw(static_cast<gfx::GfxCount>(eDbgSkeleton.size() * 2), 0);
+    }();
+#endif
+
+#if 0
     {
+        ///
+        /// Create the shader object for the view.
+        ///
+        auto *slangReflection = shaderProgram->getReflection();
+        auto *perView = slangReflection->findTypeByName("PerView");
+        auto *perModel = slangReflection->findTypeByName("PerModel");
+
+        auto viewShaderObject = gDevice->createShaderObject(perView);
+        {
+            gfx::ShaderCursor cursor(viewShaderObject);
+            slangCheck(cursor["viewProjection"].setData(&viewProjection, sizeof(float) * 4 * 4));
+        }
+
+        ///
+        /// Issue the draw command for the geometry.
+        ///
         IssueDrawCommand iDrawCmd{
             [&](TriangleMeshResource const *triMeshResource, float4x4 modelMatrix) -> void {
             // Implement the callback
@@ -163,11 +220,9 @@ void SlangGraphicsContext::renderFrame(SceneRoot *sceneRoot, Camera *camera) {
             auto modelShaderObject = gDevice->createShaderObject(perModel);
             gfx::ShaderCursor cursor(modelShaderObject);
             slangCheck(cursor["modelMatrix"].setData(modelMatrixPtr.data(), sizeof(float) * 4 * 4));
-            slangCheck(
-                cursor["inverseTransposedModelMatrix"].setData(
-                    iModelMatrixPtr.data(), sizeof(float) * 4 * 4
-                )
-            );
+            slangCheck(cursor["inverseTransposedModelMatrix"].setData(
+                iModelMatrixPtr.data(), sizeof(float) * 4 * 4
+            ));
 
             // Bind the pipeline state to shader objects.
             auto *rootObject = renderEncoder->bindPipeline(gPipelineState);
@@ -179,37 +234,19 @@ void SlangGraphicsContext::renderFrame(SceneRoot *sceneRoot, Camera *camera) {
             renderEncoder->setVertexBuffer(0, deviceData->vertexBuffer);
             renderEncoder->setIndexBuffer(deviceData->indexBuffer, gfx::Format::R32_UINT);
             renderEncoder->setPrimitiveTopology(gfx::PrimitiveTopology::TriangleList);
-            renderEncoder->drawIndexed(triMeshResource->getNumIndices(), 0);
+
+            if (triMeshResource->getNumIndices() == 0 ||
+                triMeshResource->getNumIndices() > std::numeric_limits<gfx::GfxCount>::max())
+                throw kira::Anyhow(
+                    "SlangGraphicsContext: invalid number of indices {:d}",
+                    triMeshResource->getNumIndices()
+                );
+            renderEncoder->drawIndexed(
+                static_cast<gfx::GfxCount>(triMeshResource->getNumIndices()), 0
+            );
         }
         };
         sceneRoot->accept(iDrawCmd);
-    }
-
-#if 0
-    // Set the vertex buffer and render the triangles.
-    for (auto const &rObj : getRenderScene()->getInstantObjectOfType<InstantTriangleMesh>()) {
-        auto const deviceData = rObj->upload(this);
-
-        auto modelShaderObject = gDevice->createShaderObject(perModel);
-        gfx::ShaderCursor cursor(modelShaderObject);
-        slangCheck(cursor["modelMatrix"].setData(rObj->getModelMatrix(), sizeof(float) * 4 * 4));
-        slangCheck(
-            cursor["inverseTransposedModelMatrix"].setData(
-                rObj->getInverseTransposedModelMatrix(), sizeof(float) * 4 * 4
-            )
-        );
-
-        // Bind the pipeline state to shader objects.
-        auto *rootObject = renderEncoder->bindPipeline(gPipelineState);
-        gfx::ShaderCursor rootCursor{rootObject};
-
-        slangCheck(rootCursor["gViewParams"].setObject(viewShaderObject));
-        slangCheck(rootCursor["gModelParams"].setObject(modelShaderObject));
-
-        renderEncoder->setVertexBuffer(0, deviceData->vertexBuffer);
-        renderEncoder->setIndexBuffer(deviceData->indexBuffer, gfx::Format::R32_UINT);
-        renderEncoder->setPrimitiveTopology(gfx::PrimitiveTopology::TriangleList);
-        renderEncoder->drawIndexed(rObj->getNumIndices(), 0);
     }
 #endif
 
@@ -268,8 +305,7 @@ void SlangGraphicsContext::setupPipelineState() {
     };
 
     ComPtr<gfx::IInputLayout> inputLayout;
-    slangCheck(
-        gDevice->createInputLayout(sizeof(Vertex), inputElements, 2, inputLayout.writeRef())
+    slangCheck(gDevice->createInputLayout(sizeof(Vertex), inputElements, 2, inputLayout.writeRef())
     );
 
     gfx::GraphicsPipelineStateDesc pipelineDesc{};
@@ -284,6 +320,29 @@ void SlangGraphicsContext::setupPipelineState() {
     pipelineDesc.rasterizer.cullMode = gfx::CullMode::Back;
     pipelineDesc.rasterizer.frontFace = gfx::FrontFaceMode::CounterClockwise;
     slangCheck(gDevice->createGraphicsPipelineState(pipelineDesc, gPipelineState.writeRef()));
+}
+
+void SlangGraphicsContext::setupSkelPipelineState() {
+    skelShaderProgram = this->skelProgramBuilder.link(this);
+
+    gfx::InputElementDesc inputElements[] = {
+        {"POSITION", 0, gfx::Format::R32G32B32_FLOAT, offsetof(SkelVertex, position)},
+    };
+
+    ComPtr<gfx::IInputLayout> inputLayout;
+    slangCheck(
+        gDevice->createInputLayout(sizeof(SkelVertex), inputElements, 1, inputLayout.writeRef())
+    );
+
+    gfx::GraphicsPipelineStateDesc pipelineDesc{};
+    pipelineDesc.inputLayout = inputLayout;
+    pipelineDesc.program = skelShaderProgram->getShaderProgram();
+    pipelineDesc.framebufferLayout = gFramebufferLayout;
+    pipelineDesc.primitiveType = gfx::PrimitiveType::Line;
+    pipelineDesc.depthStencil.depthFunc = gfx::ComparisonFunc::LessEqual;
+    pipelineDesc.depthStencil.depthTestEnable = true;
+
+    slangCheck(gDevice->createGraphicsPipelineState(pipelineDesc, skelPipelineState.writeRef()));
 }
 
 void SlangGraphicsContext::setupSwapchain() {
@@ -354,8 +413,7 @@ void SlangGraphicsContext::setupTransientHeap() {
         };
 
         ComPtr<gfx::ITransientResourceHeap> transientHeap;
-        slangCheck(
-            gDevice->createTransientResourceHeap(transientHeapDesc, transientHeap.writeRef())
+        slangCheck(gDevice->createTransientResourceHeap(transientHeapDesc, transientHeap.writeRef())
         );
         gTransientHeap.push_back(transientHeap);
     }

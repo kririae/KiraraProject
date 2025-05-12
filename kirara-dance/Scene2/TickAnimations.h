@@ -10,11 +10,28 @@ namespace krd {
 /// Animation nodes it encounters, effectively progressing the animation state.
 class TickAnimations : public Visitor {
 public:
+    /// \brief A constant representing all animations.
+    static constexpr uint64_t ALL_ANIMATIONS = std::numeric_limits<uint64_t>::max();
+
+    struct Desc {
+        /// \brief The animation ID to be ticked.
+        ///
+        /// This ID is used to identify which animation should be advanced.
+        /// When no ID is matched, the animation will not be ticked.
+        uint64_t animId{ALL_ANIMATIONS};
+
+        /// \brief The time step for the animations to proceed.
+        ///
+        /// This is the time interval, in seconds, by which to advance the
+        /// animations.
+        float deltaTime{0};
+    };
+
     /// \brief Constructs a TickAnimations visitor.
     ///
     /// \param deltaTime The time interval, in seconds, by which to advance
     ///                  the animations.
-    explicit TickAnimations(float deltaTime) : deltaTime(deltaTime) {}
+    explicit TickAnimations(Desc const &desc) : desc(desc) {}
 
     /// \brief Creates a new TickAnimations visitor instance.
     ///
@@ -22,8 +39,8 @@ public:
     /// in a Ref smart pointer.
     /// \param deltaTime The time step for the animations to proceed.
     /// \return A Ref-counted pointer to the new TickAnimations instance.
-    [[nodiscard]] static Ref<TickAnimations> create(float deltaTime) {
-        return {new TickAnimations(deltaTime)};
+    [[nodiscard]] static Ref<TickAnimations> create(Desc const &desc) {
+        return {new TickAnimations(desc)};
     }
 
 public:
@@ -38,10 +55,19 @@ public:
     /// This method calls the `tick` method on the Animation object,
     /// advancing its state by the `deltaTime` specified during construction.
     /// \param val The Animation node to tick.
-    void apply(Animation &val) override { val.tick(deltaTime); }
+    void apply(Animation &val) override {
+        if (desc.animId == ALL_ANIMATIONS || val.getId() == desc.animId) {
+            applied = true;
+            val.tick(desc.deltaTime);
+        }
+    }
+
+public:
+    /// Returns whether any animations were matched and ticked.
+    bool isMatched() const { return applied; }
 
 private:
-    /// \brief The time step, in seconds, by which animations are advanced.
-    float deltaTime{0};
+    Desc desc;
+    bool applied{false};
 };
 } // namespace krd
