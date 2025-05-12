@@ -84,6 +84,7 @@ private:
     void setupFramebufferLayout(); // (1)
     void setupRenderPassLayout();  // (2)
     void setupPipelineState();     // (3)
+    void setupSkelPipelineState(); // (3)
     void setupSwapchain();         // (4)
     void setupFramebuffer();       // (5)
     void setupTransientHeap();     // (6)
@@ -101,9 +102,17 @@ protected:
     ComPtr<gfx::IFramebufferLayout> gFramebufferLayout;  // (1)
     ComPtr<gfx::IRenderPassLayout> gRenderPassLayout;    // (2)
 
+    //
+    // TODO(krr): modify the the RenderPass scheme
+    //
+
     ProgramBuilder programBuilder;              // (3)
     Ref<Program> shaderProgram;                 // (3)
     ComPtr<gfx::IPipelineState> gPipelineState; // (3)
+
+    ProgramBuilder skelProgramBuilder;             // (3)
+    Ref<Program> skelShaderProgram;                // (3)
+    ComPtr<gfx::IPipelineState> skelPipelineState; // (3)
 
     int swapchainImageCnt;              // (4)
     bool enableVSync;                   // (4)
@@ -117,5 +126,7 @@ protected:
 
     uint64_t gFrameIndex = 0;
     float4 gClearValue{20.0f / 255, 19.0f / 255, 20.0f / 255, 1.0f};
+
+    ComPtr<gfx::IBufferResource> gSkeletonBuffer; // (dyn)
 };
 } // namespace krd

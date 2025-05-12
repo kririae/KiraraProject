@@ -102,9 +102,8 @@ public:
     }
 
     void apply(SceneRoot &sceneRoot) override {
+        KRD_ASSERT(node, "SceneBuilder: The assimp root node is not valid");
         sceneRoot.getGeomGroup()->addChild(addToSceneGraph(this->triMap, this->node, tMap));
-        for (auto &[_, triMesh] : triMap)
-            sceneRoot.getMeshGroup()->addChild(triMesh);
     }
 
     /// Examine the recorded transform map.
@@ -169,7 +168,7 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
     // Load
     // - (partially) mMeshes
     // - mMaterials
-    // - mAnimations
+    // - (partially) mAnimations
     // - mTextures
     // - mLights
     // - mCameras
@@ -181,6 +180,9 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
         auto mesh = TriangleMesh::create();
         mesh->loadFromAssimp(aiScene->mMeshes[meshId], std::string_view{});
         triMap.emplace(meshId, mesh.get());
+
+        // Hang the mesh into the scene graph.
+        sceneRoot->getMeshGroup()->addChild(std::move(mesh));
     }
 
     LogInfo("Num meshes inserted: {:d}", aiScene->mNumMeshes);

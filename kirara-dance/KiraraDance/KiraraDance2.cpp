@@ -14,7 +14,7 @@ int main() try {
         Window::create(Window::Desc{.width = 1280, .height = 720, .title = "Kirara Dance"});
 
     SceneBuilder builder;
-    builder.loadFromFile(R"(/home/krr/Downloads/BrainStem.glb)");
+    builder.loadFromFile(R"(/home/krr/Downloads/fox.glb)");
 
     auto const sceneRoot = builder.buildScene();
 
@@ -41,7 +41,7 @@ int main() try {
     sceneRoot->accept(pResource);
 
     auto const camera = Camera::create();
-    camera->setPosition(krd::float3(0, 1, 12));
+    camera->setPosition(krd::float3(-100, 1, 120));
     camera->setTarget(krd::float3(0, 0, 0));
     camera->setUpDirection(krd::float3(0, 1, 0));
     sceneRoot->getAuxGroup()->addChild(camera);
@@ -54,8 +54,11 @@ int main() try {
     window->attachController(camera->getController());
     window->attachController(SGC->getController());
     window->mainLoop([&](float deltaTime) -> void {
-        TickAnimations tAnim(deltaTime);
+        TickAnimations::Desc desc{.animId = 62, .deltaTime = deltaTime};
+        TickAnimations tAnim(desc);
         sceneRoot->accept(tAnim);
+        if (!tAnim.isMatched())
+            LogWarn("No animation ID is not matched");
         //
         SGC->renderFrame(sceneRoot.get(), camera.get());
     });
