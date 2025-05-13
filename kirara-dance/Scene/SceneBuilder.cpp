@@ -92,13 +92,13 @@ void loadFromAnimChannel(TransformAnimationChannel *tAnim, aiNodeAnim const *nod
 
 /// Visitor to insert geometries into the scene graph.
 ///
-class InsertFromAssimp : public Visitor {
-    explicit InsertFromAssimp(TriangleMeshMap triMap, aiNode const *node)
+class ISTFromAssimp : public Visitor {
+    explicit ISTFromAssimp(TriangleMeshMap triMap, aiNode const *node)
         : triMap(std::move(triMap)), node(node) {}
 
 public:
-    [[nodiscard]] static Ref<InsertFromAssimp> create(TriangleMeshMap triMap, aiNode const *node) {
-        return {new InsertFromAssimp(std::move(triMap), node)};
+    [[nodiscard]] static Ref<ISTFromAssimp> create(TriangleMeshMap triMap, aiNode const *node) {
+        return {new ISTFromAssimp(std::move(triMap), node)};
     }
 
     void apply(SceneRoot &sceneRoot) override {
@@ -116,7 +116,7 @@ private:
     TransformMap tMap;
 
     static Ref<Transform>
-    addToSceneGraph(TriangleMeshMap const &triMap, aiNode const *node, TransformMap &tMap) {
+    addToSceneGraph(TriangleMeshMap const &triMap, aiNode const *node, TransformMap &transMap) {
         aiVector3t<float> scaling, position;
         aiQuaterniont<float> rotation;
         node->mTransformation.Decompose(scaling, rotation, position);
@@ -139,11 +139,11 @@ private:
         transform->setTranslation(float3{position.x, position.y, position.z});
 
         for (uint32_t i = 0; i < node->mNumChildren; ++i) {
-            auto children = addToSceneGraph(triMap, node->mChildren[i], tMap);
+            auto children = addToSceneGraph(triMap, node->mChildren[i], transMap);
             transform->addChild(children);
         }
 
-        tMap.emplace(node->mName.C_Str(), transform.get());
+        transMap.emplace(node->mName.C_Str(), transform.get());
         return transform;
     }
 };
@@ -158,11 +158,10 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
 
     Assimp::Importer importer;
 
-    aiScene const *aiScene =
-        importer.ReadFile(path.string(), aiProcess_Triangulate | aiProcess_PopulateArmatureData);
+    aiScene const *aiScene = importer.ReadFile(path.string(), aiProcess_Triangulate);
     if (!aiScene || !aiScene->mRootNode || aiScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE)
         throw kira::Anyhow(
-            "SceneBuilder: Failed to load the scene from \"{:s}\": {:s}", path.string(),
+            "SceneBuilder: Failed to load the scene from '{:s}': {:s}", path.string(),
             importer.GetErrorString()
         );
 
@@ -180,14 +179,7 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
     for (uint32_t meshId = 0; meshId < aiScene->mNumMeshes; ++meshId) {
         auto mesh = TriangleMesh::create();
         auto *inMesh = aiScene->mMeshes[meshId];
-        if (inMesh->mNumBones > 0) {
-            LogWarn(
-                "SceneBuilder: Mesh '{:s}' has {:d} bones, which is not supported yet",
-                inMesh->mName.C_Str(), inMesh->mNumBones
-            );
-        }
-        mesh->loadFromAssimp(aiScene->mMeshes[meshId], std::string_view{});
-        triMap.emplace(meshId, mesh.get());
+        triMap.emplace(meshId, mesh);
 
         // Hang the mesh into the scene graph.
         sceneRoot->getMeshGroup()->addChild(std::move(mesh));
@@ -195,10 +187,25 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
 
     LogInfo("Num meshes inserted: {:d}", aiScene->mNumMeshes);
 
-    auto iFromAssimp = InsertFromAssimp::create(std::move(triMap), aiScene->mRootNode);
+    auto iFromAssimp = ISTFromAssimp::create(triMap, aiScene->mRootNode);
     sceneRoot->accept(*iFromAssimp);
 
-    auto tMap = std::move(iFromAssimp->getTransformMap());
+    auto transMap = std::move(iFromAssimp->getTransformMap());
+
+    std::unordered_map<std::string, uint64_t> transIdMap;
+    for (auto &[name, node] : transMap) {
+        auto id = node->getId();
+        transIdMap.emplace(name, id);
+    }
+
+    // A second pass is performed to actually initialize the mesh. Since the mesh initialization
+    // requires the node hierarchy to be build.
+    for (auto &[meshId, triMesh] : triMap) {
+        auto *inMesh = aiScene->mMeshes[meshId];
+        triMesh->loadFromAssimp(inMesh, std::string_view{}, transIdMap);
+    }
+
+    LogInfo("Num meshes inserted and loaded: {:d}", aiScene->mNumMeshes);
 
     //
     for (uint32_t animId = 0; animId < aiScene->mNumAnimations; ++animId) {
@@ -215,7 +222,7 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
 
         for (uint32_t channelId = 0; channelId < aiAnim->mNumChannels; ++channelId) {
             auto const *channel = aiAnim->mChannels[channelId];
-            auto *node = tMap[channel->mNodeName.C_Str()];
+            auto *node = transMap[channel->mNodeName.C_Str()];
 
             auto tAnim = TransformAnimationChannel::create();
             tAnim->bindTransform(node);

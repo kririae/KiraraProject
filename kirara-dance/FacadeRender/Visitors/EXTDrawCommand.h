@@ -14,16 +14,16 @@ namespace krd {
 /// This is the major visitor to the immediate render. This traverse the geometry hierarchy and
 /// issues the corresponding draw command. This visitor is designed to be quite robust when the
 /// scene graph is not in a valid state.
-class IssueDrawCommand final : public ConstVisitor {
+class EXTDrawCommand final : public ConstVisitor {
 public:
     using CallbackType = std::function<void(TriangleMeshResource const *, float4x4)>;
-    IssueDrawCommand(CallbackType callback) : drawCallback(std::move(callback)) {}
+    EXTDrawCommand(CallbackType callback) : drawCallback(std::move(callback)) {}
 
-    /// \brief Create a new IssueDrawCommand visitor.
+    /// \brief Create a new EXTDrawCommand visitor.
     ///
-    /// \remark IssueDrawCommand can be created on stack or heap.
-    [[nodiscard]] static Ref<IssueDrawCommand> create(CallbackType callback) {
-        return {new IssueDrawCommand(std::move(callback))};
+    /// \remark EXTDrawCommand can be created on stack or heap.
+    [[nodiscard]] static Ref<EXTDrawCommand> create(CallbackType callback) {
+        return {new EXTDrawCommand(std::move(callback))};
     }
 
 public:
@@ -62,19 +62,21 @@ private:
 
     /// Specifically issue the draw command for the geometry.
     void issue(Geometry const &val) {
-        // (1) Find the mesh in the geometry.
+        // Find the mesh in the geometry.
         if (!val.getMesh())
             return;
 
-        // (2) Find the \c TriangleMeshResource in the mesh.
+        // Find the \c TriangleMeshResource in the mesh.
         auto mesh = val.getMesh();
         ExtractTypeOf<TriangleMeshResource const> extractor;
         mesh->accept(extractor);
 
-        if (extractor.size() != 1)
+        if (extractor.size() != 1) {
+            LogTrace("EXTDrawCommand: The mesh has no resource or multiple resources.");
             return;
+        }
 
-        // (3) Issue the draw command
+        // Issue the draw command
         auto const &triMeshResource = extractor.front();
         drawCallback(triMeshResource.get(), modelMatrix);
     }

@@ -6,6 +6,9 @@
 
 #include <assimp/Importer.hpp>
 
+#include "Core/detail/Linalg.h"
+#include "Scene/Visitors/EXTNodeTransforms.h"
+
 namespace krd {
 void TriangleMesh::loadFromAssimp(aiMesh const *mesh, std::string_view name) {
     // Validate the `inMesh`
@@ -51,6 +54,55 @@ void TriangleMesh::loadFromAssimp(aiMesh const *mesh, std::string_view name) {
     );
 }
 
+void TriangleMesh::loadFromAssimp(
+    aiMesh const *inMesh, std::string_view name,
+    std::unordered_map<std::string, uint64_t> const &transIdMap
+) {
+    loadFromAssimp(inMesh, name);
+
+    if (inMesh->HasBones()) {
+        // Load the bone weights.
+        W.resize(inMesh->mNumVertices, inMesh->mNumBones);
+        W.setZero();
+        for (uint32_t i = 0; i < inMesh->mNumBones; ++i) {
+            auto const *bone = inMesh->mBones[i];
+            for (uint32_t j = 0; j < bone->mNumWeights; ++j) {
+                auto const &weight = bone->mWeights[j];
+                W(weight.mVertexId, i) = weight.mWeight;
+            }
+        }
+
+        //
+        nodeIds.resize(inMesh->mNumBones);
+        for (uint32_t i = 0; i < inMesh->mNumBones; ++i) {
+            auto const *bone = inMesh->mBones[i];
+            auto it = transIdMap.find(bone->mName.C_Str());
+            if (it == transIdMap.end())
+                throw kira::Anyhow(
+                    "TriangleMesh: The bone '{:s}' is not found in the transform ID map",
+                    bone->mName.C_Str()
+                );
+            nodeIds[i] = it->second;
+        }
+
+        // Load the inverse bind matrices.
+        inverseBindMatrices.resize(inMesh->mNumBones);
+        for (uint32_t i = 0; i < inMesh->mNumBones; ++i) {
+            auto const *bone = inMesh->mBones[i];
+            auto inIBM = bone->mOffsetMatrix;
+            inverseBindMatrices[i] = float4x4{
+                float4{inIBM.a1, inIBM.a2, inIBM.a3, inIBM.a4},
+                float4{inIBM.b1, inIBM.b2, inIBM.b3, inIBM.b4},
+                float4{inIBM.c1, inIBM.c2, inIBM.c3, inIBM.c4},
+                float4{inIBM.d1, inIBM.d2, inIBM.d3, inIBM.d4}
+            };
+        }
+        LogTrace("TriangleMesh: Loaded {:d} bones", inMesh->mNumBones);
+    } else {
+        LogWarn("TriangleMesh: No bones found in '{:s}'", name);
+    }
+}
+
 void TriangleMesh::loadFromFile(std::filesystem::path const &path) {
     // \c libigl can just load V and F, and is not that robust in loading mesh with attributes.
     Assimp::Importer importer;
@@ -88,5 +140,48 @@ void TriangleMesh::calculateNormal(TriangleMesh::NormalWeightingType weighting) 
         getNumVertices(), getNumFaces(), weighting == NormalWeightingType::ByArea ? "area" : "angle"
     );
     igl::per_vertex_normals(V, F, iglWeighting, N);
+}
+
+Ref<TriangleMesh>
+TriangleMesh::adaptLinearBlendSkinning(Ref<Transform> const &root, float4x4 const &offset) const {
+    // Extract the transforms
+    EXTNodeTransforms::Desc desc{.offset = offset};
+    EXTNodeTransforms eNodeTrans(desc);
+    root->accept(eNodeTrans);
+
+    // Create a new mesh with the same vertices and faces
+    auto newMesh = TriangleMesh::create();
+    newMesh->V.resize(V.rows(), V.cols());
+    newMesh->F = F;
+
+    kira::SmallVector<float4x4> boneTransforms;
+    for (int j = 0; j < W.cols(); ++j) {
+        auto it = eNodeTrans.find(nodeIds[j]);
+        if (it == eNodeTrans.end())
+            throw kira::Anyhow(
+                "TriangleMesh: The node ID {:d} is not found in the transform map", nodeIds[j]
+            );
+        boneTransforms.emplace_back(it->second);
+    }
+
+    // I'll not use the libigl version of LBS for debugging purpose now.
+    // Apply the skinning transformation
+    for (int i = 0; i < newMesh->V.rows(); ++i) {
+        auto const eigenVtx = V.row(i);
+
+        auto vtx = float4{eigenVtx.x(), eigenVtx.y(), eigenVtx.z(), 1.0f};
+        for (int j = 0; j < W.cols(); ++j) {
+            auto inc = mul(boneTransforms[j], mul(inverseBindMatrices[j], vtx));
+            inc.xyz() /= inc.w;
+            vtx += W(i, j) * inc;
+
+            newMesh->V(i, 0) = vtx.x;
+            newMesh->V(i, 1) = vtx.y;
+            newMesh->V(i, 2) = vtx.z;
+        }
+    }
+
+    newMesh->calculateNormal();
+    return newMesh;
 }
 } // namespace krd

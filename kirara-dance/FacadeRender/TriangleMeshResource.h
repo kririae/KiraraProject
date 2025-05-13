@@ -22,10 +22,10 @@ public:
     };
 
     [[nodiscard]] static Ref<TriangleMeshResource> create() { return {new TriangleMeshResource}; }
-    ~TriangleMeshResource() override = default;
 
+public:
     /// Upload the mesh data to the GPU and record it into the member.
-    void upload(TriangleMesh *triMesh, SlangGraphicsContext *context);
+    void uploadTriMesh(TriangleMesh *triMesh, SlangGraphicsContext *context);
     ///
     std::shared_ptr<DeviceData> getDeviceData() const { return deviceData; }
     ///

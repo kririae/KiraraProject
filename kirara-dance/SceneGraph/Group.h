@@ -1,5 +1,7 @@
 #pragma once
 
+#include <range/v3/view/any_view.hpp>
+
 #include "Node.h"
 #include "NodeMixin.h"
 
@@ -15,6 +17,7 @@ public:
     /// \return A reference-counted pointer (Ref) to the newly created Group.
     [[nodiscard]] static Ref<Group> create() { return {new Group}; }
 
+public:
     /// \brief Adds a child node to this group.
     ///
     /// The child node is moved into the group's collection of children.
@@ -23,11 +26,13 @@ public:
 
     /// \brief Gets a reference to the vector of child nodes.
     /// \return A reference to the internal storage of child nodes.
-    [[nodiscard]] kira::SmallVector<Ref<Node>> &getChildren() { return children; }
+    [[nodiscard]] ranges::any_view<Ref<Node>> getChildren() { return ranges::views::all(children); }
 
     /// \brief Gets a constant reference to the vector of child nodes.
     /// \return A constant reference to the internal storage of child nodes.
-    [[nodiscard]] kira::SmallVector<Ref<Node>> const &getChildren() const { return children; }
+    [[nodiscard]] ranges::any_view<Ref<Node>> getChildren() const {
+        return ranges::views::all(children);
+    }
 
     /// \brief Traverses the child nodes of this group.
     ///

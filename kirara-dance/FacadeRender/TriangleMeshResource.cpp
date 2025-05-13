@@ -1,7 +1,7 @@
 #include "TriangleMeshResource.h"
 
 namespace krd {
-void TriangleMeshResource::upload(TriangleMesh *triMesh, SlangGraphicsContext *context) {
+void TriangleMeshResource::uploadTriMesh(TriangleMesh *triMesh, SlangGraphicsContext *context) {
     deviceData = std::make_shared<DeviceData>();
 
     // Transpose the vertex buffer into GPU-accepted mode

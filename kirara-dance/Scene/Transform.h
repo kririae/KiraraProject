@@ -11,6 +11,7 @@ class Transform : public NodeMixin<Transform, Node> {
 public:
     [[nodiscard]] static Ref<Transform> create() { return {new Transform}; }
 
+public:
     ///
     void setTranslation(float3 const &translation) { this->translation = translation; }
     ///
@@ -32,7 +33,6 @@ public:
     ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
         return ranges::views::single(children);
     }
-
     ranges::any_view<Ref<Node>> traverse(ConstVisitor &visitor) const override {
         return ranges::views::single(children);
     }
