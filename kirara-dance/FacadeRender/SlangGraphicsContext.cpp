@@ -3,8 +3,8 @@
 #include "Core/ProgramBuilder.h"
 #include "Core/ShaderCursor.h"
 #include "Core/SlangUtils.h"
-#include "FacadeRender/Visitors/ExtractDbgSkeleton.h"
-#include "FacadeRender/Visitors/IssueDrawCommand.h"
+#include "FacadeRender/Visitors/EXTDebugSkeleton.h"
+#include "FacadeRender/Visitors/EXTDrawCommand.h"
 #include "Scene/Camera.h"
 #include "Scene/SceneRoot.h"
 #include "TriangleMeshResource.h"
@@ -148,8 +148,8 @@ void SlangGraphicsContext::renderFrame(SceneRoot *sceneRoot, Camera *camera) {
 
 #if 1
     [&] {
-        ExtractDbgSkeleton::Desc desc{.startingDepth = 2};
-        ExtractDbgSkeleton eDbgSkeleton(desc);
+        EXTDebugSkeleton::Desc desc{.startingDepth = 2};
+        EXTDebugSkeleton eDbgSkeleton(desc);
         sceneRoot->accept(eDbgSkeleton);
 
         if (eDbgSkeleton.empty())
@@ -203,7 +203,7 @@ void SlangGraphicsContext::renderFrame(SceneRoot *sceneRoot, Camera *camera) {
         ///
         /// Issue the draw command for the geometry.
         ///
-        IssueDrawCommand iDrawCmd{
+        EXTDrawCommand iDrawCmd{
             [&](TriangleMeshResource const *triMeshResource, float4x4 modelMatrix) -> void {
             // Implement the callback
             auto const deviceData = triMeshResource->getDeviceData();

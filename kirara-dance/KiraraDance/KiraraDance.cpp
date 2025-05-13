@@ -1,12 +1,12 @@
 #include "Core/Window.h"
 #include "FacadeRender/SlangGraphicsContext.h"
-#include "FacadeRender/Visitors/PopulateResource.h"
+#include "FacadeRender/Visitors/ISTTriangleMeshResource.h"
 #include "Scene/Camera.h"
 #include "Scene/SceneBuilder.h"
 #include "Scene/SceneRoot.h"
+#include "Scene/Visitors/EXTTreeInfo.h"
 #include "Scene/Visitors/TickAnimations.h"
 #include "Scene/Visitors/TreeChecker.h"
-#include "Scene/Visitors/TreeInfo.h"
 
 namespace {
 class SelectAnimation : public krd::Visitor {
@@ -51,7 +51,7 @@ int main() try {
         );
 
     // (2)
-    PopulateResource pResource(SGC.get());
+    ISTTriangleMeshResource pResource(SGC.get());
     sceneRoot->accept(pResource);
 
     auto const camera = Camera::create();
@@ -61,7 +61,7 @@ int main() try {
     sceneRoot->getAuxGroup()->addChild(camera);
 
     // (3)
-    TreeInfo tInfo;
+    EXTTreeInfo tInfo;
     sceneRoot->accept(tInfo);
 
     //

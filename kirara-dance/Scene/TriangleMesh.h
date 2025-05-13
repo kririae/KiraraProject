@@ -3,6 +3,7 @@
 #include <Eigen/Core>
 #include <range/v3/view/single.hpp>
 
+#include "Core/Math.h"
 #include "Core/Object.h"
 #include "SceneGraph/Group.h"
 #include "SceneGraph/Node.h"
@@ -30,6 +31,11 @@ public:
     ///
     void loadFromAssimp(aiMesh const *inMesh, std::string_view name);
     ///
+    void loadFromAssimp(
+        aiMesh const *inMesh, std::string_view name,
+        std::unordered_map<std::string, uint64_t> const &transIdMap
+    );
+    ///
     void loadFromFile(std::filesystem::path const &path);
 
 public:
@@ -40,6 +46,8 @@ public:
 
     /// Returns true if the mesh has normals.
     [[nodiscard]] bool hasNormals() const { return N.size() != 0; }
+    /// Returns true if the mesh has weights.
+    [[nodiscard]] bool hasWeights() const { return W.size() != 0; }
 
     ///
     [[nodiscard]] auto const &getVertices() const { return V; }
@@ -53,24 +61,10 @@ public:
     [[nodiscard]] auto const &getFaces() const { return F; }
     ///
     [[nodiscard]] auto &getFaces() { return F; }
-
-#if 0
-    /// \brief Get the local transformation of the mesh.
     ///
-    /// If the \c TriangleMesh is attached to a \c SceneNode, it will return the transformation of
-    /// the node. Otherwise, it will return the identity transformation.
-    [[nodiscard]] Transform getLocalTransform() const;
-
-    /// \brief Get the global transformation of the mesh.
+    [[nodiscard]] auto const &getWeights() const { return W; }
     ///
-    /// If the \c TriangleMesh is attached to a \c SceneNode, it will return the transformation of
-    /// the node. Otherwise, it will return the identity transformation.
-    ///
-    /// \see Transform::getGlobalTransformMatrix
-    [[nodiscard]] float4x4 getGlobalTransformMatrix() const;
-#endif
-
-    /// \brief Get the global transformation of the mesh
+    [[nodiscard]] auto &getWeights() { return W; }
 
     /// \brief Calculates the normals of the mesh.
     ///
@@ -78,6 +72,10 @@ public:
     /// normals and recalculate. It is guaranteed that after calling this function, \c hasNormals()
     /// returns true.
     void calculateNormal(NormalWeightingType weighting = NormalWeightingType::ByAngle);
+
+    /// \brief Adapt the skinned mesh to the root transform.
+    Ref<TriangleMesh>
+    adaptLinearBlendSkinning(Ref<Transform> const &root, float4x4 const &offset) const;
 
 public:
     ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
@@ -96,11 +94,30 @@ public:
     void addChild(Ref<Node> child) { children->addChild(std::move(child)); }
 
 private:
+    /// A string representing the name of the mesh.
     std::string name;
 
     Eigen::MatrixXf V, N;
     Eigen::MatrixX<uint32_t> F;
 
+    //
+    //
+    /// \brief A VxB matrix, where V is the number of vertices and B is the number of bones.
+    ///
+    /// Each row is a vertex, and each column is a weight in the bone.
+    /// Each row sums up to 1 or 0.
+    ///
+    /// This matrix might be empty if the mesh is not skinned.
+    Eigen::MatrixXf W;
+
+    /// A vector of size B
+    kira::SmallVector<float4x4> inverseBindMatrices;
+
+    // TODO(krr): we might change this to other representation.
+    /// A vector of size B
+    kira::SmallVector<uint64_t> nodeIds;
+
+    //
     Ref<Group> children{Group::create()};
 };
 } // namespace krd

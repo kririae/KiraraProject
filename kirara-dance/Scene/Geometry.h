@@ -11,19 +11,21 @@ namespace krd {
 class Geometry : public NodeMixin<Geometry, Transform> {
 public:
     [[nodiscard]] static Ref<Geometry> create() { return {new Geometry}; }
-    ~Geometry() override = default;
 
+public:
     /// \brief Link a mesh's lifetime to this geometry.
     ///
     /// \remark Only one mesh can be linked to a geometry for now.
     /// \remark traverse() will not be linked to the mesh.
     void linkMesh(Ref<TriangleMesh> mesh) { this->mesh = std::move(mesh); }
-
     /// Get the mesh linked to this geometry.
     Ref<TriangleMesh> getMesh() const { return mesh; }
 
 private:
     // NOTE(krr): no traversable reference is established to this mesh instance.
     Ref<TriangleMesh> mesh;
+
+    //
+    Ref<TriangleMesh> dbgSkinMesh;
 };
 } // namespace krd

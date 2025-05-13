@@ -31,6 +31,14 @@ enum class TraversalMode : uint8_t {
     DistanceCulling,
 };
 
+///
+/// Visitor types:
+/// IST: insert new nodes
+/// EXT: extract information
+/// IPS: inplace modification
+/// special types
+///
+
 /// \brief A visitor for the scene graph.
 ///
 /// When you inherit the Visitor class, you can override the \c apply methods or add new virtual

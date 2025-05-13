@@ -8,14 +8,13 @@
 #include "kira/SmallVector.h"
 
 namespace krd {
-class TreeInfo final : public ConstVisitor {
+class EXTTreeInfo final : public ConstVisitor {
 public:
-    /// Create a new TreeInfo visitor.
+    /// Create a new EXTTreeInfo visitor.
     ///
-    /// \remark TreeInfo can be created on stack or heap.
-    TreeInfo() = default;
-    [[nodiscard]] static Ref<TreeInfo> create() { return {new TreeInfo}; }
-    ~TreeInfo() override = default;
+    /// \remark EXTTreeInfo can be created on stack or heap.
+    EXTTreeInfo() = default;
+    [[nodiscard]] static Ref<EXTTreeInfo> create() { return {new EXTTreeInfo}; }
 
 public:
     /// Clear the internal state.
