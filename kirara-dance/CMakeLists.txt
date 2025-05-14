@@ -97,6 +97,13 @@ CPMAddPackage(
     GITHUB_REPOSITORY ericniebler/range-v3
     GIT_TAG 0.12.0)
 
+# Include the oneTBB library
+CPMAddPackage(
+    NAME oneTBB
+    GITHUB_REPOSITORY uxlfoundation/oneTBB
+    VERSION 2022.1.0
+    OPTIONS "TBB_TEST OFF")
+
 # ----------------------------------------------------------
 # Executable setup
 # ----------------------------------------------------------
@@ -151,7 +158,8 @@ target_link_libraries(
            kira::kira
            slang::gfx
            slang::slang
-           range-v3::range-v3)
+           range-v3::range-v3
+           TBB::tbb)
 
 # Include towards current directory.
 target_include_directories(kirara-backend PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

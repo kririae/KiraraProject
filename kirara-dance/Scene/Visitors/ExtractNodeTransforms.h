@@ -50,10 +50,6 @@ public:
         for (size_t i = 0; i < desc.nodeIds.size(); ++i) {
             auto nodeId = desc.nodeIds[i];
             auto rootNodeId = desc.rootNodeIds[i];
-            if (nodeId == rootNodeId)
-                throw kira::Anyhow(
-                    "ExtractNodeTransforms: The node ID and root node ID are the same"
-                );
             this->nodeIdMap.emplace(nodeId, rootNodeId);
             this->rootNodeIdSet.insert(rootNodeId);
         }
@@ -82,7 +78,8 @@ public:
         auto const nodeId = val.getId();
         auto cachedTransformMap = transformMap;
 
-        // Don't include the transform of the root node itself
+        // TODO(krr): this is quite subtle, I current assume that the transform of the root node is
+        // not taken into consideration
         if (rootNodeIdSet.contains(nodeId) && !transformMap.contains(nodeId))
             transformMap.emplace(nodeId, linalg::identity);
         else
@@ -93,8 +90,16 @@ public:
             auto rootNodeId = it->second;
 
             // Find the accumulated transform towards here.
-            auto transform = transformMap.at(rootNodeId);
-            this->emplace(nodeId, transform);
+            if (auto it2 = transformMap.find(rootNodeId); it2 != transformMap.end()) {
+                auto transform = transformMap.at(rootNodeId);
+                this->emplace(nodeId, transform);
+            } else {
+                throw kira::Anyhow(
+                    "ExtractNodeTransforms: The root node ID {:d} is not found in the transform "
+                    "map, maybe the tree hierarchy is inconsistent",
+                    rootNodeId
+                );
+            }
         }
 
         traverse(val);

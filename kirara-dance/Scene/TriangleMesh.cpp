@@ -3,6 +3,7 @@
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 #include <igl/per_vertex_normals.h>
+#include <tbb/parallel_for.h>
 
 #include <assimp/Importer.hpp>
 
@@ -101,6 +102,11 @@ void TriangleMesh::loadFromAssimp(
                     bone->mArmature->mName.C_Str()
                 );
             rootNodeIds[i] = it2->second;
+
+            LogTrace(
+                "TriangleMesh: Bone '{:s}' is mapped to node ID {:d} and root node ID {:d}",
+                bone->mName.C_Str(), nodeIds[i], rootNodeIds[i]
+            );
         }
 
         // Load the inverse bind matrices.
@@ -182,21 +188,25 @@ Ref<TriangleMesh> TriangleMesh::adaptLinearBlendSkinning(Ref<Node> const &root) 
         boneTransforms.emplace_back(it->second);
     }
 
-    // I'll not use the libigl version of LBS for debugging purpose now
-    for (int i = 0; i < newMesh->V.rows(); ++i) {
-        auto const eigenVtx = V.row(i);
-        auto vtx = float4{eigenVtx.x(), eigenVtx.y(), eigenVtx.z(), 1.0f};
-        auto res = float3{0.0f, 0.0f, 0.0f};
-        for (int j = 0; j < W.cols(); ++j) {
-            auto inc = mul(boneTransforms[j], mul(inverseBindMatrices[j], vtx));
-            inc.xyz() /= inc.w;
-            res += W(i, j) * inc.xyz();
-        }
+    tbb::parallel_for(
+        tbb::blocked_range<long>(0, newMesh->V.rows()),
+        [&](tbb::blocked_range<long> const &range) {
+        for (auto i = range.begin(); i != range.end(); ++i) {
+            auto const eVtx = V.row(i);
+            auto vtx = float4{eVtx.x(), eVtx.y(), eVtx.z(), 1.0f};
+            auto res = float3{0.0f, 0.0f, 0.0f};
+            for (long j = 0; j < W.cols(); ++j) {
+                auto inc = mul(boneTransforms[j], mul(inverseBindMatrices[j], vtx));
+                inc.xyz() /= inc.w;
+                res += W(i, j) * inc.xyz();
+            }
 
-        newMesh->V(i, 0) = res.x;
-        newMesh->V(i, 1) = res.y;
-        newMesh->V(i, 2) = res.z;
+            newMesh->V(i, 0) = res.x;
+            newMesh->V(i, 1) = res.y;
+            newMesh->V(i, 2) = res.z;
+        }
     }
+    );
 
     newMesh->calculateNormal();
     return newMesh;
