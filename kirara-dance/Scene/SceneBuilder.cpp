@@ -137,6 +137,7 @@ private:
         transform->setScaling(float3{scaling.x, scaling.y, scaling.z});
         transform->setRotation(float4{rotation.x, rotation.y, rotation.z, rotation.w});
         transform->setTranslation(float3{position.x, position.y, position.z});
+        transform->setName(node->mName.C_Str());
 
         for (uint32_t i = 0; i < node->mNumChildren; ++i) {
             auto children = addToSceneGraph(triMap, node->mChildren[i], transMap);
@@ -158,7 +159,8 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
 
     Assimp::Importer importer;
 
-    aiScene const *aiScene = importer.ReadFile(path.string(), aiProcess_Triangulate);
+    aiScene const *aiScene =
+        importer.ReadFile(path.string(), aiProcess_Triangulate | aiProcess_PopulateArmatureData);
     if (!aiScene || !aiScene->mRootNode || aiScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE)
         throw kira::Anyhow(
             "SceneBuilder: Failed to load the scene from '{:s}': {:s}", path.string(),
@@ -256,6 +258,8 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
             "SceneBuilder: Skeletons are not supported yet, skipping {:d} skeletons",
             aiScene->mNumSkeletons
         );
+    } else {
+        LogInfo("SceneBuilder: No skeletons found");
     }
 
     LogTrace("SceneBuilder: Scene is built");

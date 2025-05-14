@@ -12,6 +12,9 @@ public:
     [[nodiscard]] static Ref<Transform> create() { return {new Transform}; }
 
 public:
+    void setName(std::string const &name) { this->name = name; }
+    [[nodiscard]] auto const &getName() const { return name; }
+
     ///
     void setTranslation(float3 const &translation) { this->translation = translation; }
     ///
@@ -31,14 +34,20 @@ public:
     [[nodiscard]] float4x4 getMatrix() const;
 
     ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
-        return ranges::views::single(children);
+        return children->traverse(visitor);
     }
     ranges::any_view<Ref<Node>> traverse(ConstVisitor &visitor) const override {
-        return ranges::views::single(children);
+        return children->traverse(visitor);
     }
 
     /// Add a child node to this transform node.
     void addChild(Ref<Node> child) { children->addChild(std::move(child)); }
+
+    std::string getHumanReadable() const override {
+        if (name.empty())
+            return fmt::format("[{} ({})]", getTypeName(), getId());
+        return fmt::format("[{} ({}): {}]", getTypeName(), getId(), name);
+    }
 
 protected:
 #if 1
@@ -52,6 +61,8 @@ protected:
     Ref<Group> children{Group::create()};
 
 private:
+    std::string name;
+
     // By default, TRS order is used.
     float3 translation{0.0f};
     float4 rotation{0.0f, 0.0f, 0.0f, 1.0f}; // quaternion

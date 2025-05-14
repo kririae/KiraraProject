@@ -71,6 +71,8 @@ private:
         ExtractTypeOf<TriangleMeshResource const> extractor;
         mesh->accept(extractor);
 
+        LogInfo("EXTDrawCommand: The mesh {:d} has {:d} resources.", val.getId(), extractor.size());
+
         if (extractor.size() != 1) {
             LogTrace("EXTDrawCommand: The mesh has no resource or multiple resources.");
             return;
@@ -78,7 +80,7 @@ private:
 
         // Issue the draw command
         auto const &triMeshResource = extractor.front();
-        drawCallback(triMeshResource.get(), float4x4{identity});
+        drawCallback(triMeshResource.get(), modelMatrix);
     }
 };
 } // namespace krd

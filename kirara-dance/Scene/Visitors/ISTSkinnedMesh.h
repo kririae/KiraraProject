@@ -35,7 +35,7 @@ public:
         if (auto mesh = val.getMesh(); root && mesh && mesh->hasWeights()) {
             // Reset the older mesh
             val.getDynamicMesh().reset();
-            val.linkDynamicMesh(mesh->adaptLinearBlendSkinning(root, float4x4{identity}));
+            val.linkDynamicMesh(mesh->adaptLinearBlendSkinning(root));
 
             // TODO(krr): temporary solution for the new mesh to be reachable
             root->getMeshGroup()->addChild(val.getDynamicMesh());

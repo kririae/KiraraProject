@@ -22,7 +22,6 @@ public:
     };
 
     explicit EXTDebugSkeleton(Desc const &desc) : desc(desc) {}
-
     [[nodiscard]] static Ref<EXTDebugSkeleton> create(Desc const &desc) {
         return {new EXTDebugSkeleton(desc)};
     }
