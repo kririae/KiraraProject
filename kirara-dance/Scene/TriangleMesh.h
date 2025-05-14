@@ -74,8 +74,7 @@ public:
     void calculateNormal(NormalWeightingType weighting = NormalWeightingType::ByAngle);
 
     /// \brief Adapt the skinned mesh to the root transform.
-    Ref<TriangleMesh>
-    adaptLinearBlendSkinning(Ref<Transform> const &root, float4x4 const &offset) const;
+    Ref<TriangleMesh> adaptLinearBlendSkinning(Ref<Node> const &root, float4x4 const &offset) const;
 
 public:
     ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {

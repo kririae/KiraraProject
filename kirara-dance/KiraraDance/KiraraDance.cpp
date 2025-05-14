@@ -4,7 +4,8 @@
 #include "Scene/Camera.h"
 #include "Scene/SceneBuilder.h"
 #include "Scene/SceneRoot.h"
-#include "Scene/Visitors/EXTTreeInfo.h"
+#include "Scene/Visitors/EXTTreeHierarchy.h"
+#include "Scene/Visitors/ISTSkinnedMesh.h"
 #include "Scene/Visitors/TickAnimations.h"
 #include "Scene/Visitors/TreeChecker.h"
 
@@ -28,7 +29,7 @@ int main() try {
         Window::create(Window::Desc{.width = 1280, .height = 720, .title = "Kirara Dance"});
 
     SceneBuilder builder;
-    builder.loadFromFile(R"(/home/krr/Downloads/RiggedSimple.glb)");
+    builder.loadFromFile(R"(/home/krr/Downloads/flag.gltf)");
 
     auto const sceneRoot = builder.buildScene();
 
@@ -50,10 +51,6 @@ int main() try {
             "The traversable scene graph is not a valid tree: {}", tChecker.getDiagnostic()
         );
 
-    // (2)
-    ISTTriangleMeshResource pResource(SGC.get());
-    sceneRoot->accept(pResource);
-
     auto const camera = Camera::create();
     camera->setPosition(krd::float3(-0, 1, 6));
     camera->setTarget(krd::float3(0, 0, 0));
@@ -61,7 +58,7 @@ int main() try {
     sceneRoot->getAuxGroup()->addChild(camera);
 
     // (3)
-    EXTTreeInfo tInfo;
+    EXTTreeHierarchy tInfo;
     sceneRoot->accept(tInfo);
 
     //
@@ -75,17 +72,28 @@ int main() try {
     else
         LogWarn("No animation ID found");
 
-#if 0
+#if 1
     window->mainLoop([&](float deltaTime) -> void {
+        bool isNodeUpdated{false};
         if (sAnim.getId()) {
             TickAnimations::Desc desc{.animId = sAnim.getId().value(), .deltaTime = deltaTime};
             TickAnimations tAnim(desc);
             sceneRoot->accept(tAnim);
             if (!tAnim.isMatched())
                 LogWarn("No animation ID is not matched");
+            else
+                isNodeUpdated = true;
+        }
+
+        if (isNodeUpdated) {
+            ISTSkinnedMesh skinned;
+            sceneRoot->accept(skinned);
         }
 
         //
+        ISTTriangleMeshResource pResource(SGC.get());
+        sceneRoot->accept(pResource);
+
         SGC->renderFrame(sceneRoot.get(), camera.get());
     });
 #endif
