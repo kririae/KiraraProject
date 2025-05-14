@@ -10,47 +10,47 @@
 #include "Scene/Visitors/EXTNodeTransforms.h"
 
 namespace krd {
-void TriangleMesh::loadFromAssimp(aiMesh const *mesh, std::string_view name) {
+void TriangleMesh::loadFromAssimp(aiMesh const *inMesh, std::string_view name) {
     // Validate the `inMesh`
-    if (!mesh->HasPositions() || !mesh->HasFaces())
+    if (!inMesh->HasPositions() || !inMesh->HasFaces())
         throw kira::Anyhow(
-            "TriangleMesh: The mesh '{:s}' does not have positions or faces.", mesh->mName.C_Str()
+            "TriangleMesh: The mesh '{:s}' does not have positions or faces.", inMesh->mName.C_Str()
         );
 
     if (name.empty())
-        name = mesh->mName.C_Str();
+        name = inMesh->mName.C_Str();
 
     this->name = name;
 
-    V.resize(mesh->mNumVertices, 3);
-    F.resize(mesh->mNumFaces, 3);
+    V.resize(inMesh->mNumVertices, 3);
+    F.resize(inMesh->mNumFaces, 3);
 
     LogTrace("TriangleMesh: Loading mesh '{:s}'...", name);
-    for (uint32_t i = 0; i < mesh->mNumVertices; ++i)
-        V.row(i) << mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z;
-    LogTrace("TriangleMesh: Loaded {:d} vertices", mesh->mNumVertices);
+    for (uint32_t i = 0; i < inMesh->mNumVertices; ++i)
+        V.row(i) << inMesh->mVertices[i].x, inMesh->mVertices[i].y, inMesh->mVertices[i].z;
+    LogTrace("TriangleMesh: Loaded {:d} vertices", inMesh->mNumVertices);
 
-    for (uint32_t i = 0; i < mesh->mNumFaces; ++i) {
-        aiFace const &face = mesh->mFaces[i];
+    for (uint32_t i = 0; i < inMesh->mNumFaces; ++i) {
+        aiFace const &face = inMesh->mFaces[i];
         if (face.mNumIndices != 3)
             throw kira::Anyhow("TriangleMesh: Only triangle faces are supported in '{:s}'", name);
         F.row(i) << face.mIndices[0], face.mIndices[1], face.mIndices[2];
     }
-    LogTrace("TriangleMesh: Loaded {:d} faces", mesh->mNumFaces);
+    LogTrace("TriangleMesh: Loaded {:d} faces", inMesh->mNumFaces);
 
-    if (mesh->HasNormals()) {
-        N.resize(mesh->mNumVertices, 3);
-        for (uint32_t i = 0; i < mesh->mNumVertices; ++i)
-            N.row(i) << mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z;
-        LogTrace("TriangleMesh: Loaded {:d} normals", mesh->mNumVertices);
+    if (inMesh->HasNormals()) {
+        N.resize(inMesh->mNumVertices, 3);
+        for (uint32_t i = 0; i < inMesh->mNumVertices; ++i)
+            N.row(i) << inMesh->mNormals[i].x, inMesh->mNormals[i].y, inMesh->mNormals[i].z;
+        LogTrace("TriangleMesh: Loaded {:d} normals", inMesh->mNumVertices);
     } else {
         LogTrace("TriangleMesh: No normals found in '{:s}'", name);
         this->calculateNormal();
     }
 
     LogInfo(
-        "TriangleMesh: Loaded '{:s}' with {:d} vertices and {:d} faces", name, mesh->mNumVertices,
-        mesh->mNumFaces
+        "TriangleMesh: Loaded '{:s}' with {:d} vertices and {:d} faces", name, inMesh->mNumVertices,
+        inMesh->mNumFaces
     );
 }
 

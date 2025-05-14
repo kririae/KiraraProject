@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mutex>
 #include <range/v3/view/any_view.hpp>
 
 #include "Core/Object.h"
@@ -87,13 +88,16 @@ public:
         return std::format("[{} ({})]", getTypeName(), getId());
     }
 
+    /// \brief A mutex to protect the whole scene graph.
+    ///
+    /// The Global Scene Lock (GSL) is used to protect the scene graph from concurrent access.
+    std::mutex GSL;
+
 protected:
     /// \brief Global atomic counter to generate unique node IDs.
     static inline std::atomic_uint64_t nodeCount;
     /// \brief The unique identifier for this node instance.
     uint64_t id{0};
-
-    // mutable std::mutex visitorLock;
 
     ///
     // uint64_t key{0};

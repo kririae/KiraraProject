@@ -24,9 +24,6 @@ public:
     ///
     [[nodiscard]] static Ref<TriangleMesh> create() { return {new TriangleMesh}; }
 
-    ///
-    ~TriangleMesh() override = default;
-
 public:
     ///
     void loadFromAssimp(aiMesh const *inMesh, std::string_view name);
