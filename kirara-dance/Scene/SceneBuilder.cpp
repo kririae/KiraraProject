@@ -210,7 +210,7 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
     //
     for (uint32_t animId = 0; animId < aiScene->mNumAnimations; ++animId) {
         auto const *aiAnim = aiScene->mAnimations[animId];
-        auto const anim = Animation::create();
+        auto anim = Animation::create();
 
         if (aiAnim->mName.length == 0)
             LogInfo("SceneBuilder: Loading animation with {:d} channels...", aiAnim->mNumChannels);
@@ -221,15 +221,15 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
             );
 
         for (uint32_t channelId = 0; channelId < aiAnim->mNumChannels; ++channelId) {
-            auto const *channel = aiAnim->mChannels[channelId];
-            auto *node = transMap[channel->mNodeName.C_Str()];
+            auto const *inChannel = aiAnim->mChannels[channelId];
+            auto *node = transMap[inChannel->mNodeName.C_Str()];
 
-            auto tAnim = TransformAnimationChannel::create();
-            tAnim->bindTransform(node);
-            loadFromAnimChannel(tAnim.get(), channel);
+            auto channel = TransformAnimationChannel::create();
+            channel->bindTransform(node);
+            loadFromAnimChannel(channel.get(), inChannel);
 
             // Add the channel into the animation instance.
-            anim->addTransformChannel(std::move(tAnim));
+            anim->addChild(std::move(channel));
         }
 
         if (aiAnim->mNumMeshChannels > 0) {

@@ -69,11 +69,13 @@ public:
     /// supported.
     [[nodiscard]] virtual Ref<Node> clone() const { return nullptr; }
 
+#if 0
     /// \brief Replace a node with another node.
     ///
     /// If the node is not found, this function does nothing.
     /// The function is non-recursive thus does not traverse the children.
     virtual void replace(uint64_t oldId, Ref<Node> const &newNode) {}
+#endif
 
     /// \brief Returns the unique identifier of the node.
     ///

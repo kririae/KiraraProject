@@ -133,7 +133,7 @@ template <typename T> struct AnimationSequence : kira::SmallVector<AnimationKey<
     }
 };
 
-class TransformAnimationChannel final : public NodeMixin<TransformAnimationChannel, Node> {
+class TransformAnimationChannel final : public NodeMixin<TransformAnimationChannel, Group> {
 public:
     using TranslationSeq = AnimationSequence<float3>;
     using RotationSeq = AnimationSequence<float4>;
@@ -207,7 +207,7 @@ private:
     AnimationBehaviour postState{AnimationBehaviour::Default};
 };
 
-class Animation final : public NodeMixin<Animation, Node> {
+class Animation final : public NodeMixin<Animation, Group> {
 protected:
     Animation() = default;
 
@@ -216,20 +216,8 @@ public:
     static Ref<Animation> create() { return {new Animation}; }
 
 public:
-    ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
-        return anims->traverse(visitor);
-    }
-    ranges::any_view<Ref<Node>> traverse(ConstVisitor &visitor) const override {
-        return anims->traverse(visitor);
-    }
-
-public:
     // void resetAnimation();
     void tick(float deltaTime);
-    ///
-    void addTransformChannel(Ref<TransformAnimationChannel> tAnim) {
-        anims->addChild(std::move(tAnim));
-    }
 
 private:
 #if 0
@@ -241,8 +229,5 @@ private:
 
     /// The current time of the animation.
     float curTime{0};
-
-    /// Different animation channels.
-    Ref<Group> anims{Group::create()};
 };
 } // namespace krd
