@@ -24,10 +24,28 @@ void ConstVisitor::apply(Node const &val) { (void)(val); }
 DEFAULT_VISIT_NODE(Group)
 
 DEFAULT_VISIT_NODE(Animation)
-DEFAULT_VISIT_NODE(SceneRoot)
+// DEFAULT_VISIT_NODE(SceneRoot)
 DEFAULT_VISIT_NODE(Transform)
 DEFAULT_VISIT_NODE(Geometry)
 DEFAULT_VISIT_NODE(TriangleMesh)
 DEFAULT_VISIT_NODE(TriangleMeshResource)
 DEFAULT_VISIT_NODE(TransformAnimationChannel)
+
+void Visitor::apply(SceneRoot &val) {
+    {
+        std::lock_guard lock(val.GSL);
+        (void)(lock);
+    }
+
+    apply(static_cast<SceneRoot::Parent &>(val));
+}
+
+void ConstVisitor::apply(SceneRoot const &val) {
+    {
+        std::lock_guard lock(val.GSL);
+        (void)(lock);
+    }
+
+    apply(static_cast<SceneRoot::Parent const &>(val));
+}
 } // namespace krd

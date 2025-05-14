@@ -11,6 +11,8 @@ namespace krd {
 /// This class manages a collection of child nodes and provides functionality
 /// for traversing these children. It serves as a composite node in a
 /// scene graph structure.
+///
+/// Adding child nodes to this group is thread-safe.
 class Group : public NodeMixin<Group, Node> {
 public:
     /// \brief Creates a new Group instance.
@@ -22,15 +24,22 @@ public:
     ///
     /// The child node is moved into the group's collection of children.
     /// \param child A reference-counted pointer (Ref) to the Node to be added.
-    void addChild(Ref<Node> child) { children.push_back(std::move(child)); }
+    void addChild(Ref<Node> child) {
+        std::lock_guard lock(GSL);
+        children.push_back(std::move(child));
+    }
 
     /// \brief Gets a reference to the vector of child nodes.
     /// \return A reference to the internal storage of child nodes.
-    [[nodiscard]] ranges::any_view<Ref<Node>> getChildren() { return ranges::views::all(children); }
+    [[nodiscard]] ranges::any_view<Ref<Node>> getChildren() { 
+        std::lock_guard lock(GSL);
+        return ranges::views::all(children); 
+    }
 
     /// \brief Gets a constant reference to the vector of child nodes.
     /// \return A constant reference to the internal storage of child nodes.
     [[nodiscard]] ranges::any_view<Ref<Node>> getChildren() const {
+        std::lock_guard lock(GSL);
         return ranges::views::all(children);
     }
 
@@ -39,6 +48,7 @@ public:
     /// \param visitor A reference to a Visitor object.
     /// \return A ranges::any_view over the child nodes.
     ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
+        std::lock_guard lock(GSL);
         return ranges::views::all(children);
     }
 
@@ -47,6 +57,7 @@ public:
     /// \param visitor A reference to a ConstVisitor object.
     /// \return A ranges::any_view over the child nodes.
     ranges::any_view<Ref<Node>> traverse(ConstVisitor &visitor) const override {
+        std::lock_guard lock(GSL);
         return ranges::views::all(children);
     }
 
