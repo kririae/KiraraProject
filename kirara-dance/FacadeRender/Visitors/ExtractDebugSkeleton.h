@@ -10,7 +10,7 @@ struct SkelVertex {
     float position[3];
 };
 
-class EXTDebugSkeleton : public ConstVisitor, public kira::SmallVector<std::pair<float3, float3>> {
+class ExtractDebugSkeleton : public ConstVisitor, public kira::SmallVector<std::pair<float3, float3>> {
 public:
     struct Desc {
         /// \brief The starting depth of the skeleton.
@@ -21,9 +21,9 @@ public:
         uint32_t startingDepth = 0;
     };
 
-    explicit EXTDebugSkeleton(Desc const &desc) : desc(desc) {}
-    [[nodiscard]] static Ref<EXTDebugSkeleton> create(Desc const &desc) {
-        return {new EXTDebugSkeleton(desc)};
+    explicit ExtractDebugSkeleton(Desc const &desc) : desc(desc) {}
+    [[nodiscard]] static Ref<ExtractDebugSkeleton> create(Desc const &desc) {
+        return {new ExtractDebugSkeleton(desc)};
     }
 
 public:

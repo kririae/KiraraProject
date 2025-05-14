@@ -10,7 +10,7 @@
 
 namespace krd {
 /// \brief A visitor to extract the node transforms.
-class EXTNodeTransforms : public ConstVisitor, public std::unordered_map<uint64_t, float4x4> {
+class ExtractNodeTransforms : public ConstVisitor, public std::unordered_map<uint64_t, float4x4> {
 public:
     ///
     struct Desc {
@@ -20,21 +20,21 @@ public:
     };
 
     ///
-    [[nodiscard]] static Ref<EXTNodeTransforms> create(Desc const &desc) {
-        return {new EXTNodeTransforms(desc)};
+    [[nodiscard]] static Ref<ExtractNodeTransforms> create(Desc const &desc) {
+        return {new ExtractNodeTransforms(desc)};
     }
 
-    explicit EXTNodeTransforms(Desc const &desc) {
+    explicit ExtractNodeTransforms(Desc const &desc) {
         // insert desc.nodeIds into the set
         if (desc.nodeIds.size() != desc.rootNodeIds.size())
             throw kira::Anyhow(
-                "EXTNodeTransforms: The node IDs and root node IDs are not the same size"
+                "ExtractNodeTransforms: The node IDs and root node IDs are not the same size"
             );
         for (size_t i = 0; i < desc.nodeIds.size(); ++i) {
             auto nodeId = desc.nodeIds[i];
             auto rootNodeId = desc.rootNodeIds[i];
             if (nodeId == rootNodeId)
-                throw kira::Anyhow("EXTNodeTransforms: The node ID and root node ID are the same");
+                throw kira::Anyhow("ExtractNodeTransforms: The node ID and root node ID are the same");
             this->nodeIdMap.emplace(nodeId, rootNodeId);
             this->rootNodeIdSet.insert(rootNodeId);
         }

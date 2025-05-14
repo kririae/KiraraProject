@@ -121,18 +121,16 @@ private:
         aiQuaterniont<float> rotation;
         node->mTransformation.Decompose(scaling, rotation, position);
 
-        Ref<Transform> transform;
-        if (node->mNumMeshes > 0) {
-            auto geom = Geometry::create();
-            // For the special case where the node has meshes, attach the meshes to the scene node.
-            for (uint32_t i = 0; i < node->mNumMeshes; ++i) {
-                auto const &triMesh = triMap.at(node->mMeshes[i]);
-                geom->linkMesh(triMesh);
-            }
+        auto transform = Transform::create();
 
-            transform = geom;
-        } else
-            transform = Transform::create();
+        // For the special case where the node has meshes, attach the meshes to the scene node.
+        for (uint32_t i = 0; i < node->mNumMeshes; ++i) {
+            auto geom = Geometry::create();
+            auto const &triMesh = triMap.at(node->mMeshes[i]);
+            geom->linkMesh(triMesh);
+
+            transform->addChild(geom);
+        }
 
         transform->setScaling(float3{scaling.x, scaling.y, scaling.z});
         transform->setRotation(float4{rotation.x, rotation.y, rotation.z, rotation.w});

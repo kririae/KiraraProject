@@ -11,7 +11,7 @@
 #include "Scene/Transform.h"
 
 //
-#include "FacadeRender/TriangleMeshResource.h"
+#include "FacadeRender/TriMeshResource.h"
 
 namespace krd {
 void Visitor::apply(Node &val) { (void)(val); }
@@ -28,7 +28,7 @@ DEFAULT_VISIT_NODE(Animation)
 DEFAULT_VISIT_NODE(Transform)
 DEFAULT_VISIT_NODE(Geometry)
 DEFAULT_VISIT_NODE(TriangleMesh)
-DEFAULT_VISIT_NODE(TriangleMeshResource)
+DEFAULT_VISIT_NODE(TriMeshResource)
 DEFAULT_VISIT_NODE(TransformAnimationChannel)
 
 void Visitor::apply(SceneRoot &val) {

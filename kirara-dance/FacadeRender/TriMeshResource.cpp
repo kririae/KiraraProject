@@ -1,7 +1,7 @@
-#include "TriangleMeshResource.h"
+#include "TriMeshResource.h"
 
 namespace krd {
-void TriangleMeshResource::uploadTriMesh(TriangleMesh *triMesh, SlangGraphicsContext *context) {
+void TriMeshResource::uploadTriMesh(TriangleMesh *triMesh, SlangGraphicsContext *context) {
     deviceData = std::make_shared<DeviceData>();
 
     // Transpose the vertex buffer into GPU-accepted mode
@@ -13,7 +13,7 @@ void TriangleMeshResource::uploadTriMesh(TriangleMesh *triMesh, SlangGraphicsCon
     auto const &oFaces = triMesh->getFaces();
 
     LogInfo(
-        "TriangleMeshResource: pulling {:d} vertices, {:d} faces...", oVertices.rows(),
+        "TriMeshResource: pulling {:d} vertices, {:d} faces...", oVertices.rows(),
         oFaces.rows()
     );
 

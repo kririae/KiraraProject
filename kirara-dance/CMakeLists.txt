@@ -112,7 +112,7 @@ add_library(
     #
     #
     FacadeRender/SlangGraphicsContext.cpp
-    FacadeRender/TriangleMeshResource.cpp
+    FacadeRender/TriMeshResource.cpp
     #
     #
     # Instant/InstantCamera.cpp
