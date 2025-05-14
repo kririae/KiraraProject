@@ -2,12 +2,12 @@
 
 #include "Visitors.h"
 
-#if defined(__clang__)
+#if defined(__GNUC__)
 #include <cxxabi.h>
 #endif
 
 namespace krd {
-#if defined(__clang__)
+#if defined(__GNUC__)
 namespace details {
 // from https://stackoverflow.com/questions/12877521/human-readable-type-info-name
 inline std::string demangle(char const *mangled) {
@@ -17,8 +17,8 @@ inline std::string demangle(char const *mangled) {
     );
     return result.get() ? std::string(result.get()) : "error occurred";
 }
-#endif
 } // namespace details
+#endif
 
 /// \brief A mixin class that extends a base node class with visitor pattern functionality.
 ///
@@ -35,7 +35,7 @@ public:
     /// \brief Accepts a visitor and dispatches to the appropriate visit method.
     ///
     /// This method implements the double-dispatch mechanism of the visitor pattern
-    /// by downcasting the current object to its concrete type and passing it to the visitor.
+    /// by down casting the current object to its concrete type and passing it to the visitor.
     ///
     /// \param visitor The visitor object that will process this node.
     void accept(Visitor &visitor) override {
@@ -65,7 +65,7 @@ public:
     /// distinguish between different node types in production code.
     [[nodiscard]] std::string getTypeName() const override {
         (void)(this);
-#if defined(__clang__)
+#if defined(__GNUC__)
         return details::demangle(typeid(Derived).name());
 #else
         return typeid(Derived).name();

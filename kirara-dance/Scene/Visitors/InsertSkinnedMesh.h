@@ -7,7 +7,7 @@
 #include "SceneGraph/Visitors.h"
 
 namespace krd {
-class ISTSkinnedMesh : public Visitor {
+class InsertSkinnedMesh : public Visitor {
 public:
     struct Desc {};
 
@@ -29,9 +29,6 @@ public:
     }
 
     void apply(Geometry &val) override {
-        auto cachedModelMatrix = this->modelMatrix;
-        modelMatrix = mul(modelMatrix, val.getMatrix());
-
         if (auto mesh = val.getMesh(); root && mesh && mesh->hasWeights()) {
             // Reset the older mesh
             val.getDynamicMesh().reset();
@@ -40,9 +37,6 @@ public:
             // TODO(krr): temporary solution for the new mesh to be reachable
             root->getMeshGroup()->addChild(val.getDynamicMesh());
         }
-
-        traverse(val);
-        modelMatrix = cachedModelMatrix;
     }
 
 private:

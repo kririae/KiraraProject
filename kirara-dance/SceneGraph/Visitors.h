@@ -13,7 +13,7 @@ class Transform;
 class TriangleMesh;
 class TransformAnimationChannel;
 
-class TriangleMeshResource;
+class TriMeshResource;
 
 template <typename T>
 concept IsNode = std::derived_from<T, Node> || std::is_same_v<T, Node>;
@@ -72,7 +72,7 @@ public:
     virtual void apply(TransformAnimationChannel &val);
 
     // Immediate render nodes
-    virtual void apply(TriangleMeshResource &val);
+    virtual void apply(TriMeshResource &val);
 
 protected:
     Visitor() = default;
@@ -110,7 +110,7 @@ public:
     virtual void apply(TriangleMesh const &val);
     virtual void apply(TransformAnimationChannel const &val);
 
-    virtual void apply(TriangleMeshResource const &val);
+    virtual void apply(TriMeshResource const &val);
 
 protected:
     ConstVisitor() = default;

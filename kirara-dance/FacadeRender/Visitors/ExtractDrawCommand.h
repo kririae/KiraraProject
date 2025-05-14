@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Core/Math.h"
-#include "FacadeRender/TriangleMeshResource.h"
+#include "FacadeRender/TriMeshResource.h"
 #include "Scene/Geometry.h"
 #include "Scene/SceneRoot.h"
 #include "Scene/Transform.h"
@@ -14,16 +14,16 @@ namespace krd {
 /// This is the major visitor to the immediate render. This traverse the geometry hierarchy and
 /// issues the corresponding draw command. This visitor is designed to be quite robust when the
 /// scene graph is not in a valid state.
-class EXTDrawCommand final : public ConstVisitor {
+class ExtractDrawCommand final : public ConstVisitor {
 public:
-    using CallbackType = std::function<void(TriangleMeshResource const *, float4x4)>;
-    EXTDrawCommand(CallbackType callback) : drawCallback(std::move(callback)) {}
+    using CallbackType = std::function<void(TriMeshResource const *, float4x4)>;
+    ExtractDrawCommand(CallbackType callback) : drawCallback(std::move(callback)) {}
 
-    /// \brief Create a new EXTDrawCommand visitor.
+    /// \brief Create a new ExtractDrawCommand visitor.
     ///
-    /// \remark EXTDrawCommand can be created on stack or heap.
-    [[nodiscard]] static Ref<EXTDrawCommand> create(CallbackType callback) {
-        return {new EXTDrawCommand(std::move(callback))};
+    /// \remark ExtractDrawCommand can be created on stack or heap.
+    [[nodiscard]] static Ref<ExtractDrawCommand> create(CallbackType callback) {
+        return {new ExtractDrawCommand(std::move(callback))};
     }
 
 public:
@@ -48,12 +48,8 @@ public:
     }
 
     void apply(Geometry const &val) override {
-        // In case of the geometry node, we issue the draw command following the transform.
-        auto cachedModelMatrix = modelMatrix;
-        modelMatrix = mul(modelMatrix, val.getMatrix());
+        // When the leaf node is encountered, we issue the draw command.
         issue(val);
-        traverse(val);
-        modelMatrix = cachedModelMatrix;
     }
 
 private:
@@ -66,15 +62,13 @@ private:
         if (!val.getMesh())
             return;
 
-        // Find the \c TriangleMeshResource in the mesh.
+        // Find the \c TriMeshResource in the mesh.
         auto mesh = val.getDynamicMesh() ? val.getDynamicMesh() : val.getMesh();
-        ExtractTypeOf<TriangleMeshResource const> extractor;
+        ExtractTypeOf<TriMeshResource const> extractor;
         mesh->accept(extractor);
 
-        LogInfo("EXTDrawCommand: The mesh {:d} has {:d} resources.", val.getId(), extractor.size());
-
         if (extractor.size() != 1) {
-            LogTrace("EXTDrawCommand: The mesh has no resource or multiple resources.");
+            LogTrace("ExtractDrawCommand: The mesh has no resource or multiple resources.");
             return;
         }
 

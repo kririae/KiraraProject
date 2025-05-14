@@ -8,13 +8,13 @@
 #include "kira/SmallVector.h"
 
 namespace krd {
-class EXTTreeHierarchy final : public ConstVisitor {
+class ExtractTreeHierarchy final : public ConstVisitor {
 public:
-    /// Create a new EXTTreeHierarchy visitor.
+    /// Create a new ExtractTreeHierarchy visitor.
     ///
-    /// \remark EXTTreeHierarchy can be created on stack or heap.
-    EXTTreeHierarchy() = default;
-    [[nodiscard]] static Ref<EXTTreeHierarchy> create() { return {new EXTTreeHierarchy}; }
+    /// \remark ExtractTreeHierarchy can be created on stack or heap.
+    ExtractTreeHierarchy() = default;
+    [[nodiscard]] static Ref<ExtractTreeHierarchy> create() { return {new ExtractTreeHierarchy}; }
 
 public:
     /// Clear the internal state.

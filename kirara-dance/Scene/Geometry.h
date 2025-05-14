@@ -6,9 +6,9 @@
 namespace krd {
 /// \brief A geometry node in the scene graph.
 ///
-/// Geometry is a instance of a mesh. It can be transformed and linked to a mesh.
-/// It can be used to create a hierarchy of meshes in the scene graph.
-class Geometry : public NodeMixin<Geometry, Transform> {
+/// Geometry is an instance of a mesh. It can be linked to a mesh.
+/// It can be used to create a hierarchy of meshes in the scene graph as the leaf node.
+class Geometry final : public NodeMixin<Geometry, Node> {
 public:
     [[nodiscard]] static Ref<Geometry> create() { return {new Geometry}; }
 
@@ -28,8 +28,7 @@ public:
 private:
     // NOTE(krr): no traversable reference is established to this mesh instance.
     Ref<TriangleMesh> mesh;
-
-    //
+    // debug
     Ref<TriangleMesh> dynMesh;
 };
 } // namespace krd

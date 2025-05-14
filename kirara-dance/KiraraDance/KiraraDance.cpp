@@ -1,13 +1,13 @@
 #include "Core/Window.h"
 #include "FacadeRender/SlangGraphicsContext.h"
-#include "FacadeRender/Visitors/ISTTriangleMeshResource.h"
+#include "FacadeRender/Visitors/InsertTriMeshResource.h"
 #include "Scene/Camera.h"
 #include "Scene/SceneBuilder.h"
 #include "Scene/SceneRoot.h"
-#include "Scene/Visitors/EXTTreeHierarchy.h"
-#include "Scene/Visitors/ISTSkinnedMesh.h"
+#include "Scene/Visitors/ExtractTreeHierarchy.h"
+#include "Scene/Visitors/InsertSkinnedMesh.h"
 #include "Scene/Visitors/TickAnimations.h"
-#include "Scene/Visitors/TreeChecker.h"
+#include "Scene/Visitors/ValidateTreeHierarchy.h"
 
 namespace {
 class SelectAnimation : public krd::Visitor {
@@ -29,7 +29,7 @@ int main() try {
         Window::create(Window::Desc{.width = 1280, .height = 720, .title = "Kirara Dance"});
 
     SceneBuilder builder;
-    builder.loadFromFile(R"(/home/krr/Downloads/izuna.glb)");
+    builder.loadFromFile(R"(/home/krr/Downloads/CesiumMan.glb)");
 
     auto const sceneRoot = builder.buildScene();
 
@@ -44,7 +44,7 @@ int main() try {
     );
 
     //
-    TreeChecker tChecker;
+    ValidateTreeHierarchy tChecker;
     sceneRoot->accept(tChecker);
     if (!tChecker.isValidTree())
         throw kira::Anyhow(
@@ -52,13 +52,13 @@ int main() try {
         );
 
     auto const camera = Camera::create();
-    camera->setPosition(krd::float3(-40, 0, 160));
-    camera->setTarget(krd::float3(0, 80, 0));
+    camera->setPosition(krd::float3(-4, 0, 8));
+    camera->setTarget(krd::float3(0, 4, 0));
     camera->setUpDirection(krd::float3(0, 1, 0));
     sceneRoot->getAuxGroup()->addChild(camera);
 
     //
-    EXTTreeHierarchy tInfo;
+    ExtractTreeHierarchy tInfo;
     sceneRoot->accept(tInfo);
 
     //
@@ -73,8 +73,8 @@ int main() try {
         LogWarn("No animation ID found");
 
     window->mainLoop([&](float deltaTime) -> void {
-#if 0
-        bool isNodeUpdated{true};
+#if 1
+        bool isNodeUpdated{false};
         if (sAnim.getId()) {
             TickAnimations::Desc desc{.animId = sAnim.getId().value(), .deltaTime = deltaTime};
             TickAnimations tAnim(desc);
@@ -86,14 +86,14 @@ int main() try {
         }
 #endif
 
-#if 0
+#if 1
         if (isNodeUpdated) {
-            ISTSkinnedMesh skinned;
+            InsertSkinnedMesh skinned;
             sceneRoot->accept(skinned);
         }
 #endif
         //
-        ISTTriangleMeshResource pResource(SGC.get());
+        InsertTriMeshResource pResource(SGC.get());
         sceneRoot->accept(pResource);
 
         SGC->renderFrame(sceneRoot.get(), camera.get());

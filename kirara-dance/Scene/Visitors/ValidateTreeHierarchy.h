@@ -9,16 +9,16 @@
 namespace krd {
 /// \brief Tree Checker is used to check if the traversal graph is indeed a tree from this node.
 ///
-/// The \a TreeChecker is a stateful visitor that keeps track of visited nodes.
-class TreeChecker final : public ConstVisitor {
+/// The \a ValidateTreeHierarchy is a stateful visitor that keeps track of visited nodes.
+class ValidateTreeHierarchy final : public ConstVisitor {
 public:
-    /// Create a new TreeChecker visitor.
+    /// Create a new ValidateTreeHierarchy visitor.
     ///
-    /// \remark TreeChecker can be created on stack or heap.
-    TreeChecker() = default;
-    [[nodiscard]] static Ref<TreeChecker> create() { return {new TreeChecker}; }
+    /// \remark ValidateTreeHierarchy can be created on stack or heap.
+    ValidateTreeHierarchy() = default;
+    [[nodiscard]] static Ref<ValidateTreeHierarchy> create() { return {new ValidateTreeHierarchy}; }
 
-    ~TreeChecker() override = default;
+    ~ValidateTreeHierarchy() override = default;
 
 public:
     /// Check if the graph is a valid tree.

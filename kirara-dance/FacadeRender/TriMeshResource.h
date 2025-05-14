@@ -14,14 +14,14 @@ struct Vertex {
 ///
 ///
 ///
-class TriangleMeshResource final : public NodeMixin<TriangleMeshResource, Node> {
+class TriMeshResource final : public NodeMixin<TriMeshResource, Node> {
 public:
     struct DeviceData {
         ComPtr<gfx::IBufferResource> vertexBuffer;
         ComPtr<gfx::IBufferResource> indexBuffer;
     };
 
-    [[nodiscard]] static Ref<TriangleMeshResource> create() { return {new TriangleMeshResource}; }
+    [[nodiscard]] static Ref<TriMeshResource> create() { return {new TriMeshResource}; }
 
 public:
     /// Upload the mesh data to the GPU and record it into the member.

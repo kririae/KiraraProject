@@ -3,11 +3,11 @@
 #include "Core/ProgramBuilder.h"
 #include "Core/ShaderCursor.h"
 #include "Core/SlangUtils.h"
-#include "FacadeRender/Visitors/EXTDebugSkeleton.h"
-#include "FacadeRender/Visitors/EXTDrawCommand.h"
+#include "FacadeRender/Visitors/ExtractDebugSkeleton.h"
+#include "FacadeRender/Visitors/ExtractDrawCommand.h"
 #include "Scene/Camera.h"
 #include "Scene/SceneRoot.h"
-#include "TriangleMeshResource.h"
+#include "TriMeshResource.h"
 
 namespace krd {
 void SlangGraphicsContextController::onResize(int width, int height) {
@@ -148,8 +148,8 @@ void SlangGraphicsContext::renderFrame(SceneRoot *sceneRoot, Camera *camera) {
 
 #if 1
     [&] {
-        EXTDebugSkeleton::Desc desc{.startingDepth = 2};
-        EXTDebugSkeleton eDbgSkeleton(desc);
+        ExtractDebugSkeleton::Desc desc{.startingDepth = 2};
+        ExtractDebugSkeleton eDbgSkeleton(desc);
         sceneRoot->accept(eDbgSkeleton);
 
         if (eDbgSkeleton.empty())
@@ -203,8 +203,8 @@ void SlangGraphicsContext::renderFrame(SceneRoot *sceneRoot, Camera *camera) {
         ///
         /// Issue the draw command for the geometry.
         ///
-        EXTDrawCommand eDrawCmd{
-            [&](TriangleMeshResource const *triMeshResource, float4x4 modelMatrix) -> void {
+        ExtractDrawCommand eDrawCmd{
+            [&](TriMeshResource const *triMeshResource, float4x4 modelMatrix) -> void {
             // Implement the callback
             auto const deviceData = triMeshResource->getDeviceData();
 
