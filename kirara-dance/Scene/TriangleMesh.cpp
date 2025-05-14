@@ -7,7 +7,7 @@
 #include <assimp/Importer.hpp>
 
 #include "Core/detail/Linalg.h"
-#include "Scene/Visitors/ExtractNodeTransforms.h"
+#include "Scene/Visitors/ExtractRelativeTransforms.h"
 
 namespace krd {
 void TriangleMesh::loadFromAssimp(aiMesh const *inMesh, std::string_view name) {
@@ -162,8 +162,8 @@ void TriangleMesh::calculateNormal(TriangleMesh::NormalWeightingType weighting) 
 
 Ref<TriangleMesh> TriangleMesh::adaptLinearBlendSkinning(Ref<Node> const &root) const {
     // Extract the transforms
-    ExtractNodeTransforms::Desc desc{.rootNodeIds = rootNodeIds, .nodeIds = nodeIds};
-    ExtractNodeTransforms eNodeTrans(desc);
+    ExtractRelativeTransforms::Desc desc{.rootNodeIds = rootNodeIds, .nodeIds = nodeIds};
+    ExtractRelativeTransforms eNodeTrans(desc);
     root->accept(eNodeTrans);
 
     // Create a new mesh with the same vertices and faces

@@ -26,10 +26,10 @@ private:
 int main() try {
     using namespace krd;
     auto const window =
-        Window::create(Window::Desc{.width = 1280, .height = 720, .title = "Kirara Dance"});
+        Window::create(Window::Desc{.width = 720, .height = 1280, .title = "Kirara Dance"});
 
     SceneBuilder builder;
-    builder.loadFromFile(R"(/home/krr/Downloads/CesiumMan.glb)");
+    builder.loadFromFile(R"(/home/krr/Downloads/izuna.glb)");
 
     auto const sceneRoot = builder.buildScene();
 
@@ -52,8 +52,8 @@ int main() try {
         );
 
     auto const camera = Camera::create();
-    camera->setPosition(krd::float3(-4, 0, 8));
-    camera->setTarget(krd::float3(0, 4, 0));
+    camera->setPosition(krd::float3(-60, 60, 120));
+    camera->setTarget(krd::float3(0, 60, 0));
     camera->setUpDirection(krd::float3(0, 1, 0));
     sceneRoot->getAuxGroup()->addChild(camera);
 
@@ -73,7 +73,6 @@ int main() try {
         LogWarn("No animation ID found");
 
     window->mainLoop([&](float deltaTime) -> void {
-#if 1
         bool isNodeUpdated{false};
         if (sAnim.getId()) {
             TickAnimations::Desc desc{.animId = sAnim.getId().value(), .deltaTime = deltaTime};
@@ -84,14 +83,12 @@ int main() try {
             else
                 isNodeUpdated = true;
         }
-#endif
 
-#if 1
         if (isNodeUpdated) {
             InsertSkinnedMesh skinned;
             sceneRoot->accept(skinned);
         }
-#endif
+
         //
         InsertTriMeshResource pResource(SGC.get());
         sceneRoot->accept(pResource);
