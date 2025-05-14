@@ -7,7 +7,7 @@
 #include "SceneGraph/NodeMixin.h"
 
 namespace krd {
-class Transform : public NodeMixin<Transform, Node> {
+class Transform : public NodeMixin<Transform, Group> {
 public:
     [[nodiscard]] static Ref<Transform> create() { return {new Transform}; }
 
@@ -33,16 +33,6 @@ public:
     /// Returns the TRS transformation matrix.
     [[nodiscard]] float4x4 getMatrix() const;
 
-    ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
-        return children->traverse(visitor);
-    }
-    ranges::any_view<Ref<Node>> traverse(ConstVisitor &visitor) const override {
-        return children->traverse(visitor);
-    }
-
-    /// Add a child node to this transform node.
-    void addChild(Ref<Node> child) { children->addChild(std::move(child)); }
-
     std::string getHumanReadable() const override {
         if (name.empty())
             return fmt::format("[{} ({})]", getTypeName(), getId());
@@ -56,9 +46,6 @@ protected:
     Transform(float3 const &translation, float4 const &rotation, float3 const &scaling)
         : translation(translation), rotation(rotation), scaling(scaling) {}
 #endif
-
-    /// The children of this transform.
-    Ref<Group> children{Group::create()};
 
 private:
     std::string name;

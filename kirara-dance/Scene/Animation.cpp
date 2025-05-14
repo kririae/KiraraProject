@@ -27,10 +27,10 @@ void TransformAnimationChannel::sortSeq() {
 
 void Animation::tick(float deltaTime) {
     ExtractTypeOf<TransformAnimationChannel> visitor;
-    anims->accept(visitor);
+    this->accept(visitor);
 
-    for (auto const &tAnim : visitor)
-        tAnim->doAnim(curTime * 1000 /* ms */);
+    for (auto const &channel : visitor)
+        channel->doAnim(curTime * 1000 /* ms */);
     curTime += deltaTime;
 }
 } // namespace krd

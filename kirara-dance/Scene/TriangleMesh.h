@@ -6,14 +6,13 @@
 #include "Core/Math.h"
 #include "Core/Object.h"
 #include "SceneGraph/Group.h"
-#include "SceneGraph/Node.h"
 #include "SceneGraph/NodeMixin.h"
 
 struct aiMesh;
 
 namespace krd {
 /// A triangle mesh in the most general format.
-class TriangleMesh final : public NodeMixin<TriangleMesh, Node> {
+class TriangleMesh final : public NodeMixin<TriangleMesh, Group> {
 public:
     /// \see igl::PerVertexNormalsWeightingType
     enum class NormalWeightingType : uint8_t {
@@ -74,20 +73,10 @@ public:
     Ref<TriangleMesh> adaptLinearBlendSkinning(Ref<Node> const &root) const;
 
 public:
-    ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
-        return children->traverse(visitor);
-    }
-    ranges::any_view<Ref<Node>> traverse(ConstVisitor &visitor) const override {
-        return children->traverse(visitor);
-    }
-
     ///
     std::string getHumanReadable() const override {
         return fmt::format("[{} ({}): '{}']", getTypeName(), getId(), name);
     }
-
-    /// Add a child node to this transform node.
-    void addChild(Ref<Node> child) { children->addChild(std::move(child)); }
 
 private:
     /// A string representing the name of the mesh.
@@ -114,8 +103,5 @@ private:
     kira::SmallVector<uint64_t> nodeIds;
     /// A vector of size B
     kira::SmallVector<uint64_t> rootNodeIds;
-
-    //
-    Ref<Group> children{Group::create()};
 };
 } // namespace krd

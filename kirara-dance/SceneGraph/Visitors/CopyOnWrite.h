@@ -27,7 +27,6 @@ public:
 
 private:
     Desc desc;
-
-    Ref<Node> rootNode{nullptr};
+    Ref<Node> rootNode;
 };
 } // namespace krd
