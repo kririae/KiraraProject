@@ -32,13 +32,6 @@ public:
     void apply(Transform const &val) override {
         auto cachedModelMatrix = this->modelMatrix;
         modelMatrix = mul(modelMatrix, val.getMatrix());
-        traverse(val);
-        modelMatrix = cachedModelMatrix;
-    }
-
-    void apply(Geometry const &val) override {
-        auto cachedModelMatrix = this->modelMatrix;
-        modelMatrix = mul(modelMatrix, val.getMatrix());
         this->emplace(val.getId(), modelMatrix);
         traverse(val);
         modelMatrix = cachedModelMatrix;

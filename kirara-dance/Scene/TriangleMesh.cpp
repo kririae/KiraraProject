@@ -91,10 +91,10 @@ void TriangleMesh::loadFromAssimp(
             auto const *bone = inMesh->mBones[i];
             auto inIBM = bone->mOffsetMatrix;
             inverseBindMatrices[i] = float4x4{
-                float4{inIBM.a1, inIBM.a2, inIBM.a3, inIBM.a4},
-                float4{inIBM.b1, inIBM.b2, inIBM.b3, inIBM.b4},
-                float4{inIBM.c1, inIBM.c2, inIBM.c3, inIBM.c4},
-                float4{inIBM.d1, inIBM.d2, inIBM.d3, inIBM.d4}
+                float4{inIBM.a1, inIBM.b1, inIBM.c1, inIBM.d1},
+                float4{inIBM.a2, inIBM.b2, inIBM.c2, inIBM.d2},
+                float4{inIBM.a3, inIBM.b3, inIBM.c3, inIBM.d3},
+                float4{inIBM.a4, inIBM.b4, inIBM.c4, inIBM.d4},
             };
         }
         LogTrace("TriangleMesh: Loaded {:d} bones", inMesh->mNumBones);
@@ -143,7 +143,7 @@ void TriangleMesh::calculateNormal(TriangleMesh::NormalWeightingType weighting) 
 }
 
 Ref<TriangleMesh>
-TriangleMesh::adaptLinearBlendSkinning(Ref<Transform> const &root, float4x4 const &offset) const {
+TriangleMesh::adaptLinearBlendSkinning(Ref<Node> const &root, float4x4 const &offset) const {
     // Extract the transforms
     EXTNodeTransforms::Desc desc{.offset = offset};
     EXTNodeTransforms eNodeTrans(desc);

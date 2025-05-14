@@ -67,7 +67,7 @@ private:
             return;
 
         // Find the \c TriangleMeshResource in the mesh.
-        auto mesh = val.getMesh();
+        auto mesh = val.getDynamicMesh() ? val.getDynamicMesh() : val.getMesh();
         ExtractTypeOf<TriangleMeshResource const> extractor;
         mesh->accept(extractor);
 
@@ -78,7 +78,7 @@ private:
 
         // Issue the draw command
         auto const &triMeshResource = extractor.front();
-        drawCallback(triMeshResource.get(), modelMatrix);
+        drawCallback(triMeshResource.get(), float4x4{identity});
     }
 };
 } // namespace krd

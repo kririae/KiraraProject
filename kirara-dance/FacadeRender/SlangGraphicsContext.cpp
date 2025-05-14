@@ -185,7 +185,7 @@ void SlangGraphicsContext::renderFrame(SceneRoot *sceneRoot, Camera *camera) {
     }();
 #endif
 
-#if 0
+#if 1
     {
         ///
         /// Create the shader object for the view.
@@ -203,7 +203,7 @@ void SlangGraphicsContext::renderFrame(SceneRoot *sceneRoot, Camera *camera) {
         ///
         /// Issue the draw command for the geometry.
         ///
-        EXTDrawCommand iDrawCmd{
+        EXTDrawCommand eDrawCmd{
             [&](TriangleMeshResource const *triMeshResource, float4x4 modelMatrix) -> void {
             // Implement the callback
             auto const deviceData = triMeshResource->getDeviceData();
@@ -246,7 +246,7 @@ void SlangGraphicsContext::renderFrame(SceneRoot *sceneRoot, Camera *camera) {
             );
         }
         };
-        sceneRoot->accept(iDrawCmd);
+        sceneRoot->accept(eDrawCmd);
     }
 #endif
 

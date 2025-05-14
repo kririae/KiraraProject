@@ -21,11 +21,15 @@ public:
     /// Get the mesh linked to this geometry.
     Ref<TriangleMesh> getMesh() const { return mesh; }
 
+    // debug
+    void linkDynamicMesh(Ref<TriangleMesh> mesh) { this->dynMesh = std::move(mesh); }
+    Ref<TriangleMesh> getDynamicMesh() const { return dynMesh; }
+
 private:
     // NOTE(krr): no traversable reference is established to this mesh instance.
     Ref<TriangleMesh> mesh;
 
     //
-    Ref<TriangleMesh> dbgSkinMesh;
+    Ref<TriangleMesh> dynMesh;
 };
 } // namespace krd
