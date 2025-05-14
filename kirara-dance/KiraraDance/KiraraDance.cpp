@@ -2,6 +2,7 @@
 #include "FacadeRender/SlangGraphicsContext.h"
 #include "FacadeRender/Visitors/InsertTriMeshResource.h"
 #include "Scene/Camera.h"
+#include "Scene/Geometry.h"
 #include "Scene/SceneBuilder.h"
 #include "Scene/SceneRoot.h"
 #include "Scene/Visitors/ExtractTreeHierarchy.h"
@@ -29,23 +30,23 @@ int main() try {
         Window::create(Window::Desc{.width = 720, .height = 1280, .title = "Kirara Dance"});
 
     SceneBuilder builder;
-    builder.loadFromFile(R"(/home/krr/Downloads/BrainStem.glb)");
+    builder.loadFromFile(R"(/home/krr/Downloads/izuna.glb)");
 
     auto const sceneRoot = builder.buildScene();
 
     // Create the graphics context
     auto SGC = SlangGraphicsContext::create(
         SlangGraphicsContext::Desc{
-            .swapchainImageCnt = 2,
+            .swapchainImageCnt = 3,
             .enableVSync = true,
-            .enableGFXFix_07783 = true,
+            .enableGFXFix_07783 = false,
         },
         window
     );
 
     auto const camera = Camera::create();
-    camera->setPosition(krd::float3(-6, 6, 12));
-    camera->setTarget(krd::float3(0, 6, 0));
+    camera->setPosition(krd::float3(-60, 60, 120));
+    camera->setTarget(krd::float3(0, 60, 0));
     camera->setUpDirection(krd::float3(0, 1, 0));
     sceneRoot->getAuxGroup()->addChild(camera);
 
@@ -65,38 +66,36 @@ int main() try {
         LogWarn("No animation ID found");
 
     window->mainLoop([&](float deltaTime) -> void {
-#if 0
+        // This is currently a hack, to discard any modifications to the sceneRoot itself, i.e.,
+        // additional resource attachments.
+        auto transientSceneRoot = sceneRoot->clone();
+        KRD_ASSERT(transientSceneRoot);
+
         bool isNodeUpdated{false};
         if (sAnim.getId()) {
             TickAnimations::Desc desc{.animId = sAnim.getId().value(), .deltaTime = deltaTime};
             TickAnimations tAnim(desc);
-            sceneRoot->accept(tAnim);
+            transientSceneRoot->accept(tAnim);
             if (!tAnim.isMatched())
                 LogWarn("No animation ID is not matched");
             else
                 isNodeUpdated = true;
         }
-#endif
 
-#if 0
-        InsertSkinnedMesh skinned;
-        sceneRoot->accept(skinned);
-#endif
+        InsertSkinnedMesh skinned({});
+        transientSceneRoot->accept(skinned);
 
-#if 1
         InsertTriMeshResource pResource(SGC);
-        sceneRoot->accept(pResource);
-#endif
+        transientSceneRoot->accept(pResource);
 
         //
         ValidateTreeHierarchy tChecker;
-        sceneRoot->accept(tChecker);
+        transientSceneRoot->accept(tChecker);
         if (!tChecker.isValidTree())
             throw kira::Anyhow(
                 "The traversable scene graph is not a valid tree: {}", tChecker.getDiagnostic()
             );
-
-        SGC->renderFrame(sceneRoot.get(), camera.get());
+        SGC->renderFrame(transientSceneRoot, camera);
     });
 
     return 0;

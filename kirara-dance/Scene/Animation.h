@@ -217,11 +217,10 @@ public:
 
 public:
     ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
-        return ranges::views::single(anims);
+        return anims->traverse(visitor);
     }
-
     ranges::any_view<Ref<Node>> traverse(ConstVisitor &visitor) const override {
-        return ranges::views::single(anims);
+        return anims->traverse(visitor);
     }
 
 public:

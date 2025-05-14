@@ -10,7 +10,7 @@ namespace krd {
 ///
 /// This transforms a general tree into a renderable tree, e.g., insert the \c TriMeshResource
 /// under the \c TriangleMesh.
-class InsertTriMeshResource final : public Visitor {
+class InsertTriMeshResource : public Visitor {
 public:
     InsertTriMeshResource(Ref<SlangGraphicsContext> SGC) : SGC(std::move(SGC)) {}
 

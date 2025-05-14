@@ -13,18 +13,13 @@ public:
 
 public:
     ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
-        (void)(visitor);
         return ranges::views::concat(
-            ranges::views::single(meshGroup), ranges::views::single(geomGroup),
-            ranges::views::single(auxGroup)
+            meshGroup->traverse(visitor), geomGroup->traverse(visitor), auxGroup->traverse(visitor)
         );
     }
-
     ranges::any_view<Ref<Node>> traverse(ConstVisitor &visitor) const override {
-        (void)(visitor);
         return ranges::views::concat(
-            ranges::views::single(meshGroup), ranges::views::single(geomGroup),
-            ranges::views::single(auxGroup)
+            meshGroup->traverse(visitor), geomGroup->traverse(visitor), auxGroup->traverse(visitor)
         );
     }
 

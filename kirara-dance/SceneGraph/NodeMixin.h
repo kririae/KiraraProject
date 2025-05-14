@@ -1,5 +1,7 @@
 #pragma once
 
+#include <type_traits>
+
 #include "Visitors.h"
 
 #if defined(__GNUC__)
@@ -51,6 +53,18 @@ public:
     void accept(ConstVisitor &visitor) const override {
         /// Generate the const derived class visitor application
         visitor.apply(static_cast<Derived const &>(*this));
+    }
+
+    /// \brief Generate the clone method for the derived class.
+    ///
+    /// If the derived class is copy constructible, it creates a new instance of the derived class.
+    /// Otherwise, it returns a null reference.
+    [[nodiscard]] Ref<Node> clone() const override {
+        static_assert(std::is_copy_constructible_v<Derived>);
+        if constexpr (std::is_copy_constructible_v<Derived>)
+            return {new Derived(static_cast<Derived const &>(*this))};
+        else
+            return nullptr;
     }
 
 public:
