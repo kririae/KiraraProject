@@ -1,5 +1,7 @@
 #pragma once
 
+#include <type_traits>
+
 #include "Core/Object.h"
 
 namespace krd {
@@ -120,6 +122,18 @@ protected:
         auto children = val.traverse(*this);
         for (auto const &child : children)
             child->accept(*this);
+    }
+};
+
+/// \brief The shortcut to execute the visitor
+///
+/// This is a single-line shortcut to executing the visitor.
+template <typename T> class Executor : public T {
+public:
+    template <typename... Args> Executor(Args &&...args) : T{std::forward<Args>(args)...} {}
+    template <typename N> T &execute(Ref<N> const &val) {
+        val->accept(*this);
+        return *this;
     }
 };
 } // namespace krd

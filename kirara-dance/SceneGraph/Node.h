@@ -61,6 +61,20 @@ public:
         return {};
     }
 
+    /// \brief Clones the node.
+    ///
+    /// The returned node is a shallow copy of the original node.
+    ///
+    /// \remark The node is not cloned recursively, and might return a nullptr if cloned is not
+    /// supported.
+    [[nodiscard]] virtual Ref<Node> clone() const { return nullptr; }
+
+    /// \brief Replace a node with another node.
+    ///
+    /// If the node is not found, this function does nothing.
+    /// The function is non-recursive thus does not traverse the children.
+    virtual void replace(uint64_t oldId, Ref<Node> const &newNode) {}
+
     /// \brief Returns the unique identifier of the node.
     ///
     /// This ID is generated from a global atomic counter, ensuring uniqueness
@@ -92,6 +106,13 @@ public:
     ///
     /// The Global Scene Lock (GSL) is used to protect the scene graph from concurrent access.
     mutable std::mutex GSL;
+
+public:
+    Node(Node const &other) : Object(other), id(nodeCount.fetch_add(1)) {
+        // The GSL member (std::mutex) is not copyable.
+        // It will be default-initialized in the new Node object, meaning 'this->GSL' will be a new,
+        // unlocked mutex.
+    }
 
 protected:
     /// \brief Global atomic counter to generate unique node IDs.

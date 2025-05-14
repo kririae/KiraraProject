@@ -102,7 +102,7 @@ CPMAddPackage(
     NAME oneTBB
     GITHUB_REPOSITORY uxlfoundation/oneTBB
     VERSION 2022.1.0
-    OPTIONS "TBB_TEST OFF")
+    OPTIONS "TBB_TEST OFF" "BUILD_SHARED_LIBS ON")
 
 # ----------------------------------------------------------
 # Executable setup

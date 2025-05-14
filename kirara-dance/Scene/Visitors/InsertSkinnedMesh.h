@@ -11,10 +11,14 @@ class InsertSkinnedMesh : public Visitor {
 public:
     struct Desc {};
 
+    explicit InsertSkinnedMesh(Desc const &desc) : desc(desc) {}
+    [[nodiscard]] static Ref<InsertSkinnedMesh> create(Desc const &desc) {
+        return {new InsertSkinnedMesh(desc)};
+    }
+
 public:
     void apply(SceneRoot &val) override {
-        this->root = &val;
-
+        root = &val;
         auto children = val.getGeomGroup()->getChildren();
         for (auto const &child : children)
             child->accept(*this);
@@ -30,11 +34,12 @@ public:
 
     void apply(Geometry &val) override {
         if (auto mesh = val.getMesh(); root && mesh && mesh->hasWeights()) {
-            // Reset the older mesh
             val.getDynamicMesh().reset();
-            val.linkDynamicMesh(mesh->adaptLinearBlendSkinning(root));
 
-            // TODO(krr): temporary solution for the new mesh to be reachable
+            auto newMesh = mesh->adaptLinearBlendSkinning(root);
+            val.linkDynamicMesh(newMesh);
+
+            // Attach the mesh to the transient resource graph.
             root->getMeshGroup()->addChild(val.getDynamicMesh());
         }
     }

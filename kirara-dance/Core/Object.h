@@ -12,9 +12,11 @@ namespace krd {
 /// This class is not intended for heap allocation.
 template <class Derived> class RefCountedMixin {
     RefCountedMixin() = default;
+    RefCountedMixin(RefCountedMixin const &other) {}
 
 public:
     virtual ~RefCountedMixin() = default;
+    RefCountedMixin &operator=(RefCountedMixin const &other) = delete;
 
     /// Increases the reference count.
     void incRef() const { ++refCount; }

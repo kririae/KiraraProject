@@ -6,7 +6,7 @@
 #include "Core/Window.h"
 
 namespace krd {
-class SceneRoot;
+class Node;
 class Camera;
 class SlangGraphicsContext;
 
@@ -69,7 +69,7 @@ public:
 
 public:
     ///
-    void renderFrame(SceneRoot *sceneRoot, Camera *camera);
+    void renderFrame(Ref<Node> sceneRoot, Ref<Camera> camera);
 
     /// Finalize the graphics context.
     ///

@@ -80,7 +80,7 @@ void SlangGraphicsContext::onResize(int newWidth, int newHeight) {
     LogTrace("SlangGraphicsContext: resized to width={}, height={}", newWidth, newHeight);
 }
 
-void SlangGraphicsContext::renderFrame(SceneRoot *sceneRoot, Camera *camera) {
+void SlangGraphicsContext::renderFrame(Ref<Node> sceneRoot, Ref<Camera> camera) {
     if (enableGFXFix_07783) {
         // Because of the bug in GFX, we need to wait for the fence to be signaled.
         gfx::IFence *fences[] = {gFrameFence.get()};
