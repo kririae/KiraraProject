@@ -29,7 +29,7 @@ int main() try {
         Window::create(Window::Desc{.width = 720, .height = 1280, .title = "Kirara Dance"});
 
     SceneBuilder builder;
-    builder.loadFromFile(R"(/home/krr/Downloads/izuna.glb)");
+    builder.loadFromFile(R"(/home/krr/Downloads/BrainStem.glb)");
 
     auto const sceneRoot = builder.buildScene();
 
@@ -43,17 +43,9 @@ int main() try {
         window
     );
 
-    //
-    ValidateTreeHierarchy tChecker;
-    sceneRoot->accept(tChecker);
-    if (!tChecker.isValidTree())
-        throw kira::Anyhow(
-            "The traversable scene graph is not a valid tree: {}", tChecker.getDiagnostic()
-        );
-
     auto const camera = Camera::create();
-    camera->setPosition(krd::float3(-60, 60, 120));
-    camera->setTarget(krd::float3(0, 60, 0));
+    camera->setPosition(krd::float3(-6, 6, 12));
+    camera->setTarget(krd::float3(0, 6, 0));
     camera->setUpDirection(krd::float3(0, 1, 0));
     sceneRoot->getAuxGroup()->addChild(camera);
 
@@ -73,6 +65,7 @@ int main() try {
         LogWarn("No animation ID found");
 
     window->mainLoop([&](float deltaTime) -> void {
+#if 0
         bool isNodeUpdated{false};
         if (sAnim.getId()) {
             TickAnimations::Desc desc{.animId = sAnim.getId().value(), .deltaTime = deltaTime};
@@ -83,15 +76,25 @@ int main() try {
             else
                 isNodeUpdated = true;
         }
+#endif
 
-        if (isNodeUpdated) {
-            InsertSkinnedMesh skinned;
-            sceneRoot->accept(skinned);
-        }
+#if 0
+        InsertSkinnedMesh skinned;
+        sceneRoot->accept(skinned);
+#endif
+
+#if 1
+        InsertTriMeshResource pResource(SGC);
+        sceneRoot->accept(pResource);
+#endif
 
         //
-        InsertTriMeshResource pResource(SGC.get());
-        sceneRoot->accept(pResource);
+        ValidateTreeHierarchy tChecker;
+        sceneRoot->accept(tChecker);
+        if (!tChecker.isValidTree())
+            throw kira::Anyhow(
+                "The traversable scene graph is not a valid tree: {}", tChecker.getDiagnostic()
+            );
 
         SGC->renderFrame(sceneRoot.get(), camera.get());
     });

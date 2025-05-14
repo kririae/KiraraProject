@@ -1,5 +1,7 @@
 #include "TriMeshResource.h"
 
+#include <tbb/parallel_for.h>
+
 namespace krd {
 void TriMeshResource::uploadTriMesh(TriangleMesh *triMesh, SlangGraphicsContext *context) {
     deviceData = std::make_shared<DeviceData>();
@@ -12,9 +14,9 @@ void TriMeshResource::uploadTriMesh(TriangleMesh *triMesh, SlangGraphicsContext 
     auto const &oNormals = triMesh->getNormals();
     auto const &oFaces = triMesh->getFaces();
 
-    LogInfo(
-        "TriMeshResource: pulling {:d} vertices, {:d} faces...", oVertices.rows(),
-        oFaces.rows()
+    LogTrace(
+        "TriMeshResource: pulling {:d} vertices, {:d} faces from {:s}...", oVertices.rows(),
+        oFaces.rows(), triMesh->getHumanReadable()
     );
 
     KRD_ASSERT(oVertices.rows() == triMesh->getNumVertices());
@@ -23,26 +25,36 @@ void TriMeshResource::uploadTriMesh(TriangleMesh *triMesh, SlangGraphicsContext 
     vertices.resize(triMesh->getNumVertices());
     indices.resize(triMesh->getNumFaces() * 3);
 
-    for (long i = 0; i < triMesh->getNumVertices(); ++i) {
-        auto const &oVertex = oVertices.row(i);
-        auto const &oNormal = oNormals.row(i);
+    tbb::parallel_for(
+        tbb::blocked_range<long>(0, triMesh->getNumVertices()),
+        [&](tbb::blocked_range<long> const &r) {
+        for (long i = r.begin(); i != r.end(); ++i) {
+            auto const &oVertex = oVertices.row(i);
+            auto const &oNormal = oNormals.row(i);
 
-        vertices[i].position[0] = oVertex[0];
-        vertices[i].position[1] = oVertex[1];
-        vertices[i].position[2] = oVertex[2];
+            vertices[i].position[0] = oVertex[0];
+            vertices[i].position[1] = oVertex[1];
+            vertices[i].position[2] = oVertex[2];
 
-        vertices[i].normal[0] = oNormal[0];
-        vertices[i].normal[1] = oNormal[1];
-        vertices[i].normal[2] = oNormal[2];
+            vertices[i].normal[0] = oNormal[0];
+            vertices[i].normal[1] = oNormal[1];
+            vertices[i].normal[2] = oNormal[2];
+        }
     }
+    );
 
-    for (long i = 0; i < triMesh->getNumFaces(); ++i) {
-        auto const &oFace = oFaces.row(i);
+    tbb::parallel_for(
+        tbb::blocked_range<long>(0, triMesh->getNumFaces()),
+        [&](tbb::blocked_range<long> const &r) {
+        for (long i = r.begin(); i != r.end(); ++i) {
+            auto const &oFace = oFaces.row(i);
 
-        indices[i * 3 + 0] = oFace[0];
-        indices[i * 3 + 1] = oFace[1];
-        indices[i * 3 + 2] = oFace[2];
+            indices[i * 3 + 0] = oFace[0];
+            indices[i * 3 + 1] = oFace[1];
+            indices[i * 3 + 2] = oFace[2];
+        }
     }
+    );
 
     //
     numVertices = triMesh->getNumVertices();

@@ -12,10 +12,10 @@ namespace krd {
 /// under the \c TriangleMesh.
 class InsertTriMeshResource final : public Visitor {
 public:
-    InsertTriMeshResource(SlangGraphicsContext *context) : SGC(context) {}
+    InsertTriMeshResource(Ref<SlangGraphicsContext> SGC) : SGC(std::move(SGC)) {}
 
-    [[nodiscard]] static Ref<InsertTriMeshResource> create(SlangGraphicsContext *context) {
-        return {new InsertTriMeshResource(context)};
+    [[nodiscard]] static Ref<InsertTriMeshResource> create(Ref<SlangGraphicsContext> SGC) {
+        return {new InsertTriMeshResource(std::move(SGC))};
     }
 
 public:
@@ -27,12 +27,12 @@ public:
         val.accept(ext);
         if (ext.empty()) {
             auto res = TriMeshResource::create();
-            res->uploadTriMesh(&val, SGC);
+            res->uploadTriMesh(&val, SGC.get());
             val.addChild(res);
         }
     }
 
 private:
-    SlangGraphicsContext *SGC{nullptr};
+    Ref<SlangGraphicsContext> SGC;
 };
 } // namespace krd

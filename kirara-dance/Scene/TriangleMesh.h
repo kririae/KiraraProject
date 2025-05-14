@@ -83,7 +83,7 @@ public:
 
     ///
     std::string getHumanReadable() const override {
-        return fmt::format("[{} ({}): {}]", getTypeName(), getId(), name);
+        return fmt::format("[{} ({}): '{}']", getTypeName(), getId(), name);
     }
 
     /// Add a child node to this transform node.
