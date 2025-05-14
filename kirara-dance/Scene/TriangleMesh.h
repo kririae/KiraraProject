@@ -71,7 +71,7 @@ public:
     void calculateNormal(NormalWeightingType weighting = NormalWeightingType::ByAngle);
 
     /// \brief Adapt the skinned mesh to the root transform.
-    Ref<TriangleMesh> adaptLinearBlendSkinning(Ref<Node> const &root, float4x4 const &offset) const;
+    Ref<TriangleMesh> adaptLinearBlendSkinning(Ref<Node> const &root) const;
 
 public:
     ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
@@ -112,6 +112,8 @@ private:
     // TODO(krr): we might change this to other representation.
     /// A vector of size B
     kira::SmallVector<uint64_t> nodeIds;
+    /// A vector of size B
+    kira::SmallVector<uint64_t> rootNodeIds;
 
     //
     Ref<Group> children{Group::create()};

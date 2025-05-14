@@ -91,7 +91,7 @@ public:
     /// \brief A mutex to protect the whole scene graph.
     ///
     /// The Global Scene Lock (GSL) is used to protect the scene graph from concurrent access.
-    std::mutex GSL;
+    mutable std::mutex GSL;
 
 protected:
     /// \brief Global atomic counter to generate unique node IDs.

@@ -74,8 +74,11 @@ void TriangleMesh::loadFromAssimp(
 
         //
         nodeIds.resize(inMesh->mNumBones);
+        rootNodeIds.resize(inMesh->mNumBones);
         for (uint32_t i = 0; i < inMesh->mNumBones; ++i) {
             auto const *bone = inMesh->mBones[i];
+
+            // (1)
             auto it = transIdMap.find(bone->mName.C_Str());
             if (it == transIdMap.end())
                 throw kira::Anyhow(
@@ -83,6 +86,21 @@ void TriangleMesh::loadFromAssimp(
                     bone->mName.C_Str()
                 );
             nodeIds[i] = it->second;
+
+            // (2)
+            KRD_ASSERT(
+                bone->mArmature,
+                "The bone '{:s}' has no a valid armature, considering turnning on  "
+                "aiProcess_PopulateArmatureData",
+                bone->mName.C_Str()
+            );
+            auto it2 = transIdMap.find(bone->mArmature->mName.C_Str());
+            if (it2 == transIdMap.end())
+                throw kira::Anyhow(
+                    "TriangleMesh: The armature '{:s}' is not found in the transform ID map",
+                    bone->mArmature->mName.C_Str()
+                );
+            rootNodeIds[i] = it2->second;
         }
 
         // Load the inverse bind matrices.
@@ -99,7 +117,7 @@ void TriangleMesh::loadFromAssimp(
         }
         LogTrace("TriangleMesh: Loaded {:d} bones", inMesh->mNumBones);
     } else {
-        LogWarn("TriangleMesh: No bones found in '{:s}'", name);
+        LogWarn("TriangleMesh: No bones found in '{:s}'", this->name);
     }
 }
 
@@ -142,10 +160,9 @@ void TriangleMesh::calculateNormal(TriangleMesh::NormalWeightingType weighting) 
     igl::per_vertex_normals(V, F, iglWeighting, N);
 }
 
-Ref<TriangleMesh>
-TriangleMesh::adaptLinearBlendSkinning(Ref<Node> const &root, float4x4 const &offset) const {
+Ref<TriangleMesh> TriangleMesh::adaptLinearBlendSkinning(Ref<Node> const &root) const {
     // Extract the transforms
-    EXTNodeTransforms::Desc desc{.offset = offset};
+    EXTNodeTransforms::Desc desc{.rootNodeIds = rootNodeIds, .nodeIds = nodeIds};
     EXTNodeTransforms eNodeTrans(desc);
     root->accept(eNodeTrans);
 
@@ -155,6 +172,7 @@ TriangleMesh::adaptLinearBlendSkinning(Ref<Node> const &root, float4x4 const &of
     newMesh->F = F;
 
     kira::SmallVector<float4x4> boneTransforms;
+    boneTransforms.reserve(W.cols());
     for (int j = 0; j < W.cols(); ++j) {
         auto it = eNodeTrans.find(nodeIds[j]);
         if (it == eNodeTrans.end())
@@ -164,21 +182,20 @@ TriangleMesh::adaptLinearBlendSkinning(Ref<Node> const &root, float4x4 const &of
         boneTransforms.emplace_back(it->second);
     }
 
-    // I'll not use the libigl version of LBS for debugging purpose now.
-    // Apply the skinning transformation
+    // I'll not use the libigl version of LBS for debugging purpose now
     for (int i = 0; i < newMesh->V.rows(); ++i) {
         auto const eigenVtx = V.row(i);
-
         auto vtx = float4{eigenVtx.x(), eigenVtx.y(), eigenVtx.z(), 1.0f};
+        auto res = float3{0.0f, 0.0f, 0.0f};
         for (int j = 0; j < W.cols(); ++j) {
             auto inc = mul(boneTransforms[j], mul(inverseBindMatrices[j], vtx));
             inc.xyz() /= inc.w;
-            vtx += W(i, j) * inc;
-
-            newMesh->V(i, 0) = vtx.x;
-            newMesh->V(i, 1) = vtx.y;
-            newMesh->V(i, 2) = vtx.z;
+            res += W(i, j) * inc.xyz();
         }
+
+        newMesh->V(i, 0) = res.x;
+        newMesh->V(i, 1) = res.y;
+        newMesh->V(i, 2) = res.z;
     }
 
     newMesh->calculateNormal();

@@ -24,9 +24,9 @@ private:
     Camera *camera{nullptr};
 
     ///
-    float moveSpeed{1};
+    float moveSpeed{100};
     ///
-    float rotateSpeed{1};
+    float rotateSpeed{40};
 
     ///
     std::set<int> keys;

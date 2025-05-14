@@ -29,7 +29,7 @@ int main() try {
         Window::create(Window::Desc{.width = 1280, .height = 720, .title = "Kirara Dance"});
 
     SceneBuilder builder;
-    builder.loadFromFile(R"(/home/krr/Downloads/flag.gltf)");
+    builder.loadFromFile(R"(/home/krr/Downloads/izuna.glb)");
 
     auto const sceneRoot = builder.buildScene();
 
@@ -43,7 +43,7 @@ int main() try {
         window
     );
 
-    // (1)
+    //
     TreeChecker tChecker;
     sceneRoot->accept(tChecker);
     if (!tChecker.isValidTree())
@@ -52,12 +52,12 @@ int main() try {
         );
 
     auto const camera = Camera::create();
-    camera->setPosition(krd::float3(-0, 1, 6));
-    camera->setTarget(krd::float3(0, 0, 0));
+    camera->setPosition(krd::float3(-40, 0, 160));
+    camera->setTarget(krd::float3(0, 80, 0));
     camera->setUpDirection(krd::float3(0, 1, 0));
     sceneRoot->getAuxGroup()->addChild(camera);
 
-    // (3)
+    //
     EXTTreeHierarchy tInfo;
     sceneRoot->accept(tInfo);
 
@@ -72,9 +72,9 @@ int main() try {
     else
         LogWarn("No animation ID found");
 
-#if 1
     window->mainLoop([&](float deltaTime) -> void {
-        bool isNodeUpdated{false};
+#if 0
+        bool isNodeUpdated{true};
         if (sAnim.getId()) {
             TickAnimations::Desc desc{.animId = sAnim.getId().value(), .deltaTime = deltaTime};
             TickAnimations tAnim(desc);
@@ -84,19 +84,20 @@ int main() try {
             else
                 isNodeUpdated = true;
         }
+#endif
 
+#if 0
         if (isNodeUpdated) {
             ISTSkinnedMesh skinned;
             sceneRoot->accept(skinned);
         }
-
+#endif
         //
         ISTTriangleMeshResource pResource(SGC.get());
         sceneRoot->accept(pResource);
 
         SGC->renderFrame(sceneRoot.get(), camera.get());
     });
-#endif
 
     return 0;
 } catch (std::exception const &e) {
