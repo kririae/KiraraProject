@@ -74,7 +74,7 @@ private:
 
         // Issue the draw command
         auto const &triMeshResource = extractor.front();
-        drawCallback(triMeshResource.get(), modelMatrix);
+        drawCallback(triMeshResource.get(), float4x4{modelMatrix});
     }
 };
 } // namespace krd

@@ -16,9 +16,9 @@ namespace krd {
 /// mapping node IDs to their 4x4 transformation matrices.
 ///
 /// \remark The transformation of the root node itself is not included in the accumulated transform.
-class ExtractNodeTransforms : public ConstVisitor, public std::unordered_map<uint64_t, float4x4> {
+class ExtractRelativeTransforms : public ConstVisitor, public std::unordered_map<uint64_t, float4x4> {
 public:
-    /// \brief Descriptor for configuring the ExtractNodeTransforms visitor.
+    /// \brief Descriptor for configuring the ExtractRelativeTransforms visitor.
     struct Desc {
         /// \brief A list of root node IDs. Each transform chain will start from one of these roots.
         /// The transform of the root node itself is not included in the accumulated transform.
@@ -30,29 +30,29 @@ public:
         kira::SmallVector<uint64_t> nodeIds;
     };
 
-    /// \brief Creates a new ExtractNodeTransforms visitor.
-    [[nodiscard]] static Ref<ExtractNodeTransforms> create(Desc const &desc) {
-        return {new ExtractNodeTransforms(desc)};
+    /// \brief Creates a new ExtractRelativeTransforms visitor.
+    [[nodiscard]] static Ref<ExtractRelativeTransforms> create(Desc const &desc) {
+        return {new ExtractRelativeTransforms(desc)};
     }
 
-    /// \brief Constructs an ExtractNodeTransforms visitor.
+    /// \brief Constructs an ExtractRelativeTransforms visitor.
     ///
     /// \param desc The descriptor containing configuration for the visitor.
     ///
     /// \throws kira::Anyhow if `desc.nodeIds` and `desc.rootNodeIds` have different sizes, or if a
     /// node ID is the same as its corresponding root node ID.
-    explicit ExtractNodeTransforms(Desc const &desc) {
+    explicit ExtractRelativeTransforms(Desc const &desc) {
         // insert desc.nodeIds into the set
         if (desc.nodeIds.size() != desc.rootNodeIds.size())
             throw kira::Anyhow(
-                "ExtractNodeTransforms: The node IDs and root node IDs are not the same size"
+                "ExtractRelativeTransforms: The node IDs and root node IDs are not the same size"
             );
         for (size_t i = 0; i < desc.nodeIds.size(); ++i) {
             auto nodeId = desc.nodeIds[i];
             auto rootNodeId = desc.rootNodeIds[i];
             if (nodeId == rootNodeId)
                 throw kira::Anyhow(
-                    "ExtractNodeTransforms: The node ID and root node ID are the same"
+                    "ExtractRelativeTransforms: The node ID and root node ID are the same"
                 );
             this->nodeIdMap.emplace(nodeId, rootNodeId);
             this->rootNodeIdSet.insert(rootNodeId);
