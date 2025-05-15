@@ -32,6 +32,11 @@ CPMAddPackage(
     OPTIONS "BUILD_DOC OFF" "BUILD_SANDBOX OFF")
 
 CPMAddPackage(
+    NAME zstr
+    GITHUB_REPOSITORY mateidavid/zstr
+    VERSION 1.0.7)
+
+CPMAddPackage(
     NAME glfw
     GITHUB_REPOSITORY glfw/glfw
     GIT_TAG 3.4
@@ -172,7 +177,8 @@ target_link_libraries(
            range-v3::range-v3
            TBB::tbb
            stduuid
-           cereal)
+           cereal
+           zstr::zstr)
 
 # Include towards current directory.
 target_include_directories(kirara-backend PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
