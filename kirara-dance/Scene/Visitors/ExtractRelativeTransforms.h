@@ -17,18 +17,18 @@ namespace krd {
 ///
 /// \remark The transformation of the root node itself is not included in the accumulated transform.
 class ExtractRelativeTransforms : public ConstVisitor,
-                                  public std::unordered_map<uint64_t, float4x4> {
+                                  public std::unordered_map<Node::UUIDType, float4x4> {
 public:
     /// \brief Descriptor for configuring the ExtractRelativeTransforms visitor.
     struct Desc {
         /// \brief A list of root node IDs. Each transform chain will start from one of these roots.
         /// The transform of the root node itself is not included in the accumulated transform.
-        kira::SmallVector<uint64_t> rootNodeIds;
+        kira::SmallVector<Node::UUIDType> rootNodeIds;
 
         /// \brief A list of target node IDs for which to extract transforms.
         /// This list must be the same size as `rootNodeIds`, with each `nodeIds[i]`
         /// corresponding to `rootNodeIds[i]`.
-        kira::SmallVector<uint64_t> nodeIds;
+        kira::SmallVector<Node::UUIDType> nodeIds;
     };
 
     /// \brief Creates a new ExtractRelativeTransforms visitor.
@@ -80,7 +80,7 @@ public:
     /// node is one of the target nodes.
     /// \param val The Transform node to visit.
     void apply(Transform const &val) override {
-        auto const nodeId = val.getId();
+        auto const nodeId = val.getUUID();
         auto cachedTransformMap = transformMap;
 
         // Don't include the transform of the root node itself
@@ -108,12 +108,12 @@ public:
 private:
     /// \brief The map between a root node ID and its current accumulated transform.
     /// This is used during traversal to build up the transform chain.
-    std::unordered_map<uint64_t, float4x4> transformMap;
+    std::unordered_map<Node::UUIDType, float4x4> transformMap;
 
     /// \brief The map between a target node ID and its corresponding root node ID.
-    std::unordered_map<uint64_t, uint64_t> nodeIdMap;
+    std::unordered_map<Node::UUIDType, Node::UUIDType> nodeIdMap;
 
     /// \brief A set of all root node IDs for quick lookup.
-    std::unordered_set<uint64_t> rootNodeIdSet;
+    std::unordered_set<Node::UUIDType> rootNodeIdSet;
 };
 } // namespace krd

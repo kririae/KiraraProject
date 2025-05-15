@@ -104,6 +104,11 @@ CPMAddPackage(
     VERSION 2022.1.0
     OPTIONS "TBB_TEST OFF" "BUILD_SHARED_LIBS ON")
 
+CPMAddPackage(
+    NAME stduuid
+    GITHUB_REPOSITORY mariusbancila/stduuid
+    VERSION 1.2.3)
+
 # ----------------------------------------------------------
 # Executable setup
 # ----------------------------------------------------------
@@ -159,7 +164,8 @@ target_link_libraries(
            slang::gfx
            slang::slang
            range-v3::range-v3
-           TBB::tbb)
+           TBB::tbb
+           stduuid)
 
 # Include towards current directory.
 target_include_directories(kirara-backend PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

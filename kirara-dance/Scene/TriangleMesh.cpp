@@ -57,7 +57,7 @@ void TriangleMesh::loadFromAssimp(aiMesh const *inMesh, std::string_view name) {
 
 void TriangleMesh::loadFromAssimp(
     aiMesh const *inMesh, std::string_view name,
-    std::unordered_map<std::string, uint64_t> const &transIdMap
+    std::unordered_map<std::string, Node::UUIDType> const &transIdMap
 ) {
     loadFromAssimp(inMesh, name);
 
@@ -102,11 +102,6 @@ void TriangleMesh::loadFromAssimp(
                     bone->mArmature->mName.C_Str()
                 );
             rootNodeIds[i] = it2->second;
-
-            LogTrace(
-                "TriangleMesh: Bone '{:s}' is mapped to node ID {:d} and root node ID {:d}",
-                bone->mName.C_Str(), nodeIds[i], rootNodeIds[i]
-            );
         }
 
         // Load the inverse bind matrices.

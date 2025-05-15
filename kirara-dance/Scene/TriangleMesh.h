@@ -29,7 +29,7 @@ public:
     ///
     void loadFromAssimp(
         aiMesh const *inMesh, std::string_view name,
-        std::unordered_map<std::string, uint64_t> const &transIdMap
+        std::unordered_map<std::string, Node::UUIDType> const &transIdMap
     );
     ///
     void loadFromFile(std::filesystem::path const &path);
@@ -102,8 +102,8 @@ private:
 
     // TODO(krr): we might change this to other representation.
     /// A vector of size B
-    kira::SmallVector<uint64_t> nodeIds;
+    kira::SmallVector<Node::UUIDType> nodeIds;
     /// A vector of size B
-    kira::SmallVector<uint64_t> rootNodeIds;
+    kira::SmallVector<Node::UUIDType> rootNodeIds;
 };
 } // namespace krd

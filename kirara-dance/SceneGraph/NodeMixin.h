@@ -31,6 +31,10 @@ inline std::string demangle(char const *mangled) {
 /// \tparam Base The base class this mixin extends.
 template <class Derived, class Base> class NodeMixin : public Base {
 public:
+    static_assert(
+        std::is_base_of_v<Node, Base>, "NodeMixin's Base must be krd::Node or derive from it."
+    );
+
     /// Type alias for the parent class
     using Parent = Base;
 
@@ -73,6 +77,11 @@ public:
     /// distinguish between different node types in production code.
     [[nodiscard]] std::string getTypeName() const override {
         (void)(this);
+        return getStaticTypeName();
+    }
+
+private:
+    [[nodiscard]] static std::string getStaticTypeName() {
 #if defined(__GNUC__)
         return details::demangle(typeid(Derived).name());
 #else

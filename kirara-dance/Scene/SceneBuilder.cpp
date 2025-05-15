@@ -192,10 +192,10 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
 
     auto transMap = std::move(iFromAssimp->getTransformMap());
 
-    std::unordered_map<std::string, uint64_t> transIdMap;
+    std::unordered_map<std::string, Node::UUIDType> transIdMap;
     for (auto &[name, node] : transMap) {
-        auto id = node->getId();
-        transIdMap.emplace(name, id);
+        auto uuid = node->getUUID();
+        transIdMap.emplace(name, uuid);
     }
 
     // A second pass is performed to actually initialize the mesh. Since the mesh initialization

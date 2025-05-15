@@ -1,5 +1,8 @@
 #pragma once
 
+#include <uuid.h>
+
+#include <algorithm>
 #include <mutex>
 #include <range/v3/view/any_view.hpp>
 
@@ -13,6 +16,8 @@ namespace krd {
 /// It supports operations like accepting visitors for traversal and inspection.
 class Node : public Object {
 public:
+    using UUIDType = uuids::uuid;
+
     ~Node() override = default;
 
     /// \brief Accepts a non-const visitor.
@@ -86,6 +91,11 @@ public:
     /// or debugging.
     [[nodiscard]] auto getId() const { return id; }
 
+    /// \brief Returns the unique identifier of the node in the serialization context.
+    ///
+    /// This UUID is generated using a random number generator and is unique to this node instance.
+    [[nodiscard]] auto getUUID() const { return uuid; }
+
     /// \brief Gets the specific type name of the node.
     ///
     /// This is a pure virtual function that must be implemented by derived classes
@@ -119,8 +129,10 @@ public:
 protected:
     /// \brief Global atomic counter to generate unique node IDs.
     static inline std::atomic_uint64_t nodeCount;
-    /// \brief The unique identifier for this node instance.
+    /// \brief The unique identifier for this node instance in the running context.
     uint64_t id{0};
+    /// \brief The unique identifier for this node instance in the serialization context.
+    UUIDType uuid{genRandomUUID()};
 
     ///
     // uint64_t key{0};
@@ -135,5 +147,27 @@ protected:
         // Increment the node count when a new node is created.
         id = nodeCount.fetch_add(1);
     }
+
+    // from https://github.com/mariusbancila/stduuid
+    [[nodiscard]] static UUIDType genRandomUUID() {
+        std::random_device rd;
+        auto seedData = std::array<int, std::mt19937::state_size>{};
+        std::ranges::generate(seedData, std::ref(rd));
+        std::seed_seq seq(std::begin(seedData), std::end(seedData));
+        std::mt19937 generator(seq);
+        uuids::uuid_random_generator gen{generator};
+        return gen();
+    }
 };
 } // namespace krd
+
+namespace fmt {
+template <> struct formatter<uuids::uuid> {
+    template <typename ParseContext> constexpr auto parse(ParseContext &ctx) { return ctx.begin(); }
+
+    template <typename FormatContext>
+    auto format(uuids::uuid const &uuid, FormatContext &ctx) const {
+        return format_to(ctx.out(), "{}", uuids::to_string(uuid));
+    }
+};
+} // namespace fmt
