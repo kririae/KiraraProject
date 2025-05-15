@@ -4,9 +4,10 @@
 #include <set>
 
 #include "Core/Math.h"
+#include "Core/Serialization.h"
 #include "Core/Window.h"
 #include "SceneGraph/Node.h"
-#include "SceneGraph/NodeMixin.h"
+#include "SceneGraph/NodeMixins.h"
 
 namespace krd {
 class Camera;
@@ -32,7 +33,7 @@ private:
     std::set<int> keys;
 };
 
-class Camera final : public NodeMixin<Camera, Node> {
+class Camera final : public SerializableMixin<Camera, Node> {
     Camera() : controller(this) {}
 
 public:
@@ -79,5 +80,12 @@ private:
     float3 position{};
     float3 upDirection{0.0f, 1.0f, 0.0f};
     float3 target{};
+
+public:
+    void archive(auto &ar) {
+        ar(cereal::make_nvp("position", position),       //
+           cereal::make_nvp("upDirection", upDirection), //
+           cereal::make_nvp("target", target));
+    }
 };
 }; // namespace krd

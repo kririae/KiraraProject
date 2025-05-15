@@ -3,7 +3,7 @@
 #include <range/v3/view/any_view.hpp>
 
 #include "Node.h"
-#include "NodeMixin.h"
+#include "NodeMixins.h"
 
 namespace krd {
 /// \brief A group of nodes in the scene graph.

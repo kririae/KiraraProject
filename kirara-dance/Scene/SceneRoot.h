@@ -6,7 +6,7 @@
 #include "Scene/Geometry.h"
 #include "Scene/Transform.h"
 #include "SceneGraph/Group.h"
-#include "SceneGraph/NodeMixin.h"
+#include "SceneGraph/NodeMixins.h"
 #include "SceneGraph/Visitors.h"
 
 namespace krd {

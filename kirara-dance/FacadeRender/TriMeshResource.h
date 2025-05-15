@@ -2,7 +2,7 @@
 
 #include "Scene/TriangleMesh.h"
 #include "SceneGraph/Node.h"
-#include "SceneGraph/NodeMixin.h"
+#include "SceneGraph/NodeMixins.h"
 #include "SlangGraphicsContext.h"
 
 namespace krd {

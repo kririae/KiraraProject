@@ -5,7 +5,7 @@
 #include "Core/KIRA.h"
 #include "Core/Math.h"
 #include "SceneGraph/Group.h"
-#include "SceneGraph/NodeMixin.h"
+#include "SceneGraph/NodeMixins.h"
 
 namespace krd {
 /// Defines how an animation behaves outside the defined time range.

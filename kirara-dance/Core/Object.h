@@ -1,8 +1,11 @@
 #pragma once
 
 #include <atomic>
+#include <cereal/cereal.hpp>
+#include <cereal/types/polymorphic.hpp>
 
 #include "Core/KIRA.h"
+#include "Serialization.h"
 
 namespace krd {
 

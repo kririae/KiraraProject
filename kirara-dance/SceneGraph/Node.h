@@ -10,6 +10,8 @@
 #include "Visitors.h"
 
 namespace krd {
+class ByteStream;
+
 /// \brief Base class for all nodes in the scene graph.
 ///
 /// A Node represents an element within a hierarchical scene structure.
@@ -118,6 +120,10 @@ public:
     ///
     /// The Global Scene Lock (GSL) is used to protect the scene graph from concurrent access.
     mutable std::mutex GSL;
+
+public:
+    virtual void toBytes(std::ostream &) {}
+    virtual void fromBytes(std::istream &) {}
 
 public:
     Node(Node const &other) : Object(other), id(nodeCount.fetch_add(1)) {

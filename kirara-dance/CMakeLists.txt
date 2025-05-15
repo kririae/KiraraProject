@@ -8,6 +8,30 @@ include(KRR_AddTest)
 # Dependency setup
 # ----------------------------------------------------------
 CPMAddPackage(
+    NAME stduuid
+    GITHUB_REPOSITORY mariusbancila/stduuid
+    VERSION 1.2.3)
+
+CPMAddPackage(
+    NAME range-v3
+    GITHUB_REPOSITORY ericniebler/range-v3
+    GIT_TAG 0.12.0)
+
+# Include the oneTBB library
+CPMAddPackage(
+    NAME oneTBB
+    GITHUB_REPOSITORY uxlfoundation/oneTBB
+    VERSION 2022.1.0
+    OPTIONS "TBB_TEST OFF" "BUILD_SHARED_LIBS ON")
+
+# Include the cereal library for serializing the scene graph
+CPMAddPackage(
+    NAME cereal
+    GITHUB_REPOSITORY USCiLab/cereal
+    VERSION 1.3.2
+    OPTIONS "BUILD_DOC OFF" "BUILD_SANDBOX OFF")
+
+CPMAddPackage(
     NAME glfw
     GITHUB_REPOSITORY glfw/glfw
     GIT_TAG 3.4
@@ -16,7 +40,6 @@ CPMAddPackage(
 #
 # Currently assimp don't have good support for OpenUSD. We might load directly from `USDZ` file in the future.
 #
-
 CPMAddPackage(
     NAME assimp
     URL "https://github.com/assimp/assimp/archive/refs/tags/v5.4.3.tar.gz"
@@ -92,23 +115,6 @@ if(slang_ADDED)
     endif()
 endif()
 
-CPMAddPackage(
-    NAME range-v3
-    GITHUB_REPOSITORY ericniebler/range-v3
-    GIT_TAG 0.12.0)
-
-# Include the oneTBB library
-CPMAddPackage(
-    NAME oneTBB
-    GITHUB_REPOSITORY uxlfoundation/oneTBB
-    VERSION 2022.1.0
-    OPTIONS "TBB_TEST OFF" "BUILD_SHARED_LIBS ON")
-
-CPMAddPackage(
-    NAME stduuid
-    GITHUB_REPOSITORY mariusbancila/stduuid
-    VERSION 1.2.3)
-
 # ----------------------------------------------------------
 # Executable setup
 # ----------------------------------------------------------
@@ -165,7 +171,8 @@ target_link_libraries(
            slang::slang
            range-v3::range-v3
            TBB::tbb
-           stduuid)
+           stduuid
+           cereal)
 
 # Include towards current directory.
 target_include_directories(kirara-backend PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

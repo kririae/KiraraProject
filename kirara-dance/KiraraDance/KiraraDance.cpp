@@ -1,3 +1,6 @@
+#include <cereal/archives/json.hpp>
+
+#include "Core/Math.h"
 #include "Core/Window.h"
 #include "FacadeRender/SlangGraphicsContext.h"
 #include "FacadeRender/Visitors/InsertTriMeshResource.h"

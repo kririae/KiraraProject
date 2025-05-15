@@ -4,12 +4,16 @@
 
 #include "Core/Math.h"
 #include "SceneGraph/Group.h"
-#include "SceneGraph/NodeMixin.h"
+#include "SceneGraph/NodeMixins.h"
 
 namespace krd {
-class Transform : public NodeMixin<Transform, Group> {
+class Transform : public SerializableMixin<Transform, Group> {
 public:
     [[nodiscard]] static Ref<Transform> create() { return {new Transform}; }
+
+    constexpr static auto archive(auto &archive, auto &self) {
+        return archive(self.name, self.translation, self.rotation, self.scaling);
+    }
 
 public:
     void setName(std::string const &name) { this->name = name; }
@@ -40,8 +44,8 @@ public:
     }
 
 protected:
-#if 1
     Transform() = default;
+#if 0
     ///
     Transform(float3 const &translation, float4 const &rotation, float3 const &scaling)
         : translation(translation), rotation(rotation), scaling(scaling) {}
@@ -54,5 +58,13 @@ private:
     float3 translation{0.0f};
     float4 rotation{0.0f, 0.0f, 0.0f, 1.0f}; // quaternion
     float3 scaling{1.0f};
+
+public:
+    void archive(auto &ar) {
+        ar(cereal::make_nvp("name", name));
+        ar(cereal::make_nvp("translation", translation));
+        ar(cereal::make_nvp("rotation", rotation));
+        ar(cereal::make_nvp("scaling", scaling));
+    }
 };
 } // namespace krd
