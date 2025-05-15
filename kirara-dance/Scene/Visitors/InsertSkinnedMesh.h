@@ -19,7 +19,7 @@ public:
 public:
     void apply(SceneRoot &val) override {
         root = &val;
-        auto children = val.getGeomGroup()->getChildren();
+        auto children = val.getGeomGroup()->traverse(*this);
         for (auto const &child : children)
             child->accept(*this);
     }

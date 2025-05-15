@@ -10,7 +10,8 @@ struct SkelVertex {
     float position[3];
 };
 
-class ExtractDebugSkeleton : public ConstVisitor, public kira::SmallVector<std::pair<float3, float3>> {
+class ExtractDebugSkeleton : public ConstVisitor,
+                             public kira::SmallVector<std::pair<float3, float3>> {
 public:
     struct Desc {
         /// \brief The starting depth of the skeleton.
@@ -28,9 +29,7 @@ public:
 
 public:
     void apply(SceneRoot const &val) override {
-        auto children = val.getGeomGroup()->getChildren();
-
-        // For all "geometry instances"
+        auto children = val.getGeomGroup()->traverse(*this);
         for (auto const &child : children)
             child->accept(*this);
     }

@@ -3,8 +3,11 @@
 #include <range/v3/view/concat.hpp>
 #include <range/v3/view/single.hpp>
 
+#include "Scene/Geometry.h"
+#include "Scene/Transform.h"
 #include "SceneGraph/Group.h"
 #include "SceneGraph/NodeMixin.h"
+#include "SceneGraph/Visitors.h"
 
 namespace krd {
 class SceneRoot : public NodeMixin<SceneRoot, Node> {
@@ -46,4 +49,33 @@ private:
     /// A flat list of auxiliary groups.
     Ref<Group> auxGroup{Group::create()};
 };
+
+#if 0
+///
+class SceneInserter : public Visitor {
+public:
+    struct Desc {
+        /// \brief The node to be inserted into the scene.
+        Ref<SceneRoot> sceneRoot;
+    };
+
+    explicit SceneInserter(Desc const &desc) : sceneRoot(desc.sceneRoot) {}
+    [[nodiscard]] static Ref<SceneInserter> create(Desc const &desc) {
+        return {new SceneInserter(desc)};
+    }
+
+public:
+    void apply(SceneRoot &val) override {
+        throw kira::Anyhow("SceneInserter: SceneRoot should not be inserted into itself");
+    }
+
+    void apply(TriangleMesh &val) override { sceneRoot->getMeshGroup()->addChild(&val); }
+    void apply(Transform &val) override { sceneRoot->getGeomGroup()->addChild(&val); }
+    void apply(Geometry &val) override { sceneRoot->getGeomGroup()->addChild(&val); }
+    void apply(Node &val) override { sceneRoot->getAuxGroup()->addChild(&val); }
+
+private:
+    Ref<SceneRoot> sceneRoot;
+};
+#endif
 } // namespace krd

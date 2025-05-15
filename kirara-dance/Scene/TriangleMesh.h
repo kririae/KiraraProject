@@ -75,6 +75,8 @@ public:
 public:
     ///
     std::string getHumanReadable() const override {
+        if (name.empty())
+            return fmt::format("[{} ({})]", getTypeName(), getId());
         return fmt::format("[{} ({}): '{}']", getTypeName(), getId(), name);
     }
 

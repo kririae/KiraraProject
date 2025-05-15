@@ -16,7 +16,8 @@ namespace krd {
 /// mapping node IDs to their 4x4 transformation matrices.
 ///
 /// \remark The transformation of the root node itself is not included in the accumulated transform.
-class ExtractRelativeTransforms : public ConstVisitor, public std::unordered_map<uint64_t, float4x4> {
+class ExtractRelativeTransforms : public ConstVisitor,
+                                  public std::unordered_map<uint64_t, float4x4> {
 public:
     /// \brief Descriptor for configuring the ExtractRelativeTransforms visitor.
     struct Desc {
@@ -64,7 +65,7 @@ public:
     /// This initiates the traversal of the scene graph.
     /// \param val The SceneRoot to visit.
     void apply(SceneRoot const &val) override {
-        auto children = val.getGeomGroup()->getChildren();
+        auto children = val.getGeomGroup()->traverse(*this);
         for (auto const &child : children)
             child->accept(*this);
     }
