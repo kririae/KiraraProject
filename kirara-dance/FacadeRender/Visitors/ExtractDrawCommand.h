@@ -29,7 +29,7 @@ public:
 public:
     void apply(SceneRoot const &val) override {
         // Traverse only the geometry group.
-        auto children = val.getGeomGroup()->getChildren();
+        auto children = val.getGeomGroup()->traverse(*this);
         for (auto const &child : children)
             child->accept(*this);
     }

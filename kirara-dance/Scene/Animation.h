@@ -5,7 +5,6 @@
 #include "Core/KIRA.h"
 #include "Core/Math.h"
 #include "SceneGraph/Group.h"
-#include "SceneGraph/Node.h"
 #include "SceneGraph/NodeMixin.h"
 
 namespace krd {
@@ -216,7 +215,6 @@ public:
     static Ref<Animation> create() { return {new Animation}; }
 
 public:
-    // void resetAnimation();
     void tick(float deltaTime);
 
 private:

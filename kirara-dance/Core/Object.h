@@ -156,6 +156,16 @@ public:
             ptr->incRef();
     }
 
+#if 0
+    template <typename T2>
+        requires(std::is_convertible_v<T2 *, T *>)
+    Ref(T2 const *ptr) // NOLINT: allow implicit conversion
+        : ptr(ptr) {
+        if (ptr)
+            ptr->incRef();
+    }
+#endif
+
     template <typename T2>
         requires(std::is_convertible_v<T2 *, T *>)
     Ref(Ref<T2> const &r) // NOLINT: allow implicit conversion

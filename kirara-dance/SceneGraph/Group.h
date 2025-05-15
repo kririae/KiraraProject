@@ -29,6 +29,7 @@ public:
         children.push_back(std::move(child));
     }
 
+#if 0
     /// \brief Gets a reference to the vector of child nodes.
     /// \return A reference to the internal storage of child nodes.
     [[nodiscard]] ranges::any_view<Ref<Node>> getChildren() { 
@@ -42,6 +43,7 @@ public:
         std::lock_guard lock(GSL);
         return ranges::views::all(children);
     }
+#endif
 
     /// \brief Traverses the child nodes of this group.
     ///
