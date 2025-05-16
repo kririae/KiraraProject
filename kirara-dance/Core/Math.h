@@ -3,7 +3,6 @@
 #include <fmt/ostream.h>
 
 #include "Core/detail/Linalg.h"
-#include "Serialization.h"
 
 // NOTE(krr): Use linalg.h for now because it is easier to be modified and is more lightweight.
 // I know it is a bit weird to introduce multiple math libraries in a single project for now, but I
@@ -34,7 +33,6 @@ template <class T, int M> void serialize(auto &ar, ::linalg::vec<T, M> &value) {
 ///
 /// Looked up through ADL
 template <class T, int M, int N> auto serialize(auto &ar, ::linalg::mat<T, M, N> &value) {
-    // Recursively use the vec specialization
     for (int i = 0; i < N; ++i)
         ar(value.row(i));
 }

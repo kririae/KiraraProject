@@ -16,31 +16,21 @@ void SlangGraphicsContextController::onResize(int width, int height) {
 
 SlangGraphicsContext::SlangGraphicsContext(Desc const &desc, Ref<Window> const &window)
     : controller(this) {
-    // TODO(krr): is this robust enough?.. IDK but anyway
-    //
-    // This limits the `InstantScene` to operate only on a single SlangGraphicsContext, while
-    // putting the `SlangGraphicsContext` is a passive place. I cannot get any reference on how to
-    // design this for now, but this really simplifies coding.
-    //
-    // Can we just assume that the `InstantScene` and `SlangGraphicsContext` operates on a single
-    // thread?
-
-    // Take the reference to the window to ensure that, window is destructed after the swapchain.
     this->window = window;
 
-#if 1
+    // TODO(krr): get a virtual filesystem later
     ProgramBuilder programBuilder;
-    std::filesystem::path const shadersPath = R"(FacadeRender/VFMain.slang)";
+    std::filesystem::path shadersPath = KRR_ROOT_DIR "/kirara-dance/FacadeRender/VFMain.slang";
     programBuilder.addSlangModuleFromPath(shadersPath)
         .addEntryPoint("vertexMain")
         .addEntryPoint("fragmentMain");
 
     ProgramBuilder skelProgramBuilder;
-    std::filesystem::path const skelShadersPath = R"(FacadeRender/SKMain.slang)";
+    std::filesystem::path const skelShadersPath =
+        KRR_ROOT_DIR "/kirara-dance/FacadeRender/SKMain.slang";
     skelProgramBuilder.addSlangModuleFromPath(skelShadersPath)
         .addEntryPoint("vertexMain")
         .addEntryPoint("fragmentMain");
-#endif
 
     width = window->getWidth(), height = window->getHeight(); // (0)
     windowHandle = window->getWindowHandle();                 // (0)

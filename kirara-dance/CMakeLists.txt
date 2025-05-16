@@ -180,6 +180,10 @@ target_link_libraries(
            cereal
            zstr::zstr)
 
+# TODO(krr): this is only for fast finding of the shader files, 
+# should not be used in the final build
+target_compile_definitions(kirara-backend PUBLIC KRR_ROOT_DIR="${KRR_ROOT_DIR}")
+
 # Include towards current directory.
 target_include_directories(kirara-backend PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
