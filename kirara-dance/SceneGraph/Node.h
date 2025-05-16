@@ -12,6 +12,98 @@
 namespace krd {
 class ByteStream;
 
+/// \brief Manager class that maintains a mapping between UUIDs and Node instances.
+///
+/// NodeDedupManager implements the singleton pattern and serves as a central registry
+/// for all nodes in the scene graph.
+///
+/// The class ensures thread safety through mutex locking on all operations.
+class NodeDedupManager {
+public:
+    /// \brief RAII wrapper for node registration/deregistration with the NodeDedupManager.
+    ///
+    /// This structure automatically registers a node when constructed and
+    /// deregisters the node when destroyed, ensuring proper cleanup of the
+    /// UUID-to-Node mapping even in case of exceptions.
+    struct NodeRegistra {
+        uuids::uuid const &uuid;
+
+        /// \brief Registers a node with the given UUID in the NodeDedupManager.
+        ///
+        /// \param uuid The UUID to register the node under
+        /// \param node Pointer to the node being registered
+        explicit NodeRegistra(uuids::uuid const &uuid, Node *node) : uuid(uuid) {
+            NodeDedupManager::getInstance().registerNodeByUUID(uuid, node);
+        }
+
+        /// \brief Deregisters the node from the NodeDedupManager upon destruction.
+        ~NodeRegistra() { NodeDedupManager::getInstance().discardNodeByUUID(uuid); }
+    };
+
+public:
+    /// \brief Returns the singleton instance of NodeDedupManager.
+    ///
+    /// This method implements the singleton pattern, ensuring only one instance
+    /// of NodeDedupManager exists throughout the application's lifetime.
+    ///
+    /// \return Reference to the singleton instance
+    [[nodiscard]] static NodeDedupManager &getInstance() {
+        static NodeDedupManager instance;
+        return instance;
+    }
+
+    /// \brief Retrieves a node by its UUID.
+    ///
+    /// Performs a thread-safe lookup of a node using its UUID.
+    ///
+    /// \param uuid The UUID of the node to retrieve
+    /// \return Pointer to the node if found, nullptr otherwise
+    [[nodiscard]] Node *getNodeByUUID(uuids::uuid const &uuid) {
+        std::lock_guard lock(mutex);
+        auto it = uuidMap.find(uuid);
+        if (it != uuidMap.end())
+            return it->second;
+        return nullptr;
+    }
+
+    /// \brief Registers a node with the given UUID in the manager.
+    ///
+    /// If a node with the same UUID already exists, it will be replaced and
+    /// a trace log message will be generated.
+    ///
+    /// \param uuid The UUID to register the node under
+    /// \param node Pointer to the node being registered
+    void registerNodeByUUID(uuids::uuid const &uuid, Node *node) {
+        std::lock_guard lock(mutex);
+        auto it = uuidMap.find(uuid);
+        if (it == uuidMap.end())
+            uuidMap.emplace(uuid, node);
+        else {
+            LogTrace("NodeDedupManager: Replacing node with UUID {}", uuids::to_string(uuid));
+            it->second = node;
+        }
+    }
+
+    /// \brief Removes a node registration for the given UUID.
+    ///
+    /// \param uuid The UUID of the node to deregister
+    /// \return true if the node was found and removed, false otherwise
+    bool discardNodeByUUID(uuids::uuid const &uuid) {
+        std::lock_guard lock(mutex);
+        auto it = uuidMap.find(uuid);
+        if (it != uuidMap.end()) {
+            uuidMap.erase(it);
+            return true;
+        }
+
+        return false;
+    }
+
+private:
+    std::mutex mutex;
+    std::unordered_map<uuids::uuid, Node *> uuidMap;
+};
+
 /// \brief Base class for all nodes in the scene graph.
 ///
 /// A Node represents an element within a hierarchical scene structure.
@@ -20,6 +112,7 @@ class Node : public Object {
 public:
     using UUIDType = uuids::uuid;
 
+    Node &operator=(Node other) = delete;
     ~Node() override = default;
 
     /// \brief Accepts a non-const visitor.
@@ -105,7 +198,7 @@ public:
     ///
     /// \see NodeMixin::getTypeName() for a potential helper mixin.
     /// \return A string representing the node's type.
-    [[nodiscard]] virtual std::string getTypeName() const = 0;
+    [[nodiscard]] virtual std::string getTypeName() const { return "Node"; }
 
     /// \brief Gets a human-readable string representation of the node.
     ///
@@ -122,36 +215,43 @@ public:
     mutable std::mutex GSL;
 
 public:
+#if 0
     virtual void toBytes(std::ostream &) {}
     virtual void fromBytes(std::istream &) {}
+#endif
+    /// Determines if the node can be serialized.
+    virtual bool isSerializable() const { return false; }
 
-public:
-    Node(Node const &other) : Object(other), id(nodeCount.fetch_add(1)) {
-        // The GSL member (std::mutex) is not copyable.
-        // It will be default-initialized in the new Node object, meaning 'this->GSL' will be a new,
-        // unlocked mutex.
-    }
+    /// \brief Returns the type hash of the node.
+    ///
+    /// This method provides a unique hash code for the node type, which can be used
+    /// for type identification and comparison.
+    [[nodiscard]] virtual std::size_t getTypeHash() const { return typeid(Node).hash_code(); }
 
 protected:
     /// \brief Global atomic counter to generate unique node IDs.
     static inline std::atomic_uint64_t nodeCount;
     /// \brief The unique identifier for this node instance in the running context.
-    uint64_t id{0};
+    uint64_t id{nodeCount.fetch_add(1)};
     /// \brief The unique identifier for this node instance in the serialization context.
-    UUIDType uuid{genRandomUUID()};
+    UUIDType const uuid{genRandomUUID()};
+    /// RAII the node registration process.
+    NodeDedupManager::NodeRegistra reg{uuid, this};
 
     ///
     // uint64_t key{0};
     // uint64_t range{0};
 
-    /// \brief Protected default constructor.
-    ///
     /// Nodes are typically not meant to be created directly but rather through derived classes
     /// or factory methods. This constructor initializes the unique `id` for the node
     /// by incrementing the global `nodeCount`.
-    Node() noexcept {
-        // Increment the node count when a new node is created.
-        id = nodeCount.fetch_add(1);
+    Node() = default;
+
+    Node(UUIDType const &uuid) : uuid(uuid), reg(uuid, this) {}
+    Node(Node const &other) : Object(other) {
+        // The GSL member (std::mutex) is not copyable.
+        // It will be default-initialized in the new Node object, meaning 'this->GSL' will be a new,
+        // unlocked mutex.
     }
 
     // from https://github.com/mariusbancila/stduuid

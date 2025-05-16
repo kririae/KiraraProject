@@ -4,10 +4,10 @@
 #include <set>
 
 #include "Core/Math.h"
-#include "Core/Serialization.h"
 #include "Core/Window.h"
 #include "SceneGraph/Node.h"
 #include "SceneGraph/NodeMixins.h"
+#include "SceneGraph/Serialization.h"
 
 namespace krd {
 class Camera;

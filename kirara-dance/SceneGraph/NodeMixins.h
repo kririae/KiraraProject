@@ -8,8 +8,9 @@
 #include <cereal/archives/binary.hpp>
 #include <type_traits>
 
-#include "Core/Serialization.h"
+#include "Serialization.h"
 #include "Visitors.h"
+#include "kira/Compiler.h"
 
 #if defined(__GNUC__)
 #include <cxxabi.h>
@@ -114,6 +115,9 @@ public:
         return typeid(Derived).name();
 #endif
     }
+
+    /// \brief Returns the type hash of the node.
+    [[nodiscard]] std::size_t getTypeHash() const override { return typeid(Derived).hash_code(); }
 };
 
 /// \brief A mixin class that extends `NodeMixin` to add serialization capabilities.
@@ -127,6 +131,9 @@ public:
 ///              that `Derived` would normally inherit from.
 template <class Derived, class Base> class SerializableMixin : public NodeMixin<Derived, Base> {
 public:
+    /// \see Node::isSerializable
+    [[nodiscard]] bool isSerializable() const override { return true; }
+
     /// \brief Serializes the object using the provided archive.
     ///
     /// This method calls the `archive` method of the derived class to serialize its members.
@@ -134,9 +141,9 @@ public:
     /// \param ar The archive object as invoked by the cereal.
     void serialize(auto &ar) {
         KRD_ASSERT(
-            isSerializable, "SerializableMixin: Derived class must implement the archive method."
+            sIsRegistered, "SerializableMixin: Derived class must implement the archive method."
         );
-        if (isSerializable) {
+        if (KIRA_LIKELY(sIsRegistered)) {
             Archive<std::remove_cvref_t<decltype(ar)>> ar2{ar};
             static_cast<Derived &>(*this).archive(ar2);
         }
@@ -150,7 +157,7 @@ public:
     ///
     /// \param os The output stream where the serialized data will be written.
     /// \throw cereal::Exception if serialization fails.
-    void toBytes(std::ostream &os) override {
+    void toBytes(std::ostream &os) {
         cereal::BinaryOutputArchive ar(os);
         ar(static_cast<Derived &>(*this));
     }
@@ -162,7 +169,7 @@ public:
     ///
     /// \param is The input stream from which serialized data will be read.
     /// \throw cereal::Exception if deserialization fails.
-    void fromBytes(std::istream &is) override {
+    void fromBytes(std::istream &is) {
         cereal::BinaryInputArchive ar(is);
         ar(static_cast<Derived &>(*this));
     }
@@ -172,10 +179,10 @@ private:
     ///
     /// This static member is used to register the derived class with the `SerializableFactory`.
     /// The variable is used in \c serialize to ensure that this procedure is actually called.
-    inline static bool isSerializable = [] { // NOLINT
+    inline static bool sIsRegistered = [] { // NOLINT
         auto &factory = SerializableFactory::getInstance();
 
-        auto typeHash = SerializableFactory::getTypeHash<Derived>();
+        auto typeHash = typeid(Derived).hash_code();
         auto creator = []() -> Ref<Node> { return Derived::create().template cast<Node>(); };
         if (factory.registerNodeCreator(typeHash, std::move(creator))) {
             LogTrace(

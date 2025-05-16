@@ -5,7 +5,6 @@
 #include <cereal/types/polymorphic.hpp>
 
 #include "Core/KIRA.h"
-#include "Serialization.h"
 
 namespace krd {
 

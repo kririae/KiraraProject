@@ -13,7 +13,7 @@ namespace krd {
 /// scene graph structure.
 ///
 /// Adding child nodes to this group is thread-safe.
-class Group : public NodeMixin<Group, Node> {
+class Group : public SerializableMixin<Group, Node> {
 public:
     /// \brief Creates a new Group instance.
     /// \return A reference-counted pointer (Ref) to the newly created Group.
@@ -65,5 +65,20 @@ public:
 
 private:
     kira::SmallVector<Ref<Node>> children;
+
+public:
+    void archive(auto &ar) {
+        using ArchiveType = std::remove_cvref_t<decltype(ar)>;
+        if constexpr (ArchiveType::isSave()) {
+            ar(cereal::make_size_tag(children.size()));
+            for (auto &child : children)
+                ar(child);
+        } else {
+            size_t size{0};
+            children.resize(size);
+            for (auto &child : children)
+                ar(child);
+        }
+    }
 };
 } // namespace krd

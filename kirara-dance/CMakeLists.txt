@@ -129,7 +129,6 @@ add_library(
     #
     Core/DeviceUtils.cpp
     Core/ProgramBuilder.cpp
-    Core/Serialization.cpp
     Core/ShaderCursor.cpp
     Core/SlangContext.cpp
     Core/Window.cpp
@@ -165,7 +164,8 @@ add_library(
     #
     #
     SceneGraph/Node.cpp
-    SceneGraph/Visitors.cpp)
+    SceneGraph/Visitors.cpp
+    SceneGraph/Serialization.cpp)
 
 target_link_libraries(
     kirara-backend

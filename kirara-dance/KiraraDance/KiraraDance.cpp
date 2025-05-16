@@ -29,14 +29,15 @@ private:
 
 int main() try {
     using namespace krd;
-    auto const window =
-        Window::create(Window::Desc{.width = 720, .height = 1280, .title = "Kirara Dance"});
+    // auto const window =
+    //     Window::create(Window::Desc{.width = 720, .height = 1280, .title = "Kirara Dance"});
 
     SceneBuilder builder;
     builder.loadFromFile(R"(/home/krr/Downloads/izuna.glb)");
 
     auto const sceneRoot = builder.buildScene();
 
+#if 0
     // Create the graphics context
     auto SGC = SlangGraphicsContext::create(
         SlangGraphicsContext::Desc{
@@ -46,6 +47,7 @@ int main() try {
         },
         window
     );
+#endif
 
     auto const camera = Camera::create();
     camera->setPosition(krd::float3(-60, 60, 120));
@@ -57,9 +59,11 @@ int main() try {
     ExtractTreeHierarchy tInfo;
     sceneRoot->accept(tInfo);
 
-    //
+//
+#if 0
     window->attachController(camera->getController());
     window->attachController(SGC->getController());
+#endif
 
     SelectAnimation sAnim;
     sceneRoot->accept(sAnim);
@@ -68,6 +72,7 @@ int main() try {
     else
         LogWarn("No animation ID found");
 
+#if 0
     window->mainLoop([&](float deltaTime) -> void {
         // This is currently a hack, to discard any modifications to the sceneRoot itself, i.e.,
         // additional resource attachments.
@@ -100,6 +105,7 @@ int main() try {
             );
         SGC->renderFrame(transientSceneRoot, camera);
     });
+#endif
 
     return 0;
 } catch (std::exception const &e) {
