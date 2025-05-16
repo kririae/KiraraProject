@@ -129,6 +129,7 @@ add_library(
     #
     Core/DeviceUtils.cpp
     Core/ProgramBuilder.cpp
+    Core/Serialization.cpp
     Core/ShaderCursor.cpp
     Core/SlangContext.cpp
     Core/Window.cpp

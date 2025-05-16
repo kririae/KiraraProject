@@ -150,13 +150,19 @@ void load(Archive &ar, Eigen::PlainObjectBase<Derived> &m)
     ));
 }
 
-template <class T> void save(auto &ar, kira::SmallVector<T> const &vec) {
+template <class T>
+void save(auto &ar, kira::SmallVector<T> const &vec)
+    requires(traits::is_output_serializable<BinaryData<T>, decltype(ar)>::value)
+{
     ar(cereal::make_size_tag(vec.size()));
     for (auto const &v : vec)
         ar(v);
 }
 
-template <class T> void load(auto &ar, kira::SmallVector<T> &vec) {
+template <class T>
+void load(auto &ar, kira::SmallVector<T> &vec)
+    requires(traits::is_input_serializable<BinaryData<T>, decltype(ar)>::value)
+{
     size_t size{0};
     ar(cereal::make_size_tag(size));
     vec.resize(size);

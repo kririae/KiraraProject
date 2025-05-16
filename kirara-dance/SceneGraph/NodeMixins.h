@@ -102,7 +102,6 @@ public:
         return getStaticTypeName();
     }
 
-private:
     /// \brief Returns the static, potentially mangled, type name of the Derived class.
     ///
     /// This helper function retrieves the type name using `typeid`. On GCC/Clang,
@@ -132,10 +131,15 @@ public:
     ///
     /// This method calls the `archive` method of the derived class to serialize its members.
     ///
-    /// \param ar The archive object.
+    /// \param ar The archive object as invoked by the cereal.
     void serialize(auto &ar) {
-        Archive<std::remove_cvref_t<decltype(ar)>> ar2{ar};
-        static_cast<Derived &>(*this).archive(ar2);
+        KRD_ASSERT(
+            isSerializable, "SerializableMixin: Derived class must implement the archive method."
+        );
+        if (isSerializable) {
+            Archive<std::remove_cvref_t<decltype(ar)>> ar2{ar};
+            static_cast<Derived &>(*this).archive(ar2);
+        }
     }
 
 public:
@@ -162,5 +166,30 @@ public:
         cereal::BinaryInputArchive ar(is);
         ar(static_cast<Derived &>(*this));
     }
+
+private:
+    /// Register the derived class for serialization.
+    ///
+    /// This static member is used to register the derived class with the `SerializableFactory`.
+    /// The variable is used in \c serialize to ensure that this procedure is actually called.
+    inline static bool isSerializable = [] { // NOLINT
+        auto &factory = SerializableFactory::getInstance();
+
+        auto typeHash = SerializableFactory::getTypeHash<Derived>();
+        auto creator = []() -> Ref<Node> { return Derived::create().template cast<Node>(); };
+        if (factory.registerNodeCreator(typeHash, std::move(creator))) {
+            LogTrace(
+                "SerializableMixin: Registered '{:s}' for serialization",
+                Derived::getStaticTypeName()
+            );
+            return true;
+        }
+
+        LogTrace(
+            "SerializableMixin: Failed to register '{:s}' serialization",
+            Derived::getStaticTypeName()
+        );
+        return false;
+    }();
 };
 } // namespace krd

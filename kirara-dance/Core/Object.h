@@ -234,6 +234,13 @@ public:
         return Ref<T2>{dynamic_cast<T2 *>(ptr)};
     }
 
+    /// Cast the \c Ref<T> to \c Ref<T2> using \c static_cast.
+    ///
+    /// \remark New reference count is added.
+    template <typename T2> [[nodiscard]] auto cast() const {
+        return Ref<T2>{static_cast<T2 *>(ptr)};
+    }
+
 #if 0
     /// Decay the \c Ref<T> to \c UniqueRef<T> with runtime check.
     ///

@@ -10,7 +10,7 @@
 #include "SceneGraph/Visitors.h"
 
 namespace krd {
-class SceneRoot : public NodeMixin<SceneRoot, Node> {
+class SceneRoot : public SerializableMixin<SceneRoot, Node> {
 public:
     [[nodiscard]] static Ref<SceneRoot> create() { return {new SceneRoot}; }
 
@@ -48,6 +48,13 @@ private:
 
     /// A flat list of auxiliary groups.
     Ref<Group> auxGroup{Group::create()};
+
+public:
+    void archive(auto &ar) {
+        ar(meshGroup);
+        ar(geomGroup);
+        ar(auxGroup);
+    }
 };
 
 #if 0
