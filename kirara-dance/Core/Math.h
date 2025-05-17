@@ -33,8 +33,8 @@ template <class T, int M> void serialize(auto &ar, ::linalg::vec<T, M> &value) {
 ///
 /// Looked up through ADL
 template <class T, int M, int N> auto serialize(auto &ar, ::linalg::mat<T, M, N> &value) {
-    for (int i = 0; i < N; ++i)
-        ar(value.row(i));
+    for (int i = 0; i < M; ++i)
+        ar(value[i]);
 }
 } // namespace linalg
 

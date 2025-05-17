@@ -6,6 +6,7 @@
 
 //
 #include "Scene/Animation.h"
+#include "Scene/Camera.h"
 #include "Scene/Geometry.h"
 #include "Scene/SceneRoot.h"
 #include "Scene/Transform.h"
@@ -25,6 +26,7 @@ DEFAULT_VISIT_NODE(Group)
 
 DEFAULT_VISIT_NODE(Animation)
 // DEFAULT_VISIT_NODE(SceneRoot)
+DEFAULT_VISIT_NODE(Camera)
 DEFAULT_VISIT_NODE(Transform)
 DEFAULT_VISIT_NODE(Geometry)
 DEFAULT_VISIT_NODE(TriangleMesh)

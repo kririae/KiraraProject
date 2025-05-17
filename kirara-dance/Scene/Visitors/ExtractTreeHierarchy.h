@@ -27,8 +27,7 @@ public:
         else
             LogInfo("{}{}", getPrefix(), t.getHumanReadable());
 
-        auto children = t.traverse(*this) |
-                        ranges::views::filter([](auto const &child) { return child != nullptr; });
+        auto children = t.traverse(*this);
         kira::SmallVector<Ref<Node>> childVec;
         for (auto const &child : children)
             childVec.push_back(child);

@@ -9,11 +9,12 @@ class Node;
 class Group;
 
 class Animation;
+class Camera;
 class Geometry;
 class SceneRoot;
 class Transform;
-class TriangleMesh;
 class TransformAnimationChannel;
+class TriangleMesh;
 
 class TriMeshResource;
 
@@ -67,11 +68,12 @@ public:
 
     // Scene nodes
     virtual void apply(Animation &val);
+    virtual void apply(Camera &val);
+    virtual void apply(Geometry &val);
     virtual void apply(SceneRoot &val);
     virtual void apply(Transform &val);
-    virtual void apply(Geometry &val);
-    virtual void apply(TriangleMesh &val);
     virtual void apply(TransformAnimationChannel &val);
+    virtual void apply(TriangleMesh &val);
 
     // Immediate render nodes
     virtual void apply(TriMeshResource &val);
@@ -106,11 +108,12 @@ public:
 
     // Scene nodes
     virtual void apply(Animation const &val);
+    virtual void apply(Camera const &val);
     virtual void apply(Geometry const &val);
     virtual void apply(SceneRoot const &val);
     virtual void apply(Transform const &val);
-    virtual void apply(TriangleMesh const &val);
     virtual void apply(TransformAnimationChannel const &val);
+    virtual void apply(TriangleMesh const &val);
 
     virtual void apply(TriMeshResource const &val);
 
