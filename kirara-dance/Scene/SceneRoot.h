@@ -3,8 +3,6 @@
 #include <range/v3/view/concat.hpp>
 #include <range/v3/view/single.hpp>
 
-#include "Scene/Geometry.h"
-#include "Scene/Transform.h"
 #include "SceneGraph/Group.h"
 #include "SceneGraph/NodeMixins.h"
 #include "SceneGraph/Visitors.h"

@@ -1,8 +1,21 @@
 #include "Serialization.h"
 
+#include <zstr.hpp>
+
 namespace krd {
+namespace detail {
+void toStringStream(SerializationContext &ctx, std::stringstream &ss, Ref<Node> const &node) {
+    zstr::ostream zss(ss);
+    node->toBytes(ctx, zss);
+}
+
+void fromStringStream(SerializationContext &ctx, std::stringstream &ss, Ref<Node> const &node) {
+    zstr::istream zss(ss);
+    node->fromBytes(ctx, zss);
+}
+} // namespace detail
 bool SerializableFactory::registerNodeCreator(
-    std::size_t typeHash, std::function<Ref<Node>()> creator
+    uint64_t typeHash, std::function<Ref<Node>()> creator
 ) {
     // NOTE(krr): no exception or assertion here. In the context of invoking the
     // registerNodeCreator, the exception handling context might not be fully set up.
@@ -18,7 +31,7 @@ bool SerializableFactory::registerNodeCreator(
     return false;
 }
 
-Ref<Node> SerializableFactory::createNode(std::size_t typeHash, Node::UUIDType const &uuid) {
+Ref<Node> SerializableFactory::createNode(uint64_t typeHash, Node::UUIDType const &uuid) {
     auto it = nodeCreators.find(typeHash);
     if (it != nodeCreators.end()) {
         auto creator = it->second;

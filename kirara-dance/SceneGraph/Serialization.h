@@ -1,8 +1,5 @@
 #pragma once
 
-#include <uuid.h>
-
-#include <cereal/cereal.hpp>
 #include <cereal/types/unordered_map.hpp>
 
 #include "Node.h"
@@ -15,17 +12,17 @@ class Node;
 namespace detail {
 template <typename T> struct IsRef : std::false_type {};
 template <typename T> struct IsRef<Ref<T>> : std::true_type {};
+
+void toStringStream(SerializationContext &ctx, std::stringstream &ss, Ref<Node> const &node);
+void fromStringStream(SerializationContext &ctx, std::stringstream &ss, Ref<Node> const &node);
 } // namespace detail
 
-class SerializableFactory {
-public:
-    using HashType = std::size_t;
+class SerializableFactory : public SingletonMixin<SerializableFactory> {
+    SerializableFactory() = default;
 
-    /// Create a static instance of the SerializableFactory.
-    [[nodiscard]] static SerializableFactory &getInstance() {
-        static SerializableFactory instance;
-        return instance;
-    }
+public:
+    friend class SingletonMixin<SerializableFactory>;
+    using HashType = uint64_t;
 
 public:
     /// \brief Registers a node creator function with the given type hash.
@@ -40,9 +37,6 @@ public:
     ///
     /// \return A reference to the created node, non-null if successful.
     Ref<Node> createNode(HashType typeHash, Node::UUIDType const &uuid);
-
-    ///
-    [[nodiscard]] size_t getNumRegisteredNodes() const { return nodeCreators.size(); }
 
 private:
     std::unordered_map<HashType, std::function<Ref<Node>()>> nodeCreators;
@@ -86,13 +80,13 @@ public:
     template <class Type> Archive &operator()(Ref<Type> &arg) {
         if constexpr (isSave()) {
             if (!arg) {
-                LogWarn("Archive: Ref<arg> is empty, not serialized");
+                LogTrace("Archive: Ref<T> is empty, not serialized");
                 ar(false);
                 return *this;
             }
 
             if (!arg->isSerializable()) {
-                LogWarn("Archive: Node '{}' is not serializable", arg->getHumanReadable());
+                LogTrace("Archive: Node '{}' is not serializable", arg->getHumanReadable());
                 ar(false);
                 return *this;
             }
@@ -106,14 +100,14 @@ public:
             // register the node into the context
             if (auto it = ctx.find(uuid); it == ctx.end()) {
                 std::stringstream ss;
-                arg->toBytes(ctx, ss);
-                ctx.emplace(uuid, std::move(std::move(ss).str()));
+                detail::toStringStream(ctx, ss, arg);
+                ctx.emplace(uuid, std::move(ss).str());
             }
         } else {
             bool isSerialized{false};
             ar(isSerialized);
             if (!isSerialized) {
-                LogWarn("Archive: Node is not successfully serialized, cancel loading");
+                LogTrace("Archive: Node [unknown] is not serialized, cancel loading");
                 return *this;
             }
 
@@ -126,6 +120,9 @@ public:
 
             if (auto *rawNode = NodeDedupManager::getInstance().getNodeByUUID(uuid); rawNode) {
                 // ar(..) write to empty
+                LogTrace(
+                    "Archive: Node '{}' is already in the context", rawNode->getHumanReadable()
+                );
                 arg = Ref<Node>{rawNode}.dyn_cast<Type>();
             } else {
                 auto newNode = SerializableFactory::getInstance().createNode(typeHash, uuid);
@@ -139,8 +136,8 @@ public:
 
                 if (auto it = ctx.find(uuid); it != ctx.end()) {
                     std::stringstream ss{std::move(it->second)};
-                    newNode->fromBytes(ctx, ss);
-
+                    detail::fromStringStream(ctx, ss, newNode);
+                    ctx.erase(it);
                 } else {
                     LogWarn(
                         "Archive: Failed to find node with UUID {} and type hash {} "

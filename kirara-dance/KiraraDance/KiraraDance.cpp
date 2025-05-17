@@ -31,7 +31,7 @@ int main() try {
     //     Window::create(Window::Desc{.width = 720, .height = 1280, .title = "Kirara Dance"});
 
     SceneBuilder builder;
-    builder.loadFromFile(R"(/home/krr/Downloads/RiggedSimple.glb)");
+    builder.loadFromFile(R"(/home/krr/Downloads/izuna.glb)");
 
     auto const sceneRoot = builder.buildScene();
 

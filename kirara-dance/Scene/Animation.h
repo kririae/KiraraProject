@@ -34,7 +34,7 @@ template <typename T> struct AnimationKey {
     void serialize(auto &ar) {
         ar(cereal::make_nvp("time", time));
         ar(cereal::make_nvp("value", value));
-        ar(cereal::make_nvp("interp", static_cast<uint8_t>(interp)));
+        ar(cereal::make_nvp("interp", interp));
     }
 };
 

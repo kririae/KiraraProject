@@ -7,14 +7,14 @@ int main() {
     std::ifstream fs("scene.krd");
     SerializationContext ctx;
 
-    std::string ss;
+    std::string str;
     cereal::BinaryInputArchive ar(fs);
     ar(ctx);
-    ar(ss);
+    ar(str);
 
-    std::stringstream ss2(std::move(ss));
+    std::stringstream ss(std::move(str));
     auto sceneRoot = SceneRoot::create();
-    sceneRoot->fromBytes(ctx, ss2);
+    sceneRoot->fromBytes(ctx, ss);
 
     ExtractTreeHierarchy tInfo;
     sceneRoot->accept(tInfo);

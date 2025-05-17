@@ -7,6 +7,7 @@
 #include <range/v3/view/any_view.hpp>
 
 #include "Core/Object.h"
+#include "Core/SingletonMixin.h"
 #include "Visitors.h"
 
 namespace krd {
@@ -19,8 +20,13 @@ class SerializableFactory;
 /// for all nodes in the scene graph.
 ///
 /// The class ensures thread safety through mutex locking on all operations.
-class NodeDedupManager {
+class NodeDedupManager : public SingletonMixin<NodeDedupManager> {
+    NodeDedupManager() = default;
+
 public:
+    friend class SingletonMixin<NodeDedupManager>;
+    friend class SerializableFactory;
+
     /// \brief RAII wrapper for node registration/deregistration with the NodeDedupManager.
     ///
     /// This structure automatically registers a node when constructed and
@@ -47,17 +53,6 @@ public:
     };
 
 public:
-    /// \brief Returns the singleton instance of NodeDedupManager.
-    ///
-    /// This method implements the singleton pattern, ensuring only one instance
-    /// of NodeDedupManager exists throughout the application's lifetime.
-    ///
-    /// \return Reference to the singleton instance
-    [[nodiscard]] static NodeDedupManager &getInstance() {
-        static NodeDedupManager instance;
-        return instance;
-    }
-
     /// \brief Retrieves a node by its UUID.
     ///
     /// Performs a thread-safe lookup of a node using its UUID.
