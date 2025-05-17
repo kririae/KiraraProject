@@ -192,6 +192,9 @@ target_include_directories(kirara-backend PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 add_executable(kirara-dance #
                KiraraDance/Backward.cpp KiraraDance/Editor.cpp KiraraDance/KiraraDance.cpp)
 target_link_libraries(kirara-dance PRIVATE kirara-backend Backward::Interface)
+add_executable(kirara-dance2 #
+               KiraraDance/Backward.cpp KiraraDance/Editor.cpp KiraraDance/KiraraDance2.cpp)
+target_link_libraries(kirara-dance2 PRIVATE kirara-backend Backward::Interface)
 
 # ----------------------------------------------------------
 # Additionally, copy auxiliary files to the output directory

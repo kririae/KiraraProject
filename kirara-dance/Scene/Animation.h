@@ -30,6 +30,12 @@ template <typename T> struct AnimationKey {
 
     /// Compare two keys by time.
     [[nodiscard]] bool operator<(AnimationKey const &other) const { return time < other.time; }
+
+    void serialize(auto &ar) {
+        ar(cereal::make_nvp("time", time));
+        ar(cereal::make_nvp("value", value));
+        ar(cereal::make_nvp("interp", static_cast<uint8_t>(interp)));
+    }
 };
 
 template <typename T> struct AnimationSequence : kira::SmallVector<AnimationKey<T>> {
@@ -132,7 +138,8 @@ template <typename T> struct AnimationSequence : kira::SmallVector<AnimationKey<
     }
 };
 
-class TransformAnimationChannel final : public NodeMixin<TransformAnimationChannel, Group> {
+class TransformAnimationChannel final
+    : public SerializableMixin<TransformAnimationChannel, Group, "krd::TransformAnimationChannel"> {
 public:
     using TranslationSeq = AnimationSequence<float3>;
     using RotationSeq = AnimationSequence<float4>;
@@ -204,9 +211,19 @@ private:
     AnimationBehaviour preState{AnimationBehaviour::Default};
     /// How the animation behaves after the last key.
     AnimationBehaviour postState{AnimationBehaviour::Default};
+
+public:
+    void archive(auto &ar) {
+        ar(transform);
+        ar(cereal::make_nvp("translationSeq", translationSeq));
+        ar(cereal::make_nvp("rotationSeq", rotationSeq));
+        ar(cereal::make_nvp("scalingSeq", scalingSeq));
+        ar(cereal::make_nvp("preState", preState));
+        ar(cereal::make_nvp("postState", postState));
+    }
 };
 
-class Animation final : public NodeMixin<Animation, Group> {
+class Animation final : public SerializableMixin<Animation, Group, "krd::Animation"> {
 protected:
     Animation() = default;
 
@@ -227,5 +244,8 @@ private:
 
     /// The current time of the animation.
     float curTime{0};
+
+public:
+    void archive(auto &ar) { ar(cereal::make_nvp("curTime", curTime)); }
 };
 } // namespace krd

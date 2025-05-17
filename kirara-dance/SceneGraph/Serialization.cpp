@@ -17,4 +17,16 @@ bool SerializableFactory::registerNodeCreator(
 
     return false;
 }
+
+Ref<Node> SerializableFactory::createNode(std::size_t typeHash, Node::UUIDType const &uuid) {
+    auto it = nodeCreators.find(typeHash);
+    if (it != nodeCreators.end()) {
+        auto creator = it->second;
+        auto node = creator();
+        node->updateUUID(uuid);
+        return node;
+    }
+
+    return nullptr;
+}
 } // namespace krd

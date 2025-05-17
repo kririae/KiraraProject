@@ -13,19 +13,16 @@ namespace krd {
 /// scene graph structure.
 ///
 /// Adding child nodes to this group is thread-safe.
-class Group : public SerializableMixin<Group, Node> {
+class Group : public SerializableMixin<Group, Node, "krd::Group"> {
 public:
-    /// \brief Creates a new Group instance.
-    /// \return A reference-counted pointer (Ref) to the newly created Group.
     [[nodiscard]] static Ref<Group> create() { return {new Group}; }
 
-public:
     /// \brief Adds a child node to this group.
     ///
     /// The child node is moved into the group's collection of children.
     /// \param child A reference-counted pointer (Ref) to the Node to be added.
     void addChild(Ref<Node> child) {
-        std::lock_guard lock(GSL);
+        std::lock_guard lock(GNL);
         children.push_back(std::move(child));
     }
 
@@ -50,7 +47,7 @@ public:
     /// \param visitor A reference to a Visitor object.
     /// \return A ranges::any_view over the child nodes.
     ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
-        std::lock_guard lock(GSL);
+        std::lock_guard lock(GNL);
         return ranges::views::all(children);
     }
 
@@ -59,7 +56,7 @@ public:
     /// \param visitor A reference to a ConstVisitor object.
     /// \return A ranges::any_view over the child nodes.
     ranges::any_view<Ref<Node>> traverse(ConstVisitor &visitor) const override {
-        std::lock_guard lock(GSL);
+        std::lock_guard lock(GNL);
         return ranges::views::all(children);
     }
 
@@ -75,6 +72,7 @@ public:
                 ar(child);
         } else {
             size_t size{0};
+            ar(cereal::make_size_tag(size));
             children.resize(size);
             for (auto &child : children)
                 ar(child);

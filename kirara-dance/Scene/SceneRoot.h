@@ -10,19 +10,22 @@
 #include "SceneGraph/Visitors.h"
 
 namespace krd {
-class SceneRoot : public SerializableMixin<SceneRoot, Node> {
+class SceneRoot : public SerializableMixin<SceneRoot, Node, "krd::SceneRoot"> {
 public:
     [[nodiscard]] static Ref<SceneRoot> create() { return {new SceneRoot}; }
 
-public:
     ranges::any_view<Ref<Node>> traverse(Visitor &visitor) override {
         return ranges::views::concat(
-            meshGroup->traverse(visitor), geomGroup->traverse(visitor), auxGroup->traverse(visitor)
+            ranges::views::single(meshGroup), //
+            ranges::views::single(geomGroup), //
+            ranges::views::single(auxGroup)
         );
     }
     ranges::any_view<Ref<Node>> traverse(ConstVisitor &visitor) const override {
         return ranges::views::concat(
-            meshGroup->traverse(visitor), geomGroup->traverse(visitor), auxGroup->traverse(visitor)
+            ranges::views::single(meshGroup), //
+            ranges::views::single(geomGroup), //
+            ranges::views::single(auxGroup)
         );
     }
 

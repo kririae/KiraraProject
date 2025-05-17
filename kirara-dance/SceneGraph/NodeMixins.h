@@ -17,8 +17,8 @@
 #endif
 
 namespace krd {
+namespace detail {
 #if defined(__GNUC__)
-namespace details {
 // from https://stackoverflow.com/questions/12877521/human-readable-type-info-name
 /// \brief Demangles a C++ type name.
 /// \param mangled The mangled type name.
@@ -30,8 +30,18 @@ inline std::string demangle(char const *mangled) {
     );
     return result.get() ? std::string(result.get()) : "error occurred";
 }
-} // namespace details
 #endif
+
+constexpr std::uint64_t fnv1aHash(std::string_view sv) {
+    std::uint64_t hash = 0xcbf29ce484222000ULL;
+    std::uint64_t prime = 0x100000001b3ULL;
+    for (char c : sv) {
+        hash ^= static_cast<std::uint64_t>(c);
+        hash *= prime;
+    }
+    return hash;
+}
+} // namespace detail
 
 /// \brief A mixin class that extends a base node class with visitor pattern functionality.
 ///
@@ -110,7 +120,7 @@ public:
     /// \return A string representing the type name of `Derived`.
     [[nodiscard]] static std::string getStaticTypeName() {
 #if defined(__GNUC__)
-        return details::demangle(typeid(Derived).name());
+        return detail::demangle(typeid(Derived).name());
 #else
         return typeid(Derived).name();
 #endif
@@ -129,27 +139,60 @@ public:
 ///                It must provide a `archive` method.
 /// \tparam Base The base class (usually `krd::Node` or a class derived from it)
 ///              that `Derived` would normally inherit from.
-template <class Derived, class Base> class SerializableMixin : public NodeMixin<Derived, Base> {
-public:
-    /// \see Node::isSerializable
-    [[nodiscard]] bool isSerializable() const override { return true; }
+template <class Derived, class Base, kira::detail::StringLiteral TypeId>
+class SerializableMixin : public NodeMixin<Derived, Base> {
+    template <typename, typename, kira::detail::StringLiteral> friend class SerializableMixin;
+
+    /// \brief The type of the base class.
+    static constexpr auto typeHash = detail::fnv1aHash(TypeId.value);
+
+    /// Register the derived class for serialization.
+    ///
+    /// This static member is used to register the derived class with the `SerializableFactory`.
+    /// The variable is used in \c serialize to ensure that this procedure is actually called.
+    inline static bool sIsRegistered = [] {
+        auto &factory = SerializableFactory::getInstance();
+
+        auto creator = []() -> Ref<Node> { return Derived::create().template cast<Node>(); };
+        if (factory.registerNodeCreator(typeHash, std::move(creator))) {
+            LogTrace(
+                "SerializableMixin: Registered '{:s}', typeHash={} for serialization",
+                Derived::getStaticTypeName(), typeHash
+            );
+            return true;
+        }
+
+        LogTrace(
+            "SerializableMixin: Failed to register '{:s}', typeHash={} serialization",
+            Derived::getStaticTypeName(), typeHash
+        );
+        return false;
+    }();
 
     /// \brief Serializes the object using the provided archive.
     ///
     /// This method calls the `archive` method of the derived class to serialize its members.
     ///
     /// \param ar The archive object as invoked by the cereal.
-    void serialize(auto &ar) {
-        KRD_ASSERT(
-            sIsRegistered, "SerializableMixin: Derived class must implement the archive method."
-        );
+    void serialize(auto &ctx, auto &ar) {
+        KRD_ASSERT(sIsRegistered, "SerializableMixin: Static registeration failed");
         if (KIRA_LIKELY(sIsRegistered)) {
-            Archive<std::remove_cvref_t<decltype(ar)>> ar2{ar};
+            Archive<std::remove_cvref_t<decltype(ar)>> ar2{ctx, ar};
+            // Recurse into the base class serialization
+            static_cast<Base &>(*this).serialize(ctx, ar);
+
+            // Generate the derived class serialization with the pure archive() call
             static_cast<Derived &>(*this).archive(ar2);
         }
     }
 
 public:
+    /// \see Node::isSerializable
+    [[nodiscard]] bool isSerializable() const override { return true; }
+
+    /// \see Node::getTypeHash
+    [[nodiscard]] uint64_t getTypeHash() const override { return typeHash; }
+
     /// \brief Serializes the node to a binary output stream.
     ///
     /// This method overrides `Node::toBytes` and uses `cereal` to serialize
@@ -157,9 +200,9 @@ public:
     ///
     /// \param os The output stream where the serialized data will be written.
     /// \throw cereal::Exception if serialization fails.
-    void toBytes(std::ostream &os) {
+    void toBytes(SerializationContext &ctx, std::ostream &os) override {
         cereal::BinaryOutputArchive ar(os);
-        ar(static_cast<Derived &>(*this));
+        this->serialize(ctx, ar);
     }
 
     /// \brief Deserializes the node from a binary input stream.
@@ -169,34 +212,9 @@ public:
     ///
     /// \param is The input stream from which serialized data will be read.
     /// \throw cereal::Exception if deserialization fails.
-    void fromBytes(std::istream &is) {
+    void fromBytes(SerializationContext &ctx, std::istream &is) override {
         cereal::BinaryInputArchive ar(is);
-        ar(static_cast<Derived &>(*this));
+        this->serialize(ctx, ar);
     }
-
-private:
-    /// Register the derived class for serialization.
-    ///
-    /// This static member is used to register the derived class with the `SerializableFactory`.
-    /// The variable is used in \c serialize to ensure that this procedure is actually called.
-    inline static bool sIsRegistered = [] { // NOLINT
-        auto &factory = SerializableFactory::getInstance();
-
-        auto typeHash = typeid(Derived).hash_code();
-        auto creator = []() -> Ref<Node> { return Derived::create().template cast<Node>(); };
-        if (factory.registerNodeCreator(typeHash, std::move(creator))) {
-            LogTrace(
-                "SerializableMixin: Registered '{:s}' for serialization",
-                Derived::getStaticTypeName()
-            );
-            return true;
-        }
-
-        LogTrace(
-            "SerializableMixin: Failed to register '{:s}' serialization",
-            Derived::getStaticTypeName()
-        );
-        return false;
-    }();
 };
 } // namespace krd

@@ -33,7 +33,7 @@ private:
     std::set<int> keys;
 };
 
-class Camera final : public SerializableMixin<Camera, Node> {
+class Camera final : public SerializableMixin<Camera, Node, "krd::Camera"> {
     Camera() : controller(this) {}
 
 public:

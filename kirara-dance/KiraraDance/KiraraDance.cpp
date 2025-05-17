@@ -1,5 +1,3 @@
-#include <cereal/archives/json.hpp>
-
 #include "Core/Math.h"
 #include "Core/Window.h"
 #include "FacadeRender/SlangGraphicsContext.h"
@@ -33,7 +31,7 @@ int main() try {
     //     Window::create(Window::Desc{.width = 720, .height = 1280, .title = "Kirara Dance"});
 
     SceneBuilder builder;
-    builder.loadFromFile(R"(/home/krr/Downloads/izuna.glb)");
+    builder.loadFromFile(R"(/home/krr/Downloads/RiggedSimple.glb)");
 
     auto const sceneRoot = builder.buildScene();
 
@@ -58,6 +56,18 @@ int main() try {
     //
     ExtractTreeHierarchy tInfo;
     sceneRoot->accept(tInfo);
+
+    std::stringstream ss;
+
+    SerializationContext ctx;
+    sceneRoot->toBytes(ctx, ss);
+
+    std::ofstream fs;
+    fs.open("scene.krd", std::ios::out | std::ios::binary);
+    cereal::BinaryOutputArchive ar(fs);
+    ar(ctx);
+    ar(ss.str());
+    return 0;
 
 //
 #if 0

@@ -3,8 +3,10 @@
 #include <uuid.h>
 
 #include <cereal/cereal.hpp>
+#include <cereal/types/unordered_map.hpp>
 
 #include "Node.h"
+#include "kira/SmallVector.h"
 
 namespace krd {
 template <typename T> class Ref;
@@ -37,16 +39,22 @@ public:
     /// \brief Creates a node with the given type hash.
     ///
     /// \return A reference to the created node, non-null if successful.
-    Ref<Node> createNode(HashType typeHash);
+    Ref<Node> createNode(HashType typeHash, Node::UUIDType const &uuid);
+
+    ///
+    [[nodiscard]] size_t getNumRegisteredNodes() const { return nodeCreators.size(); }
 
 private:
     std::unordered_map<HashType, std::function<Ref<Node>()>> nodeCreators;
 };
 
 ///
+class SerializationContext : public std::unordered_map<Node::UUIDType, std::string> {};
+
+///
 template <typename IOArchive> class Archive {
 public:
-    Archive(IOArchive &ar) : ar(ar) {}
+    Archive(SerializationContext &ctx, IOArchive &ar) : ctx(ctx), ar(ar) {}
 
     /// Returns true if the archive is in loading mode.
     static constexpr bool isLoad() { return IOArchive::is_loading::value; }
@@ -76,18 +84,39 @@ public:
 
     /// \brief Calls the archive function for a Ref object.
     template <class Type> Archive &operator()(Ref<Type> &arg) {
-        if (!arg->isSerializable()) {
-            LogWarn("SerializableMixin: Node is not serializable");
-            return *this;
-        }
-
         if constexpr (isSave()) {
-            ar(arg.getUUID());
-            ar(arg.getTypeHash());
+            if (!arg) {
+                LogWarn("Archive: Ref<arg> is empty, not serialized");
+                ar(false);
+                return *this;
+            }
 
-            // auto buffer = arg->toBytes();
-            // ar(buffer);
+            if (!arg->isSerializable()) {
+                LogWarn("Archive: Node '{}' is not serializable", arg->getHumanReadable());
+                ar(false);
+                return *this;
+            }
+
+            ar(true); // indicate that the node is serializable
+
+            auto const &uuid = arg->getUUID();
+            ar(uuid);
+            ar(arg->getTypeHash());
+
+            // register the node into the context
+            if (auto it = ctx.find(uuid); it == ctx.end()) {
+                std::stringstream ss;
+                arg->toBytes(ctx, ss);
+                ctx.emplace(uuid, std::move(std::move(ss).str()));
+            }
         } else {
+            bool isSerialized{false};
+            ar(isSerialized);
+            if (!isSerialized) {
+                LogWarn("Archive: Node is not successfully serialized, cancel loading");
+                return *this;
+            }
+
             // get the UUID from the pool and restore it to arg
             // arg = ...
             uuids::uuid uuid;
@@ -99,8 +128,30 @@ public:
                 // ar(..) write to empty
                 arg = Ref<Node>{rawNode}.dyn_cast<Type>();
             } else {
-                //
-                auto newNode = SerializableFactory::getInstance().createNode(typeHash);
+                auto newNode = SerializableFactory::getInstance().createNode(typeHash, uuid);
+                if (!newNode) {
+                    LogWarn(
+                        "Archive: Failed to create node with UUID {} and type hash {}",
+                        uuids::to_string(uuid), typeHash
+                    );
+                    return *this;
+                }
+
+                if (auto it = ctx.find(uuid); it != ctx.end()) {
+                    std::stringstream ss{std::move(it->second)};
+                    newNode->fromBytes(ctx, ss);
+
+                } else {
+                    LogWarn(
+                        "Archive: Failed to find node with UUID {} and type hash {} "
+                        "within the serialization context",
+                        uuids::to_string(uuid), typeHash
+                    );
+                    return *this;
+                }
+
+                // Write back the node into the variable
+                arg = Ref{newNode}.dyn_cast<Type>();
             }
         }
 
@@ -108,6 +159,29 @@ public:
     }
 
 private:
+    SerializationContext &ctx;
     IOArchive &ar;
 };
 } // namespace krd
+
+namespace cereal {
+template <class T>
+void save(auto &ar, kira::SmallVector<T> const &vec)
+    requires(traits::is_output_serializable<BinaryData<T>, decltype(ar)>::value)
+{
+    ar(cereal::make_size_tag(vec.size()));
+    for (auto const &v : vec)
+        ar(v);
+}
+
+template <class T>
+void load(auto &ar, kira::SmallVector<T> &vec)
+    requires(traits::is_input_serializable<BinaryData<T>, decltype(ar)>::value)
+{
+    size_t size{0};
+    ar(cereal::make_size_tag(size));
+    vec.resize(size);
+    for (auto &v : vec)
+        ar(v);
+}
+} // namespace cereal

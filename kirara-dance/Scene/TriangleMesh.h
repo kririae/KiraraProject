@@ -7,12 +7,13 @@
 #include "Core/Object.h"
 #include "SceneGraph/Group.h"
 #include "SceneGraph/NodeMixins.h"
+#include "SceneGraph/Serialization.h"
 
 struct aiMesh;
 
 namespace krd {
 /// A triangle mesh in the most general format.
-class TriangleMesh final : public SerializableMixin<TriangleMesh, Group> {
+class TriangleMesh final : public SerializableMixin<TriangleMesh, Group, "krd::TriangleMesh"> {
 public:
     /// \see igl::PerVertexNormalsWeightingType
     enum class NormalWeightingType : uint8_t {
@@ -23,7 +24,6 @@ public:
     ///
     [[nodiscard]] static Ref<TriangleMesh> create() { return {new TriangleMesh}; }
 
-public:
     ///
     void loadFromAssimp(aiMesh const *inMesh, std::string_view name);
     ///
@@ -149,27 +149,4 @@ void load(Archive &ar, Eigen::PlainObjectBase<Derived> &m)
         m.data(), static_cast<std::size_t>(rows * cols * sizeof(typename Derived::Scalar))
     ));
 }
-
-template <class T>
-void save(auto &ar, kira::SmallVector<T> const &vec)
-    requires(traits::is_output_serializable<BinaryData<T>, decltype(ar)>::value)
-{
-    ar(cereal::make_size_tag(vec.size()));
-    for (auto const &v : vec)
-        ar(v);
-}
-
-template <class T>
-void load(auto &ar, kira::SmallVector<T> &vec)
-    requires(traits::is_input_serializable<BinaryData<T>, decltype(ar)>::value)
-{
-    size_t size{0};
-    ar(cereal::make_size_tag(size));
-    vec.resize(size);
-    for (auto &v : vec)
-        ar(v);
-}
-
-void save(auto &ar, ::krd::Node::UUIDType const &id) { ar(binary_data(&id, sizeof(id))); }
-void load(auto &ar, ::krd::Node::UUIDType &id) { ar(binary_data(&id, sizeof(id))); }
 } // namespace cereal

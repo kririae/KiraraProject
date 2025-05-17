@@ -8,11 +8,10 @@ namespace krd {
 ///
 /// Geometry is an instance of a mesh. It can be linked to a mesh.
 /// It can be used to create a hierarchy of meshes in the scene graph as the leaf node.
-class Geometry final : public NodeMixin<Geometry, Node> {
+class Geometry final : public SerializableMixin<Geometry, Node, "krd::Geometry"> {
 public:
     [[nodiscard]] static Ref<Geometry> create() { return {new Geometry}; }
 
-public:
     /// \brief Link a mesh's lifetime to this geometry.
     ///
     /// \remark Only one mesh can be linked to a geometry for now.
@@ -30,5 +29,11 @@ private:
     Ref<TriangleMesh> mesh;
     // debug
     Ref<TriangleMesh> dynMesh;
+
+public:
+    void archive(auto &ar) {
+        ar(mesh);
+        ar(dynMesh);
+    }
 };
 } // namespace krd

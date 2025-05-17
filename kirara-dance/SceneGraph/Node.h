@@ -10,7 +10,8 @@
 #include "Visitors.h"
 
 namespace krd {
-class ByteStream;
+class SerializationContext;
+class SerializableFactory;
 
 /// \brief Manager class that maintains a mapping between UUIDs and Node instances.
 ///
@@ -34,6 +35,11 @@ public:
         /// \param node Pointer to the node being registered
         explicit NodeRegistra(uuids::uuid const &uuid, Node *node) : uuid(uuid) {
             NodeDedupManager::getInstance().registerNodeByUUID(uuid, node);
+        }
+
+        /// \brief Changes the UUID of a node in the NodeDedupManager.
+        void changeUUID(uuids::uuid const &oldUuid, uuids::uuid const &newUuid) {
+            NodeDedupManager::getInstance().changeNodeUUID(oldUuid, newUuid);
         }
 
         /// \brief Deregisters the node from the NodeDedupManager upon destruction.
@@ -99,6 +105,21 @@ public:
         return false;
     }
 
+    /// \brief Changes the UUID of a node in the manager.
+    ///
+    /// This is used only for serialization purposes.
+    bool changeNodeUUID(uuids::uuid const &oldUuid, uuids::uuid const &newUuid) {
+        std::lock_guard lock(mutex);
+        auto it = uuidMap.find(oldUuid);
+        if (it != uuidMap.end()) {
+            auto *node = it->second;
+            uuidMap.erase(it);
+            uuidMap.emplace(newUuid, node);
+            return true;
+        }
+        return false;
+    }
+
 private:
     std::mutex mutex;
     std::unordered_map<uuids::uuid, Node *> uuidMap;
@@ -110,10 +131,16 @@ private:
 /// It supports operations like accepting visitors for traversal and inspection.
 class Node : public Object {
 public:
+    friend class SerializableFactory;
+
     using UUIDType = uuids::uuid;
 
     Node &operator=(Node other) = delete;
     ~Node() override = default;
+
+    void serialize(auto &ctx, auto &ar) {
+        // do nothing
+    }
 
     /// \brief Accepts a non-const visitor.
     ///
@@ -209,16 +236,15 @@ public:
         return std::format("[{} ({})]", getTypeName(), getId());
     }
 
-    /// \brief A mutex to protect the whole scene graph.
+    /// \brief A mutex to protect the node graph.
     ///
-    /// The Global Scene Lock (GSL) is used to protect the scene graph from concurrent access.
-    mutable std::mutex GSL;
+    /// The Global Node Lock (GNL) is used to protect the node from concurrent access.
+    mutable std::mutex GNL;
 
 public:
-#if 0
-    virtual void toBytes(std::ostream &) {}
-    virtual void fromBytes(std::istream &) {}
-#endif
+    virtual void toBytes(SerializationContext &, std::ostream &) {}
+    virtual void fromBytes(SerializationContext &, std::istream &) {}
+
     /// Determines if the node can be serialized.
     virtual bool isSerializable() const { return false; }
 
@@ -226,7 +252,9 @@ public:
     ///
     /// This method provides a unique hash code for the node type, which can be used
     /// for type identification and comparison.
-    [[nodiscard]] virtual std::size_t getTypeHash() const { return typeid(Node).hash_code(); }
+    ///
+    /// \remark Currently only Serializable nodes provide viable type hashes.
+    [[nodiscard]] virtual uint64_t getTypeHash() const { return 0; }
 
 protected:
     /// \brief Global atomic counter to generate unique node IDs.
@@ -234,9 +262,15 @@ protected:
     /// \brief The unique identifier for this node instance in the running context.
     uint64_t id{nodeCount.fetch_add(1)};
     /// \brief The unique identifier for this node instance in the serialization context.
-    UUIDType const uuid{genRandomUUID()};
+    UUIDType uuid{genRandomUUID()};
     /// RAII the node registration process.
     NodeDedupManager::NodeRegistra reg{uuid, this};
+
+    void updateUUID(uuids::uuid const &newUuid) {
+        std::lock_guard lock(GNL);
+        reg.changeUUID(this->uuid, newUuid);
+        this->uuid = newUuid;
+    }
 
     ///
     // uint64_t key{0};
@@ -277,3 +311,8 @@ template <> struct formatter<uuids::uuid> {
     }
 };
 } // namespace fmt
+
+namespace cereal {
+void save(auto &ar, ::krd::Node::UUIDType const &id) { ar(binary_data(&id, sizeof(id))); }
+void load(auto &ar, ::krd::Node::UUIDType &id) { ar(binary_data(&id, sizeof(id))); }
+} // namespace cereal

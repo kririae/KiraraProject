@@ -7,15 +7,10 @@
 #include "SceneGraph/NodeMixins.h"
 
 namespace krd {
-class Transform : public SerializableMixin<Transform, Group> {
+class Transform : public SerializableMixin<Transform, Group, "krd::Transform"> {
 public:
     [[nodiscard]] static Ref<Transform> create() { return {new Transform}; }
 
-    constexpr static auto archive(auto &archive, auto &self) {
-        return archive(self.name, self.translation, self.rotation, self.scaling);
-    }
-
-public:
     void setName(std::string const &name) { this->name = name; }
     [[nodiscard]] auto const &getName() const { return name; }
 

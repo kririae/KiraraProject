@@ -33,7 +33,7 @@ DEFAULT_VISIT_NODE(TransformAnimationChannel)
 
 void Visitor::apply(SceneRoot &val) {
     {
-        std::lock_guard lock(val.GSL);
+        std::lock_guard lock(val.GNL);
         (void)(lock);
     }
 
@@ -42,7 +42,7 @@ void Visitor::apply(SceneRoot &val) {
 
 void ConstVisitor::apply(SceneRoot const &val) {
     {
-        std::lock_guard lock(val.GSL);
+        std::lock_guard lock(val.GNL);
         (void)(lock);
     }
 
