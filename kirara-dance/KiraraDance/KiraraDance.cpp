@@ -57,16 +57,9 @@ int main() try {
     ExtractTreeHierarchy tInfo;
     sceneRoot->accept(tInfo);
 
-    std::stringstream ss;
-
-    SerializationContext ctx;
-    sceneRoot->toBytes(ctx, ss);
-
     std::ofstream fs;
     fs.open("scene.krd", std::ios::out | std::ios::binary);
-    cereal::BinaryOutputArchive ar(fs);
-    ar(ctx);
-    ar(ss.str());
+    sceneRoot->dumpScene(fs);
     return 0;
 
 //

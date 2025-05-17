@@ -34,6 +34,11 @@ public:
     Ref<Group> getGeomGroup() const { return geomGroup; }
     Ref<Group> getAuxGroup() const { return auxGroup; }
 
+    /// \brief Dump the scene to a binary stream.
+    void dumpScene(std::ostream &os);
+    /// \brief Load the scene from a binary stream.
+    void loadScene(std::istream &is);
+
 protected:
     SceneRoot() = default;
 

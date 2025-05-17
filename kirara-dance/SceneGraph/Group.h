@@ -22,6 +22,9 @@ public:
     /// The child node is moved into the group's collection of children.
     /// \param child A reference-counted pointer (Ref) to the Node to be added.
     void addChild(Ref<Node> child) {
+        if (!child)
+            throw kira::Anyhow("Cannot add a null child node.");
+
         std::lock_guard lock(GNL);
         children.push_back(std::move(child));
     }
@@ -73,9 +76,14 @@ public:
         } else {
             size_t size{0};
             ar(cereal::make_size_tag(size));
-            children.resize(size);
-            for (auto &child : children)
-                ar(child);
+            for (size_t i = 0; i < size; ++i) {
+                Ref<Node> proxy;
+                ar(proxy);
+                if (proxy)
+                    children.emplace_back(std::move(proxy));
+                else
+                    LogError("Group: child node loaded to empty");
+            }
         }
     }
 };

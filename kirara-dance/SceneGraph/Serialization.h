@@ -127,7 +127,7 @@ public:
             } else {
                 auto newNode = SerializableFactory::getInstance().createNode(typeHash, uuid);
                 if (!newNode) {
-                    LogWarn(
+                    LogError(
                         "Archive: Failed to create node with UUID {} and type hash {}",
                         uuids::to_string(uuid), typeHash
                     );
@@ -139,7 +139,7 @@ public:
                     detail::fromStringStream(ctx, ss, newNode);
                     ctx.erase(it);
                 } else {
-                    LogWarn(
+                    LogError(
                         "Archive: Failed to find node with UUID {} and type hash {} "
                         "within the serialization context",
                         uuids::to_string(uuid), typeHash

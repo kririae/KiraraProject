@@ -1,5 +1,6 @@
 #pragma once
 
+#include <range/v3/view/filter.hpp>
 #include <string>
 
 #include "Scene/Animation.h"
@@ -26,7 +27,8 @@ public:
         else
             LogInfo("{}{}", getPrefix(), t.getHumanReadable());
 
-        auto children = t.traverse(*this);
+        auto children = t.traverse(*this) |
+                        ranges::views::filter([](auto const &child) { return child != nullptr; });
         kira::SmallVector<Ref<Node>> childVec;
         for (auto const &child : children)
             childVec.push_back(child);
