@@ -10,7 +10,7 @@ namespace krd {
 /// \brief Tree Checker is used to check if the traversal graph is indeed a tree from this node.
 ///
 /// The \a ValidateTreeHierarchy is a stateful visitor that keeps track of visited nodes.
-class ValidateTreeHierarchy final : public ConstVisitor {
+class ValidateTreeHierarchy : public ConstVisitor {
 public:
     /// Create a new ValidateTreeHierarchy visitor.
     ///

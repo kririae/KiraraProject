@@ -54,8 +54,10 @@ int main() try {
     sceneRoot->getAuxGroup()->addChild(camera);
 
     //
-    ExtractTreeHierarchy tInfo;
+    std::stringstream ss;
+    ExtractTreeHierarchy tInfo(ExtractTreeHierarchy::Descriptor{.os = ss});
     sceneRoot->accept(tInfo);
+    LogInfo("Scene hierarchy:\n{}", std::move(ss).str());
 
     {
         std::ofstream fs;

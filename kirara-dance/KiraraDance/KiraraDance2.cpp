@@ -20,8 +20,12 @@ int main() {
         sceneRoot->loadScene(fs);
     }
 
-    ExtractTreeHierarchy tInfo;
+    std::stringstream ss;
+    ExtractTreeHierarchy tInfo(
+        ExtractTreeHierarchy::Descriptor{.os = ss, .descriptionMode = NodeDescriptionMode::UUID}
+    );
     sceneRoot->accept(tInfo);
+    LogInfo("Scene hierarchy:\n{}", std::move(ss).str());
 
     // Create the graphics context
     auto SGC = SlangGraphicsContext::create(

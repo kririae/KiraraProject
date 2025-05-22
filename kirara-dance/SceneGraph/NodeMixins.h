@@ -136,9 +136,11 @@ public:
 /// using the `cereal` library.
 ///
 /// \tparam Derived The concrete node class that inherits from this mixin.
-///                It must provide a `archive` method.
+///              It must provide a `archive` method.
 /// \tparam Base The base class (usually `krd::Node` or a class derived from it)
 ///              that `Derived` would normally inherit from.
+/// \tparam TypeId A string literal representing the type ID of the derived class. This id is
+///              manually entered for cross-platform compatibility.
 template <class Derived, class Base, kira::detail::StringLiteral TypeId>
 class SerializableMixin : public NodeMixin<Derived, Base> {
     template <typename, typename, kira::detail::StringLiteral> friend class SerializableMixin;
