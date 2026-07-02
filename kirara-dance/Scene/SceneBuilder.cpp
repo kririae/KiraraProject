@@ -251,7 +251,7 @@ void SceneBuilder::loadFromFile(std::filesystem::path const &path) {
         sceneRoot->getAuxGroup()->addChild(anim);
     }
 
-    if (aiScene->hasSkeletons()) {
+    if (aiScene->HasSkeletons()) {
         LogWarn(
             "SceneBuilder: Skeletons are not supported yet, skipping {:d} skeletons",
             aiScene->mNumSkeletons

@@ -22,7 +22,7 @@ function(krr_add_test project_name module_name test_name)
     # ----------------------------------------------------------
     set(test_base_name ${project_name}.${module_name}.${test_name})
     add_executable(${test_base_name} ${TEST_SOURCES})
-    target_link_libraries(${test_base_name} PRIVATE gtest gmock kira::GTestMain ${TEST_HARD_DEPENDENCIES})
+    target_link_libraries(${test_base_name} PRIVATE kira::GTestMain ${TEST_HARD_DEPENDENCIES})
 
     if(NOT TEST_INDEPENDENT)
         add_test(NAME ${test_base_name} COMMAND ${test_base_name})

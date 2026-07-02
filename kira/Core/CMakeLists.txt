@@ -9,12 +9,8 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/kira/Version.h.in ${CMAKE_CUR
 # ----------------------------------------------------------
 # Setup module-specific dependencies
 # ----------------------------------------------------------
-CPMAddPackage(NAME fmt URL "https://github.com/fmtlib/fmt/archive/refs/tags/11.1.4.tar.gz")
-
-CPMAddPackage(
-    NAME spdlog
-    URL "https://github.com/gabime/spdlog/archive/refs/tags/v1.15.2.tar.gz"
-    OPTIONS "SPDLOG_BUILD_SHARED OFF" "SPDLOG_INSTALL ON" "SPDLOG_FMT_EXTERNAL_HO ON")
+find_package(fmt CONFIG REQUIRED)
+find_package(spdlog CONFIG REQUIRED)
 
 # We do need a typed-array constexpr container. So let's use mp~!
 CPMAddPackage(
@@ -28,17 +24,8 @@ if(mp_ADDED)
     add_library(mp::mp ALIAS mp)
 endif()
 
-CPMAddPackage(
-    NAME tomlplusplus
-    URL "https://github.com/marzer/tomlplusplus/archive/refs/tags/v3.4.0.tar.gz"
-    # This enables top-level installation on `tomlplusplus` as subdirectory
-    PATCHES "${KRR_ROOT_DIR}/cmake/patches/tomlplusplus.patch")
-
-CPMAddPackage(
-    NAME magic_enum
-    GITHUB_REPOSITORY Neargye/magic_enum
-    VERSION 0.9.6
-    OPTIONS "MAGIC_ENUM_OPT_INSTALL ON")
+find_package(tomlplusplus CONFIG REQUIRED)
+find_package(magic_enum CONFIG REQUIRED)
 
 # ----------------------------------------------------------
 # Do add module
@@ -65,11 +52,7 @@ krr_add_module(
             Logger.cpp
             Properties.cpp
             SmallVector.cpp
-    HARD_DEPENDENCIES
-        fmt::fmt
-        magic_enum
-        spdlog::spdlog
-        tomlplusplus::tomlplusplus
+    HARD_DEPENDENCIES fmt::fmt magic_enum::magic_enum spdlog::spdlog tomlplusplus::tomlplusplus
     CMAKE_SUBDIRS tests)
 
 if(KRR_ENABLE_CLANG_TIDY)

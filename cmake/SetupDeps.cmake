@@ -6,31 +6,20 @@ include(KRR_Message)
 CPMAddPackage(
     NAME cmake-scripts
     GITHUB_REPOSITORY StableCoder/cmake-scripts
-    GIT_TAG "24.08.1")
+    GIT_TAG "25.08")
 
 list(APPEND CMAKE_MODULE_PATH "${cmake-scripts_SOURCE_DIR}")
 
 # ----------------------------------------------------------
 # Backtrace utils
 # ----------------------------------------------------------
-CPMAddPackage(
-    NAME backward
-    GITHUB_REPOSITORY bombela/backward-cpp
-    GIT_TAG master)
-
-CPMAddPackage(
-    NAME Eigen3
-    URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip
-    OPTIONS "BUILD_TESTING OFF")
+find_package(Backward CONFIG REQUIRED)
 
 if(KRR_BUILD_TESTS)
     # ----------------------------------------------------------
     # GTest
     # ----------------------------------------------------------
-    CPMAddPackage(
-        NAME googletest
-        GITHUB_REPOSITORY google/googletest
-        GIT_TAG main)
+    find_package(GTest CONFIG REQUIRED)
 endif()
 
 if(KRR_BUILD_COMPTIME_TESTS)

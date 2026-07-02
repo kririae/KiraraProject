@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "dependencies": [
+    "backward-cpp",
+    "eigen3",
+    "fmt",
+    "gtest",
+    "highway",
+    "libigl",
+    "magic-enum",
+    "spdlog",
+    "tomlplusplus"
+  ],
+  "features": {
+    "kirara-dance": {
+      "description": "Build kirara-dance",
+      "dependencies": [
+        "assimp",
+        "glfw3",
+        "range-v3",
+        "shader-slang",
+        "tbb"
+      ]
+    }
+  }
+}

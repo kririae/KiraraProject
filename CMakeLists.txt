@@ -1,4 +1,57 @@
 cmake_minimum_required(VERSION 3.27.4)
+
+# ----------------------------------------------------------
+# User options
+# ----------------------------------------------------------
+include(CMakeDependentOption)
+
+option(KRR_BUILD_TESTS "Build tests" ON)
+cmake_dependent_option(
+    KRR_BUILD_COMPTIME_TESTS
+    "Build compile-time tests, this requires new versions of compiler"
+    OFF
+    "KRR_BUILD_TESTS"
+    OFF)
+option(KRR_BUILD_FOR_NATIVE "Build with -march=native -mtune=native" OFF)
+
+cmake_dependent_option(
+    KRR_USE_MOLD
+    "Use mold as the linker"
+    OFF
+    "NOT KRR_BUILD_FOR_MACOS"
+    OFF)
+
+option(KRR_ENABLE_LSAN "Enable LSAN (leak sanitizer)" OFF)
+option(KRR_ENABLE_ASAN "Enable ASAN (address sanitizer)" OFF)
+option(KRR_ENABLE_UBSAN "Enable UBSAN (undefined behavior sanitizer)" OFF)
+
+option(KRR_ENABLE_CLANG_TIDY "Enable clang-tidy for analysis" OFF)
+
+# Optional modules
+option(KRR_BUILD_KIRARA_DANCE "Build the KiraraDance application" OFF)
+
+# ----------------------------------------------------------
+# vcpkg setup
+# ----------------------------------------------------------
+if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+    if(DEFINED ENV{VCPKG_ROOT} AND EXISTS "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
+        set(CMAKE_TOOLCHAIN_FILE
+            "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+            CACHE STRING "vcpkg toolchain file")
+    elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/vcpkg/scripts/buildsystems/vcpkg.cmake")
+        set(CMAKE_TOOLCHAIN_FILE
+            "${CMAKE_CURRENT_SOURCE_DIR}/external/vcpkg/scripts/buildsystems/vcpkg.cmake"
+            CACHE STRING "vcpkg toolchain file")
+    endif()
+endif()
+
+if(KRR_BUILD_KIRARA_DANCE)
+    list(APPEND VCPKG_MANIFEST_FEATURES kirara-dance)
+endif()
+
+# ----------------------------------------------------------
+# project begin
+# ----------------------------------------------------------
 project(kirara LANGUAGES C CXX)
 
 set(CMAKE_COLOR_DIAGNOSTICS ON)
@@ -70,36 +123,6 @@ if(APPLE)
 else()
     set(KRR_BUILD_FOR_MACOS OFF)
 endif()
-
-# ----------------------------------------------------------
-# User options
-# ----------------------------------------------------------
-include(CMakeDependentOption)
-
-option(KRR_BUILD_TESTS "Build tests" ON)
-cmake_dependent_option(
-    KRR_BUILD_COMPTIME_TESTS
-    "Build compile-time tests, this requires new versions of compiler"
-    OFF
-    "KRR_BUILD_TESTS"
-    OFF)
-option(KRR_BUILD_FOR_NATIVE "Build with -march=native -mtune=native" OFF)
-
-cmake_dependent_option(
-    KRR_USE_MOLD
-    "Use mold as the linker"
-    OFF
-    "NOT KRR_BUILD_FOR_MACOS"
-    OFF)
-
-option(KRR_ENABLE_LSAN "Enable LSAN (leak sanitizer)" OFF)
-option(KRR_ENABLE_ASAN "Enable ASAN (address sanitizer)" OFF)
-option(KRR_ENABLE_UBSAN "Enable UBSAN (undefined behavior sanitizer)" OFF)
-
-option(KRR_ENABLE_CLANG_TIDY "Enable clang-tidy for analysis" OFF)
-
-# Optional modules
-option(KRR_BUILD_KIRARA_DANCE "Build the KiraraDance application" OFF)
 
 # ----------------------------------------------------------
 # Dependencies

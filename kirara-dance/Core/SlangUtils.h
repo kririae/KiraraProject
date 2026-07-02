@@ -3,7 +3,7 @@
 #include <slang-gfx.h>
 #include <slang.h>
 
-#include <magic_enum.hpp>
+#include <magic_enum/magic_enum.hpp>
 #include <source_location>
 #include <string_view>
 
