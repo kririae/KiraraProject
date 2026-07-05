@@ -19,7 +19,8 @@
         "glfw3",
         "range-v3",
         "shader-slang",
-        "tbb"
+        "tbb",
+        "usd"
       ]
     }
   }

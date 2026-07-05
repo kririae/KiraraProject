@@ -177,5 +177,5 @@ endif()
 add_subdirectory(kira)
 
 if(KRR_BUILD_KIRARA_DANCE)
-    add_subdirectory(kirara-dance)
+    add_subdirectory(kirara-dance2)
 endif()
