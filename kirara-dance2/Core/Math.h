@@ -1,8 +1,13 @@
 #pragma once
 
+#include <fmt/ostream.h>
+
 #include <Eigen/Core>
 
 namespace krd {
+template <typename T, int N> using Vector = Eigen::Vector<T, N>;
+template <typename T, int N, int M> using Matrix = Eigen::Matrix<T, N, M>;
+
 //
 template <typename T> using Vector2 = Eigen::Vector2<T>;
 template <typename T> using Vector3 = Eigen::Vector3<T>;
@@ -37,3 +42,8 @@ using Matrix2d = Matrix2<double>;
 using Matrix3d = Matrix3<double>;
 using Matrix4d = Matrix4<double>;
 } // namespace krd
+
+// fmt overloads
+template <typename T, int N> struct fmt::formatter<krd::Vector<T, N>> : fmt::ostream_formatter {};
+template <typename T, int N, int M>
+struct fmt::formatter<krd::Matrix<T, N, M>> : fmt::ostream_formatter {};

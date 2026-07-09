@@ -30,7 +30,7 @@ target_link_libraries(kirara-backend PUBLIC Eigen3::Eigen kira::Core)
 #
 add_executable(kirara-dance #
                KiraraDance/Backward.cpp KiraraDance/KiraraDance.cpp)
-target_link_libraries(kirara-dance PRIVATE Backward::Interface)
+target_link_libraries(kirara-dance PRIVATE kirara-backend Backward::Interface)
 
 # ----------------------------------------------------------
 # Setup UnitTests

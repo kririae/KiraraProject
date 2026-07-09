@@ -103,6 +103,7 @@ template <typename Real, int Capacity> struct TimeCandidates {
 
 template <typename Real, CCDConfig Cfg, size_t N>
 Real polynomialTolerance(std::array<Real, N> const &coeffs) {
+    // floor at 1 so a zero polynomial still gets non-zero tolerance
     Real scale = Real(1);
     for (size_t i = 0; i < N; ++i)
         scale = std::max(scale, std::abs(coeffs[i]));
@@ -151,6 +152,8 @@ void addQuadraticRoots(
     Real const sqrtDisc = std::sqrt(disc);
     Real const signedSqrt = b < Real(0) ? -sqrtDisc : sqrtDisc;
     Real const q = Real(-0.5) * (b + signedSqrt);
+    // Citardauq second root is c / q; when q ~ 0 that division may overflow,
+    // so fall back to the textbook formula for both roots.
     if (std::abs(q) <= eps) {
         Real const invDenom = Real(0.5) / a;
         roots.push((-b - sqrtDisc) * invDenom, timeEps);
@@ -212,6 +215,8 @@ void addCubicRoots(std::array<Real, 4> const &coeffs, TimeCandidates<Real, Capac
         return;
     }
 
+    // mathematically unreachable when disc < 0 (p < 0 is required for
+    // three real roots); this branch exists as a numerical safety net only
     if (p >= Real(0)) {
         roots.push(shift, timeEps);
         return;
@@ -272,6 +277,8 @@ std::array<Real, 4> coplanarityPolynomial(
 /// \brief True when a closed edge has near-zero length.
 template <typename Real, CCDConfig Cfg>
 bool edgeDegenerate(Vector3<Real> const &a, Vector3<Real> const &b) {
+    // scale by endpoint magnitude so that small edges far from the origin
+    // (e.g. near (1e10, 0, 0)) are not falsely flagged as degenerate
     Real const scale = std::max(Real(1), std::max(a.squaredNorm(), b.squaredNorm()));
     Real const eps = Cfg.degenerateTolerance<Real>();
     return (b - a).squaredNorm() <= scale * eps * eps;
@@ -306,6 +313,9 @@ bool pointInTriangle(
     Real const d20 = v2.dot(v0);
     Real const d21 = v2.dot(v1);
     Real const denom = d00 * d11 - d01 * d01;
+    // near-zero denom means the projection basis (v0, v1) is nearly
+    // degenerate, not a barycentric boundary. Use degenerate tolerance
+    // instead of barycentric tolerance to express that fact
     Real const denomEps = std::max(Real(1), std::abs(denom)) * Cfg.degenerateTolerance<Real>();
     if (std::abs(denom) <= denomEps)
         return false;
@@ -728,6 +738,9 @@ bool CCDEdgeEdge(
         Real const edgeScale =
             std::max(Real(1), std::max((a1 - a0).squaredNorm(), (b1 - b0).squaredNorm()));
         Real const degenerateEps = Cfg.degenerateTolerance<Real>();
+        // when edges are nearly parallel the cross-product normal vanishes
+        // and cannot guide axis selection; use the strongest edge direction
+        // instead
         if (normal.squaredNorm() <= edgeScale * edgeScale * degenerateEps * degenerateEps) {
             Vector3<Real> direction = a1 - a0;
             auto chooseDirection = [&](Vector3<Real> const &candidate) {
