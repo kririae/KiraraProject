@@ -1,40 +1,21 @@
 // clang-format off
 #define TOML_IMPLEMENTATION
 #include "kira/Properties.h"
-#include "kira/Properties2.h"
 // clang-format on
 
-#include <fmt/color.h>
+#include <fmt/format.h>
 
-#include <ostream>
+#include <algorithm>
+#include <sstream>
+#include <utility>
 
 #include "kira/Assertions.h"
 
 namespace kira {
-Properties::Properties(toml::table table, std::string_view source)
-    : detail::PropertiesUseQueryMixin(table), table{std::move(table)} {
-    std::istringstream stream{std::string{source}};
-    std::string line;
-    while (std::getline(stream, line))
-        sourceLines.push_back(std::move(line));
-}
-
-Properties::Properties(toml::table table, SmallVector<std::string> source)
-    : PropertiesUseQueryMixin(table), table{std::move(table)}, sourceLines{std::move(source)} {}
-
 namespace {
-#if 0
-auto get_range_decorator(size_t len) {
-    return fmt::format(
-        "{}",
-        fmt::styled(std::string(len, '^'), fmt::fg(fmt::color::light_green) | fmt::emphasis::bold)
-    );
-}
-#endif
-
 std::optional<std::string>
 get_diagnostic_impl(toml::source_region const &region, auto const &sourceLines) {
-    // invalid region
+    // TOML uses 1-based line and column indices.
     if (region.begin.line == 0 || region.begin.column == 0 || region.end.line == 0 ||
         region.end.column == 0)
         return std::nullopt;
@@ -79,55 +60,58 @@ get_diagnostic_impl(toml::source_region const &region, auto const &sourceLines) 
 }
 } // namespace
 
-std::optional<std::string> Properties::get_diagnostic_(toml::source_region const &region) const {
-    return get_diagnostic_impl(region, sourceLines);
-}
+namespace detail {
+void erase_used_nodes(
+    std::unordered_set<toml::node const *> &usedNodes, toml::node const &node
+) noexcept {
+    usedNodes.erase(&node);
 
-template <>
-std::optional<std::string> PropertiesView<true>::get_diagnostic_(toml::source_region const &region
-) const {
-    return get_diagnostic_impl(region, sourceLinesView);
-}
+    if (auto const *table = node.as_table()) {
+        for (auto const &[key, child] : *table)
+            erase_used_nodes(usedNodes, child);
+        return;
+    }
 
-template <>
-std::optional<std::string> PropertiesView<false>::get_diagnostic_(toml::source_region const &region
-) const {
-    return get_diagnostic_impl(region, sourceLinesView);
+    if (auto const *array = node.as_array())
+        for (auto const &child : *array)
+            erase_used_nodes(usedNodes, child);
 }
-} // namespace kira
+} // namespace detail
 
-namespace kira::v2 {
-Properties::Properties() : pImpl{std::make_unique<detail::PropertiesInstanceImpl>()} {
-    populate_use_map_();
+Properties::Properties() : root_{std::make_shared<detail::PropertiesRoot>()} {
+    table_ = &root_->table;
 }
 
 Properties::Properties(toml::table table, std::string_view source)
-    : pImpl{std::make_unique<detail::PropertiesInstanceImpl>(std::move(table), source)} {
-    populate_use_map_();
+    : root_{std::make_shared<detail::PropertiesRoot>()} {
+    root_->table = std::move(table);
+
+    std::istringstream stream{std::string{source}};
+    std::string line;
+    while (std::getline(stream, line))
+        root_->sourceLines.push_back(std::move(line));
+
+    table_ = &root_->table;
 }
 
 Properties::Properties(toml::table table, SmallVector<std::string> source)
-    : pImpl{std::make_unique<detail::PropertiesInstanceImpl>(std::move(table), std::move(source))} {
-    populate_use_map_();
-}
-
-Properties::Properties(
-    toml::node_view<toml::node> tableView, std::span<std::string const> sourceLinesView
-)
-    : pImpl{std::make_unique<detail::PropertiesViewImpl>(tableView, sourceLinesView)} {
-    populate_use_map_();
+    : root_{std::make_shared<detail::PropertiesRoot>()} {
+    root_->table = std::move(table);
+    root_->sourceLines = std::move(source);
+    table_ = &root_->table;
 }
 
 std::optional<std::string> Properties::get_diagnostic_(toml::source_region const &region) const {
-    return get_diagnostic_impl(region, pImpl->get_source_lines());
+    return get_diagnostic_impl(region, root_->sourceLines);
 }
 
-PropertiesArray::PropertiesArray()
-    : pImpl{std::make_unique<detail::PropertiesArrayInstanceImpl>()} {}
+PropertiesArray::PropertiesArray() : root_{std::make_shared<detail::PropertiesRoot>()} {
+    array_ = &root_->array;
+}
 
 PropertiesArray::PropertiesArray(toml::array array)
-    : pImpl{std::make_unique<detail::PropertiesArrayInstanceImpl>(std::move(array))} {}
-
-PropertiesArray::PropertiesArray(toml::node_view<toml::node> arrayView)
-    : pImpl{std::make_unique<detail::PropertiesArrayViewImpl>(arrayView)} {}
-} // namespace kira::v2
+    : root_{std::make_shared<detail::PropertiesRoot>()} {
+    root_->array = std::move(array);
+    array_ = &root_->array;
+}
+} // namespace kira

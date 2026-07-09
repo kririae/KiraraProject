@@ -33,7 +33,6 @@ find_package(magic_enum CONFIG REQUIRED)
 krr_add_module(
     kira Core
     HEADERS kira/detail/Logger.h
-            kira/detail/PropertiesMixins.h
             kira/Anyhow.h
             kira/Assertions.h
             kira/CommitHash.h
