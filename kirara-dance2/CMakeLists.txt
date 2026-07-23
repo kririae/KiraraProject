@@ -40,4 +40,9 @@ if(KRR_BUILD_TESTS)
         krd IPC CCDTests
         SOURCES Tests/Unit/CCDTests.cpp
         HARD_DEPENDENCIES kirara-backend)
+
+    krr_add_test(
+        krd Core MathTests
+        SOURCES Tests/Unit/MathTests.cpp
+        HARD_DEPENDENCIES kirara-backend)
 endif()

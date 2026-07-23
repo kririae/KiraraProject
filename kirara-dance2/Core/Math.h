@@ -1,5 +1,7 @@
 #pragma once
 
+#include <kira/Properties.h>
+
 #include <fmt/ostream.h>
 
 #include <Eigen/Core>
@@ -44,6 +46,87 @@ using Matrix4d = Matrix4<double>;
 } // namespace krd
 
 // fmt overloads
-template <typename T, int N> struct fmt::formatter<krd::Vector<T, N>> : fmt::ostream_formatter {};
 template <typename T, int N, int M>
 struct fmt::formatter<krd::Matrix<T, N, M>> : fmt::ostream_formatter {};
+
+namespace kira {
+template <typename T, int N, int M>
+struct PropertyProcessor<::krd::Matrix<T, N, M>> : std::true_type {
+    static constexpr std::string_view name = "krd::Matrix";
+
+    static auto to_toml(::krd::Matrix<T, N, M> const &mat) {
+        toml::array arr;
+        // Should use mat.rows() instead of N since Eigen allows for dynamic sizes.
+        for (int i = 0; i < mat.rows(); ++i) {
+            toml::array row;
+            for (int j = 0; j < mat.cols(); ++j)
+                row.push_back(mat(i, j));
+            arr.push_back(row);
+        }
+
+        return arr;
+    }
+
+    static auto from_toml(toml::node &node, auto const &owner) {
+        toml::array *arr = node.as_array();
+        if (!arr)
+            throw Anyhow("Expected an array, but got {}", magic_enum::enum_name(node.type()));
+
+        ::krd::Matrix<T, N, M> mat;
+        if (!can_eq(arr->size(), N) || arr->size() == 0) {
+            if (N == Eigen::Dynamic)
+                throw Anyhow("Expected a non-empty array, but got an empty array");
+            throw Anyhow("Expected {} row(s), but got {}", N, arr->size());
+        }
+
+        toml::array *arr0 = arr->at(0).as_array();
+        if (!arr0)
+            throw Anyhow(
+                "Expected an array for row 0, but got {}",
+                magic_enum::enum_name(arr->at(0).type())
+            );
+
+        auto const rows = arr->size();
+        auto const cols = arr0->size();
+        if (!can_eq(arr0->size(), M) || arr0->size() == 0) {
+            if (M == Eigen::Dynamic)
+                throw Anyhow("Row 0 is empty");
+            throw Anyhow("Expected {} column(s), but row 0 has {}", M, cols);
+        }
+
+        mat.resize(rows, cols);
+        for (int i = 0; i < rows; ++i) {
+            toml::array *row = arr->at(i).as_array();
+            if (!row) {
+                throw Anyhow(
+                    "Expected an array for row {}, but got {}", i,
+                    magic_enum::enum_name(arr->at(i).type())
+                );
+            }
+            if (row->size() != cols) {
+                throw Anyhow(
+                    "Row {} has {} column(s), but expected {}", i, row->size(), cols
+                );
+            }
+            for (int j = 0; j < cols; ++j) {
+                if (auto const &value = row->at(j).template value<T>())
+                    mat(i, j) = value.value();
+                else
+                    throw Anyhow(
+                        "Expected a matrix element, but got {} at [{}, {}]",
+                        magic_enum::enum_name(row->at(j).type()), i, j
+                    );
+            }
+        }
+
+        return mat;
+    }
+
+private:
+    static bool can_eq(size_t arr_size, int eig_size) {
+        if (eig_size == Eigen::Dynamic)
+            return true;
+        return arr_size == eig_size;
+    }
+};
+} // namespace kira
