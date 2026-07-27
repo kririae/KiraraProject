@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 
@@ -22,7 +23,8 @@ public:
     ///
     /// \param context Host context retained for the lifetime of the handler.
     /// \param modulePath Path to the OptiX IR module used by the pipeline.
-    /// \throw kira::Anyhow if \p context is null or setup fails.
+    /// \throw kira::Anyhow if \p context is null, has no active sampler, or
+    /// setup fails.
     /// \throw std::out_of_range If a primitive refers to an unknown geometry.
     OptixHandler(Ref<Context> context, std::filesystem::path const &modulePath);
 
@@ -38,13 +40,19 @@ public:
     /// \throw std::out_of_range If a primitive refers to an unknown geometry.
     void sync();
 
-    /// \brief Renders \p camera into \p product and waits for completion.
+    /// \brief Renders sample \p sampleIndex into \p product and waits for completion.
     ///
-    /// Both objects must belong to the handler's host context.
-    /// \throw kira::Anyhow if the launch or stream synchronization fails.
+    /// Both objects and the active sampler must belong to the handler's host
+    /// context. Call \c sync after selecting a sampler with a different type.
+    /// \param camera Camera used to generate primary rays.
+    /// \param product Render product receiving the sample.
+    /// \param sampleIndex Zero-based sample index for every pixel.
+    /// \throw kira::Anyhow if there is no active sampler, its type differs
+    /// from the synchronized pipeline, device state creation fails, or the
+    /// launch or stream synchronization fails.
     /// \throw std::invalid_argument if either object belongs to another
     /// context or the film is too large for device storage.
-    void render(Camera const &camera, RenderProduct const &product);
+    void render(Camera const &camera, RenderProduct const &product, std::uint64_t sampleIndex);
 
     /// \brief Returns the associated host context.
     [[nodiscard]] Ref<Context> getContext() const;

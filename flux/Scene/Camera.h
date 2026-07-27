@@ -81,12 +81,12 @@ struct Camera::DeviceImpl {
     float halfHeight{};
 
 public:
-    /// \brief Generates the primary ray through pixel \p x, \p y.
+    /// \brief Generates the primary ray through \p rasterPosition.
     ///
-    /// \pre \p width and \p height are nonzero, and the pixel coordinates are
-    /// in range.
+    /// \pre \p width and \p height are nonzero, and \p rasterPosition is
+    /// inside their half-open image bounds.
     [[nodiscard]] KIRA_DEVICE inline Ray generateRay(
-        std::uint32_t x, std::uint32_t y, std::uint32_t width, std::uint32_t height
+        Vec2f const &rasterPosition, std::uint32_t width, std::uint32_t height
     ) const noexcept;
 };
 

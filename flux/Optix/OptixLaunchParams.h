@@ -1,8 +1,10 @@
 #pragma once
 
+#include <cstdint>
 #include <type_traits>
 
 #include "flux/Optix/OptixContext.h"
+#include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Film.h"
 
@@ -14,6 +16,12 @@ struct OptixLaunchParams {
 
     /// Launch-time camera.
     Camera::DeviceImpl camera;
+
+    /// Launch-time sampler dispatcher.
+    Sampler::DeviceImpl sampler;
+
+    /// Sample sequence index for this launch.
+    std::uint64_t sampleIndex;
 
     /// Launch-time output channels.
     Film::DeviceImpl film;

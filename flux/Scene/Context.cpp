@@ -1,5 +1,6 @@
 #include "flux/Scene/Context.h"
 
+#include "flux/Sampling/Sampler.h"
 #include "flux/Scene/RenderObject.h"
 
 namespace flux {
@@ -20,6 +21,14 @@ void Context::absorb(TXContext &&tx) {
 
     objects_.merge(tx.objects_);
     stagedForLink_.append(tx.stagedForLink_.begin(), tx.stagedForLink_.end());
+    if (tx.activeSamplerId_)
+        activeSamplerId_ = tx.activeSamplerId_;
+}
+
+Ref<Sampler const> Context::getActiveSampler() const {
+    if (!activeSamplerId_)
+        throw kira::Anyhow("Context: no active sampler is set");
+    return get<Sampler>(*activeSamplerId_);
 }
 
 void Context::commit() {

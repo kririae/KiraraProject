@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <optional>
 #include <stdexcept>
 #include <unordered_map>
 #include <utility>
@@ -11,6 +12,8 @@
 #include "kira/SmallVector.h"
 
 namespace flux {
+class Sampler;
+
 /// \brief Owns the host-side objects in a Flux scene.
 ///
 /// Context mutation is single-threaded. Callers must serialize \c create and
@@ -74,6 +77,11 @@ public:
     /// \brief Returns the number of objects owned by this context.
     [[nodiscard]] std::size_t getNumContextObjects() const noexcept { return objects_.size(); }
 
+    /// \brief Returns the sampler selected by the latest creation transaction.
+    ///
+    /// \throw kira::Anyhow If the context has no sampler.
+    [[nodiscard]] Ref<Sampler const> getActiveSampler() const;
+
     /// \brief Returns every context object that is a \c T or derives from it.
     ///
     /// Results are ordered by context ID.
@@ -101,6 +109,7 @@ private:
 
     std::unordered_map<std::size_t, Ref<ContextObject>> objects_;
     kira::SmallVector<std::size_t> stagedForLink_;
+    std::optional<std::size_t> activeSamplerId_;
     std::size_t nextId_{0};
     bool committing_{false};
 };

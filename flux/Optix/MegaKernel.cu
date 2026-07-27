@@ -2,12 +2,13 @@
 
 #include "flux/Optix/OptixContext.cuh"
 #include "flux/Optix/OptixLaunchParams.h"
+#include "flux/Sampling/Sampler.cuh"
 #include "flux/Scene/Camera.cuh"
 #include "flux/Scene/Film.cuh"
 #include "flux/Scene/TriangleMesh.cuh"
 
 extern "C" {
-__constant__ flux::OptixLaunchParams optixLaunchParams;
+__constant__ flux::OptixLaunchParams optixLaunchParams{};
 }
 
 namespace {
@@ -20,8 +21,18 @@ __device__ flux::Vec3f fromFloat3(float3 const &value) { return {value.x, value.
 
 extern "C" __global__ void __raygen__megakernel() {
     auto const launchIndex = optixGetLaunchIndex();
+    auto const pixel = flux::Vec2u{launchIndex.x, launchIndex.y};
+    auto const resolution =
+        flux::Vec2u{optixLaunchParams.film.width, optixLaunchParams.film.height};
+    auto sampler = optixLaunchParams.sampler;
+    sampler.startPixelSample(pixel, optixLaunchParams.sampleIndex, resolution);
+    auto const pixelSample = sampler.getPixel2D();
+    auto const rasterPosition = flux::Vec2f{
+        static_cast<float>(launchIndex.x) + pixelSample.x(),
+        static_cast<float>(launchIndex.y) + pixelSample.y(),
+    };
     auto const ray = optixLaunchParams.camera.generateRay(
-        launchIndex.x, launchIndex.y, optixLaunchParams.film.width, optixLaunchParams.film.height
+        rasterPosition, optixLaunchParams.film.width, optixLaunchParams.film.height
     );
     unsigned int normalX = 0;
     unsigned int normalY = 0;

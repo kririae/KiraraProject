@@ -5,8 +5,15 @@
 #include <filesystem>
 
 #include "flux/Core/Object.h"
+#include "flux/Sampling/Sampler.h"
 
 namespace flux {
+/// \brief Values specialized while compiling an OptiX program.
+struct OptixProgramSpec {
+    /// Sampler implementation used by the pipeline.
+    SamplerType samplerType;
+};
+
 /// \brief Owns the module, program groups, and pipeline for an OptiX scene.
 class OptixProgram final : private Noncopyable {
 public:
@@ -16,14 +23,21 @@ public:
     /// \c __miss__radiance, and \c __closesthit__triangle.
     /// \param deviceContext OptiX context used to create the program.
     /// \param modulePath Path to the OptiX IR module.
+    /// \param spec Values specialized into the OptiX module.
     /// \throw kira::Anyhow If the module cannot be read or OptiX setup fails.
-    OptixProgram(OptixDeviceContext deviceContext, std::filesystem::path const &modulePath);
+    OptixProgram(
+        OptixDeviceContext deviceContext, std::filesystem::path const &modulePath,
+        OptixProgramSpec spec
+    );
 
     /// \brief Releases the pipeline, program groups, and module.
     ~OptixProgram();
 
     /// \brief Returns the linked pipeline.
     [[nodiscard]] OptixPipeline getPipeline() const noexcept { return pipeline_; }
+
+    /// \brief Returns the values specialized into this program.
+    [[nodiscard]] OptixProgramSpec const &getSpec() const noexcept { return spec_; }
 
     /// \brief Returns the ray-generation program group.
     [[nodiscard]] OptixProgramGroup getRaygenProgram() const noexcept { return raygenProgram_; }
@@ -41,6 +55,7 @@ private:
     void reset() noexcept;
 
     OptixDeviceContext deviceContext_;
+    OptixProgramSpec spec_;
     OptixModule module_{};
     OptixProgramGroup raygenProgram_{};
     OptixProgramGroup missProgram_{};

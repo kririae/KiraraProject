@@ -89,5 +89,13 @@ namespace kira {
 #elif defined(_MSC_VER)
 #define KIRA_ASSUME(expr) __assume(expr)
 #endif
+
+#if __has_builtin(__builtin_unreachable) || defined(__GNUC__)
+#define KIRA_UNREACHABLE() __builtin_unreachable()
+#elif defined(_MSC_VER)
+#define KIRA_UNREACHABLE() __assume(false)
+#else
+#define KIRA_UNREACHABLE() ((void)0)
+#endif
 /// \}
 } // namespace kira

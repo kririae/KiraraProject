@@ -22,6 +22,7 @@ add_library(
     Optix/OptixProgram.cpp
     Optix/OptixRenderProductPool.cpp
     Optix/OptixSbt.cpp
+    Sampling/Sampler.cpp
     Scene/Camera.cpp
     Scene/Context.cpp
     Scene/Film.cpp

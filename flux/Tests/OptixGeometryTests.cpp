@@ -7,6 +7,7 @@
 
 #include "TestUtils.h"
 #include "flux/Optix/OptixHandler.h"
+#include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/Primitive.h"
@@ -43,6 +44,7 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
+    (void)context->create<flux::IndependentSampler>();
     kira::Properties meshProperties;
     meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
     auto mesh = context->create<flux::TriangleMesh>(std::move(meshProperties));
@@ -61,7 +63,7 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
     auto product = context->create<flux::RenderProduct>(std::move(productProperties));
 
     flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
-    EXPECT_NO_THROW(handler.render(*camera, *product));
+    EXPECT_NO_THROW(handler.render(*camera, *product, 0));
 
     EXPECT_THROW((void)context->create<ThrowingGapObject>(), std::runtime_error);
     auto secondPrimitive = context->create<flux::Primitive>(primitiveProperties(*mesh));
@@ -81,7 +83,7 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
     });
     EXPECT_GT(secondPrimitive->getContextId(), firstPrimitive->getContextId() + 1);
 
-    EXPECT_NO_THROW(handler.render(*camera, *product));
+    EXPECT_NO_THROW(handler.render(*camera, *product, 1));
     handler.sync();
-    EXPECT_NO_THROW(handler.render(*camera, *product));
+    EXPECT_NO_THROW(handler.render(*camera, *product, 1));
 }

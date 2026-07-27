@@ -12,8 +12,10 @@
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/OptixContext.h"
 #include "flux/Optix/OptixLaunchParams.h"
+#include "flux/Optix/OptixProgram.h"
 #include "flux/Optix/OptixRenderProductPool.h"
 #include "flux/Optix/OptixUtils.h"
+#include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/RenderProduct.h"
@@ -138,16 +140,26 @@ OptixHandler::~OptixHandler() = default;
 
 void OptixHandler::sync() { impl_->sync(); }
 
-void OptixHandler::render(Camera const &camera, RenderProduct const &product) {
+void OptixHandler::render(
+    Camera const &camera, RenderProduct const &product, std::uint64_t sampleIndex
+) {
     if (camera.getContext() != impl_->context.get() || product.getContext() != impl_->context.get())
         throw std::invalid_argument(
             "OptixHandler: camera and render product must belong to the handler context"
         );
 
     auto const &film = product.getFilm();
+    auto const resolution = Vec2u{film.getWidth(), film.getHeight()};
+    auto const sampler = impl_->context->getActiveSampler();
+    auto const samplerImpl = sampler->getDeviceImpl(resolution);
+    if (samplerImpl.type != impl_->optixContext->getProgramSpec().samplerType)
+        throw kira::Anyhow("OptixHandler: sampler type changed; call sync before rendering");
+
     auto const params = OptixLaunchParams{
         .scene = impl_->optixContext->getDeviceImpl(),
         .camera = camera.getDeviceImpl(),
+        .sampler = samplerImpl,
+        .sampleIndex = sampleIndex,
         .film = impl_->renderProducts->acquire(product),
     };
     try {

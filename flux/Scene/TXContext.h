@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 #include <unordered_map>
 #include <utility>
 
@@ -9,6 +10,7 @@
 
 namespace flux {
 class RenderObject;
+class Sampler;
 
 /// \brief Collects objects created by one \c Context::create call.
 ///
@@ -18,6 +20,7 @@ class TXContext {
     friend class Context;
     friend class ContextObject;
     friend class RenderObject;
+    friend class Sampler;
 
 public:
     /// \brief Creates and registers a configurable object in this transaction.
@@ -37,9 +40,11 @@ private:
     [[nodiscard]] std::size_t allocateId();
     void registerObject(Ref<ContextObject> object);
     void stageForLink(std::size_t contextId);
+    void stageActiveSampler(std::size_t contextId) noexcept;
 
     Context *context_;
     std::unordered_map<std::size_t, Ref<ContextObject>> objects_;
     kira::SmallVector<std::size_t> stagedForLink_;
+    std::optional<std::size_t> activeSamplerId_;
 };
 } // namespace flux

@@ -18,6 +18,13 @@ krr_add_test(
     HARD_DEPENDENCIES flux)
 
 krr_add_test(
+    flux Sampling SamplerTests
+    SOURCES SamplerTests.cu
+    HARD_DEPENDENCIES flux)
+target_link_libraries(flux.Sampling.SamplerTests PRIVATE CUDA::cudart)
+target_compile_options(flux.Sampling.SamplerTests PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+
+krr_add_test(
     flux Optix PipelineTests
     SOURCES OptixPipelineTests.cpp
     HARD_DEPENDENCIES flux)

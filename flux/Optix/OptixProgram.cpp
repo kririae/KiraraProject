@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <fstream>
 #include <limits>
 #include <string>
@@ -11,6 +12,7 @@
 #include <vector>
 
 #include "flux/Core/KIRA.h"
+#include "flux/Optix/OptixLaunchParams.h"
 #include "flux/Optix/OptixUtils.h"
 #include "kira/Anyhow.h"
 
@@ -78,9 +80,9 @@ createProgramGroup(OptixDeviceContext deviceContext, OptixProgramGroupDesc const
 } // namespace
 
 OptixProgram::OptixProgram(
-    OptixDeviceContext deviceContext, std::filesystem::path const &modulePath
+    OptixDeviceContext deviceContext, std::filesystem::path const &modulePath, OptixProgramSpec spec
 )
-    : deviceContext_(deviceContext) {
+    : deviceContext_(deviceContext), spec_(spec) {
     if (!deviceContext_)
         throw kira::Anyhow("OptixProgram: device context must not be null");
 
@@ -99,6 +101,15 @@ OptixProgram::~OptixProgram() { reset(); }
 void OptixProgram::buildModule(std::filesystem::path const &modulePath) {
     auto const ir = readBinary(modulePath);
     OptixModuleCompileOptions moduleOptions{};
+    auto const samplerType = OptixModuleCompileBoundValueEntry{
+        .pipelineParamOffsetInBytes =
+            offsetof(OptixLaunchParams, sampler) + offsetof(Sampler::DeviceImpl, type),
+        .sizeInBytes = sizeof(spec_.samplerType),
+        .boundValuePtr = &spec_.samplerType,
+        .annotation = "Flux sampler implementation",
+    };
+    moduleOptions.boundValues = &samplerType;
+    moduleOptions.numBoundValues = 1;
     auto const pipelineOptions = pipelineCompileOptions();
     std::array<char, 4096> log{};
     std::size_t logSize = log.size();

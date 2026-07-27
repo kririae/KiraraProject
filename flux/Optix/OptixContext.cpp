@@ -13,6 +13,7 @@
 #include "flux/Optix/OptixProgram.h"
 #include "flux/Optix/OptixSbt.h"
 #include "flux/Optix/OptixUtils.h"
+#include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/TriangleMesh.h"
@@ -25,13 +26,18 @@ struct OptixContext::Impl : private CudaStreamMixin {
         std::filesystem::path const &modulePath
     )
         : CudaStreamMixin(stream), context(context), deviceContext(deviceContext),
-          program(deviceContext, modulePath), geometryPool(stream), accel(stream), sbt(stream),
+          modulePath(modulePath), geometryPool(stream), accel(stream), sbt(stream),
           primitives(stream) {}
 
     void sync() {
         context.commit();
 
         try {
+            auto const spec =
+                OptixProgramSpec{.samplerType = context.getActiveSampler()->getType()};
+            program.reset();
+            program = std::make_unique<OptixProgram>(deviceContext, modulePath, spec);
+
             auto const scenePrimitives = context.getObjects<Primitive>();
             kira::SmallVector<Ref<TriangleMesh const>> meshes;
             std::unordered_map<std::size_t, std::uint32_t> geometryIndices;
@@ -68,7 +74,7 @@ struct OptixContext::Impl : private CudaStreamMixin {
             accel.buildGas(deviceContext, buildInputs);
             primitives.copyFromHost({primitiveStaging.data(), primitiveStaging.size()});
             accel.buildIas(deviceContext, instances);
-            sbt.build(program);
+            sbt.build(*program);
             cudaCheck(cudaStreamSynchronize(getStream()));
         } catch (...) {
             cudaCheck<false>(cudaStreamSynchronize(getStream()));
@@ -78,7 +84,8 @@ struct OptixContext::Impl : private CudaStreamMixin {
 
     Context &context;
     OptixDeviceContext deviceContext;
-    OptixProgram program;
+    std::filesystem::path modulePath;
+    std::unique_ptr<OptixProgram> program;
     OptixGeometryPool geometryPool;
     OptixAccel accel;
     OptixSbt sbt;
@@ -102,7 +109,7 @@ void OptixContext::launch(
 ) const {
     // clang-format off
     optixCheck(optixLaunch(
-        /* pipeline =           */ impl_->program.getPipeline(),
+        /* pipeline =           */ impl_->program->getPipeline(),
         /* stream =             */ stream,
         /* pipelineParams =     */ params,
         /* pipelineParamsSize = */ paramsSize,
@@ -111,6 +118,10 @@ void OptixContext::launch(
         /* height =             */ height,
         /* depth =              */ 1));
     // clang-format on
+}
+
+OptixProgramSpec const &OptixContext::getProgramSpec() const noexcept {
+    return impl_->program->getSpec();
 }
 
 OptixContext::DeviceImpl OptixContext::getDeviceImpl() const noexcept {

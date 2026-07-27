@@ -17,6 +17,7 @@
 namespace flux {
 class Context;
 class OptixHandler;
+struct OptixProgramSpec;
 
 /// \brief Owns the OptiX materialization of a host scene.
 class OptixContext final : private Noncopyable {
@@ -68,6 +69,9 @@ private:
 
     /// \brief Returns the current device-scene implementation.
     [[nodiscard]] DeviceImpl getDeviceImpl() const noexcept;
+
+    /// \brief Returns the values specialized into the current pipeline.
+    [[nodiscard]] OptixProgramSpec const &getProgramSpec() const noexcept;
 
     struct Impl;
     std::unique_ptr<Impl> impl_;

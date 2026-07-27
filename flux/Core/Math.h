@@ -10,6 +10,12 @@
 #include "kira/Vecteur.h"
 
 namespace flux {
+/// Two-component floating-point vector.
+using Vec2f = kira::Vec2f;
+
+/// Two-component unsigned integer vector.
+using Vec2u = kira::Vecteur<std::uint32_t, 2, kira::defaultBackend>;
+
 /// Three-component floating-point vector.
 using Vec3f = kira::Vec3f;
 
