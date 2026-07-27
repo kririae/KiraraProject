@@ -24,6 +24,7 @@ public:
     /// \param context Host context retained for the lifetime of the handler.
     /// \param modulePath Path to the OptiX IR module used by the pipeline.
     /// \throw kira::Anyhow if \p context is null or setup fails.
+    /// \throw std::out_of_range If a primitive refers to an unknown geometry.
     OptixHandler(Ref<Context> context, std::filesystem::path const &modulePath);
 
     /// \brief Waits for pending work and releases device resources.
@@ -35,6 +36,7 @@ public:
     /// work enqueued by the update before returning. If rebuilding fails,
     /// destroy this handler without using it again.
     /// \throw kira::Anyhow If scene linking, CUDA, or OptiX setup fails.
+    /// \throw std::out_of_range If a primitive refers to an unknown geometry.
     void sync();
 
     /// \brief Launches the current pipeline and waits for completion.

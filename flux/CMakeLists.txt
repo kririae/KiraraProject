@@ -15,14 +15,16 @@ target_include_directories(flux_optix_headers SYSTEM INTERFACE "${optix_SOURCE_D
 add_library(
     flux STATIC
     Core/Object.cpp
-    Geometry/TriangleMesh.cpp
     Optix/OptixAccel.cpp
     Optix/OptixContext.cpp
     Optix/OptixGeometryPool.cpp
     Optix/OptixHandler.cpp
     Optix/OptixProgram.cpp
+    Optix/OptixSbt.cpp
     Scene/Context.cpp
+    Scene/Primitive.cpp
     Scene/RenderObject.cpp
+    Scene/TriangleMesh.cpp
     Scene/TXContext.cpp)
 
 target_include_directories(flux PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)

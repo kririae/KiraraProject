@@ -47,8 +47,8 @@ void logCompilerOutput(OptixResult result, std::array<char, 4096> const &log, st
 
 [[nodiscard]] OptixPipelineCompileOptions pipelineCompileOptions() {
     OptixPipelineCompileOptions options{};
-    options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
-    options.numPayloadValues = 4;
+    options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
+    options.numPayloadValues = 5;
     options.numAttributeValues = 2;
     options.pipelineLaunchParamsVariableName = "optixLaunchParams";
     options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE;
@@ -150,7 +150,7 @@ void OptixProgram::buildPipeline() {
     auto const pipelineOptions = pipelineCompileOptions();
     OptixPipelineLinkOptions linkOptions{};
     linkOptions.maxTraceDepth = 1;
-    linkOptions.maxTraversableGraphDepth = 1;
+    linkOptions.maxTraversableGraphDepth = 2;
 
     std::array const programs{raygenProgram_, missProgram_, hitgroupProgram_};
     std::array<char, 4096> log{};
@@ -176,7 +176,7 @@ void OptixProgram::buildPipeline() {
         /* maxContinuationCallableDepth =        */ 0,
         /* maxDirectCallableDepthFromState =     */ 0,
         /* maxDirectCallableDepthFromTraversal = */ 0,
-        /* maxTraversableGraphDepth =            */ 1));
+        /* maxTraversableGraphDepth =            */ 2));
     // clang-format on
 }
 

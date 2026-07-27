@@ -5,12 +5,13 @@
 #include <cstdint>
 
 #include "flux/Core/Ray.h"
+#include "flux/Optix/OptixContext.h"
 
 namespace flux {
 /// \brief Parameters shared by an OptiX intersection launch.
 struct OptixLaunchParams {
-    /// Geometry acceleration structure traced by the launch.
-    OptixTraversableHandle traversable{};
+    /// Persistent device scene used by this launch.
+    OptixContext::DeviceImpl scene;
 
     /// Device array of input rays.
     Ray const *rays{};

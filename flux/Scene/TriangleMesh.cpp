@@ -1,4 +1,4 @@
-#include "flux/Geometry/TriangleMesh.h"
+#include "flux/Scene/TriangleMesh.h"
 
 #include <charconv>
 #include <cstdint>

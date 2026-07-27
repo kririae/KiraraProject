@@ -6,6 +6,13 @@ krr_add_test(
     HARD_DEPENDENCIES flux)
 
 krr_add_test(
+    flux Scene PrimitiveTests
+    SOURCES PrimitiveTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(flux.Scene.PrimitiveTests
+                           PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures")
+
+krr_add_test(
     flux Optix PipelineTests
     SOURCES OptixPipelineTests.cpp
     HARD_DEPENDENCIES flux)

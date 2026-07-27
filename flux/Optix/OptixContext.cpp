@@ -2,97 +2,86 @@
 
 #include <optix_stubs.h>
 
-#include <array>
+#include <cstdint>
+#include <limits>
+#include <unordered_map>
 #include <vector>
 
-#include "flux/Geometry/TriangleMesh.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/OptixAccel.h"
 #include "flux/Optix/OptixGeometryPool.h"
 #include "flux/Optix/OptixProgram.h"
+#include "flux/Optix/OptixSbt.h"
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Scene/Context.h"
+#include "flux/Scene/Primitive.h"
+#include "flux/Scene/TriangleMesh.h"
+#include "kira/Anyhow.h"
 
 namespace flux {
-namespace {
-struct alignas(OPTIX_SBT_RECORD_ALIGNMENT) SbtRecord {
-    std::array<char, OPTIX_SBT_RECORD_HEADER_SIZE> header;
-};
-} // namespace
-
-struct OptixContext::Impl {
-    struct SbtStaging {
-        SbtRecord raygen{};
-        SbtRecord miss{};
-        std::vector<SbtRecord> hitgroups;
-    };
-
+struct OptixContext::Impl : private CudaStreamMixin {
     Impl(
         OptixDeviceContext deviceContext, cudaStream_t stream,
         std::filesystem::path const &modulePath
     )
-        : deviceContext(deviceContext), stream(stream), program(deviceContext, modulePath),
-          geometryPool(stream), accel(deviceContext, stream), raygenRecord(stream),
-          missRecord(stream), hitgroupRecords(stream) {}
-
-    void buildSbt(SbtStaging &staging) {
-        optixCheck(optixSbtRecordPackHeader(program.getRaygenProgram(), &staging.raygen));
-        optixCheck(optixSbtRecordPackHeader(program.getMissProgram(), &staging.miss));
-
-        staging.hitgroups.resize(geometryPool.size());
-        for (auto &record : staging.hitgroups)
-            optixCheck(optixSbtRecordPackHeader(program.getHitgroupProgram(), &record));
-
-        raygenRecord.copyFromHost({&staging.raygen, 1});
-        missRecord.copyFromHost({&staging.miss, 1});
-        hitgroupRecords.copyFromHost({staging.hitgroups.data(), staging.hitgroups.size()});
-
-        sbt = {
-            .raygenRecord = devicePointer(raygenRecord.data()),
-            .exceptionRecord = 0,
-            .missRecordBase = devicePointer(missRecord.data()),
-            .missRecordStrideInBytes = sizeof(SbtRecord),
-            .missRecordCount = 1,
-            .hitgroupRecordBase = devicePointer(hitgroupRecords.data()),
-            .hitgroupRecordStrideInBytes =
-                hitgroupRecords.empty() ? 0U : static_cast<unsigned int>(sizeof(SbtRecord)),
-            .hitgroupRecordCount = static_cast<unsigned int>(hitgroupRecords.size()),
-            .callablesRecordBase = 0,
-            .callablesRecordStrideInBytes = 0,
-            .callablesRecordCount = 0,
-        };
-    }
+        : CudaStreamMixin(stream), deviceContext(deviceContext), program(deviceContext, modulePath),
+          geometryPool(stream), accel(stream), sbt(stream), primitives(stream) {}
 
     void sync(Context &context) {
         context.commit();
 
-        SbtStaging staging;
         try {
-            hitgroupRecords.clear();
-            missRecord.clear();
-            raygenRecord.clear();
+            auto const scenePrimitives = context.getObjects<Primitive>();
+            kira::SmallVector<Ref<TriangleMesh const>> meshes;
+            std::unordered_map<std::size_t, std::uint32_t> geometryIndices;
+            std::vector<OptixAccel::InstanceDesc> instances;
+            primitiveStaging.clear();
+            meshes.reserve(scenePrimitives.size());
+            geometryIndices.reserve(scenePrimitives.size());
+            instances.reserve(scenePrimitives.size());
+            primitiveStaging.reserve(scenePrimitives.size());
 
-            auto const meshes = context.getObjects<TriangleMesh>();
+            for (auto const &primitive : scenePrimitives) {
+                if (!primitive->isVisible())
+                    continue;
+
+                auto const contextId = primitive->getGeometryContextId();
+                auto iterator = geometryIndices.find(contextId);
+                if (iterator == geometryIndices.end()) {
+                    if (meshes.size() >= std::numeric_limits<std::uint32_t>::max())
+                        throw kira::Anyhow("OptixContext: geometry count exceeds device limits");
+                    auto const index = static_cast<std::uint32_t>(meshes.size());
+                    meshes.push_back(primitive->getGeometry());
+                    iterator = geometryIndices.emplace(contextId, index).first;
+                }
+
+                primitiveStaging.push_back({.geometryIndex = iterator->second});
+                instances.push_back({
+                    .geometryIndex = iterator->second,
+                    .transform = primitive->getTransform(),
+                });
+            }
+
             geometryPool.upload(meshes);
             auto const buildInputs = geometryPool.getBuildInputs();
-            accel.build(buildInputs);
-            buildSbt(staging);
-            cudaCheck(cudaStreamSynchronize(stream));
+            accel.buildGas(deviceContext, buildInputs);
+            primitives.copyFromHost({primitiveStaging.data(), primitiveStaging.size()});
+            accel.buildIas(deviceContext, instances);
+            sbt.build(program);
+            cudaCheck(cudaStreamSynchronize(getStream()));
         } catch (...) {
-            cudaCheck<false>(cudaStreamSynchronize(stream));
+            cudaCheck<false>(cudaStreamSynchronize(getStream()));
             throw;
         }
     }
 
     OptixDeviceContext deviceContext;
-    cudaStream_t stream;
     OptixProgram program;
     OptixGeometryPool geometryPool;
     OptixAccel accel;
-    DeviceBuffer<SbtRecord> raygenRecord;
-    DeviceBuffer<SbtRecord> missRecord;
-    DeviceBuffer<SbtRecord> hitgroupRecords;
-    OptixShaderBindingTable sbt{};
+    OptixSbt sbt;
+    std::vector<Primitive::DeviceImpl> primitiveStaging;
+    DeviceBuffer<Primitive::DeviceImpl> primitives;
 };
 
 OptixContext::OptixContext(
@@ -113,14 +102,20 @@ void OptixContext::launch(
         /* stream =             */ stream,
         /* pipelineParams =     */ params,
         /* pipelineParamsSize = */ paramsSize,
-        /* sbt =                */ &impl_->sbt,
+        /* sbt =                */ &impl_->sbt.getTable(),
         /* width =              */ width,
         /* height =             */ 1,
         /* depth =              */ 1));
     // clang-format on
 }
 
-OptixTraversableHandle OptixContext::getTraversable() const noexcept {
-    return impl_->accel.getHandle();
+OptixContext::DeviceImpl OptixContext::getDeviceImpl() const noexcept {
+    return {
+        .traversable = impl_->accel.getHandle(),
+        .geometries = impl_->geometryPool.getDeviceImpls(),
+        .primitives = impl_->primitives.data(),
+        .numGeometries = static_cast<std::uint32_t>(impl_->geometryPool.size()),
+        .numPrimitives = static_cast<std::uint32_t>(impl_->primitives.size()),
+    };
 }
 } // namespace flux

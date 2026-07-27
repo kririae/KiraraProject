@@ -31,6 +31,12 @@ namespace kira {
 #endif
 #endif
 
+#if defined(__CUDACC__)
+#define KIRA_DEVICE __device__
+#else
+#define KIRA_DEVICE
+#endif
+
 #if __has_builtin(__builtin_expect) || defined(__GNUC__)
 #define KIRA_LIKELY(EXPR)   __builtin_expect((bool)(EXPR), true)
 #define KIRA_UNLIKELY(EXPR) __builtin_expect((bool)(EXPR), false)

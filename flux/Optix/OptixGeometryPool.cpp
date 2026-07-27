@@ -13,8 +13,11 @@ void OptixGeometryPool::upload(std::span<Ref<TriangleMesh const> const> meshes) 
     if (meshes.size() > std::numeric_limits<unsigned int>::max())
         throw kira::Anyhow("OptixGeometryPool: mesh count exceeds OptiX limits");
 
+    deviceImpls_.clear();
     entries_.clear();
+    staging_.clear();
     entries_.reserve(meshes.size());
+    staging_.reserve(meshes.size());
 
     for (auto const &mesh : meshes) {
         auto const vertices = mesh->getVertices();
@@ -27,7 +30,15 @@ void OptixGeometryPool::upload(std::span<Ref<TriangleMesh const> const> meshes) 
         entry.vertices.copyFromHost({vertices.data(), vertices.size()});
         entry.triangles.copyFromHost({triangles.data(), triangles.size()});
         entry.vertexBuffer = devicePointer(entry.vertices.data());
+        staging_.push_back({
+            .vertices = entry.vertices.data(),
+            .triangles = entry.triangles.data(),
+            .numVertices = static_cast<std::uint32_t>(vertices.size()),
+            .numTriangles = static_cast<std::uint32_t>(triangles.size()),
+        });
     }
+
+    deviceImpls_.copyFromHost({staging_.data(), staging_.size()});
 }
 
 std::vector<OptixBuildInput> OptixGeometryPool::getBuildInputs() const {

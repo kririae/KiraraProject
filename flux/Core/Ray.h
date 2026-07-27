@@ -29,9 +29,12 @@ struct RayHit {
     float distance{};
 
     /// Triangle index within the intersected mesh.
-    std::uint32_t primitiveIndex{};
+    std::uint32_t triangleIndex{};
 
-    /// Mesh index in the device scene's context order.
+    /// Dense primitive index in the current OptiX materialization.
+    std::uint32_t instanceIndex{};
+
+    /// Dense mesh index in the current OptiX materialization.
     std::uint32_t geometryIndex{};
 
     /// Nonzero when the ray found a surface.

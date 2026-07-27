@@ -6,9 +6,9 @@
 #include <vector>
 
 #include "flux/Core/Object.h"
-#include "flux/Geometry/TriangleMesh.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/OptixUtils.h"
+#include "flux/Scene/TriangleMesh.h"
 
 namespace flux {
 /// \brief Owns the device storage used by OptiX triangle build inputs.
@@ -18,12 +18,13 @@ namespace flux {
 class OptixGeometryPool final : private Noncopyable, private CudaStreamMixin {
 public:
     /// \brief Creates an empty pool bound to \p stream.
-    explicit OptixGeometryPool(cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
+    explicit OptixGeometryPool(cudaStream_t stream) noexcept
+        : CudaStreamMixin(stream), deviceImpls_(stream) {}
 
     /// \brief Replaces resident triangle meshes with \p meshes.
     ///
     /// Existing storage is released before the replacement is uploaded.
-    /// \param meshes Host meshes to upload in context order.
+    /// \param meshes Host meshes to upload in device-table order.
     /// \throw kira::Anyhow If CUDA cannot enqueue an allocation or copy.
     void upload(std::span<Ref<TriangleMesh const> const> meshes);
 
@@ -34,6 +35,11 @@ public:
 
     /// \brief Returns the number of resident meshes.
     [[nodiscard]] std::size_t size() const noexcept { return entries_.size(); }
+
+    /// \brief Returns the device array of resident mesh implementations.
+    [[nodiscard]] TriangleMesh::DeviceImpl const *getDeviceImpls() const noexcept {
+        return deviceImpls_.data();
+    }
 
 private:
     struct Entry {
@@ -46,5 +52,7 @@ private:
     };
 
     std::vector<Entry> entries_;
+    std::vector<TriangleMesh::DeviceImpl> staging_;
+    DeviceBuffer<TriangleMesh::DeviceImpl> deviceImpls_;
 };
 } // namespace flux

@@ -135,7 +135,7 @@ void OptixHandler::sync() { impl_->sync(); }
 
 void OptixHandler::launch() {
     auto const params = OptixLaunchParams{
-        .traversable = impl_->optixContext->getTraversable(),
+        .scene = impl_->optixContext->getDeviceImpl(),
     };
     try {
         impl_->launch(params, 1);
@@ -157,7 +157,7 @@ std::vector<RayHit> OptixHandler::intersect(std::span<Ray const> rays) {
         impl_->hits.resize(rays.size(), impl_->stream);
 
         auto const params = OptixLaunchParams{
-            .traversable = impl_->optixContext->getTraversable(),
+            .scene = impl_->optixContext->getDeviceImpl(),
             .rays = impl_->rays.data(),
             .hits = impl_->hits.data(),
             .rayCount = static_cast<std::uint32_t>(rays.size()),

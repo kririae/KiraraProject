@@ -7,8 +7,12 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <type_traits>
 
 #include "flux/Core/Object.h"
+#include "flux/Scene/Primitive.h"
+#include "flux/Scene/TriangleMesh.h"
+#include "kira/Compiler.h"
 
 namespace flux {
 class Context;
@@ -19,6 +23,9 @@ class OptixContext final : private Noncopyable {
     friend class OptixHandler;
 
 public:
+    /// \brief Compact device implementation of the materialized scene.
+    struct DeviceImpl;
+
     /// \brief Releases device-scene resources.
     ~OptixContext();
 
@@ -44,6 +51,7 @@ private:
     /// fails, destroy this object without using it again.
     /// \param context Host scene to commit and upload.
     /// \throw kira::Anyhow If scene linking, CUDA, or OptiX setup fails.
+    /// \throw std::out_of_range If a primitive refers to an unknown geometry.
     void sync(Context &context);
 
     /// \brief Launches the persistent pipeline on \p stream.
@@ -56,10 +64,48 @@ private:
         cudaStream_t stream, CUdeviceptr params, std::size_t paramsSize, std::uint32_t width
     ) const;
 
-    /// \brief Returns the scene's geometry traversable, or zero when empty.
-    [[nodiscard]] OptixTraversableHandle getTraversable() const noexcept;
+    /// \brief Returns the current device-scene implementation.
+    [[nodiscard]] DeviceImpl getDeviceImpl() const noexcept;
 
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };
+
+/// \brief Device implementation of an OptiX scene materialization.
+struct OptixContext::DeviceImpl {
+    /// Top-level instance acceleration structure.
+    OptixTraversableHandle traversable{};
+
+    /// Device array of unique triangle meshes.
+    TriangleMesh::DeviceImpl const *geometries{};
+
+    /// Device array of visible primitives.
+    Primitive::DeviceImpl const *primitives{};
+
+    /// Number of elements in \c geometries.
+    std::uint32_t numGeometries{};
+
+    /// Number of elements in \c primitives.
+    std::uint32_t numPrimitives{};
+
+    /// \brief Returns the primitive at dense \p instanceIndex.
+    ///
+    /// \pre \p instanceIndex is less than \c numPrimitives.
+    [[nodiscard]] KIRA_DEVICE inline Primitive::DeviceImpl const &
+    getPrimitive(std::uint32_t instanceIndex) const noexcept;
+
+    /// \brief Returns the geometry at dense \p geometryIndex.
+    ///
+    /// \pre \p geometryIndex is less than \c numGeometries.
+    [[nodiscard]] KIRA_DEVICE inline TriangleMesh::DeviceImpl const &
+    getGeometry(std::uint32_t geometryIndex) const noexcept;
+};
+
+static_assert(std::is_standard_layout_v<OptixContext::DeviceImpl>);
+static_assert(std::is_trivially_copyable_v<OptixContext::DeviceImpl>);
+
+namespace optix {
+/// Device representation of an OptiX scene snapshot.
+using Scene = ::flux::OptixContext::DeviceImpl;
+} // namespace optix
 } // namespace flux
