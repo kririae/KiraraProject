@@ -1,25 +1,24 @@
 #pragma once
 
-#include <optix_types.h>
+#include <type_traits>
 
-#include <cstdint>
-
-#include "flux/Core/Ray.h"
 #include "flux/Optix/OptixContext.h"
+#include "flux/Render/Film.h"
+#include "flux/Scene/Camera.h"
 
 namespace flux {
-/// \brief Parameters shared by an OptiX intersection launch.
+/// \brief Parameters shared by an OptiX render launch.
 struct OptixLaunchParams {
     /// Persistent device scene used by this launch.
     OptixContext::DeviceImpl scene;
 
-    /// Device array of input rays.
-    Ray const *rays{};
+    /// Launch-time camera.
+    Camera::DeviceImpl camera;
 
-    /// Device array receiving one result per ray.
-    RayHit *hits{};
-
-    /// Number of elements in \c rays and \c hits.
-    std::uint32_t rayCount{};
+    /// Launch-time output channels.
+    Film::DeviceImpl film;
 };
+
+static_assert(std::is_standard_layout_v<OptixLaunchParams>);
+static_assert(std::is_trivially_copyable_v<OptixLaunchParams>);
 } // namespace flux

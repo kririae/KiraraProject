@@ -13,7 +13,7 @@ public:
     /// \brief Builds a triangle-intersection pipeline from \p modulePath.
     ///
     /// The module must provide \c __raygen__megakernel,
-    /// \c __miss__intersection, and \c __closesthit__triangle.
+    /// \c __miss__radiance, and \c __closesthit__triangle.
     /// \param deviceContext OptiX context used to create the program.
     /// \param modulePath Path to the OptiX IR module.
     /// \throw kira::Anyhow If the module cannot be read or OptiX setup fails.

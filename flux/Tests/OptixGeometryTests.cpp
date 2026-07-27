@@ -1,16 +1,16 @@
 #include <gtest/gtest.h>
 
-#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <stdexcept>
 #include <utility>
 
 #include "TestUtils.h"
-#include "flux/Core/Ray.h"
 #include "flux/Optix/OptixHandler.h"
+#include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/Primitive.h"
+#include "flux/Scene/RenderProduct.h"
 #include "flux/Scene/TriangleMesh.h"
 
 #ifndef FLUX_TEST_FIXTURES_DIR
@@ -51,33 +51,17 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
     auto firstPrimitive = context->create<flux::Primitive>(primitiveProperties(*mesh));
     EXPECT_GT(firstPrimitive->getContextId(), mesh->getContextId() + 1);
 
+    kira::Properties cameraProperties;
+    cameraProperties.set("position", flux::Vec3f{0.25F, 0.25F, 1.0F});
+    cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.0F});
+    auto camera = context->create<flux::Camera>(std::move(cameraProperties));
+    kira::Properties productProperties;
+    productProperties.set("width", std::uint32_t{3});
+    productProperties.set("height", std::uint32_t{1});
+    auto product = context->create<flux::RenderProduct>(std::move(productProperties));
+
     flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
-
-    std::array const rays{
-        flux::Ray{
-            .origin = flux::Vec3f{0.25F, 0.25F, 1.0F},
-            .direction = flux::Vec3f{0.0F, 0.0F, -1.0F},
-        },
-        flux::Ray{
-            .origin = flux::Vec3f{1.25F, 1.25F, 1.0F},
-            .direction = flux::Vec3f{0.0F, 0.0F, -1.0F},
-        },
-        flux::Ray{
-            .origin = flux::Vec3f{2.25F, 0.25F, 1.0F},
-            .direction = flux::Vec3f{0.0F, 0.0F, -1.0F},
-        },
-    };
-
-    auto const initialHits = handler.intersect(rays);
-
-    ASSERT_EQ(initialHits.size(), rays.size());
-    EXPECT_TRUE(initialHits[0].isHit());
-    EXPECT_FLOAT_EQ(initialHits[0].distance, 1.0F);
-    EXPECT_EQ(initialHits[0].triangleIndex, 0);
-    EXPECT_EQ(initialHits[0].instanceIndex, 0);
-    EXPECT_EQ(initialHits[0].geometryIndex, 0);
-    EXPECT_FALSE(initialHits[1].isHit());
-    EXPECT_FALSE(initialHits[2].isHit());
+    EXPECT_NO_THROW(handler.render(*camera, *product));
 
     EXPECT_THROW((void)context->create<ThrowingGapObject>(), std::runtime_error);
     auto secondPrimitive = context->create<flux::Primitive>(primitiveProperties(*mesh));
@@ -97,22 +81,7 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
     });
     EXPECT_GT(secondPrimitive->getContextId(), firstPrimitive->getContextId() + 1);
 
-    auto const staleHits = handler.intersect(rays);
-    ASSERT_EQ(staleHits.size(), rays.size());
-    EXPECT_FALSE(staleHits[2].isHit());
-
+    EXPECT_NO_THROW(handler.render(*camera, *product));
     handler.sync();
-
-    auto const updatedHits = handler.intersect(rays);
-
-    ASSERT_EQ(updatedHits.size(), rays.size());
-    EXPECT_TRUE(updatedHits[0].isHit());
-    EXPECT_EQ(updatedHits[0].instanceIndex, 0);
-    EXPECT_EQ(updatedHits[0].geometryIndex, 0);
-    EXPECT_FALSE(updatedHits[1].isHit());
-    EXPECT_TRUE(updatedHits[2].isHit());
-    EXPECT_FLOAT_EQ(updatedHits[2].distance, 1.0F);
-    EXPECT_EQ(updatedHits[2].triangleIndex, 0);
-    EXPECT_EQ(updatedHits[2].instanceIndex, 1);
-    EXPECT_EQ(updatedHits[2].geometryIndex, 0);
+    EXPECT_NO_THROW(handler.render(*camera, *product));
 }

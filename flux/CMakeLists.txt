@@ -21,8 +21,11 @@ add_library(
     Optix/OptixHandler.cpp
     Optix/OptixProgram.cpp
     Optix/OptixSbt.cpp
+    Render/Film.cpp
+    Scene/Camera.cpp
     Scene/Context.cpp
     Scene/Primitive.cpp
+    Scene/RenderProduct.cpp
     Scene/RenderObject.cpp
     Scene/TriangleMesh.cpp
     Scene/TXContext.cpp)

@@ -5,17 +5,43 @@
 #include <optix_stubs.h>
 
 #include <cstdint>
-#include <limits>
+#include <stdexcept>
+#include <unordered_map>
 #include <utility>
 
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/OptixContext.h"
 #include "flux/Optix/OptixLaunchParams.h"
 #include "flux/Optix/OptixUtils.h"
+#include "flux/Render/Film.h"
+#include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
+#include "flux/Scene/RenderProduct.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
+namespace {
+/// Handler-owned device storage for render-product channels.
+class OptixRenderProductPool {
+public:
+    [[nodiscard]] Film::DeviceImpl prepare(RenderProduct const &product, cudaStream_t stream) {
+        auto &normal = entries_.try_emplace(product.getContextId(), stream).first->second;
+        auto const &film = product.getFilm();
+        normal.resize(static_cast<std::size_t>(film.getWidth()) * film.getHeight());
+        return {
+            .width = film.getWidth(),
+            .height = film.getHeight(),
+            .normal = normal.data(),
+        };
+    }
+
+    void clear() noexcept { entries_.clear(); }
+
+private:
+    std::unordered_map<std::size_t, DeviceBuffer<Vec3f>> entries_;
+};
+} // namespace
+
 struct OptixHandler::Impl {
     Impl(Ref<Context> hostContext, std::filesystem::path const &modulePath);
     ~Impl() { reset(); }
@@ -35,8 +61,8 @@ struct OptixHandler::Impl {
     /// \brief Rebuilds the device scene from the host context.
     void sync();
 
-    /// \brief Uploads \p params and launches \p width work items.
-    void launch(OptixLaunchParams const &params, std::uint32_t width);
+    /// \brief Uploads \p params and launches a two-dimensional grid.
+    void launch(OptixLaunchParams const &params, std::uint32_t width, std::uint32_t height);
 
     /// \brief Releases backend resources in dependency order without throwing.
     void reset() noexcept;
@@ -50,8 +76,7 @@ struct OptixHandler::Impl {
     /// Device scene destroyed before the stream and device context.
     std::unique_ptr<OptixContext> optixContext;
 
-    DeviceBuffer<Ray> rays;
-    DeviceBuffer<RayHit> hits;
+    OptixRenderProductPool renderProducts;
     DeviceBuffer<OptixLaunchParams> launchParams;
 };
 
@@ -98,10 +123,12 @@ void OptixHandler::Impl::buildOptixContext(std::filesystem::path const &modulePa
 
 void OptixHandler::Impl::sync() { optixContext->sync(*context); }
 
-void OptixHandler::Impl::launch(OptixLaunchParams const &params, std::uint32_t width) {
+void OptixHandler::Impl::launch(
+    OptixLaunchParams const &params, std::uint32_t width, std::uint32_t height
+) {
     launchParams.copyFromHost({&params, 1}, stream);
     optixContext->launch(
-        stream, devicePointer(launchParams.data()), sizeof(OptixLaunchParams), width
+        stream, devicePointer(launchParams.data()), sizeof(OptixLaunchParams), width, height
     );
 }
 
@@ -110,8 +137,7 @@ void OptixHandler::Impl::reset() noexcept {
         cudaCheck<false>(cudaStreamSynchronize(stream));
 
     launchParams.clear(stream);
-    hits.clear(stream);
-    rays.clear(stream);
+    renderProducts.clear();
     optixContext.reset();
 
     if (stream)
@@ -133,41 +159,21 @@ OptixHandler::~OptixHandler() = default;
 
 void OptixHandler::sync() { impl_->sync(); }
 
-void OptixHandler::launch() {
+void OptixHandler::render(Camera const &camera, RenderProduct const &product) {
+    if (camera.getContext() != impl_->context.get() || product.getContext() != impl_->context.get())
+        throw std::invalid_argument(
+            "OptixHandler: camera and render product must belong to the handler context"
+        );
+
+    auto const &film = product.getFilm();
     auto const params = OptixLaunchParams{
         .scene = impl_->optixContext->getDeviceImpl(),
+        .camera = camera.getDeviceImpl(),
+        .film = impl_->renderProducts.prepare(product, impl_->stream),
     };
     try {
-        impl_->launch(params, 1);
+        impl_->launch(params, film.getWidth(), film.getHeight());
         cudaCheck(cudaStreamSynchronize(impl_->stream));
-    } catch (...) {
-        cudaCheck<false>(cudaStreamSynchronize(impl_->stream));
-        throw;
-    }
-}
-
-std::vector<RayHit> OptixHandler::intersect(std::span<Ray const> rays) {
-    if (rays.size() > std::numeric_limits<std::uint32_t>::max())
-        throw kira::Anyhow("OptixHandler: ray count exceeds OptiX launch limits");
-    if (rays.empty())
-        return {};
-
-    try {
-        impl_->rays.copyFromHost({rays.data(), rays.size()}, impl_->stream);
-        impl_->hits.resize(rays.size(), impl_->stream);
-
-        auto const params = OptixLaunchParams{
-            .scene = impl_->optixContext->getDeviceImpl(),
-            .rays = impl_->rays.data(),
-            .hits = impl_->hits.data(),
-            .rayCount = static_cast<std::uint32_t>(rays.size()),
-        };
-        impl_->launch(params, params.rayCount);
-
-        std::vector<RayHit> result(rays.size());
-        impl_->hits.copyToHost({result.data(), result.size()}, impl_->stream);
-        cudaCheck(cudaStreamSynchronize(impl_->stream));
-        return result;
     } catch (...) {
         cudaCheck<false>(cudaStreamSynchronize(impl_->stream));
         throw;

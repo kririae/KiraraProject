@@ -47,16 +47,9 @@ void OptixAccel::buildGas(
         .motionOptions = {},
     };
 
-    struct PendingGas {
-        explicit PendingGas(cudaStream_t stream) noexcept : output(stream) {}
-
-        OptixTraversableHandle handle{};
-        DeviceBuffer<std::byte> output;
-    };
-
     DeviceBuffer<std::uint64_t> compactedSizes(getStream());
     compactedSizes.resize(inputs.size());
-    std::vector<PendingGas> pending;
+    std::vector<GasEntry> pending;
     pending.reserve(inputs.size());
     gasEntries_.reserve(inputs.size());
     for (std::size_t index = 0; index < inputs.size(); ++index) {
@@ -67,7 +60,7 @@ void OptixAccel::buildGas(
         DeviceBuffer<std::byte> temporary(getStream());
         temporary.resize(sizes.tempSizeInBytes);
         auto &gas = pending.emplace_back(getStream());
-        gas.output.resize(sizes.outputSizeInBytes);
+        gas.storage.resize(sizes.outputSizeInBytes);
 
         OptixAccelEmitDesc const compactedSize{
             .result = devicePointer(compactedSizes.data() + index),
@@ -83,8 +76,8 @@ void OptixAccel::buildGas(
             /* numBuildInputs =          */ 1,
             /* tempBuffer =              */ devicePointer(temporary.data()),
             /* tempBufferSizeInBytes =   */ temporary.size(),
-            /* outputBuffer =            */ devicePointer(gas.output.data()),
-            /* outputBufferSizeInBytes = */ gas.output.size(),
+            /* outputBuffer =            */ devicePointer(gas.storage.data()),
+            /* outputBufferSizeInBytes = */ gas.storage.size(),
             /* outputHandle =            */ &gas.handle,
             /* emittedProperties =       */ &compactedSize,
             /* numEmittedProperties =    */ 1));
@@ -98,7 +91,7 @@ void OptixAccel::buildGas(
     for (std::size_t index = 0; index < pending.size(); ++index) {
         auto &gas = pending[index];
         auto &entry = gasEntries_.emplace_back(getStream());
-        if (compactedBytes[index] > 0 && compactedBytes[index] < gas.output.size()) {
+        if (compactedBytes[index] > 0 && compactedBytes[index] < gas.storage.size()) {
             entry.storage.resize(static_cast<std::size_t>(compactedBytes[index]));
             optixCheck(optixAccelCompact(
                 deviceContext, getStream(), gas.handle, devicePointer(entry.storage.data()),
@@ -106,7 +99,7 @@ void OptixAccel::buildGas(
             ));
         } else {
             entry.handle = gas.handle;
-            entry.storage = std::move(gas.output);
+            entry.storage = std::move(gas.storage);
         }
     }
 }

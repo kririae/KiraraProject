@@ -36,7 +36,7 @@ private:
     /// \c OptixHandler.
     /// \param stream CUDA stream that orders scene updates and launches.
     /// \param modulePath Path to an OptiX IR module containing
-    /// \c __raygen__megakernel, \c __miss__intersection, and
+    /// \c __raygen__megakernel, \c __miss__radiance, and
     /// \c __closesthit__triangle.
     /// \throw kira::Anyhow if the module cannot be read or OptiX setup fails.
     OptixContext(
@@ -59,9 +59,11 @@ private:
     /// \param stream CUDA stream that orders the launch.
     /// \param params Device address of the launch parameters.
     /// \param paramsSize Size of the launch parameters in bytes.
-    /// \param width Number of ray-generation work items.
+    /// \param width Number of ray-generation work items along the X axis.
+    /// \param height Number of ray-generation work items along the Y axis.
     void launch(
-        cudaStream_t stream, CUdeviceptr params, std::size_t paramsSize, std::uint32_t width
+        cudaStream_t stream, CUdeviceptr params, std::size_t paramsSize, std::uint32_t width,
+        std::uint32_t height
     ) const;
 
     /// \brief Returns the current device-scene implementation.

@@ -94,7 +94,8 @@ OptixContext::~OptixContext() = default;
 void OptixContext::sync(Context &context) { impl_->sync(context); }
 
 void OptixContext::launch(
-    cudaStream_t stream, CUdeviceptr params, std::size_t paramsSize, std::uint32_t width
+    cudaStream_t stream, CUdeviceptr params, std::size_t paramsSize, std::uint32_t width,
+    std::uint32_t height
 ) const {
     // clang-format off
     optixCheck(optixLaunch(
@@ -104,7 +105,7 @@ void OptixContext::launch(
         /* pipelineParamsSize = */ paramsSize,
         /* sbt =                */ &impl_->sbt.getTable(),
         /* width =              */ width,
-        /* height =             */ 1,
+        /* height =             */ height,
         /* depth =              */ 1));
     // clang-format on
 }

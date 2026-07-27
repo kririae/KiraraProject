@@ -2,14 +2,13 @@
 
 #include <filesystem>
 #include <memory>
-#include <span>
-#include <vector>
 
 #include "flux/Core/Object.h"
-#include "flux/Core/Ray.h"
 
 namespace flux {
+class Camera;
 class Context;
+class RenderProduct;
 
 /// \brief Holds the OptiX state needed for individual launches.
 ///
@@ -39,18 +38,13 @@ public:
     /// \throw std::out_of_range If a primitive refers to an unknown geometry.
     void sync();
 
-    /// \brief Launches the current pipeline and waits for completion.
+    /// \brief Renders \p camera into \p product and waits for completion.
     ///
+    /// Both objects must belong to the handler's host context.
     /// \throw kira::Anyhow if the launch or stream synchronization fails.
-    void launch();
-
-    /// \brief Intersects \p rays with the persistent device scene.
-    ///
-    /// \param rays Rays in world space.
-    /// \return One result for each input ray, in input order.
-    /// \throw kira::Anyhow If the request exceeds OptiX limits or the launch
-    /// fails.
-    [[nodiscard]] std::vector<RayHit> intersect(std::span<Ray const> rays);
+    /// \throw std::invalid_argument if either object belongs to another
+    /// context or the film is too large for device storage.
+    void render(Camera const &camera, RenderProduct const &product);
 
     /// \brief Returns the associated host context.
     [[nodiscard]] Ref<Context> getContext() const;

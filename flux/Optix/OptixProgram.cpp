@@ -48,7 +48,7 @@ void logCompilerOutput(OptixResult result, std::array<char, 4096> const &log, st
 [[nodiscard]] OptixPipelineCompileOptions pipelineCompileOptions() {
     OptixPipelineCompileOptions options{};
     options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
-    options.numPayloadValues = 5;
+    options.numPayloadValues = 3;
     options.numAttributeValues = 2;
     options.pipelineLaunchParamsVariableName = "optixLaunchParams";
     options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE;
@@ -134,7 +134,7 @@ void OptixProgram::buildProgramGroups() {
         .flags = OPTIX_PROGRAM_GROUP_FLAGS_NONE,
         .miss = {
             .module = module_,
-            .entryFunctionName = "__miss__intersection",
+            .entryFunctionName = "__miss__radiance",
         },
     };
     missProgram_ = createProgramGroup(deviceContext_, miss);

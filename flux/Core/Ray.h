@@ -1,12 +1,11 @@
 #pragma once
 
-#include <cstdint>
 #include <limits>
 
 #include "flux/Core/Math.h"
 
 namespace flux {
-/// \brief Ray passed to an intersection query.
+/// \brief Ray traced by the renderer.
 struct Ray {
     /// Ray origin in world space.
     Vec3f origin;
@@ -21,26 +20,4 @@ struct Ray {
     float maxDistance{std::numeric_limits<float>::max()};
 };
 
-/// \brief Result of intersecting one ray with the current scene.
-///
-/// Geometric fields are meaningful only when \c isHit returns true.
-struct RayHit {
-    /// Distance from the ray origin to the closest hit.
-    float distance{};
-
-    /// Triangle index within the intersected mesh.
-    std::uint32_t triangleIndex{};
-
-    /// Dense primitive index in the current OptiX materialization.
-    std::uint32_t instanceIndex{};
-
-    /// Dense mesh index in the current OptiX materialization.
-    std::uint32_t geometryIndex{};
-
-    /// Nonzero when the ray found a surface.
-    std::uint32_t hit{};
-
-    /// \brief Returns whether the ray found a surface.
-    [[nodiscard]] constexpr bool isHit() const noexcept { return hit != 0; }
-};
 } // namespace flux

@@ -102,10 +102,8 @@ public:
     // -----------------------------------------------------------------------------------------------------------------
     /// \{
 
-#if 0
     // (1) static from static
-    constexpr auto operator=(VecteurStorage const &rhs) = default;
-#endif
+    constexpr VecteurStorage &operator=(VecteurStorage const &) = default;
 
     // (1') static from static, different type
     template <is_leaf_vecteur RHS>
