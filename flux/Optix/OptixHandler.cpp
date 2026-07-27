@@ -5,43 +5,21 @@
 #include <optix_stubs.h>
 
 #include <cstdint>
+#include <optional>
 #include <stdexcept>
-#include <unordered_map>
 #include <utility>
 
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/OptixContext.h"
 #include "flux/Optix/OptixLaunchParams.h"
+#include "flux/Optix/OptixRenderProductPool.h"
 #include "flux/Optix/OptixUtils.h"
-#include "flux/Render/Film.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/RenderProduct.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
-namespace {
-/// Handler-owned device storage for render-product channels.
-class OptixRenderProductPool {
-public:
-    [[nodiscard]] Film::DeviceImpl prepare(RenderProduct const &product, cudaStream_t stream) {
-        auto &normal = entries_.try_emplace(product.getContextId(), stream).first->second;
-        auto const &film = product.getFilm();
-        normal.resize(static_cast<std::size_t>(film.getWidth()) * film.getHeight());
-        return {
-            .width = film.getWidth(),
-            .height = film.getHeight(),
-            .normal = normal.data(),
-        };
-    }
-
-    void clear() noexcept { entries_.clear(); }
-
-private:
-    std::unordered_map<std::size_t, DeviceBuffer<Vec3f>> entries_;
-};
-} // namespace
-
 struct OptixHandler::Impl {
     Impl(Ref<Context> hostContext, std::filesystem::path const &modulePath);
     ~Impl() { reset(); }
@@ -76,7 +54,7 @@ struct OptixHandler::Impl {
     /// Device scene destroyed before the stream and device context.
     std::unique_ptr<OptixContext> optixContext;
 
-    OptixRenderProductPool renderProducts;
+    std::optional<OptixRenderProductPool> renderProducts;
     DeviceBuffer<OptixLaunchParams> launchParams;
 };
 
@@ -115,13 +93,14 @@ void OptixHandler::Impl::buildDeviceContext() {
 
 void OptixHandler::Impl::buildStream() {
     cudaCheck(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+    renderProducts.emplace(stream);
 }
 
 void OptixHandler::Impl::buildOptixContext(std::filesystem::path const &modulePath) {
-    optixContext.reset(new OptixContext(deviceContext, stream, modulePath));
+    optixContext.reset(new OptixContext(*context, deviceContext, stream, modulePath));
 }
 
-void OptixHandler::Impl::sync() { optixContext->sync(*context); }
+void OptixHandler::Impl::sync() { optixContext->sync(); }
 
 void OptixHandler::Impl::launch(
     OptixLaunchParams const &params, std::uint32_t width, std::uint32_t height
@@ -137,7 +116,7 @@ void OptixHandler::Impl::reset() noexcept {
         cudaCheck<false>(cudaStreamSynchronize(stream));
 
     launchParams.clear(stream);
-    renderProducts.clear();
+    renderProducts.reset();
     optixContext.reset();
 
     if (stream)
@@ -169,7 +148,7 @@ void OptixHandler::render(Camera const &camera, RenderProduct const &product) {
     auto const params = OptixLaunchParams{
         .scene = impl_->optixContext->getDeviceImpl(),
         .camera = camera.getDeviceImpl(),
-        .film = impl_->renderProducts.prepare(product, impl_->stream),
+        .film = impl_->renderProducts->acquire(product),
     };
     try {
         impl_->launch(params, film.getWidth(), film.getHeight());

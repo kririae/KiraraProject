@@ -1,6 +1,6 @@
 #pragma once
 
-#include "flux/Render/Film.h"
+#include "flux/Scene/Film.h"
 #include "flux/Scene/RenderObject.h"
 
 namespace flux {

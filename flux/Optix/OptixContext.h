@@ -30,8 +30,9 @@ public:
     ~OptixContext();
 
 private:
-    /// \brief Creates an empty device scene using \p deviceContext.
+    /// \brief Creates an empty device scene for \p context.
     ///
+    /// \param context Host scene borrowed from the owning \c OptixHandler.
     /// \param deviceContext OptiX device context borrowed from the owning
     /// \c OptixHandler.
     /// \param stream CUDA stream that orders scene updates and launches.
@@ -40,7 +41,7 @@ private:
     /// \c __closesthit__triangle.
     /// \throw kira::Anyhow if the module cannot be read or OptiX setup fails.
     OptixContext(
-        OptixDeviceContext deviceContext, cudaStream_t stream,
+        Context &context, OptixDeviceContext deviceContext, cudaStream_t stream,
         std::filesystem::path const &modulePath
     );
 
@@ -49,10 +50,9 @@ private:
     /// The current implementation performs a full rebuild. All work enqueued
     /// by the update completes before this function returns. If rebuilding
     /// fails, destroy this object without using it again.
-    /// \param context Host scene to commit and upload.
     /// \throw kira::Anyhow If scene linking, CUDA, or OptiX setup fails.
     /// \throw std::out_of_range If a primitive refers to an unknown geometry.
-    void sync(Context &context);
+    void sync();
 
     /// \brief Launches the persistent pipeline on \p stream.
     ///
@@ -90,6 +90,7 @@ struct OptixContext::DeviceImpl {
     /// Number of elements in \c primitives.
     std::uint32_t numPrimitives{};
 
+public:
     /// \brief Returns the primitive at dense \p instanceIndex.
     ///
     /// \pre \p instanceIndex is less than \c numPrimitives.

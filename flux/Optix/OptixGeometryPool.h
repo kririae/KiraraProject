@@ -21,16 +21,16 @@ public:
     explicit OptixGeometryPool(cudaStream_t stream) noexcept
         : CudaStreamMixin(stream), deviceImpls_(stream) {}
 
-    /// \brief Replaces resident triangle meshes with \p meshes.
+    /// \brief Builds the complete resident triangle-mesh set.
     ///
-    /// Existing storage is released before the replacement is uploaded.
+    /// Meshes omitted from \p meshes are released.
     /// \param meshes Host meshes to upload in device-table order.
     /// \throw kira::Anyhow If CUDA cannot enqueue an allocation or copy.
-    void upload(std::span<Ref<TriangleMesh const> const> meshes);
+    void build(std::span<Ref<TriangleMesh const> const> meshes);
 
     /// \brief Creates build inputs backed by the current resident storage.
     ///
-    /// The returned inputs remain valid until the next call to \c upload.
+    /// The returned inputs remain valid until the next call to \c build.
     [[nodiscard]] std::vector<OptixBuildInput> getBuildInputs() const;
 
     /// \brief Returns the number of resident meshes.

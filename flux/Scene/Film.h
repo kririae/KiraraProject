@@ -8,7 +8,7 @@
 #include "kira/Compiler.h"
 
 namespace flux {
-/// \brief Describes a channelized render target.
+/// \brief Describes the channelized target owned by a render product.
 ///
 /// Device storage belongs to the active renderer backend. The host object
 /// stores only the target shape until readback support is introduced.
@@ -50,6 +50,7 @@ struct Film::DeviceImpl {
     /// World-space geometric normal channel.
     Vec3f *normal{};
 
+public:
     /// \brief Writes \p value to the normal channel at \p x, \p y.
     ///
     /// \pre The normal channel is present and the coordinates are in range.

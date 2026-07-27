@@ -80,6 +80,7 @@ struct Camera::DeviceImpl {
     /// Half-height of the image plane at unit distance.
     float halfHeight{};
 
+public:
     /// \brief Generates the primary ray through pixel \p x, \p y.
     ///
     /// \pre \p width and \p height are nonzero, and the pixel coordinates are

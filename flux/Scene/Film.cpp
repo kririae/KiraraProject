@@ -1,4 +1,4 @@
-#include "flux/Render/Film.h"
+#include "flux/Scene/Film.h"
 
 #include "kira/Anyhow.h"
 

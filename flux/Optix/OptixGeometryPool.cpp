@@ -9,7 +9,7 @@ namespace flux {
 static_assert(sizeof(Vec3f) == 3 * sizeof(float));
 static_assert(sizeof(Vec3u) == 3 * sizeof(std::uint32_t));
 
-void OptixGeometryPool::upload(std::span<Ref<TriangleMesh const> const> meshes) {
+void OptixGeometryPool::build(std::span<Ref<TriangleMesh const> const> meshes) {
     if (meshes.size() > std::numeric_limits<unsigned int>::max())
         throw kira::Anyhow("OptixGeometryPool: mesh count exceeds OptiX limits");
 

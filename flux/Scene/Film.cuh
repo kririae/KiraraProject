@@ -1,6 +1,6 @@
 #pragma once
 
-#include "flux/Render/Film.h"
+#include "flux/Scene/Film.h"
 
 namespace flux {
 KIRA_DEVICE inline void

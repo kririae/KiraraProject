@@ -20,10 +20,11 @@ add_library(
     Optix/OptixGeometryPool.cpp
     Optix/OptixHandler.cpp
     Optix/OptixProgram.cpp
+    Optix/OptixRenderProductPool.cpp
     Optix/OptixSbt.cpp
-    Render/Film.cpp
     Scene/Camera.cpp
     Scene/Context.cpp
+    Scene/Film.cpp
     Scene/Primitive.cpp
     Scene/RenderProduct.cpp
     Scene/RenderObject.cpp
@@ -33,7 +34,7 @@ add_library(
 target_include_directories(flux PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(flux PUBLIC CUDA::cudart kira::Core kira::Vecteur OptiX::OptiX)
 
-add_library(flux_megakernel_ir OBJECT Optix/Megakernel.cu)
+add_library(flux_megakernel_ir OBJECT Optix/MegaKernel.cu)
 set_target_properties(flux_megakernel_ir PROPERTIES CUDA_OPTIX_COMPILATION ON)
 target_include_directories(flux_megakernel_ir PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(flux_megakernel_ir PRIVATE kira::Vecteur OptiX::OptiX)

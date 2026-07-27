@@ -21,13 +21,14 @@
 namespace flux {
 struct OptixContext::Impl : private CudaStreamMixin {
     Impl(
-        OptixDeviceContext deviceContext, cudaStream_t stream,
+        Context &context, OptixDeviceContext deviceContext, cudaStream_t stream,
         std::filesystem::path const &modulePath
     )
-        : CudaStreamMixin(stream), deviceContext(deviceContext), program(deviceContext, modulePath),
-          geometryPool(stream), accel(stream), sbt(stream), primitives(stream) {}
+        : CudaStreamMixin(stream), context(context), deviceContext(deviceContext),
+          program(deviceContext, modulePath), geometryPool(stream), accel(stream), sbt(stream),
+          primitives(stream) {}
 
-    void sync(Context &context) {
+    void sync() {
         context.commit();
 
         try {
@@ -62,7 +63,7 @@ struct OptixContext::Impl : private CudaStreamMixin {
                 });
             }
 
-            geometryPool.upload(meshes);
+            geometryPool.build(meshes);
             auto const buildInputs = geometryPool.getBuildInputs();
             accel.buildGas(deviceContext, buildInputs);
             primitives.copyFromHost({primitiveStaging.data(), primitiveStaging.size()});
@@ -75,6 +76,7 @@ struct OptixContext::Impl : private CudaStreamMixin {
         }
     }
 
+    Context &context;
     OptixDeviceContext deviceContext;
     OptixProgram program;
     OptixGeometryPool geometryPool;
@@ -85,13 +87,14 @@ struct OptixContext::Impl : private CudaStreamMixin {
 };
 
 OptixContext::OptixContext(
-    OptixDeviceContext deviceContext, cudaStream_t stream, std::filesystem::path const &modulePath
+    Context &context, OptixDeviceContext deviceContext, cudaStream_t stream,
+    std::filesystem::path const &modulePath
 )
-    : impl_(std::make_unique<Impl>(deviceContext, stream, modulePath)) {}
+    : impl_(std::make_unique<Impl>(context, deviceContext, stream, modulePath)) {}
 
 OptixContext::~OptixContext() = default;
 
-void OptixContext::sync(Context &context) { impl_->sync(context); }
+void OptixContext::sync() { impl_->sync(); }
 
 void OptixContext::launch(
     cudaStream_t stream, CUdeviceptr params, std::size_t paramsSize, std::uint32_t width,

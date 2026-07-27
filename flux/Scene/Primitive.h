@@ -64,6 +64,7 @@ struct Primitive::DeviceImpl {
     /// Dense index of the bound geometry.
     std::uint32_t geometryIndex{};
 
+public:
     /// \brief Returns the dense geometry index for this materialization.
     [[nodiscard]] KIRA_DEVICE inline std::uint32_t getGeometryIndex() const noexcept;
 };

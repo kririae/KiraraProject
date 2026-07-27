@@ -52,6 +52,7 @@ struct TriangleMesh::DeviceImpl {
     /// Number of elements in \c triangles.
     std::uint32_t numTriangles{};
 
+public:
     /// \brief Returns one vertex of \p triangle.
     ///
     /// \pre \p triangle is less than \c numTriangles and \p corner is less

@@ -2,8 +2,8 @@
 
 #include "flux/Optix/OptixContext.cuh"
 #include "flux/Optix/OptixLaunchParams.h"
-#include "flux/Render/Film.cuh"
 #include "flux/Scene/Camera.cuh"
+#include "flux/Scene/Film.cuh"
 #include "flux/Scene/TriangleMesh.cuh"
 
 extern "C" {
@@ -19,9 +19,9 @@ __device__ flux::Vec3f fromFloat3(float3 const &value) { return {value.x, value.
 } // namespace
 
 extern "C" __global__ void __raygen__megakernel() {
-    auto const index = optixGetLaunchIndex();
+    auto const launchIndex = optixGetLaunchIndex();
     auto const ray = optixLaunchParams.camera.generateRay(
-        index.x, index.y, optixLaunchParams.film.width, optixLaunchParams.film.height
+        launchIndex.x, launchIndex.y, optixLaunchParams.film.width, optixLaunchParams.film.height
     );
     unsigned int normalX = 0;
     unsigned int normalY = 0;
@@ -48,7 +48,7 @@ extern "C" __global__ void __raygen__megakernel() {
     }
 
     optixLaunchParams.film.writeNormal(
-        index.x, index.y,
+        launchIndex.x, launchIndex.y,
         {__uint_as_float(normalX), __uint_as_float(normalY), __uint_as_float(normalZ)}
     );
 }

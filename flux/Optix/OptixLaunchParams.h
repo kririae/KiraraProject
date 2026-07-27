@@ -3,8 +3,8 @@
 #include <type_traits>
 
 #include "flux/Optix/OptixContext.h"
-#include "flux/Render/Film.h"
 #include "flux/Scene/Camera.h"
+#include "flux/Scene/Film.h"
 
 namespace flux {
 /// \brief Parameters shared by an OptiX render launch.
