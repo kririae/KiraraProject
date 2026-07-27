@@ -14,6 +14,16 @@ target_link_libraries(flux.Optix.PipelineTests PRIVATE CUDA::cudart)
 add_dependencies(flux.Optix.PipelineTests flux_megakernel_ir)
 
 krr_add_test(
+    flux Optix GeometryTests
+    SOURCES OptixGeometryTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(
+    flux.Optix.GeometryTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
+                                     FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
+target_link_libraries(flux.Optix.GeometryTests PRIVATE CUDA::cudart)
+add_dependencies(flux.Optix.GeometryTests flux_megakernel_ir)
+
+krr_add_test(
     flux Optix DeviceBufferTests
     SOURCES DeviceBufferTests.cpp
     HARD_DEPENDENCIES flux)

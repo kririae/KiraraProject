@@ -9,6 +9,13 @@
 #include "flux/Core/KIRA.h"
 
 namespace flux {
+/// \brief Converts a CUDA allocation pointer to an OptiX device address.
+/// \param pointer CUDA allocation pointer, or null.
+/// \return The corresponding OptiX device address.
+template <typename T> [[nodiscard]] CUdeviceptr devicePointer(T const *pointer) noexcept {
+    return reinterpret_cast<CUdeviceptr>(pointer);
+}
+
 /// \brief Records the CUDA stream that orders an object's lifetime.
 ///
 /// The mixin does not own or synchronize the stream. The caller must keep the

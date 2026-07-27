@@ -4,10 +4,9 @@
 #include <cstdlib>
 #include <span>
 
+#include "Traits.h"
 #include "kira/Anyhow.h"
 #include "kira/Compiler.h"
-
-#include "Traits.h"
 
 namespace kira::vecteur {
 //! NOTE(krr): Copy assignment matrix:
@@ -78,11 +77,7 @@ public:
     }
 
     /// Construct a vector with the elements from another vector.
-    ///
-    /// \note The `explicit` here bans construction from other backends.
-    explicit constexpr VecteurStorage(VecteurStorage const &rhs) {
-        std::copy_n(rhs.begin(), this->size(), this->begin());
-    }
+    constexpr VecteurStorage(VecteurStorage const &) = default;
 
     /// Construct a vector with elements from another different-typed vector.
     ///

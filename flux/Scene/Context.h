@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <stdexcept>
 #include <unordered_map>
@@ -72,6 +73,19 @@ public:
 
     /// \brief Returns the number of objects owned by this context.
     [[nodiscard]] std::size_t getNumContextObjects() const noexcept { return objects_.size(); }
+
+    /// \brief Returns every context object that is a \c T or derives from it.
+    ///
+    /// Results are ordered by context ID.
+    template <IsContextObject T> [[nodiscard]] kira::SmallVector<Ref<T const>> getObjects() const {
+        kira::SmallVector<Ref<T const>> result;
+        for (auto const &entry : objects_)
+            if (auto typed = entry.second.template dynamicCast<T const>())
+                result.push_back(std::move(typed));
+
+        std::ranges::sort(result, {}, [](auto const &object) { return object->getContextId(); });
+        return result;
+    }
 
     /// \brief Links every object added since the last successful commit.
     ///

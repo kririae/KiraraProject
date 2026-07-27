@@ -12,8 +12,8 @@
 #endif
 
 TEST(OptixPipelineTests, LaunchesRaygenProgram) {
-    if (!flux::test::hasCudaDevice())
-        GTEST_SKIP() << "No usable CUDA device";
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
     flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
@@ -23,8 +23,8 @@ TEST(OptixPipelineTests, LaunchesRaygenProgram) {
 }
 
 TEST(OptixPipelineTests, ReleasesStateAfterConstructionFails) {
-    if (!flux::test::hasCudaDevice())
-        GTEST_SKIP() << "No usable CUDA device";
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
     EXPECT_THROW((void)flux::OptixHandler(context, std::filesystem::path{}), kira::Anyhow);

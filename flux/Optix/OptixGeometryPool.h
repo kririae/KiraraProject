@@ -1,0 +1,50 @@
+#pragma once
+
+#include <optix_types.h>
+
+#include <span>
+#include <vector>
+
+#include "flux/Core/Object.h"
+#include "flux/Geometry/TriangleMesh.h"
+#include "flux/Optix/DeviceBuffer.h"
+#include "flux/Optix/OptixUtils.h"
+
+namespace flux {
+/// \brief Owns the device storage used by OptiX triangle build inputs.
+///
+/// Uploads are ordered on one CUDA stream. Mutation is single-threaded;
+/// callers provide external synchronization.
+class OptixGeometryPool final : private Noncopyable, private CudaStreamMixin {
+public:
+    /// \brief Creates an empty pool bound to \p stream.
+    explicit OptixGeometryPool(cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
+
+    /// \brief Replaces resident triangle meshes with \p meshes.
+    ///
+    /// Existing storage is released before the replacement is uploaded.
+    /// \param meshes Host meshes to upload in context order.
+    /// \throw kira::Anyhow If CUDA cannot enqueue an allocation or copy.
+    void upload(std::span<Ref<TriangleMesh const> const> meshes);
+
+    /// \brief Creates build inputs backed by the current resident storage.
+    ///
+    /// The returned inputs remain valid until the next call to \c upload.
+    [[nodiscard]] std::vector<OptixBuildInput> getBuildInputs() const;
+
+    /// \brief Returns the number of resident meshes.
+    [[nodiscard]] std::size_t size() const noexcept { return entries_.size(); }
+
+private:
+    struct Entry {
+        explicit Entry(cudaStream_t stream) : vertices(stream), triangles(stream) {}
+
+        DeviceBuffer<Vec3f> vertices;
+        DeviceBuffer<Vec3u> triangles;
+        CUdeviceptr vertexBuffer{};
+        unsigned int flags{OPTIX_GEOMETRY_FLAG_NONE};
+    };
+
+    std::vector<Entry> entries_;
+};
+} // namespace flux
