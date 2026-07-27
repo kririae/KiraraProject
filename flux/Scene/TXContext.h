@@ -1,6 +1,5 @@
 #pragma once
 
-#include <concepts>
 #include <cstddef>
 #include <unordered_map>
 #include <utility>
@@ -24,8 +23,7 @@ public:
     /// \brief Creates and registers a configurable object in this transaction.
     ///
     /// \c T must grant \c TXContext access to its constructor.
-    template <typename T>
-        requires std::derived_from<T, ConfigurableObject>
+    template <IsConfigurableObject T>
     [[nodiscard]] Ref<T> create(kira::Properties properties = {}) {
         Ref<T> object{new T(*this, std::move(properties))};
         static_cast<ContextObject *>(object.get())->registerTo(*this);

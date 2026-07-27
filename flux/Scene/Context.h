@@ -1,6 +1,5 @@
 #pragma once
 
-#include <concepts>
 #include <cstddef>
 #include <stdexcept>
 #include <unordered_map>
@@ -30,8 +29,7 @@ public:
     /// Nested calls through the supplied \c TXContext join the same
     /// transaction. If construction or registration throws, the context keeps
     /// none of its objects.
-    template <typename T>
-        requires std::derived_from<T, ConfigurableObject>
+    template <IsConfigurableObject T>
     [[nodiscard]] Ref<T> create(kira::Properties properties = {}) {
         if (committing_)
             throw kira::Anyhow("Context: object creation is not allowed during commit");
@@ -46,9 +44,7 @@ public:
     ///
     /// \throw std::out_of_range if the ID is unknown.
     /// \throw kira::Anyhow if the object is not a \c T.
-    template <typename T>
-        requires std::derived_from<T, ContextObject>
-    [[nodiscard]] Ref<T> get(std::size_t contextId) {
+    template <IsContextObject T> [[nodiscard]] Ref<T> get(std::size_t contextId) {
         auto const iterator = objects_.find(contextId);
         if (iterator == objects_.end())
             throw std::out_of_range("Context: object ID is out of range");
@@ -63,9 +59,7 @@ public:
     ///
     /// \throw std::out_of_range if the ID is unknown.
     /// \throw kira::Anyhow if the object is not a \c T.
-    template <typename T>
-        requires std::derived_from<T, ContextObject>
-    [[nodiscard]] Ref<T const> get(std::size_t contextId) const {
+    template <IsContextObject T> [[nodiscard]] Ref<T const> get(std::size_t contextId) const {
         auto const iterator = objects_.find(contextId);
         if (iterator == objects_.end())
             throw std::out_of_range("Context: object ID is out of range");

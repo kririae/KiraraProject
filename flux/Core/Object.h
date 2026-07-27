@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
@@ -13,16 +14,26 @@ namespace flux {
 class Context;
 class TXContext;
 
+/// \brief Utility base that disables copy construction and assignment.
+class Noncopyable {
+protected:
+    constexpr Noncopyable() noexcept = default;
+    ~Noncopyable() = default;
+    Noncopyable(Noncopyable &&) noexcept = default;
+    Noncopyable &operator=(Noncopyable &&) noexcept = default;
+
+public:
+    Noncopyable(Noncopyable const &) = delete;
+    Noncopyable &operator=(Noncopyable const &) = delete;
+};
+
 /// \brief Adds intrusive reference counting to an object.
-template <typename Derived> class RefCountedBase {
+template <typename Derived> class RefCountedBase : private Noncopyable {
 protected:
     RefCountedBase() = default;
     ~RefCountedBase() = default;
 
 public:
-    RefCountedBase(RefCountedBase const &) = delete;
-    RefCountedBase &operator=(RefCountedBase const &) = delete;
-
     /// \brief Adds one owning reference.
     void incrementRef() const noexcept { refCount_.fetch_add(1, std::memory_order_relaxed); }
 
@@ -191,4 +202,12 @@ public:
 private:
     kira::Properties properties_;
 };
+
+/// \brief Matches objects owned by a \c Context.
+template <typename T>
+concept IsContextObject = std::derived_from<T, ContextObject>;
+
+/// \brief Matches context objects constructed from \c kira::Properties.
+template <typename T>
+concept IsConfigurableObject = std::derived_from<T, ConfigurableObject>;
 } // namespace flux
