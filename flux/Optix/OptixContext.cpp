@@ -15,6 +15,7 @@
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Context.h"
+#include "flux/Scene/Geometry.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
@@ -68,8 +69,8 @@ struct OptixContext::Impl : private CudaStreamMixin {
         // Flatten the visible scene into the dense arrays used on the device.
         // Several primitives may share one geometry, so assign each mesh one
         // backend-local index before building the primitive and instance arrays.
-        auto const getOrAddGeometryIndex = [&](Primitive const &primitive) {
-            auto const contextId = primitive.getGeometryContextId();
+        auto const getOrAddGeometryIndex = [&](Ref<Geometry const> const &geometry) {
+            auto const contextId = geometry->getContextId();
             if (auto const iterator = geometryIndexByContextId.find(contextId);
                 iterator != geometryIndexByContextId.end())
                 return iterator->second;
@@ -78,7 +79,18 @@ struct OptixContext::Impl : private CudaStreamMixin {
                 throw kira::Anyhow("OptixContext: geometry count exceeds device limits");
 
             auto const index = static_cast<std::uint32_t>(uniqueMeshes.size());
-            uniqueMeshes.push_back(primitive.getGeometry());
+            switch (geometry->getType()) {
+            case GeometryType::TriangleMesh: {
+                auto mesh = geometry.dynamicCast<TriangleMesh const>();
+                if (!mesh)
+                    throw kira::Anyhow(
+                        "OptixContext: geometry type does not match its host implementation"
+                    );
+                uniqueMeshes.push_back(std::move(mesh));
+                break;
+            }
+            case GeometryType::Count: throw kira::Anyhow("OptixContext: unsupported geometry type");
+            }
             geometryIndexByContextId.emplace(contextId, index);
             return index;
         };
@@ -87,7 +99,8 @@ struct OptixContext::Impl : private CudaStreamMixin {
             if (!primitive->isVisible())
                 continue;
 
-            auto const geometryIndex = getOrAddGeometryIndex(*primitive);
+            auto const geometry = primitive->getGeometry();
+            auto const geometryIndex = getOrAddGeometryIndex(geometry);
             auto const bsdf = primitive->getBSDF();
             auto bsdfIndex = Primitive::DeviceImpl::invalidBSDFIndex;
             if (bsdf) {
@@ -105,7 +118,7 @@ struct OptixContext::Impl : private CudaStreamMixin {
             auto const bsdfType = bsdf ? bsdf->getType() : BSDFType::Diffuse;
             instanceDescs.push_back({
                 .geometryIndex = geometryIndex,
-                .sbtOffset = OptixSbt::getInstanceOffset(bsdfType, OptixGeometryType::Triangle),
+                .sbtOffset = OptixSbt::getInstanceOffset(bsdfType, geometry->getType()),
                 .transform = primitive->getTransform(),
             });
         }

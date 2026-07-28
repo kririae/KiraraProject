@@ -12,11 +12,13 @@
 
 namespace flux {
 class BSDF;
-class TriangleMesh;
+class Geometry;
+struct PreliminaryIntersection;
+struct SurfaceInteraction;
 
-/// \brief Places a triangle mesh in the host scene.
+/// \brief Places geometry in the host scene.
 ///
-/// The \c geometry_ctx_id property identifies a TriangleMesh in the same
+/// The \c geometry_ctx_id property identifies Geometry in the same
 /// context. A primitive owns an instance transform but does not duplicate the
 /// context's geometry ownership. Its stable context ID is not used as a device
 /// array index.
@@ -27,15 +29,15 @@ public:
     /// \brief Compact representation consumed by device programs.
     struct DeviceImpl;
 
-    /// \brief Returns the context ID of the bound triangle mesh.
+    /// \brief Returns the context ID of the bound geometry.
     [[nodiscard]] std::size_t getGeometryContextId() const noexcept { return geometryContextId_; }
 
-    /// \brief Resolves and returns the bound triangle mesh.
+    /// \brief Resolves and returns the bound geometry.
     ///
     /// \throw std::out_of_range if the geometry no longer exists.
-    /// \throw kira::Anyhow if the ID does not identify a TriangleMesh or this
+    /// \throw kira::Anyhow if the ID does not identify Geometry or this
     /// primitive no longer belongs to a context.
-    [[nodiscard]] Ref<TriangleMesh const> getGeometry() const;
+    [[nodiscard]] Ref<Geometry const> getGeometry() const;
 
     /// \brief Returns the context ID of the bound BSDF, if present.
     [[nodiscard]] std::optional<std::size_t> getBSDFContextId() const noexcept {
@@ -98,6 +100,16 @@ public:
     ///
     /// \pre \c hasBSDF() is true.
     [[nodiscard]] KIRA_DEVICE inline std::uint32_t getBSDFIndex() const noexcept;
+
+    /// \brief Reconstructs a world-space interaction for the current OptiX hit.
+    ///
+    /// \tparam GeometryImpl Concrete geometry selected by the hit program.
+    /// \param geometry Geometry-space implementation referenced by this primitive.
+    /// \param preliminary Traversal result for the current hit.
+    template <typename GeometryImpl>
+    [[nodiscard]] KIRA_DEVICE inline SurfaceInteraction computeSurfaceInteraction(
+        GeometryImpl const &geometry, PreliminaryIntersection const &preliminary
+    ) const noexcept;
 };
 
 static_assert(std::is_standard_layout_v<Primitive::DeviceImpl>);

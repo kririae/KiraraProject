@@ -24,6 +24,14 @@ krr_add_test(
 target_link_libraries(flux.Scene.FilmTests PRIVATE CUDA::cudart)
 
 krr_add_test(
+    flux Scene GeometryTests
+    SOURCES GeometryTests.cu
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(flux.Scene.GeometryTests
+                           PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures")
+target_link_libraries(flux.Scene.GeometryTests PRIVATE CUDA::cudart)
+
+krr_add_test(
     flux Shading ShadingTests
     SOURCES ShadingTests.cu
     HARD_DEPENDENCIES flux)

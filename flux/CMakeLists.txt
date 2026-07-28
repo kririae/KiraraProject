@@ -1,7 +1,14 @@
 enable_language(CUDA)
 find_package(CUDAToolkit REQUIRED)
+find_package(TBB CONFIG REQUIRED)
 
 add_compile_options($<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+
+CPMAddPackage(
+    NAME rapidobj
+    GITHUB_REPOSITORY guybrush77/rapidobj
+    GIT_TAG v1.1
+    GIT_SHALLOW TRUE)
 
 CPMAddPackage(
     NAME optix
@@ -29,6 +36,7 @@ add_library(
     Scene/Camera.cpp
     Scene/Context.cpp
     Scene/Film.cpp
+    Scene/Geometry.cpp
     Scene/Primitive.cpp
     Scene/RenderObject.cpp
     Scene/RenderProduct.cpp
@@ -38,6 +46,7 @@ add_library(
 
 target_include_directories(flux PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(flux PUBLIC CUDA::cudart kira::Core kira::Vecteur OptiX::OptiX)
+target_link_libraries(flux PRIVATE rapidobj::rapidobj TBB::tbb)
 
 add_library(flux_megakernel_ir OBJECT Integrator/MegaKernel.cu)
 set_target_properties(flux_megakernel_ir PROPERTIES CUDA_OPTIX_COMPILATION ON)

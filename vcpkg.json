@@ -9,6 +9,7 @@
     "libigl",
     "magic-enum",
     "spdlog",
+    "tbb",
     "tomlplusplus"
   ],
   "features": {

@@ -9,16 +9,11 @@
 #include "flux/Core/Object.h"
 #include "flux/Core/Ray.h"
 #include "flux/Optix/DeviceBuffer.h"
+#include "flux/Scene/Geometry.h"
 #include "flux/Shading/BSDF.h"
 
 namespace flux {
 class OptixProgram;
-
-/// \brief Identifies geometry-specific OptiX hit programs.
-enum class OptixGeometryType : std::uint32_t {
-    Triangle,
-    Count,
-};
 
 /// \brief Owns the header-only records for the current OptiX pipeline.
 class OptixSbt final : private Noncopyable {
@@ -34,20 +29,20 @@ public:
 
     /// \brief Returns the hitgroup block for one BSDF and geometry pair.
     [[nodiscard]] static constexpr std::size_t
-    getHitgroupBlock(BSDFType bsdf, OptixGeometryType geometry) noexcept {
+    getHitgroupBlock(BSDFType bsdf, GeometryType geometry) noexcept {
         return static_cast<std::size_t>(bsdf) * numGeometryTypes +
                static_cast<std::size_t>(geometry);
     }
 
     /// \brief Returns a record index relative to the hitgroup section.
     [[nodiscard]] static constexpr std::size_t
-    getHitgroupRecord(BSDFType bsdf, OptixGeometryType geometry, RayType ray) noexcept {
+    getHitgroupRecord(BSDFType bsdf, GeometryType geometry, RayType ray) noexcept {
         return getHitgroupBlock(bsdf, geometry) * numRayTypes + static_cast<std::size_t>(ray);
     }
 
     /// \brief Returns the IAS SBT offset for one program-type block.
     [[nodiscard]] static constexpr std::uint32_t
-    getInstanceOffset(BSDFType bsdf, OptixGeometryType geometry) noexcept {
+    getInstanceOffset(BSDFType bsdf, GeometryType geometry) noexcept {
         return static_cast<std::uint32_t>(getHitgroupBlock(bsdf, geometry) * numRayTypes);
     }
 
@@ -59,8 +54,7 @@ public:
 private:
     static constexpr std::size_t numRayTypes = static_cast<std::size_t>(RayType::Count);
     static constexpr std::size_t numBSDFTypes = static_cast<std::size_t>(BSDFType::Count);
-    static constexpr std::size_t numGeometryTypes =
-        static_cast<std::size_t>(OptixGeometryType::Count);
+    static constexpr std::size_t numGeometryTypes = static_cast<std::size_t>(GeometryType::Count);
     static constexpr std::size_t numMissRecords = numRayTypes;
     static constexpr std::size_t numHitgroupRecords = numBSDFTypes * numGeometryTypes * numRayTypes;
     static constexpr std::size_t raygenRecord = 0;

@@ -15,16 +15,23 @@ struct SurfaceInteraction {
     Vec3f position{};
 
     /// World-space normal derived from the underlying geometry.
+    ///
+    /// Material initialization does not modify this normal.
     Vec3f geometricNormal{};
 
     /// World-space normal used for shading.
+    ///
+    /// Geometry initializes this normal; material initialization may replace it.
     Vec3f shadingNormal{};
+
+    /// Surface parameterization, or zero when the geometry has no texture coordinates.
+    Vec2f uv{};
 
     /// Primitive in the current device scene.
     Primitive::DeviceImpl const *primitive{};
 
     /// Element index within the primitive's geometry.
-    std::uint32_t primitiveIndex{};
+    std::uint32_t elementIndex{};
 
     /// Ray distance at the intersection.
     float distance{};

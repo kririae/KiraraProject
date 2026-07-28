@@ -41,6 +41,7 @@ TEST(PrimitiveTests, LinksGeometryAndStoresInstanceProperties) {
     context->commit();
 
     EXPECT_EQ(primitive->getGeometry(), mesh);
+    EXPECT_EQ(primitive->getGeometry()->getType(), flux::GeometryType::TriangleMesh);
     EXPECT_EQ(primitive->getBSDF(), bsdf);
     EXPECT_EQ(primitive->getTransform(), transform);
     EXPECT_FALSE(primitive->isVisible());
@@ -69,6 +70,17 @@ TEST(PrimitiveTests, RejectsInvalidGeometryIds) {
     unknown.set("geometry_ctx_id", std::int64_t{42});
     (void)context->create<flux::Primitive>(std::move(unknown));
     EXPECT_THROW(context->commit(), std::out_of_range);
+}
+
+TEST(PrimitiveTests, RejectsNonGeometryReferences) {
+    auto context = flux::Context::create();
+    auto bsdf = context->create<flux::DiffuseBSDF>();
+
+    kira::Properties properties;
+    properties.set("geometry_ctx_id", static_cast<std::int64_t>(bsdf->getContextId()));
+    (void)context->create<flux::Primitive>(std::move(properties));
+
+    EXPECT_THROW(context->commit(), kira::Anyhow);
 }
 
 TEST(PrimitiveTests, RejectsInvalidBsdfIds) {

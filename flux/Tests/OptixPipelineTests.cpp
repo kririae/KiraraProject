@@ -21,19 +21,19 @@
 TEST(OptixPipelineTests, UsesAStableProgramTypeSbtLayout) {
     EXPECT_EQ(
         flux::OptixSbt::getHitgroupRecord(
-            flux::BSDFType::Diffuse, flux::OptixGeometryType::Triangle, flux::RayType::Radiance
+            flux::BSDFType::Diffuse, flux::GeometryType::TriangleMesh, flux::RayType::Radiance
         ),
         0
     );
     EXPECT_EQ(
         flux::OptixSbt::getHitgroupRecord(
-            flux::BSDFType::Diffuse, flux::OptixGeometryType::Triangle, flux::RayType::Shadow
+            flux::BSDFType::Diffuse, flux::GeometryType::TriangleMesh, flux::RayType::Shadow
         ),
         1
     );
     EXPECT_EQ(
         flux::OptixSbt::getInstanceOffset(
-            flux::BSDFType::Diffuse, flux::OptixGeometryType::Triangle
+            flux::BSDFType::Diffuse, flux::GeometryType::TriangleMesh
         ),
         0
     );

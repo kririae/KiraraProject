@@ -3,18 +3,18 @@
 #include <filesystem>
 #include <span>
 #include <type_traits>
-#include <vector>
 
 #include "flux/Core/Math.h"
-#include "flux/Scene/RenderObject.h"
+#include "flux/Scene/Geometry.h"
 #include "kira/Compiler.h"
+#include "kira/SmallVector.h"
 
 namespace flux {
 /// \brief Host-side indexed triangle mesh.
 ///
 /// The \c path property names an OBJ file. This class owns CPU data only;
 /// backend geometry pools decide how and when to upload it.
-class TriangleMesh final : public RenderObject {
+class TriangleMesh final : public Geometry {
     friend class TXContext;
 
 public:
@@ -22,17 +22,53 @@ public:
     struct DeviceImpl;
 
     /// \brief Returns object-space vertex positions.
-    [[nodiscard]] std::span<Vec3f const> getVertices() const noexcept { return vertices_; }
+    [[nodiscard]] std::span<Vec3f const> getVertices() const noexcept {
+        return {vertices_.data(), vertices_.size()};
+    }
 
     /// \brief Returns zero-based vertex indices for each triangle.
-    [[nodiscard]] std::span<Vec3u const> getTriangles() const noexcept { return triangles_; }
+    [[nodiscard]] std::span<Vec3u const> getTriangles() const noexcept {
+        return {triangles_.data(), triangles_.size()};
+    }
+
+    /// \brief Returns object-space shading normals.
+    [[nodiscard]] std::span<Vec3f const> getNormals() const noexcept {
+        return {normals_.data(), normals_.size()};
+    }
+
+    /// \brief Returns face-varying normal indices.
+    ///
+    /// An empty span with nonempty normals means the vertex indices also index
+    /// the normals.
+    [[nodiscard]] std::span<Vec3u const> getNormalIndices() const noexcept {
+        return {normalIndices_.data(), normalIndices_.size()};
+    }
+
+    /// \brief Returns texture coordinates, or an empty span when absent.
+    [[nodiscard]] std::span<Vec2f const> getTexCoords() const noexcept {
+        return {texCoords_.data(), texCoords_.size()};
+    }
+
+    /// \brief Returns face-varying texture-coordinate indices.
+    ///
+    /// An empty span with nonempty texture coordinates means the vertex indices
+    /// also index the texture coordinates.
+    [[nodiscard]] std::span<Vec3u const> getTexCoordIndices() const noexcept {
+        return {texCoordIndices_.data(), texCoordIndices_.size()};
+    }
 
 private:
     TriangleMesh(TXContext &tx, kira::Properties properties);
+
+    /// \brief Replaces this mesh with the triangulated contents of \p path.
     void loadObj(std::filesystem::path const &path);
 
-    std::vector<Vec3f> vertices_;
-    std::vector<Vec3u> triangles_;
+    kira::SmallVector<Vec3f, 0> vertices_;
+    kira::SmallVector<Vec3u, 0> triangles_;
+    kira::SmallVector<Vec3f, 0> normals_;
+    kira::SmallVector<Vec3u, 0> normalIndices_;
+    kira::SmallVector<Vec2f, 0> texCoords_;
+    kira::SmallVector<Vec3u, 0> texCoordIndices_;
 };
 
 /// \brief Device implementation of an indexed triangle mesh.
@@ -45,6 +81,18 @@ struct TriangleMesh::DeviceImpl {
 
     /// Device array of zero-based triangle vertex indices.
     Vec3u const *triangles{};
+
+    /// Device array of object-space vertex normals, or null when absent.
+    Vec3f const *normals{};
+
+    /// Per-triangle normal indices, valid whenever \c normals is non-null.
+    Vec3u const *normalIndices{};
+
+    /// Device array of texture coordinates, or null when absent.
+    Vec2f const *texCoords{};
+
+    /// Per-triangle texture-coordinate indices, valid whenever \c texCoords is non-null.
+    Vec3u const *texCoordIndices{};
 
     /// Number of elements in \c vertices.
     std::uint32_t numVertices{};
@@ -60,10 +108,11 @@ public:
     [[nodiscard]] KIRA_DEVICE inline Vec3f
     getVertex(std::uint32_t triangle, std::uint32_t corner) const noexcept;
 
-    /// \brief Returns the object-space geometric normal of \p triangle.
+    /// \brief Reconstructs a geometry-space interaction from \p preliminary.
     ///
-    /// \pre \p triangle is less than \c numTriangles and is non-degenerate.
-    [[nodiscard]] KIRA_DEVICE inline Vec3f getFaceNormal(std::uint32_t triangle) const noexcept;
+    /// \pre \p preliminary names a valid, non-degenerate triangle.
+    [[nodiscard]] KIRA_DEVICE inline GeometryInteraction
+    computeInteraction(PreliminaryIntersection const &preliminary) const noexcept;
 };
 
 static_assert(std::is_standard_layout_v<TriangleMesh::DeviceImpl>);

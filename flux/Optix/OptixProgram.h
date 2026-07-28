@@ -64,13 +64,12 @@ public:
 
     /// \brief Returns the radiance hitgroup for a concrete program-type pair.
     [[nodiscard]] OptixProgramGroup
-    getRadianceHitgroupProgram(BSDFType bsdf, OptixGeometryType geometry) const noexcept {
+    getRadianceHitgroupProgram(BSDFType bsdf, GeometryType geometry) const noexcept {
         return radianceHitgroupPrograms_[OptixSbt::getHitgroupBlock(bsdf, geometry)];
     }
 
     /// \brief Returns the shadow hitgroup for \p geometry.
-    [[nodiscard]] OptixProgramGroup
-    getShadowHitgroupProgram(OptixGeometryType geometry) const noexcept {
+    [[nodiscard]] OptixProgramGroup getShadowHitgroupProgram(GeometryType geometry) const noexcept {
         return shadowHitgroupPrograms_[static_cast<std::size_t>(geometry)];
     }
 
@@ -86,10 +85,10 @@ private:
     OptixProgramGroup raygenProgram_{};
     std::array<OptixProgramGroup, static_cast<std::size_t>(RayType::Count)> missPrograms_{};
     std::array<
-        OptixProgramGroup, static_cast<std::size_t>(BSDFType::Count) *
-                               static_cast<std::size_t>(OptixGeometryType::Count)>
+        OptixProgramGroup,
+        static_cast<std::size_t>(BSDFType::Count) * static_cast<std::size_t>(GeometryType::Count)>
         radianceHitgroupPrograms_{};
-    std::array<OptixProgramGroup, static_cast<std::size_t>(OptixGeometryType::Count)>
+    std::array<OptixProgramGroup, static_cast<std::size_t>(GeometryType::Count)>
         shadowHitgroupPrograms_{};
     OptixPipeline pipeline_{};
 };

@@ -43,10 +43,16 @@ public:
 
 private:
     struct Entry {
-        explicit Entry(cudaStream_t stream) : vertices(stream), triangles(stream) {}
+        explicit Entry(cudaStream_t stream)
+            : vertices(stream), triangles(stream), normals(stream), normalIndices(stream),
+              texCoords(stream), texCoordIndices(stream) {}
 
         DeviceBuffer<Vec3f> vertices;
         DeviceBuffer<Vec3u> triangles;
+        DeviceBuffer<Vec3f> normals;
+        DeviceBuffer<Vec3u> normalIndices;
+        DeviceBuffer<Vec2f> texCoords;
+        DeviceBuffer<Vec3u> texCoordIndices;
         CUdeviceptr vertexBuffer{};
         unsigned int flags{OPTIX_GEOMETRY_FLAG_NONE};
     };

@@ -19,7 +19,7 @@ void OptixSbt::build(OptixProgram const &program) {
     for (std::size_t bsdf = 0; bsdf < numBSDFTypes; ++bsdf) {
         auto const bsdfType = static_cast<BSDFType>(bsdf);
         for (std::size_t geometry = 0; geometry < numGeometryTypes; ++geometry) {
-            auto const geometryType = static_cast<OptixGeometryType>(geometry);
+            auto const geometryType = static_cast<GeometryType>(geometry);
             auto const radiance =
                 hitgroupRecords + getHitgroupRecord(bsdfType, geometryType, RayType::Radiance);
             auto const shadow =

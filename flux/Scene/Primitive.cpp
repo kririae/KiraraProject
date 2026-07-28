@@ -6,7 +6,7 @@
 #include <utility>
 
 #include "flux/Scene/Context.h"
-#include "flux/Scene/TriangleMesh.h"
+#include "flux/Scene/Geometry.h"
 #include "flux/Shading/BSDF.h"
 #include "kira/Anyhow.h"
 
@@ -28,11 +28,11 @@ Primitive::Primitive(TXContext &tx, kira::Properties properties)
         bsdfContextId_ = readContextId(getProperties(), "bsdf_ctx_id");
 }
 
-Ref<TriangleMesh const> Primitive::getGeometry() const {
+Ref<Geometry const> Primitive::getGeometry() const {
     auto const *context = getContext();
     if (!context)
         throw kira::Anyhow("Primitive: owning context no longer exists");
-    return context->get<TriangleMesh>(geometryContextId_);
+    return context->get<Geometry>(geometryContextId_);
 }
 
 Ref<BSDF const> Primitive::getBSDF() const {

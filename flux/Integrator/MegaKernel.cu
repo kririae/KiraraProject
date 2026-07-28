@@ -14,14 +14,6 @@ extern "C" {
 __constant__ flux::OptixLaunchParams optixLaunchParams{};
 }
 
-namespace {
-__device__ float3 toFloat3(flux::Vec3f const &value) {
-    return make_float3(value.x(), value.y(), value.z());
-}
-
-__device__ flux::Vec3f fromFloat3(float3 const &value) { return {value.x, value.y, value.z}; }
-} // namespace
-
 extern "C" __global__ void __raygen__megakernel() { // NOLINT
     auto const launchSample = optixLaunchParams.getLaunchSample(optixGetLaunchIndex().x);
     auto const resolution =
@@ -60,23 +52,17 @@ extern "C" __global__ void __closesthit__triangle_diffuse() { // NOLINT
     auto const instanceIndex = optixGetInstanceId();
     auto const &primitive = optixLaunchParams.scene.getPrimitive(instanceIndex);
     auto const &geometry = optixLaunchParams.scene.getGeometry(primitive.getGeometryIndex());
-    auto const objectNormal = geometry.getFaceNormal(optixGetPrimitiveIndex());
-    auto const normal =
-        fromFloat3(optixTransformNormalFromObjectToWorldSpace(toFloat3(objectNormal))).normalize();
-    auto const rayOrigin = fromFloat3(optixGetWorldRayOrigin());
-    auto const rayDirection = fromFloat3(optixGetWorldRayDirection());
-    auto const distance = optixGetRayTmax();
-
-    // Build the interaction while OptiX still exposes traversal-local
-    // instance, primitive, transform, and ray data.
-    auto surface = flux::SurfaceInteraction{
-        .position = rayOrigin + rayDirection * distance,
-        .geometricNormal = normal,
-        .shadingNormal = normal,
-        .primitive = &primitive,
-        .primitiveIndex = optixGetPrimitiveIndex(),
-        .distance = distance,
+    auto const barycentrics = optixGetTriangleBarycentrics();
+    auto const preliminary = flux::PreliminaryIntersection{
+        .distance = optixGetRayTmax(),
+        .coordinates = {barycentrics.x, barycentrics.y},
+        .elementIndex = optixGetPrimitiveIndex(),
     };
+    auto surface = primitive.computeSurfaceInteraction(geometry, preliminary);
+    auto const rayDirectionValue = optixGetWorldRayDirection();
+    auto const rayDirection =
+        flux::Vec3f{rayDirectionValue.x, rayDirectionValue.y, rayDirectionValue.z};
+
     auto const launchSample = optixLaunchParams.getLaunchSample(optixGetLaunchIndex().x);
     auto *state = flux::optix::getPayloadPointer<flux::PathState>();
     auto const sampleWeight = optixLaunchParams.getSampleWeight();

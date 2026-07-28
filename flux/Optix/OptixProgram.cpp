@@ -183,14 +183,14 @@ void OptixProgram::buildProgramGroups() {
     diffuseTriangle.hitgroup.moduleCH = module_;
     diffuseTriangle.hitgroup.entryFunctionNameCH = "__closesthit__triangle_diffuse";
     radianceHitgroupPrograms_[OptixSbt::getHitgroupBlock(
-        BSDFType::Diffuse, OptixGeometryType::Triangle
+        BSDFType::Diffuse, GeometryType::TriangleMesh
     )] = createProgramGroup(deviceContext_, diffuseTriangle);
 
     OptixProgramGroupDesc triangleShadow{};
     triangleShadow.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
     triangleShadow.hitgroup.moduleCH = module_;
     triangleShadow.hitgroup.entryFunctionNameCH = "__closesthit__triangle_shadow";
-    shadowHitgroupPrograms_[static_cast<std::size_t>(OptixGeometryType::Triangle)] =
+    shadowHitgroupPrograms_[static_cast<std::size_t>(GeometryType::TriangleMesh)] =
         createProgramGroup(deviceContext_, triangleShadow);
 }
 
