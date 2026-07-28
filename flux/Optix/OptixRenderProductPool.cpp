@@ -8,17 +8,23 @@ namespace flux {
 OptixRenderProductPool::Entry &OptixRenderProductPool::getOrCreate(RenderProduct const &product) {
     auto &entry = entries_.try_emplace(&product, product, getStream()).first->second;
     auto const &film = product.getFilm();
-    if (entry.film.width == film.getWidth() && entry.film.height == film.getHeight())
+    if (entry.film.width == film.getWidth() && entry.film.height == film.getHeight() &&
+        entry.enabledChannels == film.getChannels())
         return entry;
 
-    entry.normal.resize(
-        static_cast<std::size_t>(film.getWidth()) * static_cast<std::size_t>(film.getHeight())
-    );
-    entry.film = {
-        .width = film.getWidth(),
-        .height = film.getHeight(),
-        .normal = entry.normal.data(),
-    };
+    auto const pixelCount =
+        static_cast<std::size_t>(film.getWidth()) * static_cast<std::size_t>(film.getHeight());
+    entry.storage.forEach([&](auto &channel) {
+        using Channel = typename std::remove_reference_t<decltype(channel)>::ChannelType;
+        channel.buffer.resize(film.hasChannel(Channel::flag) ? pixelCount : 0);
+    });
+    entry.film.width = film.getWidth();
+    entry.film.height = film.getHeight();
+    entry.film.channels.forEach([&](auto &channel) {
+        using Channel = typename std::remove_reference_t<decltype(channel)>::ChannelType;
+        channel.data = entry.storage.template get<Channel>().buffer.data();
+    });
+    entry.enabledChannels = film.getChannels();
     entry.accumulation.reset();
     return entry;
 }

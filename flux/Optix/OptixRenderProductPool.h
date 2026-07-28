@@ -31,6 +31,12 @@ public:
     void resetAccumulation() noexcept;
 
 private:
+    /// \brief Backend allocation for one typed film channel.
+    template <typename Channel> struct FilmChannelStorage {
+        using ChannelType = Channel;
+        DeviceBuffer<typename Channel::Value> buffer;
+    };
+
     /// \brief Pixel history produced for one camera payload.
     struct AccumulationState {
         /// Camera payload used to produce the stored pixels.
@@ -42,17 +48,21 @@ private:
 
     /// \brief Backend state attached to one render-product identity.
     struct Entry {
-        Entry(RenderProduct const &product, cudaStream_t stream) noexcept
-            : product(&product), normal(stream) {}
+        Entry(RenderProduct const &product, cudaStream_t stream) noexcept : product(&product) {
+            storage.forEach([stream](auto &channel) { channel.buffer.setStream(stream); });
+        }
 
         /// Keeps the identity key alive until explicit release.
         Ref<RenderProduct const> product;
 
-        /// World-space geometric-normal channel.
-        DeviceBuffer<Vec3f> normal;
+        /// Device allocations for the channels requested by the film.
+        FilmChannelListOf<FilmChannelStorage> storage;
 
         /// Device view rebuilt whenever the film layout changes.
         Film::DeviceImpl film;
+
+        /// Channel selection represented by \c storage and \c film.
+        FilmChannels enabledChannels{FilmChannels::None};
 
         /// Valid pixel history, or empty after invalidation or failure.
         std::optional<AccumulationState> accumulation;

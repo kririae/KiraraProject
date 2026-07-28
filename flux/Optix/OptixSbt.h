@@ -4,12 +4,21 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 
 #include "flux/Core/Object.h"
+#include "flux/Core/Ray.h"
 #include "flux/Optix/DeviceBuffer.h"
+#include "flux/Shading/BSDF.h"
 
 namespace flux {
 class OptixProgram;
+
+/// \brief Identifies geometry-specific OptiX hit programs.
+enum class OptixGeometryType : std::uint32_t {
+    Triangle,
+    Count,
+};
 
 /// \brief Owns the header-only records for the current OptiX pipeline.
 class OptixSbt final : private Noncopyable {
@@ -17,26 +26,54 @@ public:
     /// \brief Creates an empty shader binding table bound to \p stream.
     explicit OptixSbt(cudaStream_t stream) noexcept : records_(stream) {}
 
-    /// \brief Rebuilds the raygen, miss, and triangle-hit records.
+    /// \brief Rebuilds the fixed program-type SBT layout.
     void build(OptixProgram const &program);
 
     /// \brief Returns the populated shader binding table.
     [[nodiscard]] OptixShaderBindingTable const &getTable() const noexcept { return table_; }
 
+    /// \brief Returns the hitgroup block for one BSDF and geometry pair.
+    [[nodiscard]] static constexpr std::size_t
+    getHitgroupBlock(BSDFType bsdf, OptixGeometryType geometry) noexcept {
+        return static_cast<std::size_t>(bsdf) * numGeometryTypes +
+               static_cast<std::size_t>(geometry);
+    }
+
+    /// \brief Returns a record index relative to the hitgroup section.
+    [[nodiscard]] static constexpr std::size_t
+    getHitgroupRecord(BSDFType bsdf, OptixGeometryType geometry, RayType ray) noexcept {
+        return getHitgroupBlock(bsdf, geometry) * numRayTypes + static_cast<std::size_t>(ray);
+    }
+
+    /// \brief Returns the IAS SBT offset for one program-type block.
+    [[nodiscard]] static constexpr std::uint32_t
+    getInstanceOffset(BSDFType bsdf, OptixGeometryType geometry) noexcept {
+        return static_cast<std::uint32_t>(getHitgroupBlock(bsdf, geometry) * numRayTypes);
+    }
+
+    /// \brief Returns the number of records in the hitgroup section.
+    [[nodiscard]] static constexpr std::size_t getNumHitgroupRecords() noexcept {
+        return numHitgroupRecords;
+    }
+
 private:
-    enum RecordIndex : std::size_t {
-        RaygenRecord,
-        MissRecord,
-        HitgroupRecord,
-        NumRecords,
-    };
+    static constexpr std::size_t numRayTypes = static_cast<std::size_t>(RayType::Count);
+    static constexpr std::size_t numBSDFTypes = static_cast<std::size_t>(BSDFType::Count);
+    static constexpr std::size_t numGeometryTypes =
+        static_cast<std::size_t>(OptixGeometryType::Count);
+    static constexpr std::size_t numMissRecords = numRayTypes;
+    static constexpr std::size_t numHitgroupRecords = numBSDFTypes * numGeometryTypes * numRayTypes;
+    static constexpr std::size_t raygenRecord = 0;
+    static constexpr std::size_t missRecords = raygenRecord + 1;
+    static constexpr std::size_t hitgroupRecords = missRecords + numMissRecords;
+    static constexpr std::size_t numRecords = hitgroupRecords + numHitgroupRecords;
 
     struct alignas(OPTIX_SBT_RECORD_ALIGNMENT) Record {
         std::array<char, OPTIX_SBT_RECORD_HEADER_SIZE> header;
     };
     static_assert(sizeof(Record) == OPTIX_SBT_RECORD_HEADER_SIZE);
 
-    std::array<Record, NumRecords> staging_{};
+    std::array<Record, numRecords> staging_{};
     DeviceBuffer<Record> records_;
     OptixShaderBindingTable table_{};
 };

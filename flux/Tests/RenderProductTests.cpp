@@ -79,6 +79,24 @@ TEST(RenderProductTests, RejectsZeroFilmDimensions) {
     EXPECT_EQ(film.getHeight(), 1U);
 }
 
+TEST(RenderProductTests, SelectsFilmChannelsAtRuntime) {
+    flux::Film film(1, 1);
+    EXPECT_TRUE(film.hasChannel(flux::FilmChannels::Normal));
+    EXPECT_TRUE(film.hasChannel(flux::FilmChannels::Albedo));
+
+    film.setChannels(flux::FilmChannels::Normal);
+    EXPECT_TRUE(film.hasChannel(flux::FilmChannels::Normal));
+    EXPECT_FALSE(film.hasChannel(flux::FilmChannels::Albedo));
+
+    film.setChannels(flux::FilmChannels::None);
+    EXPECT_FALSE(film.hasChannel(flux::FilmChannels::None));
+    EXPECT_FALSE(film.hasChannel(flux::FilmChannels::Normal));
+    EXPECT_FALSE(film.hasChannel(flux::FilmChannels::Albedo));
+
+    EXPECT_THROW(film.setChannels(static_cast<flux::FilmChannels>(1U << 31U)), kira::Anyhow);
+    EXPECT_EQ(film.getChannels(), flux::FilmChannels::None);
+}
+
 TEST(RenderProductTests, SamplesTheDiskConcentrically) {
     EXPECT_EQ(flux::uniformSampleDisk({0.5F, 0.5F}), (flux::Vec2f{}));
 

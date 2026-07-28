@@ -57,9 +57,9 @@ KIRA_DEVICE inline void OptixContext::DeviceImpl::trace(PathState &state) const 
         /* rayTime =         */ 0.0F,
         /* visibilityMask =  */ 255,
         /* rayFlags =        */ OPTIX_RAY_FLAG_DISABLE_ANYHIT,
-        /* sbtOffset =       */ 0,
-        /* sbtStride =       */ 1,
-        /* missSbtIndex =    */ 0,
+        /* sbtOffset =       */ static_cast<unsigned int>(RayType::Radiance),
+        /* sbtStride =       */ static_cast<unsigned int>(RayType::Count),
+        /* missSbtIndex =    */ static_cast<unsigned int>(RayType::Radiance),
         /* payload upper =   */ payloadUpper,
         /* payload lower =   */ payloadLower);
     // clang-format on
@@ -73,5 +73,10 @@ OptixContext::DeviceImpl::getPrimitive(std::uint32_t instanceIndex) const noexce
 KIRA_DEVICE inline TriangleMesh::DeviceImpl const &
 OptixContext::DeviceImpl::getGeometry(std::uint32_t geometryIndex) const noexcept {
     return geometries[geometryIndex];
+}
+
+KIRA_DEVICE inline BSDF::DeviceImpl const &
+OptixContext::DeviceImpl::getBSDF(std::uint32_t bsdfIndex) const noexcept {
+    return bsdfs[bsdfIndex];
 }
 } // namespace flux

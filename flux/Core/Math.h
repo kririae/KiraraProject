@@ -18,6 +18,9 @@ using Vec2u = kira::Vecteur<std::uint32_t, 2, kira::defaultBackend>;
 /// Three-component floating-point vector.
 using Vec3f = kira::Vec3f;
 
+/// RGB spectrum used by the current transport implementation.
+using Spectrum = Vec3f;
+
 /// Three-component unsigned integer vector.
 using Vec3u = kira::Vecteur<std::uint32_t, 3, kira::defaultBackend>;
 } // namespace flux

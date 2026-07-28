@@ -4,6 +4,7 @@
 
 #include "flux/Core/Ray.h"
 #include "flux/Integrator/PathIntegrator.h"
+#include "flux/Sampling/Sampler.h"
 #include "flux/Shading/Interaction.h"
 #include "kira/Compiler.h"
 
@@ -12,6 +13,12 @@ namespace flux {
 struct PathState {
     /// Ray for the next traversal.
     Ray ray;
+
+    /// Sampling sequence advanced across path vertices.
+    Sampler::DeviceImpl sampler;
+
+    /// Number of surface bounces already processed.
+    std::uint32_t bounce{};
 
     /// Whether another path vertex should be processed.
     bool active{true};

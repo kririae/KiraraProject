@@ -17,7 +17,9 @@
 #include "flux/Scene/Context.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/TriangleMesh.h"
+#include "flux/Shading/BSDF.h"
 #include "kira/Anyhow.h"
+#include "kira/Assertions.h"
 
 namespace flux {
 struct OptixContext::Impl : private CudaStreamMixin {
@@ -27,7 +29,7 @@ struct OptixContext::Impl : private CudaStreamMixin {
     )
         : CudaStreamMixin(stream), context(context), deviceContext(deviceContext),
           modulePath(modulePath), geometryPool(stream), accel(stream), sbt(stream),
-          primitives(stream) {}
+          primitives(stream), bsdfs(stream) {}
 
     void sync() try {
         context.commit();
@@ -38,14 +40,30 @@ struct OptixContext::Impl : private CudaStreamMixin {
         program = std::make_unique<OptixProgram>(deviceContext, modulePath, spec);
 
         auto const scenePrimitives = context.getObjects<Primitive>();
+        auto const sceneBSDFs = context.getObjects<BSDF>();
         kira::SmallVector<Ref<TriangleMesh const>> uniqueMeshes;
         std::unordered_map<std::size_t, std::uint32_t> geometryIndexByContextId;
+        std::unordered_map<std::size_t, std::uint32_t> bsdfIndexByContextId;
         std::vector<OptixAccel::InstanceDesc> instanceDescs;
         primitiveStaging.clear();
+        bsdfStaging.clear();
         uniqueMeshes.reserve(scenePrimitives.size());
         geometryIndexByContextId.reserve(scenePrimitives.size());
+        bsdfIndexByContextId.reserve(sceneBSDFs.size());
         instanceDescs.reserve(scenePrimitives.size());
         primitiveStaging.reserve(scenePrimitives.size());
+        bsdfStaging.reserve(sceneBSDFs.size());
+
+        if (sceneBSDFs.size() > Primitive::DeviceImpl::invalidBSDFIndex)
+            throw kira::Anyhow("OptixContext: BSDF count exceeds device limits");
+
+        // BSDF indices belong to this device snapshot. Context IDs remain
+        // stable on the host but may contain gaps.
+        for (auto const &bsdf : sceneBSDFs) {
+            auto const index = static_cast<std::uint32_t>(bsdfStaging.size());
+            bsdfIndexByContextId.emplace(bsdf->getContextId(), index);
+            bsdfStaging.push_back(bsdf->getDeviceImpl());
+        }
 
         // Flatten the visible scene into the dense arrays used on the device.
         // Several primitives may share one geometry, so assign each mesh one
@@ -70,9 +88,24 @@ struct OptixContext::Impl : private CudaStreamMixin {
                 continue;
 
             auto const geometryIndex = getOrAddGeometryIndex(*primitive);
-            primitiveStaging.push_back({.geometryIndex = geometryIndex});
+            auto const bsdf = primitive->getBSDF();
+            auto bsdfIndex = Primitive::DeviceImpl::invalidBSDFIndex;
+            if (bsdf) {
+                auto const iterator = bsdfIndexByContextId.find(bsdf->getContextId());
+                KIRA_ASSERT(
+                    iterator != bsdfIndexByContextId.end(),
+                    "Linked BSDF is missing from the device snapshot"
+                );
+                bsdfIndex = iterator->second;
+            }
+            primitiveStaging.push_back({
+                .geometryIndex = geometryIndex,
+                .bsdfIndex = bsdfIndex,
+            });
+            auto const bsdfType = bsdf ? bsdf->getType() : BSDFType::Diffuse;
             instanceDescs.push_back({
                 .geometryIndex = geometryIndex,
+                .sbtOffset = OptixSbt::getInstanceOffset(bsdfType, OptixGeometryType::Triangle),
                 .transform = primitive->getTransform(),
             });
         }
@@ -83,6 +116,7 @@ struct OptixContext::Impl : private CudaStreamMixin {
         auto const buildInputs = geometryPool.getBuildInputs();
         accel.buildGas(deviceContext, buildInputs);
         primitives.copyFromHost({primitiveStaging.data(), primitiveStaging.size()});
+        bsdfs.copyFromHost({bsdfStaging.data(), bsdfStaging.size()});
         accel.buildIas(deviceContext, instanceDescs);
         sbt.build(*program);
 
@@ -102,6 +136,8 @@ struct OptixContext::Impl : private CudaStreamMixin {
     OptixSbt sbt;
     std::vector<Primitive::DeviceImpl> primitiveStaging;
     DeviceBuffer<Primitive::DeviceImpl> primitives;
+    std::vector<BSDF::DeviceImpl> bsdfStaging;
+    DeviceBuffer<BSDF::DeviceImpl> bsdfs;
 };
 
 OptixContext::OptixContext(
@@ -139,8 +175,10 @@ OptixContext::DeviceImpl OptixContext::getDeviceImpl() const noexcept {
         .traversable = impl_->accel.getHandle(),
         .geometries = impl_->geometryPool.getDeviceImpls(),
         .primitives = impl_->primitives.data(),
+        .bsdfs = impl_->bsdfs.data(),
         .numGeometries = static_cast<std::uint32_t>(impl_->geometryPool.size()),
         .numPrimitives = static_cast<std::uint32_t>(impl_->primitives.size()),
+        .numBSDFs = static_cast<std::uint32_t>(impl_->bsdfs.size()),
     };
 }
 } // namespace flux

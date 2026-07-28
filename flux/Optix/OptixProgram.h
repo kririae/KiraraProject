@@ -2,10 +2,14 @@
 
 #include <optix_types.h>
 
+#include <array>
 #include <filesystem>
 
 #include "flux/Core/Object.h"
+#include "flux/Core/Ray.h"
+#include "flux/Optix/OptixSbt.h"
 #include "flux/Sampling/Sampler.h"
+#include "flux/Shading/BSDF.h"
 
 namespace flux {
 class Context;
@@ -24,8 +28,8 @@ class OptixProgram final : private Noncopyable {
 public:
     /// \brief Builds a triangle-intersection pipeline from \p modulePath.
     ///
-    /// The module must provide \c __raygen__megakernel,
-    /// \c __miss__radiance, and \c __closesthit__triangle.
+    /// The module must provide \c __raygen__megakernel, the radiance and shadow
+    /// miss programs, and the diffuse and shadow triangle hit programs.
     /// \param deviceContext OptiX context used to create the program.
     /// \param modulePath Path to the OptiX IR module.
     /// \param spec Values specialized into the OptiX module.
@@ -53,11 +57,22 @@ public:
     /// \brief Returns the ray-generation program group.
     [[nodiscard]] OptixProgramGroup getRaygenProgram() const noexcept { return raygenProgram_; }
 
-    /// \brief Returns the miss program group.
-    [[nodiscard]] OptixProgramGroup getMissProgram() const noexcept { return missProgram_; }
+    /// \brief Returns the miss program for \p ray.
+    [[nodiscard]] OptixProgramGroup getMissProgram(RayType ray) const noexcept {
+        return missPrograms_[static_cast<std::size_t>(ray)];
+    }
 
-    /// \brief Returns the triangle hit-group program.
-    [[nodiscard]] OptixProgramGroup getHitgroupProgram() const noexcept { return hitgroupProgram_; }
+    /// \brief Returns the radiance hitgroup for a concrete program-type pair.
+    [[nodiscard]] OptixProgramGroup
+    getRadianceHitgroupProgram(BSDFType bsdf, OptixGeometryType geometry) const noexcept {
+        return radianceHitgroupPrograms_[OptixSbt::getHitgroupBlock(bsdf, geometry)];
+    }
+
+    /// \brief Returns the shadow hitgroup for \p geometry.
+    [[nodiscard]] OptixProgramGroup
+    getShadowHitgroupProgram(OptixGeometryType geometry) const noexcept {
+        return shadowHitgroupPrograms_[static_cast<std::size_t>(geometry)];
+    }
 
 private:
     void buildModule(std::filesystem::path const &modulePath);
@@ -69,8 +84,13 @@ private:
     OptixProgramSpec spec_;
     OptixModule module_{};
     OptixProgramGroup raygenProgram_{};
-    OptixProgramGroup missProgram_{};
-    OptixProgramGroup hitgroupProgram_{};
+    std::array<OptixProgramGroup, static_cast<std::size_t>(RayType::Count)> missPrograms_{};
+    std::array<
+        OptixProgramGroup, static_cast<std::size_t>(BSDFType::Count) *
+                               static_cast<std::size_t>(OptixGeometryType::Count)>
+        radianceHitgroupPrograms_{};
+    std::array<OptixProgramGroup, static_cast<std::size_t>(OptixGeometryType::Count)>
+        shadowHitgroupPrograms_{};
     OptixPipeline pipeline_{};
 };
 } // namespace flux

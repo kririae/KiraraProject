@@ -24,6 +24,12 @@ krr_add_test(
 target_link_libraries(flux.Scene.FilmTests PRIVATE CUDA::cudart)
 
 krr_add_test(
+    flux Shading ShadingTests
+    SOURCES ShadingTests.cu
+    HARD_DEPENDENCIES flux)
+target_link_libraries(flux.Shading.ShadingTests PRIVATE CUDA::cudart)
+
+krr_add_test(
     flux Sampling SamplerTests
     SOURCES SamplerTests.cu
     HARD_DEPENDENCIES flux)

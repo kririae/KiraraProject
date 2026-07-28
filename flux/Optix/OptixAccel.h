@@ -24,6 +24,9 @@ public:
         /// Dense index of the referenced GAS.
         std::uint32_t geometryIndex{};
 
+        /// Base hitgroup record selected for this instance.
+        std::uint32_t sbtOffset{};
+
         /// Row-major object-to-world affine transform.
         std::array<float, 12> transform{
             1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F,

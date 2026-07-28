@@ -7,6 +7,7 @@
 #include "TestUtils.h"
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Optix/OptixHandler.h"
+#include "flux/Optix/OptixSbt.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
@@ -16,6 +17,28 @@
 #ifndef FLUX_TEST_OPTIX_IR
 #error "FLUX_TEST_OPTIX_IR must name the test OptiX IR module"
 #endif
+
+TEST(OptixPipelineTests, UsesAStableProgramTypeSbtLayout) {
+    EXPECT_EQ(
+        flux::OptixSbt::getHitgroupRecord(
+            flux::BSDFType::Diffuse, flux::OptixGeometryType::Triangle, flux::RayType::Radiance
+        ),
+        0
+    );
+    EXPECT_EQ(
+        flux::OptixSbt::getHitgroupRecord(
+            flux::BSDFType::Diffuse, flux::OptixGeometryType::Triangle, flux::RayType::Shadow
+        ),
+        1
+    );
+    EXPECT_EQ(
+        flux::OptixSbt::getInstanceOffset(
+            flux::BSDFType::Diffuse, flux::OptixGeometryType::Triangle
+        ),
+        0
+    );
+    EXPECT_EQ(flux::OptixSbt::getNumHitgroupRecords(), 2);
+}
 
 TEST(OptixPipelineTests, LaunchesRaygenProgram) {
     if (!flux::test::hasCudaMemoryPoolSupport())
@@ -127,6 +150,19 @@ TEST(OptixPipelineTests, TracksFilmLayoutAndConvergence) {
     handler.render(*product, 2);
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 2);
     EXPECT_FALSE(handler.isConverged(*product));
+
+    product->getFilm().setChannels(flux::FilmChannels::Normal);
+    EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
+    handler.render(*product, 2);
+    EXPECT_EQ(handler.getAccumulatedSamples(*product), 2);
+
+    product->getFilm().setChannels(flux::FilmChannels::Normal);
+    EXPECT_EQ(handler.getAccumulatedSamples(*product), 2);
+
+    product->getFilm().setChannels(flux::FilmChannels::All);
+    EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
+    handler.render(*product, 2);
+    EXPECT_EQ(handler.getAccumulatedSamples(*product), 2);
 
     product->setSamplesPerPixel(2);
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 2);

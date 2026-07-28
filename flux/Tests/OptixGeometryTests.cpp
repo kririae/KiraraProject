@@ -14,6 +14,7 @@
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/RenderProduct.h"
 #include "flux/Scene/TriangleMesh.h"
+#include "flux/Shading/BSDF.h"
 
 #ifndef FLUX_TEST_FIXTURES_DIR
 #error "FLUX_TEST_FIXTURES_DIR must name the Flux test fixtures directory"
@@ -33,9 +34,12 @@ class ThrowingGapObject final : public flux::RenderObject {
     }
 };
 
-[[nodiscard]] kira::Properties primitiveProperties(flux::TriangleMesh const &mesh) {
+[[nodiscard]] kira::Properties
+primitiveProperties(flux::TriangleMesh const &mesh, flux::BSDF const *bsdf = nullptr) {
     kira::Properties properties;
     properties.set("geometry_ctx_id", static_cast<std::int64_t>(mesh.getContextId()));
+    if (bsdf)
+        properties.set("bsdf_ctx_id", static_cast<std::int64_t>(bsdf->getContextId()));
     return properties;
 }
 } // namespace
@@ -50,9 +54,12 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
     kira::Properties meshProperties;
     meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
     auto mesh = context->create<flux::TriangleMesh>(std::move(meshProperties));
+    kira::Properties bsdfProperties;
+    bsdfProperties.set("reflectance", flux::Spectrum{0.2F, 0.4F, 0.8F});
+    auto bsdf = context->create<flux::DiffuseBSDF>(std::move(bsdfProperties));
 
     EXPECT_THROW((void)context->create<ThrowingGapObject>(), std::runtime_error);
-    auto firstPrimitive = context->create<flux::Primitive>(primitiveProperties(*mesh));
+    auto firstPrimitive = context->create<flux::Primitive>(primitiveProperties(*mesh, bsdf.get()));
     EXPECT_GT(firstPrimitive->getContextId(), mesh->getContextId() + 1);
 
     kira::Properties cameraProperties;
@@ -68,7 +75,7 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
     EXPECT_NO_THROW(handler.render(*product, 1));
 
     EXPECT_THROW((void)context->create<ThrowingGapObject>(), std::runtime_error);
-    auto secondPrimitive = context->create<flux::Primitive>(primitiveProperties(*mesh));
+    auto secondPrimitive = context->create<flux::Primitive>(primitiveProperties(*mesh, bsdf.get()));
     secondPrimitive->setTransform({
         1.0F,
         0.0F,

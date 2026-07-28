@@ -12,6 +12,7 @@
 #include "flux/Core/Object.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/TriangleMesh.h"
+#include "flux/Shading/BSDF.h"
 #include "kira/Compiler.h"
 
 namespace flux {
@@ -25,7 +26,7 @@ class OptixContext final : private Noncopyable {
     friend class OptixHandler;
 
 public:
-    /// \brief Compact device implementation of the materialized scene.
+    /// \brief Compact device implementation of the current scene snapshot.
     struct DeviceImpl;
 
     /// \brief Releases device-scene resources.
@@ -38,9 +39,7 @@ private:
     /// \param deviceContext OptiX device context borrowed from the owning
     /// \c OptixHandler.
     /// \param stream CUDA stream that orders scene updates and launches.
-    /// \param modulePath Path to an OptiX IR module containing
-    /// \c __raygen__megakernel, \c __miss__radiance, and
-    /// \c __closesthit__triangle.
+    /// \param modulePath Path to the OptiX IR module used by \c OptixProgram.
     /// \throw kira::Anyhow if the module cannot be read or OptiX setup fails.
     OptixContext(
         Context &context, OptixDeviceContext deviceContext, cudaStream_t stream,
@@ -87,11 +86,17 @@ struct OptixContext::DeviceImpl {
     /// Device array of visible primitives.
     Primitive::DeviceImpl const *primitives{};
 
+    /// Device array of BSDFs registered in the host context.
+    BSDF::DeviceImpl const *bsdfs{};
+
     /// Number of elements in \c geometries.
     std::uint32_t numGeometries{};
 
     /// Number of elements in \c primitives.
     std::uint32_t numPrimitives{};
+
+    /// Number of elements in \c bsdfs.
+    std::uint32_t numBSDFs{};
 
 public:
     /// \brief Traces the ray in \p state.
@@ -111,6 +116,12 @@ public:
     /// \pre \p geometryIndex is less than \c numGeometries.
     [[nodiscard]] KIRA_DEVICE inline TriangleMesh::DeviceImpl const &
     getGeometry(std::uint32_t geometryIndex) const noexcept;
+
+    /// \brief Returns the BSDF at dense \p bsdfIndex.
+    ///
+    /// \pre \p bsdfIndex is less than \c numBSDFs.
+    [[nodiscard]] KIRA_DEVICE inline BSDF::DeviceImpl const &
+    getBSDF(std::uint32_t bsdfIndex) const noexcept;
 };
 
 static_assert(std::is_standard_layout_v<OptixContext::DeviceImpl>);

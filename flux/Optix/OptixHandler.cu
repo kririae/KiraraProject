@@ -18,6 +18,7 @@
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
+#include "flux/Scene/Film.cuh"
 #include "flux/Scene/RenderProduct.h"
 #include "kira/Anyhow.h"
 
@@ -89,13 +90,11 @@ private:
 
 inline constexpr std::uint64_t maxOptixLaunchDimension = std::uint64_t{1} << 30U;
 
-struct ScaleNormalChannel {
-    Vec3f *normal;
+struct ScaleFilmChannels {
+    Film::DeviceImpl film;
     float factor;
 
-    KIRA_DEVICE void operator()(std::size_t index) const noexcept {
-        normal[index] = normal[index] * factor;
-    }
+    KIRA_DEVICE void operator()(std::size_t index) const noexcept { film.scale(index, factor); }
 };
 } // namespace
 
@@ -208,13 +207,12 @@ void OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
         target.accumulation.reset();
         auto const totalSamples = accumulatedSamples + samples;
         if (accumulatedSamples == 0) {
-            target.normal.zero();
-        } else {
+            target.storage.forEach([](auto &channel) { channel.buffer.zero(); });
+        } else if (target.enabledChannels != FilmChannels::None) {
             auto const factor =
                 static_cast<float>(accumulatedSamples) / static_cast<float>(totalSamples);
             launchLinearKernel(
-                target.normal.size(),
-                ScaleNormalChannel{.normal = target.normal.data(), .factor = factor},
+                pixelCount, ScaleFilmChannels{.film = target.film, .factor = factor},
                 impl_->getStream()
             );
         }
@@ -256,7 +254,8 @@ std::uint64_t OptixHandler::getAccumulatedSamples(RenderProduct const &product) 
     auto const *target = impl_->renderProducts.find(product);
     auto const &film = product.getFilm();
     if (!target || target->film.width != film.getWidth() ||
-        target->film.height != film.getHeight() || !target->accumulation)
+        target->film.height != film.getHeight() || target->enabledChannels != film.getChannels() ||
+        !target->accumulation)
         return 0;
 
     auto const camera = product.getCamera().getDeviceImpl();

@@ -4,6 +4,7 @@
 #include <numbers>
 #include <utility>
 
+#include "flux/Core/MathUtils.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
@@ -20,14 +21,6 @@ void validateThinLens(float radius, float focalDistance) {
         throw kira::Anyhow("Camera: focal distance must be finite and nonnegative");
     if (radius > 0.0F && !(focalDistance > 0.0F))
         throw kira::Anyhow("Camera: a positive lens radius requires a positive focal distance");
-}
-
-[[nodiscard]] Vec3f cross(Vec3f const &lhs, Vec3f const &rhs) noexcept {
-    return {
-        lhs.y() * rhs.z() - lhs.z() * rhs.y(),
-        lhs.z() * rhs.x() - lhs.x() * rhs.z(),
-        lhs.x() * rhs.y() - lhs.y() * rhs.x(),
-    };
 }
 
 } // namespace

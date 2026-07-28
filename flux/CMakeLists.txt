@@ -33,7 +33,8 @@ add_library(
     Scene/RenderObject.cpp
     Scene/RenderProduct.cpp
     Scene/TriangleMesh.cpp
-    Scene/TXContext.cpp)
+    Scene/TXContext.cpp
+    Shading/BSDF.cpp)
 
 target_include_directories(flux PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(flux PUBLIC CUDA::cudart kira::Core kira::Vecteur OptiX::OptiX)

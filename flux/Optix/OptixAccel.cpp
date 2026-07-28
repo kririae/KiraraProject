@@ -118,6 +118,8 @@ void OptixAccel::buildIas(
         getDeviceLimit(deviceContext, OPTIX_DEVICE_PROPERTY_LIMIT_MAX_INSTANCES_PER_IAS);
     auto const maxInstanceId =
         getDeviceLimit(deviceContext, OPTIX_DEVICE_PROPERTY_LIMIT_MAX_INSTANCE_ID);
+    auto const maxSbtOffset =
+        getDeviceLimit(deviceContext, OPTIX_DEVICE_PROPERTY_LIMIT_MAX_SBT_OFFSET);
     if (instances.size() > maxInstances || instances.size() - 1 > maxInstanceId)
         throw kira::Anyhow("OptixAccel: instance count exceeds the device limit");
 
@@ -126,11 +128,13 @@ void OptixAccel::buildIas(
         auto const &description = instances[index];
         if (description.geometryIndex >= gasEntries_.size())
             throw kira::Anyhow("OptixAccel: instance references an unknown geometry");
+        if (description.sbtOffset > maxSbtOffset)
+            throw kira::Anyhow("OptixAccel: instance SBT offset exceeds the device limit");
 
         OptixInstance instance{};
         std::ranges::copy(description.transform, instance.transform);
         instance.instanceId = static_cast<unsigned int>(index);
-        instance.sbtOffset = 0;
+        instance.sbtOffset = description.sbtOffset;
         instance.visibilityMask = 255;
         instance.flags = OPTIX_INSTANCE_FLAG_NONE;
         instance.traversableHandle = gasEntries_[description.geometryIndex].handle;
