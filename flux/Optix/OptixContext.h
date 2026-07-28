@@ -56,16 +56,14 @@ private:
     /// \throw std::out_of_range If a primitive refers to an unknown geometry.
     void sync();
 
-    /// \brief Launches the persistent pipeline on \p stream.
+    /// \brief Launches the persistent pipeline as a one-dimensional grid.
     ///
     /// \param stream CUDA stream that orders the launch.
     /// \param params Device address of the launch parameters.
     /// \param paramsSize Size of the launch parameters in bytes.
-    /// \param width Number of ray-generation work items along the X axis.
-    /// \param height Number of ray-generation work items along the Y axis.
+    /// \param size Number of ray-generation work items.
     void launch(
-        cudaStream_t stream, CUdeviceptr params, std::size_t paramsSize, std::uint32_t width,
-        std::uint32_t height
+        cudaStream_t stream, CUdeviceptr params, std::size_t paramsSize, std::uint32_t size
     ) const;
 
     /// \brief Returns the current device-scene implementation.

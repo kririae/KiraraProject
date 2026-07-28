@@ -7,7 +7,6 @@
 #include "flux/Core/Object.h"
 
 namespace flux {
-class Camera;
 class Context;
 class RenderProduct;
 
@@ -40,20 +39,35 @@ public:
     /// \throw std::out_of_range If a primitive refers to an unknown geometry.
     void sync();
 
-    /// \brief Renders sample \p sampleIndex into \p product and waits for completion.
+    /// \brief Renders one sample batch into \p product and waits for completion.
     ///
-    /// Both objects and the active sampler must belong to the handler's host
-    /// context. Call \c sync after changing state that affects program
-    /// specialization.
-    /// \param camera Camera used to generate primary rays.
+    /// The active sampler belongs to the handler's host context. Call \c sync
+    /// after changing persistent scene or program-specialization state.
     /// \param product Render product receiving the sample.
-    /// \param sampleIndex Zero-based sample index for every pixel.
+    /// \param samples Number of samples assigned to every pixel.
     /// \throw kira::Anyhow if there is no active sampler, program
     /// specialization is stale, device state creation fails, or the launch
     /// or stream synchronization fails.
-    /// \throw std::invalid_argument if either object belongs to another
-    /// context or the film is too large for device storage.
-    void render(Camera const &camera, RenderProduct const &product, std::uint64_t sampleIndex);
+    /// \throw std::invalid_argument If \p samples is zero, arithmetic
+    /// overflows, or the launch is too large.
+    void render(RenderProduct const &product, std::uint32_t samples);
+
+    /// \brief Sets the sequence offset used by later render batches.
+    ///
+    /// Changing the offset invalidates every accumulated target.
+    void setSampleOffset(std::uint64_t offset);
+
+    /// \brief Returns the samples accumulated for \p product.
+    ///
+    /// A changed camera or film layout reports zero.
+    /// \throw kira::Anyhow If the current camera cannot be materialized.
+    [[nodiscard]] std::uint64_t getAccumulatedSamples(RenderProduct const &product) const;
+
+    /// \brief Releases backend state associated with \p product.
+    ///
+    /// The host product remains valid. Rendering it again creates fresh
+    /// backend state.
+    void release(RenderProduct const &product) noexcept;
 
     /// \brief Returns the associated host context.
     [[nodiscard]] Ref<Context> getContext() const;

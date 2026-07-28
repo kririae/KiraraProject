@@ -51,11 +51,11 @@ struct Film::DeviceImpl {
     Vec3f *normal{};
 
 public:
-    /// \brief Writes \p value to the normal channel at \p x, \p y.
+    /// \brief Atomically adds \p value to the normal channel at \p pixel.
     ///
-    /// \pre The normal channel is present and the coordinates are in range.
-    KIRA_DEVICE inline void
-    writeNormal(std::uint32_t x, std::uint32_t y, Vec3f const &value) const noexcept;
+    /// Concurrent samples of one pixel may call this function.
+    /// \pre The normal channel is present and \p pixel is in range.
+    KIRA_DEVICE inline void accumulateNormal(Vec2u const &pixel, Vec3f const &value) const noexcept;
 };
 
 static_assert(std::is_standard_layout_v<Film::DeviceImpl>);

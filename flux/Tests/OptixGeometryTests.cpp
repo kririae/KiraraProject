@@ -58,14 +58,14 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
     kira::Properties cameraProperties;
     cameraProperties.set("position", flux::Vec3f{0.25F, 0.25F, 1.0F});
     cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.0F});
-    auto camera = context->create<flux::Camera>(std::move(cameraProperties));
+    auto camera = flux::Camera::create(std::move(cameraProperties));
     kira::Properties productProperties;
     productProperties.set("width", std::uint32_t{3});
     productProperties.set("height", std::uint32_t{1});
-    auto product = context->create<flux::RenderProduct>(std::move(productProperties));
+    auto product = flux::RenderProduct::create(camera, std::move(productProperties));
 
     flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
-    EXPECT_NO_THROW(handler.render(*camera, *product, 0));
+    EXPECT_NO_THROW(handler.render(*product, 1));
 
     EXPECT_THROW((void)context->create<ThrowingGapObject>(), std::runtime_error);
     auto secondPrimitive = context->create<flux::Primitive>(primitiveProperties(*mesh));
@@ -85,7 +85,8 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
     });
     EXPECT_GT(secondPrimitive->getContextId(), firstPrimitive->getContextId() + 1);
 
-    EXPECT_NO_THROW(handler.render(*camera, *product, 1));
+    EXPECT_NO_THROW(handler.render(*product, 1));
     handler.sync();
-    EXPECT_NO_THROW(handler.render(*camera, *product, 1));
+    EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
+    EXPECT_NO_THROW(handler.render(*product, 1));
 }

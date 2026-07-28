@@ -18,6 +18,12 @@ krr_add_test(
     HARD_DEPENDENCIES flux)
 
 krr_add_test(
+    flux Scene FilmTests
+    SOURCES FilmTests.cu
+    HARD_DEPENDENCIES flux)
+target_link_libraries(flux.Scene.FilmTests PRIVATE CUDA::cudart)
+
+krr_add_test(
     flux Sampling SamplerTests
     SOURCES SamplerTests.cu
     HARD_DEPENDENCIES flux)
@@ -37,6 +43,11 @@ target_link_libraries(flux.Optix.PipelineTests PRIVATE CUDA::cudart)
 add_dependencies(flux.Optix.PipelineTests flux_megakernel_ir)
 
 krr_add_test(
+    flux Optix LaunchParamsTests
+    SOURCES OptixLaunchParamsTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
     flux Optix GeometryTests
     SOURCES OptixGeometryTests.cpp
     HARD_DEPENDENCIES flux)
@@ -51,3 +62,9 @@ krr_add_test(
     SOURCES DeviceBufferTests.cpp
     HARD_DEPENDENCIES flux)
 target_link_libraries(flux.Optix.DeviceBufferTests PRIVATE CUDA::cudart OptiX::OptiX)
+
+krr_add_test(
+    flux Optix KernelUtilsTests
+    SOURCES KernelUtilsTests.cu
+    HARD_DEPENDENCIES flux)
+target_link_libraries(flux.Optix.KernelUtilsTests PRIVATE CUDA::cudart)

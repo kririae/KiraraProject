@@ -20,25 +20,20 @@ __device__ flux::Vec3f fromFloat3(float3 const &value) { return {value.x, value.
 } // namespace
 
 extern "C" __global__ void __raygen__megakernel() {
-    auto const launchIndex = optixGetLaunchIndex();
-    auto const pixel = flux::Vec2u{launchIndex.x, launchIndex.y};
+    auto const launchSample = optixLaunchParams.getLaunchSample(optixGetLaunchIndex().x);
     auto const resolution =
         flux::Vec2u{optixLaunchParams.film.width, optixLaunchParams.film.height};
     auto sampler = optixLaunchParams.sampler;
-    sampler.startPixelSample(pixel, optixLaunchParams.sampleIndex, resolution);
+    sampler.startPixelSample(launchSample.pixel, launchSample.sampleIndex, resolution);
     auto const pixelSample = sampler.getPixel2D();
     auto const rasterPosition = flux::Vec2f{
-        static_cast<float>(launchIndex.x) + pixelSample.x(),
-        static_cast<float>(launchIndex.y) + pixelSample.y(),
+        static_cast<float>(launchSample.pixel.x()) + pixelSample.x(),
+        static_cast<float>(launchSample.pixel.y()) + pixelSample.y(),
     };
-    auto const ray = optixLaunchParams.camera.generateRay(
-        rasterPosition, optixLaunchParams.film.width, optixLaunchParams.film.height
-    );
+    auto const ray =
+        optixLaunchParams.camera.generateRay(rasterPosition, sampler.get2D(), resolution);
 
-    // AOVs are launch outputs, not path state. Initialize the miss value before
-    // traversal; a surface hit overwrites it while hit data is still local.
     flux::PathState state{.ray = ray};
-    optixLaunchParams.film.writeNormal(launchIndex.x, launchIndex.y, {});
 
     // The megakernel owns scheduling. Integrator operations advance one path
     // vertex at a time.
@@ -72,8 +67,10 @@ extern "C" __global__ void __closesthit__triangle() {
         .primitiveIndex = optixGetPrimitiveIndex(),
         .distance = distance,
     };
-    auto const launchIndex = optixGetLaunchIndex();
-    optixLaunchParams.film.writeNormal(launchIndex.x, launchIndex.y, surface.geometricNormal);
+    auto const launchSample = optixLaunchParams.getLaunchSample(optixGetLaunchIndex().x);
+    optixLaunchParams.film.accumulateNormal(
+        launchSample.pixel, surface.geometricNormal * optixLaunchParams.getSampleWeight()
+    );
 
     auto *state = flux::optix::getPayloadPointer<flux::PathState>();
     flux::PathIntegrator::DeviceImpl{}.onSurfaceHit(*state, surface);

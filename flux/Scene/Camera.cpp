@@ -8,6 +8,20 @@
 
 namespace flux {
 namespace {
+void validateVerticalFieldOfView(float degrees) {
+    if (!(degrees > 0.0F && degrees < 180.0F))
+        throw kira::Anyhow("Camera: vertical field of view must be between 0 and 180 degrees");
+}
+
+void validateThinLens(float radius, float focalDistance) {
+    if (!(radius >= 0.0F && std::isfinite(radius)))
+        throw kira::Anyhow("Camera: lens radius must be finite and nonnegative");
+    if (!(focalDistance >= 0.0F && std::isfinite(focalDistance)))
+        throw kira::Anyhow("Camera: focal distance must be finite and nonnegative");
+    if (radius > 0.0F && !(focalDistance > 0.0F))
+        throw kira::Anyhow("Camera: a positive lens radius requires a positive focal distance");
+}
+
 [[nodiscard]] Vec3f cross(Vec3f const &lhs, Vec3f const &rhs) noexcept {
     return {
         lhs.y() * rhs.z() - lhs.z() * rhs.y(),
@@ -18,19 +32,34 @@ namespace {
 
 } // namespace
 
-Camera::Camera(TXContext &tx, kira::Properties properties)
-    : RenderObject(tx, std::move(properties)) {
-    auto const &storedProperties = getProperties();
-    position_ = storedProperties.use_or<Vec3f>("position", position_);
-    lookAt_ = storedProperties.use_or<Vec3f>("look_at", lookAt_);
-    referenceUp_ = storedProperties.use_or<Vec3f>("ref_up", referenceUp_);
-    setVerticalFieldOfView(storedProperties.use_or<float>("fov", verticalFieldOfView_));
+Ref<Camera> Camera::create(kira::Properties properties) {
+    return Ref<Camera>{new Camera(std::move(properties))};
+}
+
+Camera::Camera(kira::Properties properties) {
+    position_ = properties.use_or<Vec3f>("position", position_);
+    lookAt_ = properties.use_or<Vec3f>("look_at", lookAt_);
+    referenceUp_ = properties.use_or<Vec3f>("ref_up", referenceUp_);
+    verticalFieldOfView_ = properties.use_or<float>("fov", verticalFieldOfView_);
+    lensRadius_ = properties.use_or<float>("lens_radius", lensRadius_);
+    focalDistance_ = properties.use_or<float>("focal_distance", focalDistance_);
+    validateVerticalFieldOfView(verticalFieldOfView_);
+    validateThinLens(lensRadius_, focalDistance_);
 }
 
 void Camera::setVerticalFieldOfView(float degrees) {
-    if (!(degrees > 0.0F && degrees < 180.0F))
-        throw kira::Anyhow("Camera: vertical field of view must be between 0 and 180 degrees");
+    validateVerticalFieldOfView(degrees);
     verticalFieldOfView_ = degrees;
+}
+
+void Camera::setLensRadius(float radius) {
+    validateThinLens(radius, focalDistance_);
+    lensRadius_ = radius;
+}
+
+void Camera::setFocalDistance(float distance) {
+    validateThinLens(lensRadius_, distance);
+    focalDistance_ = distance;
 }
 
 Camera::DeviceImpl Camera::getDeviceImpl() const {
@@ -55,6 +84,8 @@ Camera::DeviceImpl Camera::getDeviceImpl() const {
         .right = right,
         .up = up,
         .halfHeight = halfHeight,
+        .lensRadius = lensRadius_,
+        .focalDistance = focalDistance_,
     };
 }
 } // namespace flux

@@ -21,7 +21,7 @@ add_library(
     Optix/OptixAccel.cpp
     Optix/OptixContext.cpp
     Optix/OptixGeometryPool.cpp
-    Optix/OptixHandler.cpp
+    Optix/OptixHandler.cu
     Optix/OptixProgram.cpp
     Optix/OptixRenderProductPool.cpp
     Optix/OptixSbt.cpp
@@ -30,8 +30,8 @@ add_library(
     Scene/Context.cpp
     Scene/Film.cpp
     Scene/Primitive.cpp
-    Scene/RenderProduct.cpp
     Scene/RenderObject.cpp
+    Scene/RenderProduct.cpp
     Scene/TriangleMesh.cpp
     Scene/TXContext.cpp)
 

@@ -4,7 +4,10 @@
 
 namespace flux {
 KIRA_DEVICE inline void
-Film::DeviceImpl::writeNormal(std::uint32_t x, std::uint32_t y, Vec3f const &value) const noexcept {
-    normal[static_cast<std::size_t>(y) * width + x] = value;
+Film::DeviceImpl::accumulateNormal(Vec2u const &pixel, Vec3f const &value) const noexcept {
+    auto &destination = normal[static_cast<std::size_t>(pixel.y()) * width + pixel.x()];
+    atomicAdd(&destination[0], value[0]);
+    atomicAdd(&destination[1], value[1]);
+    atomicAdd(&destination[2], value[2]);
 }
 } // namespace flux

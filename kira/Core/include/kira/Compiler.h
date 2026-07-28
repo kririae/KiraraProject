@@ -32,9 +32,11 @@ namespace kira {
 #endif
 
 #if defined(__CUDACC__)
-#define KIRA_DEVICE __device__
+#define KIRA_DEVICE      __device__
+#define KIRA_HOST_DEVICE __host__ __device__
 #else
 #define KIRA_DEVICE
+#define KIRA_HOST_DEVICE
 #endif
 
 #if __has_builtin(__builtin_expect) || defined(__GNUC__)

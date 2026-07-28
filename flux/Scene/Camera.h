@@ -3,24 +3,28 @@
 #include <type_traits>
 
 #include "flux/Core/Math.h"
+#include "flux/Core/Object.h"
 #include "flux/Core/Ray.h"
-#include "flux/Scene/RenderObject.h"
 #include "kira/Compiler.h"
 
 namespace flux {
-/// \brief Pinhole camera selected for a render launch.
+/// \brief Perspective camera selected by a render product.
 ///
 /// \par Properties
 /// - \c position: optional Vec3f camera position; defaults to \f$(0,0,0)\f$.
 /// - \c look_at: optional Vec3f target; defaults to \f$(0,0,-1)\f$.
 /// - \c ref_up: optional Vec3f reference up; defaults to \f$(0,1,0)\f$.
 /// - \c fov: optional float vertical field of view in degrees; defaults to 60.
-class Camera final : public RenderObject {
-    friend class TXContext;
-
+/// - \c lens_radius: optional nonnegative float lens radius; defaults to 0.
+/// - \c focal_distance: optional nonnegative float focus-plane distance;
+///   defaults to 0 and must be positive when the lens radius is positive.
+class Camera final : public Object {
 public:
-    /// \brief Device implementation of the pinhole camera.
+    /// \brief Device implementation of the perspective camera.
     struct DeviceImpl;
+
+    /// \brief Creates a camera from \p properties.
+    [[nodiscard]] static Ref<Camera> create(kira::Properties properties = {});
 
     /// \brief Returns the camera position in world space.
     [[nodiscard]] Vec3f const &getPosition() const noexcept { return position_; }
@@ -49,21 +53,41 @@ public:
     /// \f$(0, 180)\f$.
     void setVerticalFieldOfView(float degrees);
 
-    /// \brief Materializes the current pinhole camera for a launch.
+    /// \brief Returns the lens radius in world-space units.
+    [[nodiscard]] float getLensRadius() const noexcept { return lensRadius_; }
+
+    /// \brief Sets the lens radius.
+    ///
+    /// \throw kira::Anyhow If \p radius is negative or non-finite, or if a
+    /// positive radius has no positive focal distance.
+    void setLensRadius(float radius);
+
+    /// \brief Returns the focus-plane distance along the viewing direction.
+    [[nodiscard]] float getFocalDistance() const noexcept { return focalDistance_; }
+
+    /// \brief Sets the focus-plane distance.
+    ///
+    /// \throw kira::Anyhow If \p distance is negative or non-finite, or if it
+    /// is not positive while the lens radius is positive.
+    void setFocalDistance(float distance);
+
+    /// \brief Materializes the current camera for a launch.
     ///
     /// \throw kira::Anyhow If the camera frame is non-finite or degenerate.
     [[nodiscard]] DeviceImpl getDeviceImpl() const;
 
 private:
-    Camera(TXContext &tx, kira::Properties properties);
+    explicit Camera(kira::Properties properties);
 
     Vec3f position_{0.0F, 0.0F, 0.0F};
     Vec3f lookAt_{0.0F, 0.0F, -1.0F};
     Vec3f referenceUp_{0.0F, 1.0F, 0.0F};
     float verticalFieldOfView_{60.0F};
+    float lensRadius_{};
+    float focalDistance_{};
 };
 
-/// \brief Device implementation of a pinhole camera.
+/// \brief Device implementation of a perspective camera.
 struct Camera::DeviceImpl {
     /// Lens position in world space.
     Vec3f position{};
@@ -80,21 +104,32 @@ struct Camera::DeviceImpl {
     /// Half-height of the image plane at unit distance.
     float halfHeight{};
 
+    /// Radius of the thin lens, or zero for a pinhole camera.
+    float lensRadius{};
+
+    /// Distance from the lens center to the focus plane.
+    float focalDistance{};
+
 public:
     /// \brief Generates the primary ray through \p rasterPosition.
     ///
-    /// \pre \p width and \p height are nonzero, and \p rasterPosition is
-    /// inside their half-open image bounds.
+    /// \param lensSample Uniform sample in \f$[0,1)^2\f$ used by the thin
+    /// lens.
+    /// \pre Both resolution components are nonzero, and \p rasterPosition is
+    /// inside the image's half-open bounds.
     [[nodiscard]] KIRA_DEVICE inline Ray generateRay(
-        Vec2f const &rasterPosition, std::uint32_t width, std::uint32_t height
+        Vec2f const &rasterPosition, Vec2f const &lensSample, Vec2u const &resolution
     ) const noexcept;
+
+    /// \brief Compares the complete ray-generation payload.
+    [[nodiscard]] bool operator==(DeviceImpl const &) const = default;
 };
 
 static_assert(std::is_standard_layout_v<Camera::DeviceImpl>);
 static_assert(std::is_trivially_copyable_v<Camera::DeviceImpl>);
 
 namespace optix {
-/// Device representation of a pinhole camera.
+/// Device representation of a perspective camera.
 using Camera = ::flux::Camera::DeviceImpl;
 } // namespace optix
 } // namespace flux
