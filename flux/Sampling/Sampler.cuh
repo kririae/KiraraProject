@@ -52,32 +52,19 @@ KIRA_DEVICE inline Vec2f IndependentSampler::DeviceImpl::getPixel2D() noexcept {
 KIRA_DEVICE inline void Sampler::DeviceImpl::startPixelSample(
     Vec2u const &pixel, std::uint64_t sampleIndex, Vec2u const &resolution
 ) noexcept {
-    switch (type) {
-    case SamplerType::Independent:
-        return storage.independent.startPixelSample(pixel, sampleIndex, resolution);
-    }
-    KIRA_UNREACHABLE();
+    dispatch([&](auto &sampler) { sampler.startPixelSample(pixel, sampleIndex, resolution); });
 }
 
 KIRA_DEVICE inline float Sampler::DeviceImpl::get1D() noexcept {
-    switch (type) {
-    case SamplerType::Independent: return storage.independent.get1D();
-    }
-    KIRA_UNREACHABLE();
+    return dispatch([](auto &sampler) { return sampler.get1D(); });
 }
 
 KIRA_DEVICE inline Vec2f Sampler::DeviceImpl::get2D() noexcept {
-    switch (type) {
-    case SamplerType::Independent: return storage.independent.get2D();
-    }
-    KIRA_UNREACHABLE();
+    return dispatch([](auto &sampler) { return sampler.get2D(); });
 }
 
 KIRA_DEVICE inline Vec2f Sampler::DeviceImpl::getPixel2D() noexcept {
-    switch (type) {
-    case SamplerType::Independent: return storage.independent.getPixel2D();
-    }
-    KIRA_UNREACHABLE();
+    return dispatch([](auto &sampler) { return sampler.getPixel2D(); });
 }
 
 namespace optix {

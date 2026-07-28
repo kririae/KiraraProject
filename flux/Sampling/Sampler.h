@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <type_traits>
+#include <utility>
 
 #include "flux/Core/Math.h"
 #include "flux/Scene/RenderObject.h"
@@ -89,7 +90,7 @@ public:
 
 /// \brief Device-side sampler dispatcher.
 ///
-/// Explicit switches keep the discriminator visible to OptiX bound-value
+/// The explicit dispatch switch keeps the discriminator visible to OptiX bound-value
 /// specialization.
 struct Sampler::DeviceImpl {
     /// Concrete implementation selected for this dispatcher.
@@ -115,6 +116,14 @@ public:
 
     /// \copydoc IndependentSampler::DeviceImpl::getPixel2D
     [[nodiscard]] KIRA_DEVICE inline Vec2f getPixel2D() noexcept;
+
+private:
+    template <typename Function> KIRA_DEVICE decltype(auto) dispatch(Function &&function) noexcept {
+        switch (type) {
+        case SamplerType::Independent: return std::forward<Function>(function)(storage.independent);
+        }
+        KIRA_UNREACHABLE();
+    }
 };
 
 static_assert(std::is_standard_layout_v<IndependentSampler::DeviceImpl>);
