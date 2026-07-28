@@ -29,57 +29,68 @@ struct OptixContext::Impl : private CudaStreamMixin {
           modulePath(modulePath), geometryPool(stream), accel(stream), sbt(stream),
           primitives(stream) {}
 
-    void sync() {
+    void sync() try {
         context.commit();
 
-        try {
-            auto const spec =
-                OptixProgramSpec{.samplerType = context.getActiveSampler()->getType()};
-            program.reset();
-            program = std::make_unique<OptixProgram>(deviceContext, modulePath, spec);
+        // Rebuild the pipeline first because the SBT packs its program-group headers.
+        auto const spec = OptixProgram::makeSpec(context);
+        program.reset();
+        program = std::make_unique<OptixProgram>(deviceContext, modulePath, spec);
 
-            auto const scenePrimitives = context.getObjects<Primitive>();
-            kira::SmallVector<Ref<TriangleMesh const>> meshes;
-            std::unordered_map<std::size_t, std::uint32_t> geometryIndices;
-            std::vector<OptixAccel::InstanceDesc> instances;
-            primitiveStaging.clear();
-            meshes.reserve(scenePrimitives.size());
-            geometryIndices.reserve(scenePrimitives.size());
-            instances.reserve(scenePrimitives.size());
-            primitiveStaging.reserve(scenePrimitives.size());
+        auto const scenePrimitives = context.getObjects<Primitive>();
+        kira::SmallVector<Ref<TriangleMesh const>> uniqueMeshes;
+        std::unordered_map<std::size_t, std::uint32_t> geometryIndexByContextId;
+        std::vector<OptixAccel::InstanceDesc> instanceDescs;
+        primitiveStaging.clear();
+        uniqueMeshes.reserve(scenePrimitives.size());
+        geometryIndexByContextId.reserve(scenePrimitives.size());
+        instanceDescs.reserve(scenePrimitives.size());
+        primitiveStaging.reserve(scenePrimitives.size());
 
-            for (auto const &primitive : scenePrimitives) {
-                if (!primitive->isVisible())
-                    continue;
+        // Flatten the visible scene into the dense arrays used on the device.
+        // Several primitives may share one geometry, so assign each mesh one
+        // backend-local index before building the primitive and instance arrays.
+        auto const getOrAddGeometryIndex = [&](Primitive const &primitive) {
+            auto const contextId = primitive.getGeometryContextId();
+            if (auto const iterator = geometryIndexByContextId.find(contextId);
+                iterator != geometryIndexByContextId.end())
+                return iterator->second;
 
-                auto const contextId = primitive->getGeometryContextId();
-                auto iterator = geometryIndices.find(contextId);
-                if (iterator == geometryIndices.end()) {
-                    if (meshes.size() >= std::numeric_limits<std::uint32_t>::max())
-                        throw kira::Anyhow("OptixContext: geometry count exceeds device limits");
-                    auto const index = static_cast<std::uint32_t>(meshes.size());
-                    meshes.push_back(primitive->getGeometry());
-                    iterator = geometryIndices.emplace(contextId, index).first;
-                }
+            if (uniqueMeshes.size() >= std::numeric_limits<std::uint32_t>::max())
+                throw kira::Anyhow("OptixContext: geometry count exceeds device limits");
 
-                primitiveStaging.push_back({.geometryIndex = iterator->second});
-                instances.push_back({
-                    .geometryIndex = iterator->second,
-                    .transform = primitive->getTransform(),
-                });
-            }
+            auto const index = static_cast<std::uint32_t>(uniqueMeshes.size());
+            uniqueMeshes.push_back(primitive.getGeometry());
+            geometryIndexByContextId.emplace(contextId, index);
+            return index;
+        };
 
-            geometryPool.build(meshes);
-            auto const buildInputs = geometryPool.getBuildInputs();
-            accel.buildGas(deviceContext, buildInputs);
-            primitives.copyFromHost({primitiveStaging.data(), primitiveStaging.size()});
-            accel.buildIas(deviceContext, instances);
-            sbt.build(*program);
-            cudaCheck(cudaStreamSynchronize(getStream()));
-        } catch (...) {
-            cudaCheck<false>(cudaStreamSynchronize(getStream()));
-            throw;
+        for (auto const &primitive : scenePrimitives) {
+            if (!primitive->isVisible())
+                continue;
+
+            auto const geometryIndex = getOrAddGeometryIndex(*primitive);
+            primitiveStaging.push_back({.geometryIndex = geometryIndex});
+            instanceDescs.push_back({
+                .geometryIndex = geometryIndex,
+                .transform = primitive->getTransform(),
+            });
         }
+
+        // Rebuild in dependency order. GAS consumes the geometry buffers; IAS
+        // then consumes the GAS handles and the matching primitive layout.
+        geometryPool.build(uniqueMeshes);
+        auto const buildInputs = geometryPool.getBuildInputs();
+        accel.buildGas(deviceContext, buildInputs);
+        primitives.copyFromHost({primitiveStaging.data(), primitiveStaging.size()});
+        accel.buildIas(deviceContext, instanceDescs);
+        sbt.build(*program);
+
+        // Publish the new snapshot only after every queued upload and build has finished.
+        cudaCheck(cudaStreamSynchronize(getStream()));
+    } catch (...) {
+        cudaCheck<false>(cudaStreamSynchronize(getStream()));
+        throw;
     }
 
     Context &context;

@@ -1,6 +1,8 @@
 enable_language(CUDA)
 find_package(CUDAToolkit REQUIRED)
 
+add_compile_options($<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+
 CPMAddPackage(
     NAME optix
     GITHUB_REPOSITORY NVIDIA/optix-dev
@@ -39,7 +41,6 @@ add_library(flux_megakernel_ir OBJECT Optix/MegaKernel.cu)
 set_target_properties(flux_megakernel_ir PROPERTIES CUDA_OPTIX_COMPILATION ON)
 target_include_directories(flux_megakernel_ir PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(flux_megakernel_ir PRIVATE kira::Vecteur OptiX::OptiX)
-target_compile_options(flux_megakernel_ir PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
 
 if(MSVC)
     target_compile_options(flux PRIVATE /W4)

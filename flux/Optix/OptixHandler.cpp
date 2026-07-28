@@ -151,9 +151,14 @@ void OptixHandler::render(
     auto const &film = product.getFilm();
     auto const resolution = Vec2u{film.getWidth(), film.getHeight()};
     auto const sampler = impl_->context->getActiveSampler();
+
+    // Bound values are baked into the module. A changed host spec needs a new
+    // module before its launch data can be used.
+    if (impl_->optixContext->getProgramSpec() != OptixProgram::makeSpec(*impl_->context))
+        throw kira::Anyhow(
+            "OptixHandler: program specialization changed; call sync before rendering"
+        );
     auto const samplerImpl = sampler->getDeviceImpl(resolution);
-    if (samplerImpl.type != impl_->optixContext->getProgramSpec().samplerType)
-        throw kira::Anyhow("OptixHandler: sampler type changed; call sync before rendering");
 
     auto const params = OptixLaunchParams{
         .scene = impl_->optixContext->getDeviceImpl(),

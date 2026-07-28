@@ -43,13 +43,14 @@ public:
     /// \brief Renders sample \p sampleIndex into \p product and waits for completion.
     ///
     /// Both objects and the active sampler must belong to the handler's host
-    /// context. Call \c sync after selecting a sampler with a different type.
+    /// context. Call \c sync after changing state that affects program
+    /// specialization.
     /// \param camera Camera used to generate primary rays.
     /// \param product Render product receiving the sample.
     /// \param sampleIndex Zero-based sample index for every pixel.
-    /// \throw kira::Anyhow if there is no active sampler, its type differs
-    /// from the synchronized pipeline, device state creation fails, or the
-    /// launch or stream synchronization fails.
+    /// \throw kira::Anyhow if there is no active sampler, program
+    /// specialization is stale, device state creation fails, or the launch
+    /// or stream synchronization fails.
     /// \throw std::invalid_argument if either object belongs to another
     /// context or the film is too large for device storage.
     void render(Camera const &camera, RenderProduct const &product, std::uint64_t sampleIndex);

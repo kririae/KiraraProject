@@ -14,6 +14,7 @@
 #include "flux/Core/KIRA.h"
 #include "flux/Optix/OptixLaunchParams.h"
 #include "flux/Optix/OptixUtils.h"
+#include "flux/Scene/Context.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
@@ -98,18 +99,29 @@ OptixProgram::OptixProgram(
 
 OptixProgram::~OptixProgram() { reset(); }
 
+OptixProgramSpec OptixProgram::makeSpec(Context const &context) {
+    return {
+        .samplerType = context.getActiveSampler()->getType(), // (1)
+    };
+}
+
 void OptixProgram::buildModule(std::filesystem::path const &modulePath) {
     auto const ir = readBinary(modulePath);
     OptixModuleCompileOptions moduleOptions{};
-    auto const samplerType = OptixModuleCompileBoundValueEntry{
-        .pipelineParamOffsetInBytes =
-            offsetof(OptixLaunchParams, sampler) + offsetof(Sampler::DeviceImpl, type),
-        .sizeInBytes = sizeof(spec_.samplerType),
-        .boundValuePtr = &spec_.samplerType,
-        .annotation = "Flux sampler implementation",
+
+    // Keep these entries in the numbered order used by OptixProgramSpec.
+    auto const boundValues = std::array{
+        OptixModuleCompileBoundValueEntry{
+            // (1)
+            .pipelineParamOffsetInBytes =
+                offsetof(OptixLaunchParams, sampler) + offsetof(Sampler::DeviceImpl, type),
+            .sizeInBytes = sizeof(spec_.samplerType),
+            .boundValuePtr = &spec_.samplerType,
+            .annotation = "Flux sampler implementation",
+        },
     };
-    moduleOptions.boundValues = &samplerType;
-    moduleOptions.numBoundValues = 1;
+    moduleOptions.boundValues = boundValues.data();
+    moduleOptions.numBoundValues = static_cast<unsigned int>(boundValues.size());
     auto const pipelineOptions = pipelineCompileOptions();
     std::array<char, 4096> log{};
     std::size_t logSize = log.size();

@@ -8,10 +8,15 @@
 #include "flux/Sampling/Sampler.h"
 
 namespace flux {
+class Context;
+
 /// \brief Values specialized while compiling an OptiX program.
 struct OptixProgramSpec {
     /// Sampler implementation used by the pipeline.
-    SamplerType samplerType;
+    SamplerType samplerType; // (1)
+
+    /// \brief Compares all specialization values.
+    [[nodiscard]] bool operator==(OptixProgramSpec const &) const = default;
 };
 
 /// \brief Owns the module, program groups, and pipeline for an OptiX scene.
@@ -29,6 +34,12 @@ public:
         OptixDeviceContext deviceContext, std::filesystem::path const &modulePath,
         OptixProgramSpec spec
     );
+
+    /// \brief Returns the specialization implied by \p context.
+    ///
+    /// \param context Host scene whose pipeline specialization is requested.
+    /// \throw kira::Anyhow If \p context has no active sampler.
+    [[nodiscard]] static OptixProgramSpec makeSpec(Context const &context);
 
     /// \brief Releases the pipeline, program groups, and module.
     ~OptixProgram();
