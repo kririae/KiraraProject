@@ -13,9 +13,11 @@ class RenderProduct;
 /// \brief Holds the OptiX state needed for individual launches.
 ///
 /// The handler retains the host scene and owns the OptiX device context,
-/// launch stream, and launch-time state. Persistent device-scene resources
-/// belong to its \c OptixContext. Call \c sync after changing the host scene
-/// and before launching work that must observe those changes.
+/// launch stream, and launch-time state on CUDA device 0. Persistent
+/// device-scene resources belong to its \c OptixContext. Public operations
+/// select device 0 before touching backend resources. Call \c sync after
+/// changing the host scene and before launching work that must observe those
+/// changes.
 class OptixHandler final : private Noncopyable {
 public:
     /// \brief Creates an OptiX handler using the program in \p modulePath.
@@ -62,6 +64,13 @@ public:
     /// A changed camera or film layout reports zero.
     /// \throw kira::Anyhow If the current camera cannot be materialized.
     [[nodiscard]] std::uint64_t getAccumulatedSamples(RenderProduct const &product) const;
+
+    /// \brief Returns whether \p product has reached its target sample count.
+    ///
+    /// Invalid accumulation is never converged. Changing the target sample
+    /// count does not discard samples already accumulated.
+    /// \throw kira::Anyhow If the current camera cannot be materialized.
+    [[nodiscard]] bool isConverged(RenderProduct const &product) const;
 
     /// \brief Releases backend state associated with \p product.
     ///

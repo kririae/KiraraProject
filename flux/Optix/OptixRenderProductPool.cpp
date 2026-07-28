@@ -5,7 +5,7 @@
 #include "flux/Scene/RenderProduct.h"
 
 namespace flux {
-OptixRenderProductPool::Entry &OptixRenderProductPool::update(RenderProduct const &product) {
+OptixRenderProductPool::Entry &OptixRenderProductPool::getOrCreate(RenderProduct const &product) {
     auto &entry = entries_.try_emplace(&product, product, getStream()).first->second;
     auto const &film = product.getFilm();
     if (entry.film.width == film.getWidth() && entry.film.height == film.getHeight())

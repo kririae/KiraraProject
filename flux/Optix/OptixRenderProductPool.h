@@ -58,12 +58,13 @@ private:
         std::optional<AccumulationState> accumulation;
     };
 
-    /// \brief Returns the entry for \p product with current film resources.
+    /// \brief Returns the entry for \p product, creating it if absent.
     ///
+    /// Existing film storage is resized to match the current product layout.
     /// \throw std::invalid_argument If the film is too large for device
     /// storage.
     /// \throw kira::Anyhow If CUDA cannot allocate the film resources.
-    [[nodiscard]] Entry &update(RenderProduct const &product);
+    [[nodiscard]] Entry &getOrCreate(RenderProduct const &product);
 
     /// \brief Returns the existing entry for \p product, if any.
     [[nodiscard]] Entry const *find(RenderProduct const &product) const noexcept;

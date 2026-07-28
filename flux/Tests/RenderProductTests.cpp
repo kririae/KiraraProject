@@ -57,10 +57,17 @@ TEST(RenderProductTests, OwnsResizableFilmDescriptor) {
     EXPECT_EQ(product->getFilm().getWidth(), 1280U);
     EXPECT_EQ(product->getFilm().getHeight(), 720U);
 
-    product->setSamplesPerPixel(32);
-    EXPECT_EQ(product->getSamplesPerPixel(), 32U);
+    product->getFilm().setResolution(320, 240);
+
+    EXPECT_EQ(product->getFilm().getWidth(), 320U);
+    EXPECT_EQ(product->getFilm().getHeight(), 240U);
+
+    product->setSamplesPerPixel(1);
+    EXPECT_EQ(product->getSamplesPerPixel(), 1U);
+    product->setSamplesPerPixel(std::numeric_limits<std::uint32_t>::max());
+    EXPECT_EQ(product->getSamplesPerPixel(), std::numeric_limits<std::uint32_t>::max());
     EXPECT_THROW(product->setSamplesPerPixel(0), kira::Anyhow);
-    EXPECT_EQ(product->getSamplesPerPixel(), 32U);
+    EXPECT_EQ(product->getSamplesPerPixel(), std::numeric_limits<std::uint32_t>::max());
 }
 
 TEST(RenderProductTests, RejectsZeroFilmDimensions) {

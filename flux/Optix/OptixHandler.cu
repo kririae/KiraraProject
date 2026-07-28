@@ -4,7 +4,6 @@
 
 #include <cstdint>
 #include <limits>
-#include <optional>
 #include <stdexcept>
 #include <utility>
 
@@ -24,6 +23,70 @@
 
 namespace flux {
 namespace {
+/// \brief Owns the CUDA execution state used by one OptiX handler.
+///
+/// This object precedes every dependent handler member, so its stream and
+/// device context remain valid until those members have released their
+/// resources.
+class OptixDeviceContextHandle final : private Noncopyable {
+public:
+    /// \brief Creates a non-blocking stream and an OptiX context on CUDA device 0.
+    OptixDeviceContextHandle() : OptixDeviceContextHandle(EmptyState{}) {
+        int deviceCount = 0;
+        cudaCheck(cudaGetDeviceCount(&deviceCount));
+        if (deviceCount == 0)
+            throw kira::Anyhow("OptixHandler: no CUDA device is available");
+
+        // ponytail: use device 0 until the renderer exposes multi-GPU selection.
+        selectDevice();
+        cudaCheck(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
+        optixCheck(optixInit());
+
+        OptixDeviceContextOptions options{};
+        optixCheck(optixDeviceContextCreate(nullptr, &options, &context_));
+    }
+
+    /// \brief Waits for dependent cleanup and releases the owned CUDA state.
+    ~OptixDeviceContextHandle() {
+        selectDevice<false>();
+        if (stream_)
+            cudaCheck<false>(cudaStreamSynchronize(stream_));
+        if (context_)
+            optixCheck<false>(optixDeviceContextDestroy(context_));
+        if (stream_)
+            cudaCheck<false>(cudaStreamDestroy(stream_));
+    }
+
+    /// \brief Returns the owned OptiX device context.
+    [[nodiscard]] OptixDeviceContext get() const noexcept { return context_; }
+
+    /// \brief Returns the stream used by every dependent resource.
+    [[nodiscard]] cudaStream_t getStream() const noexcept { return stream_; }
+
+    /// \brief Selects the CUDA device that owns this handle.
+    template <bool ShouldThrow = true> void selectDevice() const noexcept(not ShouldThrow) {
+        cudaCheck<ShouldThrow>(cudaSetDevice(deviceId));
+    }
+
+private:
+    struct EmptyState {};
+
+    // Completing this target constructor makes the destructor responsible for
+    // resources acquired before the public constructor body throws.
+    explicit OptixDeviceContextHandle(EmptyState) noexcept {}
+
+    static constexpr int deviceId = 0;
+
+    cudaStream_t stream_{};
+    OptixDeviceContext context_{};
+};
+
+[[nodiscard]] Ref<Context> requireContext(Ref<Context> context) {
+    if (!context)
+        throw kira::Anyhow("OptixHandler: context must not be null");
+    return context;
+}
+
 inline constexpr std::uint64_t maxOptixLaunchDimension = std::uint64_t{1} << 30U;
 
 struct ScaleNormalChannel {
@@ -36,21 +99,9 @@ struct ScaleNormalChannel {
 };
 } // namespace
 
-struct OptixHandler::Impl {
+struct OptixHandler::Impl final {
     Impl(Ref<Context> hostContext, std::filesystem::path const &modulePath);
-    ~Impl() { reset(); }
-
-    /// \brief Selects a CUDA device and initializes the OptiX API.
-    void initializeRuntime();
-
-    /// \brief Creates the OptiX device context owned by this handler.
-    void buildDeviceContext();
-
-    /// \brief Creates the stream used for device-scene updates and launches.
-    void buildStream();
-
-    /// \brief Creates the persistent device scene.
-    void buildOptixContext(std::filesystem::path const &modulePath);
+    ~Impl();
 
     /// \brief Rebuilds the device scene from the host context.
     void sync();
@@ -58,95 +109,47 @@ struct OptixHandler::Impl {
     /// \brief Uploads \p params and launches a one-dimensional grid.
     void launch(OptixLaunchParams const &params, std::uint32_t size);
 
-    /// \brief Releases backend resources in dependency order without throwing.
-    void reset() noexcept;
+    /// \brief Returns the stream shared by this backend's device resources.
+    [[nodiscard]] cudaStream_t getStream() const noexcept { return deviceContext.getStream(); }
 
     /// Host scene retained for the lifetime of the backend.
     Ref<Context> context;
 
-    OptixDeviceContext deviceContext{};
-    cudaStream_t stream{};
+    /// CUDA execution state destroyed after every dependent resource.
+    OptixDeviceContextHandle deviceContext;
 
-    /// Device scene destroyed before the stream and device context.
-    std::unique_ptr<OptixContext> optixContext;
-
-    std::optional<OptixRenderProductPool> renderProducts;
-    DeviceBuffer<OptixLaunchParams> launchParams;
+    OptixContext optixContext;
+    OptixRenderProductPool renderProducts{getStream()};
+    DeviceBuffer<OptixLaunchParams> launchParams{getStream()};
     std::uint64_t sampleOffset{};
 };
 
 OptixHandler::Impl::Impl(Ref<Context> hostContext, std::filesystem::path const &modulePath)
-    : context(std::move(hostContext)) {
-    if (!context)
-        throw kira::Anyhow("OptixHandler: context must not be null");
-
-    try {
-        initializeRuntime();
-        buildDeviceContext();
-        buildStream();
-        buildOptixContext(modulePath);
-        sync();
-    } catch (...) {
-        reset();
-        throw;
-    }
+    : context(requireContext(std::move(hostContext))),
+      optixContext(*context, deviceContext.get(), getStream(), modulePath) {
+    sync();
 }
 
-void OptixHandler::Impl::initializeRuntime() {
-    int deviceCount = 0;
-    cudaCheck(cudaGetDeviceCount(&deviceCount));
-    if (deviceCount == 0)
-        throw kira::Anyhow("OptixHandler: no CUDA device is available");
-
-    // ponytail: use device 0 until the renderer exposes multi-GPU selection.
-    cudaCheck(cudaSetDevice(0));
-    optixCheck(optixInit());
-}
-
-void OptixHandler::Impl::buildDeviceContext() {
-    OptixDeviceContextOptions options{};
-    optixCheck(optixDeviceContextCreate(nullptr, &options, &deviceContext));
-}
-
-void OptixHandler::Impl::buildStream() {
-    cudaCheck(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
-    renderProducts.emplace(stream);
-}
-
-void OptixHandler::Impl::buildOptixContext(std::filesystem::path const &modulePath) {
-    optixContext.reset(new OptixContext(*context, deviceContext, stream, modulePath));
+OptixHandler::Impl::~Impl() {
+    // Member destruction may enqueue releases, so restore their owning device
+    // before C++ begins destroying them in reverse declaration order.
+    deviceContext.selectDevice<false>();
 }
 
 void OptixHandler::Impl::sync() {
-    optixContext->sync();
-    renderProducts->resetAccumulation();
+    deviceContext.selectDevice();
+
+    // A failed scene rebuild invalidates this backend, so no previous target
+    // history may remain observable after sync begins.
+    renderProducts.resetAccumulation();
+    optixContext.sync();
 }
 
 void OptixHandler::Impl::launch(OptixLaunchParams const &params, std::uint32_t size) {
-    launchParams.copyFromHost({&params, 1}, stream);
-    optixContext->launch(
-        stream, devicePointer(launchParams.data()), sizeof(OptixLaunchParams), size
+    launchParams.copyFromHost({&params, 1}, getStream());
+    optixContext.launch(
+        getStream(), devicePointer(launchParams.data()), sizeof(OptixLaunchParams), size
     );
-}
-
-void OptixHandler::Impl::reset() noexcept {
-    if (stream)
-        cudaCheck<false>(cudaStreamSynchronize(stream));
-
-    launchParams.clear(stream);
-    renderProducts.reset();
-    optixContext.reset();
-
-    if (stream)
-        cudaCheck<false>(cudaStreamSynchronize(stream));
-    if (stream)
-        cudaCheck<false>(cudaStreamDestroy(stream));
-    if (deviceContext)
-        optixCheck<false>(optixDeviceContextDestroy(deviceContext));
-
-    stream = nullptr;
-    deviceContext = nullptr;
-    context.reset();
 }
 
 OptixHandler::OptixHandler(Ref<Context> context, std::filesystem::path const &modulePath)
@@ -169,7 +172,7 @@ void OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
 
     // Bound values are baked into the module. A changed host spec needs a new
     // module before its launch data can be used.
-    if (impl_->optixContext->getProgramSpec() != OptixProgram::makeSpec(*impl_->context))
+    if (impl_->optixContext.getProgramSpec() != OptixProgram::makeSpec(*impl_->context))
         throw kira::Anyhow(
             "OptixHandler: program specialization changed; call sync before rendering"
         );
@@ -182,9 +185,11 @@ void OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
         throw std::invalid_argument("OptixHandler: render batch exceeds the OptiX launch limit");
     auto const launchSize = static_cast<std::uint32_t>(pixelCount * samples);
 
+    impl_->deviceContext.selectDevice();
+
     // Film changes update this product's existing entry. Camera compatibility
     // only controls whether its pixel history can be reused.
-    auto &target = impl_->renderProducts->update(product);
+    auto &target = impl_->renderProducts.getOrCreate(product);
     auto const accumulatedSamples = target.accumulation && target.accumulation->camera == camera
                                         ? target.accumulation->samples
                                         : 0;
@@ -209,14 +214,15 @@ void OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
                 static_cast<float>(accumulatedSamples) / static_cast<float>(totalSamples);
             launchLinearKernel(
                 target.normal.size(),
-                ScaleNormalChannel{.normal = target.normal.data(), .factor = factor}, impl_->stream
+                ScaleNormalChannel{.normal = target.normal.data(), .factor = factor},
+                impl_->getStream()
             );
         }
 
         // The stream orders normalization, parameter upload, and OptiX work.
         // Synchronization below also closes the host lifetime of launch data.
         auto const params = OptixLaunchParams{
-            .scene = impl_->optixContext->getDeviceImpl(),
+            .scene = impl_->optixContext.getDeviceImpl(),
             .camera = camera,
             .sampler = sampler->getDeviceImpl(resolution),
             .accumulatedSamples = accumulatedSamples,
@@ -225,7 +231,7 @@ void OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
             .batchSize = samples,
         };
         impl_->launch(params, launchSize);
-        cudaCheck(cudaStreamSynchronize(impl_->stream));
+        cudaCheck(cudaStreamSynchronize(impl_->getStream()));
 
         // Publish the new history only after all device writes have completed.
         target.accumulation = OptixRenderProductPool::AccumulationState{
@@ -234,7 +240,7 @@ void OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
         };
     } catch (...) {
         target.accumulation.reset();
-        cudaCheck<false>(cudaStreamSynchronize(impl_->stream));
+        cudaCheck<false>(cudaStreamSynchronize(impl_->getStream()));
         throw;
     }
 }
@@ -243,11 +249,11 @@ void OptixHandler::setSampleOffset(std::uint64_t offset) {
     if (impl_->sampleOffset == offset)
         return;
     impl_->sampleOffset = offset;
-    impl_->renderProducts->resetAccumulation();
+    impl_->renderProducts.resetAccumulation();
 }
 
 std::uint64_t OptixHandler::getAccumulatedSamples(RenderProduct const &product) const {
-    auto const *target = impl_->renderProducts->find(product);
+    auto const *target = impl_->renderProducts.find(product);
     auto const &film = product.getFilm();
     if (!target || target->film.width != film.getWidth() ||
         target->film.height != film.getHeight() || !target->accumulation)
@@ -257,8 +263,13 @@ std::uint64_t OptixHandler::getAccumulatedSamples(RenderProduct const &product) 
     return target->accumulation->camera == camera ? target->accumulation->samples : 0;
 }
 
+bool OptixHandler::isConverged(RenderProduct const &product) const {
+    return getAccumulatedSamples(product) >= product.getSamplesPerPixel();
+}
+
 void OptixHandler::release(RenderProduct const &product) noexcept {
-    impl_->renderProducts->erase(product);
+    impl_->deviceContext.selectDevice<false>();
+    impl_->renderProducts.erase(product);
 }
 
 Ref<Context> OptixHandler::getContext() const { return impl_->context; }
