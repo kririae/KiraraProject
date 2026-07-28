@@ -19,5 +19,4 @@ struct Ray {
     /// Maximum trace distance.
     float maxDistance{std::numeric_limits<float>::max()};
 };
-
 } // namespace flux

@@ -19,7 +19,7 @@ __device__ float3 toFloat3(flux::Vec3f const &value) {
 __device__ flux::Vec3f fromFloat3(float3 const &value) { return {value.x, value.y, value.z}; }
 } // namespace
 
-extern "C" __global__ void __raygen__megakernel() {
+extern "C" __global__ void __raygen__megakernel() { // NOLINT
     auto const launchSample = optixLaunchParams.getLaunchSample(optixGetLaunchIndex().x);
     auto const resolution =
         flux::Vec2u{optixLaunchParams.film.width, optixLaunchParams.film.height};
@@ -41,12 +41,12 @@ extern "C" __global__ void __raygen__megakernel() {
         optixLaunchParams.scene.trace(state);
 }
 
-extern "C" __global__ void __miss__radiance() {
+extern "C" __global__ void __miss__radiance() { // NOLINT
     auto *state = flux::optix::getPayloadPointer<flux::PathState>();
     flux::PathIntegrator::DeviceImpl{}.onMiss(*state);
 }
 
-extern "C" __global__ void __closesthit__triangle() {
+extern "C" __global__ void __closesthit__triangle() { // NOLINT
     auto const instanceIndex = optixGetInstanceId();
     auto const &primitive = optixLaunchParams.scene.getPrimitive(instanceIndex);
     auto const &geometry = optixLaunchParams.scene.getGeometry(primitive.getGeometryIndex());
