@@ -9,6 +9,7 @@
 #include "kira/SmallVector.h"
 
 namespace flux {
+class PathIntegrator;
 class RenderObject;
 class Sampler;
 
@@ -19,6 +20,7 @@ class Sampler;
 class TXContext {
     friend class Context;
     friend class ContextObject;
+    friend class PathIntegrator;
     friend class RenderObject;
     friend class Sampler;
 
@@ -40,11 +42,13 @@ private:
     [[nodiscard]] std::size_t allocateId();
     void registerObject(Ref<ContextObject> object);
     void stageForLink(std::size_t contextId);
+    void stageActiveIntegrator(std::size_t contextId) noexcept;
     void stageActiveSampler(std::size_t contextId) noexcept;
 
     Context *context_;
     std::unordered_map<std::size_t, Ref<ContextObject>> objects_;
     kira::SmallVector<std::size_t> stagedForLink_;
+    std::optional<std::size_t> activeIntegratorId_;
     std::optional<std::size_t> activeSamplerId_;
 };
 } // namespace flux

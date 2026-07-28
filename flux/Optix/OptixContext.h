@@ -17,6 +17,7 @@
 namespace flux {
 class Context;
 class OptixHandler;
+struct PathState;
 struct OptixProgramSpec;
 
 /// \brief Owns the OptiX materialization of a host scene.
@@ -95,6 +96,12 @@ struct OptixContext::DeviceImpl {
     std::uint32_t numPrimitives{};
 
 public:
+    /// \brief Traces the ray in \p state.
+    ///
+    /// An empty scene takes the same transition as a miss. Otherwise, the
+    /// selected miss or closest-hit program advances \p state.
+    KIRA_DEVICE void trace(PathState &state) const noexcept;
+
     /// \brief Returns the primitive at dense \p instanceIndex.
     ///
     /// \pre \p instanceIndex is less than \c numPrimitives.

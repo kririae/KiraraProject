@@ -23,8 +23,8 @@ public:
     ///
     /// \param context Host context retained for the lifetime of the handler.
     /// \param modulePath Path to the OptiX IR module used by the pipeline.
-    /// \throw kira::Anyhow if \p context is null, has no active sampler, or
-    /// setup fails.
+    /// \throw kira::Anyhow if \p context is null, has no active integrator or
+    /// sampler, or setup fails.
     /// \throw std::out_of_range If a primitive refers to an unknown geometry.
     OptixHandler(Ref<Context> context, std::filesystem::path const &modulePath);
 

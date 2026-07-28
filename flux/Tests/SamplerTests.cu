@@ -52,19 +52,18 @@ __global__ void sampleIndependentSampler(flux::Sampler::DeviceImpl sampler, Samp
 }
 } // namespace
 
-TEST(SamplerTests, SelectsLatestSampler) {
+TEST(SamplerTests, KeepsFirstSuccessfulSamplerActive) {
     auto context = flux::Context::create();
 
+    EXPECT_THROW((void)context->getActiveSampler(), kira::Anyhow);
+    EXPECT_THROW((void)context->create<ThrowingSamplerOwner>(), std::runtime_error);
     EXPECT_THROW((void)context->getActiveSampler(), kira::Anyhow);
 
     auto first = context->create<flux::IndependentSampler>();
     EXPECT_EQ(context->getActiveSampler().get(), first.get());
 
-    auto second = context->create<flux::IndependentSampler>();
-    EXPECT_EQ(context->getActiveSampler().get(), second.get());
-
-    EXPECT_THROW((void)context->create<ThrowingSamplerOwner>(), std::runtime_error);
-    EXPECT_EQ(context->getActiveSampler().get(), second.get());
+    (void)context->create<flux::IndependentSampler>();
+    EXPECT_EQ(context->getActiveSampler().get(), first.get());
 }
 
 TEST(SamplerTests, DispatchesDeterministicPixelSequences) {

@@ -24,6 +24,11 @@ krr_add_test(
 target_link_libraries(flux.Sampling.SamplerTests PRIVATE CUDA::cudart)
 
 krr_add_test(
+    flux Integrator PathIntegratorTests
+    SOURCES PathIntegratorTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
     flux Optix PipelineTests
     SOURCES OptixPipelineTests.cpp
     HARD_DEPENDENCIES flux)

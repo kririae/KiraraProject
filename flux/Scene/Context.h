@@ -12,6 +12,7 @@
 #include "kira/SmallVector.h"
 
 namespace flux {
+class PathIntegrator;
 class Sampler;
 
 /// \brief Owns the host-side objects in a Flux scene.
@@ -77,7 +78,12 @@ public:
     /// \brief Returns the number of objects owned by this context.
     [[nodiscard]] std::size_t getNumContextObjects() const noexcept { return objects_.size(); }
 
-    /// \brief Returns the sampler selected by the latest creation transaction.
+    /// \brief Returns the first integrator successfully added to this context.
+    ///
+    /// \throw kira::Anyhow If the context has no integrator.
+    [[nodiscard]] Ref<PathIntegrator const> getActiveIntegrator() const;
+
+    /// \brief Returns the first sampler successfully added to this context.
     ///
     /// \throw kira::Anyhow If the context has no sampler.
     [[nodiscard]] Ref<Sampler const> getActiveSampler() const;
@@ -109,6 +115,7 @@ private:
 
     std::unordered_map<std::size_t, Ref<ContextObject>> objects_;
     kira::SmallVector<std::size_t> stagedForLink_;
+    std::optional<std::size_t> activeIntegratorId_;
     std::optional<std::size_t> activeSamplerId_;
     std::size_t nextId_{0};
     bool committing_{false};

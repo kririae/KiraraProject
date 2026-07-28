@@ -16,6 +16,8 @@ enum class SamplerType : std::uint8_t {
 };
 
 /// \brief Host-side sampling configuration selected by a context.
+///
+/// The first sampler successfully added to a context becomes active.
 class Sampler : public RenderObject {
 protected:
     /// \brief Constructs a sampler in \p tx.

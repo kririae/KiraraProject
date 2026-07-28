@@ -1,11 +1,11 @@
 #include <optix_device.h>
 
+#include "flux/Integrator/PathIntegrator.cuh"
 #include "flux/Optix/OptixContext.cuh"
 #include "flux/Optix/OptixLaunchParams.h"
 #include "flux/Sampling/Sampler.cuh"
 #include "flux/Scene/Camera.cuh"
 #include "flux/Scene/Film.cuh"
-#include "flux/Scene/TriangleMesh.cuh"
 
 extern "C" {
 __constant__ flux::OptixLaunchParams optixLaunchParams{};
@@ -34,37 +34,22 @@ extern "C" __global__ void __raygen__megakernel() {
     auto const ray = optixLaunchParams.camera.generateRay(
         rasterPosition, optixLaunchParams.film.width, optixLaunchParams.film.height
     );
-    unsigned int normalX = 0;
-    unsigned int normalY = 0;
-    unsigned int normalZ = 0;
 
-    if (optixLaunchParams.scene.traversable) {
-        // clang-format off
-        optixTrace(
-            /* handle =                     */ optixLaunchParams.scene.traversable,
-            /* rayOrigin =                  */ toFloat3(ray.origin),
-            /* rayDirection =               */ toFloat3(ray.direction),
-            /* tmin =                       */ ray.minDistance,
-            /* tmax =                       */ ray.maxDistance,
-            /* rayTime =                    */ 0.0F,
-            /* visibilityMask =             */ 255,
-            /* rayFlags =                   */ OPTIX_RAY_FLAG_DISABLE_ANYHIT,
-            /* sbtOffset =                  */ 0,
-            /* sbtStride =                  */ 1,
-            /* missSbtIndex =               */ 0,
-            /* payload normalX =            */ normalX,
-            /* payload normalY =            */ normalY,
-            /* payload normalZ =            */ normalZ);
-        // clang-format on
-    }
+    // AOVs are launch outputs, not path state. Initialize the miss value before
+    // traversal; a surface hit overwrites it while hit data is still local.
+    flux::PathState state{.ray = ray};
+    optixLaunchParams.film.writeNormal(launchIndex.x, launchIndex.y, {});
 
-    optixLaunchParams.film.writeNormal(
-        launchIndex.x, launchIndex.y,
-        {__uint_as_float(normalX), __uint_as_float(normalY), __uint_as_float(normalZ)}
-    );
+    // The megakernel owns scheduling. Integrator operations advance one path
+    // vertex at a time.
+    while (state.active)
+        optixLaunchParams.scene.trace(state);
 }
 
-extern "C" __global__ void __miss__radiance() {}
+extern "C" __global__ void __miss__radiance() {
+    auto *state = flux::optix::getPayloadPointer<flux::PathState>();
+    flux::PathIntegrator::DeviceImpl{}.onMiss(*state);
+}
 
 extern "C" __global__ void __closesthit__triangle() {
     auto const instanceIndex = optixGetInstanceId();
@@ -73,8 +58,23 @@ extern "C" __global__ void __closesthit__triangle() {
     auto const objectNormal = geometry.getFaceNormal(optixGetPrimitiveIndex());
     auto const normal =
         fromFloat3(optixTransformNormalFromObjectToWorldSpace(toFloat3(objectNormal))).normalize();
+    auto const rayOrigin = fromFloat3(optixGetWorldRayOrigin());
+    auto const rayDirection = fromFloat3(optixGetWorldRayDirection());
+    auto const distance = optixGetRayTmax();
 
-    optixSetPayload_0(__float_as_uint(normal.x()));
-    optixSetPayload_1(__float_as_uint(normal.y()));
-    optixSetPayload_2(__float_as_uint(normal.z()));
+    // Materialize the interaction while OptiX still exposes traversal-local
+    // instance, primitive, transform, and ray data.
+    auto const surface = flux::SurfaceInteraction{
+        .position = rayOrigin + rayDirection * distance,
+        .geometricNormal = normal,
+        .shadingNormal = normal,
+        .primitive = &primitive,
+        .primitiveIndex = optixGetPrimitiveIndex(),
+        .distance = distance,
+    };
+    auto const launchIndex = optixGetLaunchIndex();
+    optixLaunchParams.film.writeNormal(launchIndex.x, launchIndex.y, surface.geometricNormal);
+
+    auto *state = flux::optix::getPayloadPointer<flux::PathState>();
+    flux::PathIntegrator::DeviceImpl{}.onSurfaceHit(*state, surface);
 }

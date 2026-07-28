@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "TestUtils.h"
+#include "flux/Integrator/PathIntegrator.h"
 #include "flux/Optix/OptixHandler.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
@@ -44,6 +45,7 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
+    (void)context->create<flux::PathIntegrator>();
     (void)context->create<flux::IndependentSampler>();
     kira::Properties meshProperties;
     meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");

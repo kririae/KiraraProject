@@ -38,7 +38,7 @@ public:
     /// \brief Returns the specialization implied by \p context.
     ///
     /// \param context Host scene whose pipeline specialization is requested.
-    /// \throw kira::Anyhow If \p context has no active sampler.
+    /// \throw kira::Anyhow If \p context has no active integrator or sampler.
     [[nodiscard]] static OptixProgramSpec makeSpec(Context const &context);
 
     /// \brief Releases the pipeline, program groups, and module.

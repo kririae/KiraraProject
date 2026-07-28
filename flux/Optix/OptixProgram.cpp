@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "flux/Core/KIRA.h"
+#include "flux/Integrator/PathIntegrator.h"
 #include "flux/Optix/OptixLaunchParams.h"
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Scene/Context.h"
@@ -51,7 +52,7 @@ void logCompilerOutput(OptixResult result, std::array<char, 4096> const &log, st
 [[nodiscard]] OptixPipelineCompileOptions pipelineCompileOptions() {
     OptixPipelineCompileOptions options{};
     options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
-    options.numPayloadValues = 3;
+    options.numPayloadValues = 2;
     options.numAttributeValues = 2;
     options.pipelineLaunchParamsVariableName = "optixLaunchParams";
     options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE;
@@ -100,6 +101,9 @@ OptixProgram::OptixProgram(
 OptixProgram::~OptixProgram() { reset(); }
 
 OptixProgramSpec OptixProgram::makeSpec(Context const &context) {
+    // The active integrator selects this path-tracing program. PathIntegrator
+    // has no specialization values.
+    (void)context.getActiveIntegrator();
     return {
         .samplerType = context.getActiveSampler()->getType(), // (1)
     };

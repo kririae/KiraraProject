@@ -16,5 +16,13 @@ void TXContext::registerObject(Ref<ContextObject> object) {
 
 void TXContext::stageForLink(std::size_t contextId) { stagedForLink_.push_back(contextId); }
 
-void TXContext::stageActiveSampler(std::size_t contextId) noexcept { activeSamplerId_ = contextId; }
+void TXContext::stageActiveIntegrator(std::size_t contextId) noexcept {
+    if (!activeIntegratorId_)
+        activeIntegratorId_ = contextId;
+}
+
+void TXContext::stageActiveSampler(std::size_t contextId) noexcept {
+    if (!activeSamplerId_)
+        activeSamplerId_ = contextId;
+}
 } // namespace flux

@@ -17,6 +17,7 @@ target_include_directories(flux_optix_headers SYSTEM INTERFACE "${optix_SOURCE_D
 add_library(
     flux STATIC
     Core/Object.cpp
+    Integrator/PathIntegrator.cpp
     Optix/OptixAccel.cpp
     Optix/OptixContext.cpp
     Optix/OptixGeometryPool.cpp
@@ -37,7 +38,7 @@ add_library(
 target_include_directories(flux PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(flux PUBLIC CUDA::cudart kira::Core kira::Vecteur OptiX::OptiX)
 
-add_library(flux_megakernel_ir OBJECT Optix/MegaKernel.cu)
+add_library(flux_megakernel_ir OBJECT Integrator/MegaKernel.cu)
 set_target_properties(flux_megakernel_ir PROPERTIES CUDA_OPTIX_COMPILATION ON)
 target_include_directories(flux_megakernel_ir PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(flux_megakernel_ir PRIVATE kira::Vecteur OptiX::OptiX)

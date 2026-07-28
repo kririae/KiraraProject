@@ -1,5 +1,6 @@
 #include "flux/Scene/Context.h"
 
+#include "flux/Integrator/PathIntegrator.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/RenderObject.h"
 
@@ -21,8 +22,16 @@ void Context::absorb(TXContext &&tx) {
 
     objects_.merge(tx.objects_);
     stagedForLink_.append(tx.stagedForLink_.begin(), tx.stagedForLink_.end());
-    if (tx.activeSamplerId_)
+    if (!activeIntegratorId_ && tx.activeIntegratorId_)
+        activeIntegratorId_ = tx.activeIntegratorId_;
+    if (!activeSamplerId_ && tx.activeSamplerId_)
         activeSamplerId_ = tx.activeSamplerId_;
+}
+
+Ref<PathIntegrator const> Context::getActiveIntegrator() const {
+    if (!activeIntegratorId_)
+        throw kira::Anyhow("Context: no active integrator is set");
+    return get<PathIntegrator>(*activeIntegratorId_);
 }
 
 Ref<Sampler const> Context::getActiveSampler() const {

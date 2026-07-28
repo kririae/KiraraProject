@@ -3,9 +3,9 @@
 #include <cuda_runtime_api.h>
 
 #include <cstddef>
-#include <cuda/std/span>
 #include <exception>
 #include <limits>
+#include <span>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -126,7 +126,7 @@ public:
     /// \param source Elements to copy.
     /// \throw std::invalid_argument If the byte size overflows.
     /// \throw kira::Anyhow If CUDA cannot enqueue the allocation or copy.
-    void copyFromHost(cuda::std::span<T const> source) { copyFromHost(source, getStream()); }
+    void copyFromHost(std::span<T const> source) { copyFromHost(source, getStream()); }
 
     /// \brief Replaces the contents from host storage on \p stream.
     ///
@@ -135,7 +135,7 @@ public:
     /// \param stream Stream ordered after the allocation and its prior uses.
     /// \throw std::invalid_argument If the byte size overflows.
     /// \throw kira::Anyhow If CUDA cannot enqueue the allocation or copy.
-    void copyFromHost(cuda::std::span<T const> source, cudaStream_t stream) {
+    void copyFromHost(std::span<T const> source, cudaStream_t stream) {
         if (source.size() == size_) {
             if (source.empty())
                 return;
@@ -173,7 +173,7 @@ public:
     /// \param destination Host storage that receives the elements.
     /// \throw std::invalid_argument If \p destination has a different size.
     /// \throw kira::Anyhow If CUDA cannot enqueue the copy.
-    void copyToHost(cuda::std::span<T> destination) { copyToHost(destination, getStream()); }
+    void copyToHost(std::span<T> destination) { copyToHost(destination, getStream()); }
 
     /// \brief Copies the contents to same-sized host storage on \p stream.
     ///
@@ -182,7 +182,7 @@ public:
     /// \param stream Stream ordered after the allocation and its prior uses.
     /// \throw std::invalid_argument If \p destination has a different size.
     /// \throw kira::Anyhow If CUDA cannot enqueue the copy.
-    void copyToHost(cuda::std::span<T> destination, cudaStream_t stream) {
+    void copyToHost(std::span<T> destination, cudaStream_t stream) {
         if (destination.size() != size_)
             throw std::invalid_argument("DeviceBuffer: destination size does not match");
         if (destination.empty())
@@ -209,12 +209,12 @@ public:
     /// \brief Returns a mutable device-memory view.
     ///
     /// The returned span must not be dereferenced by host code.
-    [[nodiscard]] cuda::std::span<T> span() noexcept { return {data_, size_}; }
+    [[nodiscard]] std::span<T> span() noexcept { return {data_, size_}; }
 
     /// \brief Returns a read-only device-memory view.
     ///
     /// The returned span must not be dereferenced by host code.
-    [[nodiscard]] cuda::std::span<T const> span() const noexcept { return {data_, size_}; }
+    [[nodiscard]] std::span<T const> span() const noexcept { return {data_, size_}; }
 
     friend void swap(DeviceBuffer &lhs, DeviceBuffer &rhs) noexcept {
         using std::swap;
