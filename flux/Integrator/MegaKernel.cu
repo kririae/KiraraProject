@@ -2,13 +2,13 @@
 
 #include <cmath>
 
-#include "flux/Integrator/PathIntegrator.cuh"
+#include "flux/Integrator/PathIntegratorImpl.h"
 #include "flux/Optix/OptixContext.cuh"
 #include "flux/Optix/OptixLaunchParams.h"
-#include "flux/Sampling/Sampler.cuh"
-#include "flux/Scene/Camera.cuh"
-#include "flux/Scene/Film.cuh"
-#include "flux/Shading/DiffuseBSDF.cuh"
+#include "flux/Sampling/SamplerImpl.h"
+#include "flux/Scene/CameraImpl.h"
+#include "flux/Scene/FilmImpl.h"
+#include "flux/Shading/DiffuseBSDFImpl.h"
 
 extern "C" {
 __constant__ flux::OptixLaunchParams optixLaunchParams{};
@@ -41,7 +41,7 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
 
 extern "C" __global__ void __miss__radiance() { // NOLINT
     auto *state = flux::optix::getPayloadPointer<flux::PathState>();
-    flux::PathIntegrator::DeviceImpl{}.onMiss(*state);
+    flux::PathIntegrator::Impl{}.onMiss(*state);
 }
 
 extern "C" __global__ void __miss__shadow() { // NOLINT
@@ -71,7 +71,7 @@ extern "C" __global__ void __closesthit__triangle_diffuse() { // NOLINT
         // The SBT selected Diffuse code. The primitive supplies only the
         // snapshot-local index of its parameter payload.
         auto const &payload = optixLaunchParams.scene.getBSDF(primitive.getBSDFIndex());
-        auto bsdf = payload.get<flux::DiffuseBSDF::DeviceImpl>();
+        auto bsdf = payload.get<flux::DiffuseBSDF::Impl>();
         auto const wo = -rayDirection;
         bsdf.init(surface, wo);
 
@@ -104,7 +104,7 @@ extern "C" __global__ void __closesthit__triangle_diffuse() { // NOLINT
         );
     }
 
-    flux::PathIntegrator::DeviceImpl{}.onSurfaceHit(*state, surface);
+    flux::PathIntegrator::Impl{}.onSurfaceHit(*state, surface);
 }
 
 extern "C" __global__ void __closesthit__triangle_shadow() { // NOLINT

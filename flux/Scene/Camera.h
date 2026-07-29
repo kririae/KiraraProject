@@ -20,8 +20,8 @@ namespace flux {
 ///   defaults to 0 and must be positive when the lens radius is positive.
 class Camera final : public Object {
 public:
-    /// \brief Device implementation of the perspective camera.
-    struct DeviceImpl;
+    /// \brief Compact perspective-camera implementation.
+    struct Impl;
 
     /// \brief Creates a camera from \p properties.
     [[nodiscard]] static Ref<Camera> create(kira::Properties properties = {});
@@ -71,10 +71,10 @@ public:
     /// is not positive while the lens radius is positive.
     void setFocalDistance(float distance);
 
-    /// \brief Materializes the current camera for a launch.
+    /// \brief Materializes the current camera implementation.
     ///
     /// \throw kira::Anyhow If the camera frame is non-finite or degenerate.
-    [[nodiscard]] DeviceImpl getDeviceImpl() const;
+    [[nodiscard]] Impl getImpl() const;
 
 private:
     explicit Camera(kira::Properties properties);
@@ -87,8 +87,8 @@ private:
     float focalDistance_{};
 };
 
-/// \brief Device implementation of a perspective camera.
-struct Camera::DeviceImpl {
+/// \brief Compact implementation of a perspective camera.
+struct Camera::Impl {
     /// Lens position in world space.
     Vec3f position{};
 
@@ -117,19 +117,19 @@ public:
     /// lens.
     /// \pre Both resolution components are nonzero, and \p rasterPosition is
     /// inside the image's half-open bounds.
-    [[nodiscard]] KIRA_DEVICE inline Ray generateRay(
+    [[nodiscard]] KIRA_HOST_DEVICE inline Ray generateRay(
         Vec2f const &rasterPosition, Vec2f const &lensSample, Vec2u const &resolution
     ) const noexcept;
 
     /// \brief Compares the complete ray-generation payload.
-    [[nodiscard]] bool operator==(DeviceImpl const &) const = default;
+    [[nodiscard]] bool operator==(Impl const &) const = default;
 };
 
-static_assert(std::is_standard_layout_v<Camera::DeviceImpl>);
-static_assert(std::is_trivially_copyable_v<Camera::DeviceImpl>);
+static_assert(std::is_standard_layout_v<Camera::Impl>);
+static_assert(std::is_trivially_copyable_v<Camera::Impl>);
 
 namespace optix {
 /// Device representation of a perspective camera.
-using Camera = ::flux::Camera::DeviceImpl;
+using Camera = ::flux::Camera::Impl;
 } // namespace optix
 } // namespace flux

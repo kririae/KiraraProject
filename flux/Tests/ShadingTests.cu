@@ -10,13 +10,13 @@
 #include "flux/Optix/KernelUtils.cuh"
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Scene/Context.h"
-#include "flux/Shading/DiffuseBSDF.cuh"
+#include "flux/Shading/DiffuseBSDFImpl.h"
 #include "flux/Shading/Frame.h"
 #include "kira/Anyhow.h"
 
 namespace {
 struct EvaluateDiffuse {
-    flux::DiffuseBSDF::DeviceImpl bsdf;
+    flux::DiffuseBSDF::Impl bsdf;
     flux::BSDFEvaluation *evaluation;
     flux::BSDFSample *sample;
 
@@ -45,6 +45,33 @@ TEST(ShadingTests, BuildsAnOrthonormalFrame) {
     EXPECT_NEAR(roundTrip.y(), value.y(), 1.0e-5F);
     EXPECT_NEAR(roundTrip.z(), value.z(), 1.0e-5F);
     EXPECT_NEAR(frame.toLocal(normal).z(), 1.0F, 1.0e-5F);
+}
+
+TEST(ShadingTests, EvaluatesDiffuseOnHost) {
+    auto surface = flux::SurfaceInteraction{
+        .shadingNormal = {0.0F, 0.0F, 1.0F},
+    };
+    auto bsdf = flux::BSDF::Impl{flux::DiffuseBSDF::Impl{
+        .reflectance = {0.25F, 0.5F, 1.0F},
+    }};
+    auto const wo = flux::Vec3f{0.0F, 0.0F, 1.0F};
+    bsdf.init(surface, wo);
+    auto const query = flux::BSDFQuery{
+        .surface = surface,
+        .wo = wo,
+    };
+    auto const evaluation = bsdf.evaluateAndPdf(query, {0.0F, 0.0F, 1.0F});
+    auto const sample = bsdf.sample(query, 0.5F, {0.5F, 0.5F});
+
+    EXPECT_NEAR(evaluation.f.x(), 0.25F / std::numbers::pi_v<float>, 1.0e-6F);
+    EXPECT_NEAR(evaluation.f.y(), 0.5F / std::numbers::pi_v<float>, 1.0e-6F);
+    EXPECT_NEAR(evaluation.f.z(), 1.0F / std::numbers::pi_v<float>, 1.0e-6F);
+    EXPECT_NEAR(evaluation.pdf, 1.0F / std::numbers::pi_v<float>, 1.0e-6F);
+    EXPECT_EQ(bsdf.evaluate(query, {0.0F, 0.0F, 1.0F}), evaluation.f);
+    EXPECT_EQ(bsdf.pdf(query, {0.0F, 0.0F, 1.0F}), evaluation.pdf);
+    EXPECT_EQ(sample.wi, (flux::Vec3f{0.0F, 0.0F, 1.0F}));
+    EXPECT_EQ(sample.f, evaluation.f);
+    EXPECT_EQ(sample.pdf, evaluation.pdf);
 }
 
 TEST(ShadingTests, EvaluatesAndSamplesDiffuseOnDevice) {

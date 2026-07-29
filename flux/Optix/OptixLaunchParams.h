@@ -24,10 +24,10 @@ struct OptixLaunchParams {
     OptixContext::DeviceImpl scene;
 
     /// Launch-time camera.
-    Camera::DeviceImpl camera;
+    Camera::Impl camera;
 
     /// Launch-time sampler dispatcher.
-    Sampler::DeviceImpl sampler;
+    Sampler::Impl sampler;
 
     /// Samples accumulated before this batch.
     std::uint64_t accumulatedSamples;
@@ -36,7 +36,7 @@ struct OptixLaunchParams {
     std::uint64_t sampleOffset;
 
     /// Launch-time output channels.
-    Film::DeviceImpl film;
+    Film::Impl film;
 
     /// Number of samples assigned to each pixel in this batch.
     std::uint32_t batchSize;

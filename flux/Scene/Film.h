@@ -121,7 +121,7 @@ public:
     }
 };
 
-/// \brief Non-owning device slot for one film channel.
+/// \brief Non-owning storage view for one film channel.
 template <typename Channel> struct FilmChannelView {
     /// Channel descriptor represented by this view.
     using ChannelType = Channel;
@@ -153,8 +153,8 @@ static_assert(std::is_same_v<
 /// stores only the target shape until readback support is introduced.
 class Film final {
 public:
-    /// \brief Device view assembled by the active renderer backend.
-    struct DeviceImpl;
+    /// \brief Non-owning view assembled by the active renderer backend.
+    struct Impl;
 
     /// \brief Creates a film with the given nonzero dimensions.
     ///
@@ -191,9 +191,9 @@ private:
     FilmChannels channels_{FilmChannels::All};
 };
 
-/// \brief Device view of the channels in a film.
-struct Film::DeviceImpl {
-    /// Device pointers for the channels present in this launch.
+/// \brief Non-owning view of the channels in a film.
+struct Film::Impl {
+    /// Storage for the channels present in this render.
     FilmChannelListOf<FilmChannelView> channels{};
 
     /// Image width shared by all present channels.
@@ -214,20 +214,20 @@ public:
     /// may call this function.
     /// \pre \p pixel is in range.
     template <typename Channel>
-    KIRA_DEVICE inline void
+    KIRA_HOST_DEVICE inline void
     accumulate(Vec2u const &pixel, typename Channel::Value const &value) const noexcept;
 
     /// \brief Scales every present channel at one linear pixel index.
     ///
     /// \pre \p index is less than \c width times \c height.
-    KIRA_DEVICE inline void scale(std::size_t index, float factor) const noexcept;
+    KIRA_HOST_DEVICE inline void scale(std::size_t index, float factor) const noexcept;
 };
 
-static_assert(std::is_standard_layout_v<Film::DeviceImpl>);
-static_assert(std::is_trivially_copyable_v<Film::DeviceImpl>);
+static_assert(std::is_standard_layout_v<Film::Impl>);
+static_assert(std::is_trivially_copyable_v<Film::Impl>);
 
 namespace optix {
 /// Device representation of a film.
-using Film = ::flux::Film::DeviceImpl;
+using Film = ::flux::Film::Impl;
 } // namespace optix
 } // namespace flux

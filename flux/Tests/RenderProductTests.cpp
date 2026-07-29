@@ -1,10 +1,13 @@
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cstdint>
 #include <limits>
 
 #include "flux/Core/MathUtils.h"
 #include "flux/Scene/Camera.h"
+#include "flux/Scene/CameraImpl.h"
+#include "flux/Scene/FilmImpl.h"
 #include "flux/Scene/RenderProduct.h"
 
 TEST(RenderProductTests, MaterializesPinholeCameraFrame) {
@@ -15,14 +18,18 @@ TEST(RenderProductTests, MaterializesPinholeCameraFrame) {
     properties.set("fov", 90.0F);
     auto camera = flux::Camera::create(properties);
 
-    auto const device = camera->getDeviceImpl();
+    auto const impl = camera->getImpl();
 
     EXPECT_TRUE(properties.is_all_used());
-    EXPECT_FLOAT_EQ(device.position.x(), 0.0F);
-    EXPECT_FLOAT_EQ(device.forward.z(), -1.0F);
-    EXPECT_FLOAT_EQ(device.right.x(), 1.0F);
-    EXPECT_FLOAT_EQ(device.up.y(), 1.0F);
-    EXPECT_NEAR(device.halfHeight, 1.0F, 1.0e-6F);
+    EXPECT_FLOAT_EQ(impl.position.x(), 0.0F);
+    EXPECT_FLOAT_EQ(impl.forward.z(), -1.0F);
+    EXPECT_FLOAT_EQ(impl.right.x(), 1.0F);
+    EXPECT_FLOAT_EQ(impl.up.y(), 1.0F);
+    EXPECT_NEAR(impl.halfHeight, 1.0F, 1.0e-6F);
+
+    auto const ray = impl.generateRay({320.0F, 240.0F}, {0.5F, 0.5F}, {640U, 480U});
+    EXPECT_EQ(ray.origin, impl.position);
+    EXPECT_EQ(ray.direction, impl.forward);
 }
 
 TEST(RenderProductTests, RejectsDegenerateCameraFrame) {
@@ -30,12 +37,12 @@ TEST(RenderProductTests, RejectsDegenerateCameraFrame) {
     EXPECT_THROW(camera->setVerticalFieldOfView(180.0F), kira::Anyhow);
 
     camera->setPosition({std::numeric_limits<float>::infinity(), 0.0F, 0.0F});
-    EXPECT_THROW((void)camera->getDeviceImpl(), kira::Anyhow);
+    EXPECT_THROW((void)camera->getImpl(), kira::Anyhow);
 
     camera->setPosition({1.0F, 2.0F, 3.0F});
     camera->setLookAt({1.0F, 2.0F, 3.0F});
 
-    EXPECT_THROW((void)camera->getDeviceImpl(), kira::Anyhow);
+    EXPECT_THROW((void)camera->getImpl(), kira::Anyhow);
 }
 
 TEST(RenderProductTests, OwnsResizableFilmDescriptor) {
@@ -95,6 +102,19 @@ TEST(RenderProductTests, SelectsFilmChannelsAtRuntime) {
 
     EXPECT_THROW(film.setChannels(static_cast<flux::FilmChannels>(1U << 31U)), kira::Anyhow);
     EXPECT_EQ(film.getChannels(), flux::FilmChannels::None);
+}
+
+TEST(RenderProductTests, AccumulatesFilmChannelsOnHost) {
+    auto normal = std::array<flux::Vec3f, 1>{};
+    auto film = flux::Film::Impl{.width = 1, .height = 1};
+    film.channels.get<flux::NormalChannel>().data = normal.data();
+
+    film.accumulate<flux::NormalChannel>({0, 0}, {1.0F, 2.0F, 4.0F});
+    film.accumulate<flux::NormalChannel>({0, 0}, {2.0F, 3.0F, 5.0F});
+    film.scale(0, 0.5F);
+
+    EXPECT_EQ(normal[0], (flux::Vec3f{1.5F, 2.5F, 4.5F}));
+    EXPECT_FALSE(film.hasChannel<flux::AlbedoChannel>());
 }
 
 TEST(RenderProductTests, SamplesTheDiskConcentrically) {

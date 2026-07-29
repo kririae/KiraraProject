@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "flux/Integrator/PathIntegrator.h"
+#include "flux/Integrator/PathIntegratorImpl.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/RenderObject.h"
 #include "flux/Scene/TXContext.h"
@@ -33,4 +34,12 @@ TEST(PathIntegratorTests, KeepsFirstSuccessfulIntegratorActive) {
 
     (void)context->create<flux::PathIntegrator>();
     EXPECT_EQ(context->getActiveIntegrator().get(), first.get());
+}
+
+TEST(PathIntegratorTests, TerminatesCompletedPathsOnHost) {
+    auto state = flux::PathState{};
+
+    flux::PathIntegrator::Impl{}.onMiss(state);
+
+    EXPECT_FALSE(state.active);
 }

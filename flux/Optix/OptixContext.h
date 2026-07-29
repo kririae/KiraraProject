@@ -87,7 +87,7 @@ struct OptixContext::DeviceImpl {
     Primitive::DeviceImpl const *primitives{};
 
     /// Device array of BSDFs registered in the host context.
-    BSDF::DeviceImpl const *bsdfs{};
+    BSDF::Impl const *bsdfs{};
 
     /// Number of elements in \c geometries.
     std::uint32_t numGeometries{};
@@ -120,7 +120,7 @@ public:
     /// \brief Returns the BSDF at dense \p bsdfIndex.
     ///
     /// \pre \p bsdfIndex is less than \c numBSDFs.
-    [[nodiscard]] KIRA_DEVICE inline BSDF::DeviceImpl const &
+    [[nodiscard]] KIRA_DEVICE inline BSDF::Impl const &
     getBSDF(std::uint32_t bsdfIndex) const noexcept;
 };
 

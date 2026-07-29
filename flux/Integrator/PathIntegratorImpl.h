@@ -15,7 +15,7 @@ struct PathState {
     Ray ray;
 
     /// Sampling sequence advanced across path vertices.
-    Sampler::DeviceImpl sampler;
+    Sampler::Impl sampler;
 
     /// Number of surface bounces already processed.
     std::uint32_t bounce{};
@@ -24,17 +24,17 @@ struct PathState {
     bool active{true};
 };
 
-/// \brief Device-side path-integrator operations.
+/// \brief Operations that advance one path.
 ///
-/// The megakernel owns scheduling. These operations only update one path.
-struct PathIntegrator::DeviceImpl {
+/// A renderer backend owns scheduling. These operations only update one path.
+struct PathIntegrator::Impl {
     /// \brief Terminates a path that escaped the scene.
-    KIRA_DEVICE void onMiss(PathState &state) const noexcept { state.active = false; }
+    KIRA_HOST_DEVICE void onMiss(PathState &state) const noexcept { state.active = false; }
 
     /// \brief Terminates the path at its first surface hit.
     ///
     /// \post \p state is inactive.
-    KIRA_DEVICE void
+    KIRA_HOST_DEVICE void
     onSurfaceHit(PathState &state, SurfaceInteraction const &surface) const noexcept {
         (void)surface;
         state.active = false;

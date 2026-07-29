@@ -40,7 +40,7 @@ private:
     /// \brief Pixel history produced for one camera payload.
     struct AccumulationState {
         /// Camera payload used to produce the stored pixels.
-        Camera::DeviceImpl camera;
+        Camera::Impl camera;
 
         /// Samples represented by the stored pixels.
         std::uint64_t samples;
@@ -59,7 +59,7 @@ private:
         FilmChannelListOf<FilmChannelStorage> storage;
 
         /// Device view rebuilt whenever the film layout changes.
-        Film::DeviceImpl film;
+        Film::Impl film;
 
         /// Channel selection represented by \c storage and \c film.
         FilmChannels enabledChannels{FilmChannels::None};

@@ -7,7 +7,7 @@
 #include "TestUtils.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/OptixUtils.h"
-#include "flux/Sampling/Sampler.cuh"
+#include "flux/Sampling/SamplerImpl.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/TXContext.h"
 #include "kira/Anyhow.h"
@@ -32,7 +32,7 @@ struct SamplerResult {
     flux::SamplerType type;
 };
 
-__global__ void sampleIndependentSampler(flux::Sampler::DeviceImpl sampler, SamplerResult *result) {
+__global__ void sampleIndependentSampler(flux::Sampler::Impl sampler, SamplerResult *result) {
     auto const pixel = flux::Vec2u{3U, 2U};
     auto const resolution = flux::Vec2u{16U, 9U};
 
@@ -66,6 +66,19 @@ TEST(SamplerTests, KeepsFirstSuccessfulSamplerActive) {
     EXPECT_EQ(context->getActiveSampler().get(), first.get());
 }
 
+TEST(SamplerTests, DispatchesDeterministicPixelSequencesOnHost) {
+    auto context = flux::Context::create();
+    (void)context->create<flux::IndependentSampler>();
+    auto sampler = context->getActiveSampler()->getImpl({16U, 9U});
+
+    sampler.startPixelSample({3U, 2U}, 7U, {16U, 9U});
+    auto const first = sampler.get2D();
+    sampler.startPixelSample({3U, 2U}, 7U, {16U, 9U});
+
+    EXPECT_EQ(sampler.type, flux::SamplerType::Independent);
+    EXPECT_EQ(sampler.get2D(), first);
+}
+
 TEST(SamplerTests, DispatchesDeterministicPixelSequences) {
     if (!flux::test::hasCudaMemoryPoolSupport())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
@@ -76,7 +89,7 @@ TEST(SamplerTests, DispatchesDeterministicPixelSequences) {
     flux::DeviceBuffer<SamplerResult> deviceResult(cudaStreamPerThread);
     deviceResult.resize(1);
     sampleIndependentSampler<<<1, 1, 0, cudaStreamPerThread>>>(
-        context->getActiveSampler()->getDeviceImpl(resolution), deviceResult.data()
+        context->getActiveSampler()->getImpl(resolution), deviceResult.data()
     );
     flux::cudaCheck(cudaGetLastError());
 

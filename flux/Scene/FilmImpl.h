@@ -1,21 +1,30 @@
 #pragma once
 
+#include <atomic>
+
 #include "flux/Scene/Film.h"
 
 namespace flux {
 template <typename Channel>
-KIRA_DEVICE inline void Film::DeviceImpl::accumulate(
-    Vec2u const &pixel, typename Channel::Value const &value
-) const noexcept {
+KIRA_HOST_DEVICE inline void
+Film::Impl::accumulate(Vec2u const &pixel, typename Channel::Value const &value) const noexcept {
     auto *data = channels.template get<Channel>().data;
     if (!data)
         return;
 
     static_assert(std::is_same_v<typename Channel::Value, Vec3f>);
     auto &destination = data[static_cast<std::size_t>(pixel.y()) * width + pixel.x()];
+    // The view and indexing are shared; only the atomic primitive depends on
+    // the execution environment.
+#if defined(__CUDA_ARCH__)
     atomicAdd(&destination[0], value[0]);
     atomicAdd(&destination[1], value[1]);
     atomicAdd(&destination[2], value[2]);
+#else
+    std::atomic_ref<float>{destination[0]}.fetch_add(value[0], std::memory_order_relaxed);
+    std::atomic_ref<float>{destination[1]}.fetch_add(value[1], std::memory_order_relaxed);
+    std::atomic_ref<float>{destination[2]}.fetch_add(value[2], std::memory_order_relaxed);
+#endif
 }
 
 namespace detail {
@@ -31,7 +40,7 @@ struct ScaleFilmChannel {
 };
 } // namespace detail
 
-KIRA_DEVICE inline void Film::DeviceImpl::scale(std::size_t index, float factor) const noexcept {
+KIRA_HOST_DEVICE inline void Film::Impl::scale(std::size_t index, float factor) const noexcept {
     channels.forEach(detail::ScaleFilmChannel{.index = index, .factor = factor});
 }
 } // namespace flux

@@ -11,8 +11,8 @@ class PathIntegrator final : public RenderObject {
     friend class TXContext;
 
 public:
-    /// \brief Device-side path-integrator operations.
-    struct DeviceImpl;
+    /// \brief Operations that advance one path.
+    struct Impl;
 
 private:
     /// \brief Constructs a path integrator in \p tx.

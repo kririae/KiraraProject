@@ -7,11 +7,11 @@
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/KernelUtils.cuh"
 #include "flux/Optix/OptixUtils.h"
-#include "flux/Scene/Film.cuh"
+#include "flux/Scene/FilmImpl.h"
 
 namespace {
 struct AccumulateOnePixel {
-    flux::Film::DeviceImpl film;
+    flux::Film::Impl film;
 
     KIRA_DEVICE void operator()(std::size_t) const noexcept {
         film.accumulate<flux::NormalChannel>({0, 0}, {1.0F, 2.0F, 4.0F});
@@ -32,7 +32,7 @@ TEST(FilmTests, AtomicallyAccumulatesConcurrentSamples) {
     normal.zero();
     albedo.zero();
 
-    auto film = flux::Film::DeviceImpl{.width = 1, .height = 1};
+    auto film = flux::Film::Impl{.width = 1, .height = 1};
     film.channels.get<flux::NormalChannel>().data = normal.data();
     film.channels.get<flux::AlbedoChannel>().data = albedo.data();
     flux::launchLinearKernel(sampleCount, AccumulateOnePixel{.film = film}, cudaStreamPerThread);
@@ -59,7 +59,7 @@ TEST(FilmTests, SkipsChannelsMissingFromTheDeviceView) {
     normal.resize(1);
     normal.zero();
 
-    auto film = flux::Film::DeviceImpl{.width = 1, .height = 1};
+    auto film = flux::Film::Impl{.width = 1, .height = 1};
     film.channels.get<flux::NormalChannel>().data = normal.data();
     flux::launchLinearKernel(1, AccumulateOnePixel{.film = film}, cudaStreamPerThread);
 

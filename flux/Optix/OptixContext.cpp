@@ -63,7 +63,7 @@ struct OptixContext::Impl : private CudaStreamMixin {
         for (auto const &bsdf : sceneBSDFs) {
             auto const index = static_cast<std::uint32_t>(bsdfStaging.size());
             bsdfIndexByContextId.emplace(bsdf->getContextId(), index);
-            bsdfStaging.push_back(bsdf->getDeviceImpl());
+            bsdfStaging.push_back(bsdf->getImpl());
         }
 
         // Flatten the visible scene into the dense arrays used on the device.
@@ -149,8 +149,8 @@ struct OptixContext::Impl : private CudaStreamMixin {
     OptixSbt sbt;
     std::vector<Primitive::DeviceImpl> primitiveStaging;
     DeviceBuffer<Primitive::DeviceImpl> primitives;
-    std::vector<BSDF::DeviceImpl> bsdfStaging;
-    DeviceBuffer<BSDF::DeviceImpl> bsdfs;
+    std::vector<BSDF::Impl> bsdfStaging;
+    DeviceBuffer<BSDF::Impl> bsdfs;
 };
 
 OptixContext::OptixContext(

@@ -7,8 +7,8 @@
 #include "flux/Shading/Frame.h"
 
 namespace flux {
-KIRA_DEVICE inline BSDFEvaluation
-DiffuseBSDF::DeviceImpl::evaluateAndPdf_(BSDFQuery const &query, Vec3f const &wi) const noexcept {
+KIRA_HOST_DEVICE inline BSDFEvaluation
+DiffuseBSDF::Impl::evaluateAndPdf_(BSDFQuery const &query, Vec3f const &wi) const noexcept {
     Frame const frame(query.surface.shadingNormal);
     auto const localWo = frame.toLocal(query.wo);
     auto const localWi = frame.toLocal(wi);
@@ -22,7 +22,7 @@ DiffuseBSDF::DeviceImpl::evaluateAndPdf_(BSDFQuery const &query, Vec3f const &wi
     };
 }
 
-KIRA_DEVICE inline BSDFSample DiffuseBSDF::DeviceImpl::sample_(
+KIRA_HOST_DEVICE inline BSDFSample DiffuseBSDF::Impl::sample_(
     BSDFQuery const &query, [[maybe_unused]] float lobeSample, Vec2f const &directionSample
 ) const noexcept {
     Frame const frame(query.surface.shadingNormal);

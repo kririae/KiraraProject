@@ -18,7 +18,7 @@
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
-#include "flux/Scene/Film.cuh"
+#include "flux/Scene/FilmImpl.h"
 #include "flux/Scene/RenderProduct.h"
 #include "kira/Anyhow.h"
 
@@ -91,7 +91,7 @@ private:
 inline constexpr std::uint64_t maxOptixLaunchDimension = std::uint64_t{1} << 30U;
 
 struct ScaleFilmChannels {
-    Film::DeviceImpl film;
+    Film::Impl film;
     float factor;
 
     KIRA_DEVICE void operator()(std::size_t index) const noexcept { film.scale(index, factor); }
@@ -167,7 +167,7 @@ void OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
     auto const &film = product.getFilm();
     auto const resolution = Vec2u{film.getWidth(), film.getHeight()};
     auto const sampler = impl_->context->getActiveSampler();
-    auto const camera = product.getCamera().getDeviceImpl();
+    auto const camera = product.getCamera().getImpl();
 
     // Bound values are baked into the module. A changed host spec needs a new
     // module before its launch data can be used.
@@ -222,7 +222,7 @@ void OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
         auto const params = OptixLaunchParams{
             .scene = impl_->optixContext.getDeviceImpl(),
             .camera = camera,
-            .sampler = sampler->getDeviceImpl(resolution),
+            .sampler = sampler->getImpl(resolution),
             .accumulatedSamples = accumulatedSamples,
             .sampleOffset = impl_->sampleOffset,
             .film = target.film,
@@ -258,7 +258,7 @@ std::uint64_t OptixHandler::getAccumulatedSamples(RenderProduct const &product) 
         !target->accumulation)
         return 0;
 
-    auto const camera = product.getCamera().getDeviceImpl();
+    auto const camera = product.getCamera().getImpl();
     return target->accumulation->camera == camera ? target->accumulation->samples : 0;
 }
 

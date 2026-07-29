@@ -54,7 +54,7 @@ namespace flux {
 
 /// \brief Returns the solid-angle PDF of cosine-weighted hemisphere sampling.
 [[nodiscard]] KIRA_HOST_DEVICE inline float cosineHemispherePdf(Vec3f const &direction) noexcept {
-    constexpr auto inversePi = 1.0F / std::numbers::pi_v<float>;
+    constexpr auto inversePi = std::numbers::inv_pi_v<float>;
     return std::max(direction.z(), 0.0F) * inversePi;
 }
 } // namespace flux

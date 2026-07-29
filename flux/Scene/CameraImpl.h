@@ -4,7 +4,7 @@
 #include "flux/Scene/Camera.h"
 
 namespace flux {
-KIRA_DEVICE inline Ray Camera::DeviceImpl::generateRay(
+KIRA_HOST_DEVICE inline Ray Camera::Impl::generateRay(
     Vec2f const &rasterPosition, Vec2f const &lensSample, Vec2u const &resolution
 ) const noexcept {
     auto const inverseWidth = 1.0F / static_cast<float>(resolution.x());

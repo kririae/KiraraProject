@@ -6,7 +6,7 @@
 
 namespace flux {
 namespace {
-KIRA_DEVICE inline std::uint64_t splitMix64(std::uint64_t &state) noexcept {
+KIRA_HOST_DEVICE inline std::uint64_t splitMix64(std::uint64_t &state) noexcept {
     state += 0x9e3779b97f4a7c15ULL;
     auto value = state;
     value = (value ^ (value >> 30U)) * 0xbf58476d1ce4e5b9ULL;
@@ -14,7 +14,8 @@ KIRA_DEVICE inline std::uint64_t splitMix64(std::uint64_t &state) noexcept {
     return value ^ (value >> 31U);
 }
 
-KIRA_DEVICE inline std::uint32_t pcg32(std::uint64_t &state, std::uint64_t increment) noexcept {
+KIRA_HOST_DEVICE inline std::uint32_t
+pcg32(std::uint64_t &state, std::uint64_t increment) noexcept {
     auto const previous = state;
     state = previous * 6364136223846793005ULL + (increment | 1ULL);
     auto const shifted = static_cast<std::uint32_t>(((previous >> 18U) ^ previous) >> 27U);
@@ -22,12 +23,12 @@ KIRA_DEVICE inline std::uint32_t pcg32(std::uint64_t &state, std::uint64_t incre
     return (shifted >> rotation) | (shifted << ((-rotation) & 31U));
 }
 
-KIRA_DEVICE inline float toUnitFloat(std::uint32_t value) noexcept {
+KIRA_HOST_DEVICE inline float toUnitFloat(std::uint32_t value) noexcept {
     return static_cast<float>((value >> 8U) * 0x1p-24F);
 }
 } // namespace
 
-KIRA_DEVICE inline void IndependentSampler::DeviceImpl::startPixelSample(
+KIRA_HOST_DEVICE inline void IndependentSampler::Impl::startPixelSample(
     Vec2u const &pixel, std::uint64_t sampleIndex, Vec2u const &resolution
 ) noexcept {
     auto const pixelIndex = static_cast<std::uint64_t>(pixel.y()) * resolution.x() + pixel.x();
@@ -39,36 +40,36 @@ KIRA_DEVICE inline void IndependentSampler::DeviceImpl::startPixelSample(
     (void)pcg32(state, increment);
 }
 
-KIRA_DEVICE inline float IndependentSampler::DeviceImpl::get1D() noexcept {
+KIRA_HOST_DEVICE inline float IndependentSampler::Impl::get1D() noexcept {
     return toUnitFloat(pcg32(state, increment));
 }
 
-KIRA_DEVICE inline Vec2f IndependentSampler::DeviceImpl::get2D() noexcept {
+KIRA_HOST_DEVICE inline Vec2f IndependentSampler::Impl::get2D() noexcept {
     return {get1D(), get1D()};
 }
 
-KIRA_DEVICE inline Vec2f IndependentSampler::DeviceImpl::getPixel2D() noexcept { return get2D(); }
+KIRA_HOST_DEVICE inline Vec2f IndependentSampler::Impl::getPixel2D() noexcept { return get2D(); }
 
-KIRA_DEVICE inline void Sampler::DeviceImpl::startPixelSample(
+KIRA_HOST_DEVICE inline void Sampler::Impl::startPixelSample(
     Vec2u const &pixel, std::uint64_t sampleIndex, Vec2u const &resolution
 ) noexcept {
     dispatch([&](auto &sampler) { sampler.startPixelSample(pixel, sampleIndex, resolution); });
 }
 
-KIRA_DEVICE inline float Sampler::DeviceImpl::get1D() noexcept {
+KIRA_HOST_DEVICE inline float Sampler::Impl::get1D() noexcept {
     return dispatch([](auto &sampler) { return sampler.get1D(); });
 }
 
-KIRA_DEVICE inline Vec2f Sampler::DeviceImpl::get2D() noexcept {
+KIRA_HOST_DEVICE inline Vec2f Sampler::Impl::get2D() noexcept {
     return dispatch([](auto &sampler) { return sampler.get2D(); });
 }
 
-KIRA_DEVICE inline Vec2f Sampler::DeviceImpl::getPixel2D() noexcept {
+KIRA_HOST_DEVICE inline Vec2f Sampler::Impl::getPixel2D() noexcept {
     return dispatch([](auto &sampler) { return sampler.getPixel2D(); });
 }
 
 namespace optix {
 /// Device-side sampler dispatcher.
-using Sampler = ::flux::Sampler::DeviceImpl;
+using Sampler = ::flux::Sampler::Impl;
 } // namespace optix
 } // namespace flux

@@ -18,9 +18,9 @@ void validateReflectance(Spectrum const &reflectance) {
 BSDF::BSDF(TXContext &tx, kira::Properties properties, BSDFType type)
     : RenderObject(tx, std::move(properties)), type_(type) {}
 
-BSDF::DeviceImpl BSDF::getDeviceImpl() const {
+BSDF::Impl BSDF::getImpl() const {
     switch (type_) {
-    case BSDFType::Diffuse: return static_cast<DiffuseBSDF const &>(*this).getDeviceImpl();
+    case BSDFType::Diffuse: return static_cast<DiffuseBSDF const &>(*this).getImpl();
     case BSDFType::Count: break;
     }
     KIRA_UNREACHABLE();
@@ -32,7 +32,5 @@ DiffuseBSDF::DiffuseBSDF(TXContext &tx, kira::Properties properties)
     validateReflectance(reflectance_);
 }
 
-DiffuseBSDF::DeviceImpl DiffuseBSDF::getDeviceImpl() const noexcept {
-    return {.reflectance = reflectance_};
-}
+DiffuseBSDF::Impl DiffuseBSDF::getImpl() const noexcept { return {.reflectance = reflectance_}; }
 } // namespace flux

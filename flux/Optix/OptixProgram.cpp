@@ -118,7 +118,7 @@ void OptixProgram::buildModule(std::filesystem::path const &modulePath) {
         OptixModuleCompileBoundValueEntry{
             // (1)
             .pipelineParamOffsetInBytes =
-                offsetof(OptixLaunchParams, sampler) + offsetof(Sampler::DeviceImpl, type),
+                offsetof(OptixLaunchParams, sampler) + offsetof(Sampler::Impl, type),
             .sizeInBytes = sizeof(spec_.samplerType),
             .boundValuePtr = &spec_.samplerType,
             .annotation = "Flux sampler implementation",

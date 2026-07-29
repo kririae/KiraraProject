@@ -4,7 +4,7 @@
 
 #include <cstdint>
 
-#include "flux/Integrator/PathIntegrator.cuh"
+#include "flux/Integrator/PathIntegratorImpl.h"
 #include "flux/Optix/OptixContext.h"
 #include "flux/Scene/Primitive.cuh"
 #include "flux/Scene/TriangleMesh.cuh"
@@ -39,7 +39,7 @@ template <typename T> [[nodiscard]] KIRA_DEVICE T *getPayloadPointer() noexcept 
 
 KIRA_DEVICE inline void OptixContext::DeviceImpl::trace(PathState &state) const noexcept {
     if (!traversable) {
-        PathIntegrator::DeviceImpl{}.onMiss(state);
+        PathIntegrator::Impl{}.onMiss(state);
         return;
     }
 
@@ -75,7 +75,7 @@ OptixContext::DeviceImpl::getGeometry(std::uint32_t geometryIndex) const noexcep
     return geometries[geometryIndex];
 }
 
-KIRA_DEVICE inline BSDF::DeviceImpl const &
+KIRA_DEVICE inline BSDF::Impl const &
 OptixContext::DeviceImpl::getBSDF(std::uint32_t bsdfIndex) const noexcept {
     return bsdfs[bsdfIndex];
 }

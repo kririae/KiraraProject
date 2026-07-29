@@ -55,7 +55,7 @@ void Camera::setFocalDistance(float distance) {
     focalDistance_ = distance;
 }
 
-Camera::DeviceImpl Camera::getDeviceImpl() const {
+Camera::Impl Camera::getImpl() const {
     auto const view = lookAt_ - position_;
     auto const viewLength = view.norm();
     if (!(viewLength > 0.0F && std::isfinite(viewLength)))
