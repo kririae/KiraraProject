@@ -82,7 +82,6 @@ void EmbreeHandler::render(RenderProduct const &product, std::uint32_t samples) 
             std::numeric_limits<std::uint64_t>::max() - lastBatchIndex)
         throw std::invalid_argument("EmbreeHandler: sample sequence index overflows");
 
-    // All TBB tasks share immutable launch parameters.
     auto const params = EmbreeLaunchParams{
         .scene = impl_->embreeContext.getImpl(),
         .camera = camera,

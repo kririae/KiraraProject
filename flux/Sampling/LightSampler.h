@@ -17,7 +17,7 @@ struct SampledLight {
     /// Sentinel used when no light can be selected.
     static constexpr std::uint32_t invalidIndex = std::numeric_limits<std::uint32_t>::max();
 
-    /// Global index in LightSampler::lights.
+    /// Dense index in LightSampler::lights.
     std::uint32_t lightIndex{invalidIndex};
 
     /// Discrete probability of selecting \c lightIndex.
@@ -27,7 +27,8 @@ struct SampledLight {
 /// \brief Uniform light-selection view used by shared transport code.
 ///
 /// Renderer backends own the light table and any persistent sampling data.
-/// This trivially copyable view borrows that state for one render.
+/// This view remains valid until the owning backend rebuilds or destroys its
+/// light table.
 struct LightSampler {
     /// Largest light table addressed without exceeding sampler precision.
     static constexpr std::uint32_t maxLightCount = 1U << 24U;
@@ -40,6 +41,7 @@ public:
     ///
     /// \param surface Current shading point.
     /// \param sample Uniform value in the half-open unit interval.
+    /// \pre \p sample is in \f$[0,1)\f$.
     /// \pre \c lights.numLights is at most \c maxLightCount.
     [[nodiscard]] KIRA_HOST_DEVICE SampledLight
     sample(SurfaceInteraction const &surface, float sample) const noexcept {
@@ -65,6 +67,8 @@ public:
     }
 
     /// \brief Samples incident radiance from one selected light.
+    ///
+    /// \pre \p lightIndex is less than `lights.numLights`.
     [[nodiscard]] KIRA_HOST_DEVICE DirectLightSample sampleDirect(
         std::uint32_t lightIndex, SurfaceInteraction const &surface, Vec2f const &sample
     ) const noexcept {

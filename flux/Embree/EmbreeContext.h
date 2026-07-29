@@ -139,12 +139,18 @@ public:
     makeSurfaceInteraction(Ray const &ray, Hit const &hit) const noexcept;
 
     /// \brief Returns the primitive at dense \p index.
+    ///
+    /// \pre \p index is less than \c numPrimitives.
     [[nodiscard]] Primitive::Impl const &getPrimitive(std::uint32_t index) const noexcept;
 
     /// \brief Returns the geometry at dense \p index.
+    ///
+    /// \pre \p index is less than \c numGeometries.
     [[nodiscard]] TriangleMesh::Impl const &getGeometry(std::uint32_t index) const noexcept;
 
     /// \brief Returns the BSDF at dense \p index.
+    ///
+    /// \pre \p index is less than \c numBSDFs.
     [[nodiscard]] BSDF::Impl const &getBSDF(std::uint32_t index) const noexcept;
 
     /// \brief Returns the light sampler built with this scene.

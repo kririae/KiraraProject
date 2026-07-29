@@ -16,7 +16,7 @@ public:
     explicit OptixLightSampler(cudaStream_t stream) noexcept
         : CudaStreamMixin(stream), records_(stream), pointLights_(stream) {}
 
-    /// \brief Rebuilds device light data in global selection order.
+    /// \brief Rebuilds device light data in light table order.
     ///
     /// Host staging remains valid until the owning OptixContext completes its
     /// sync stream.

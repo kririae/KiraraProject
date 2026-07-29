@@ -109,12 +109,12 @@ extern "C" __global__ void __closesthit__triangle_diffuse() { // NOLINT
             integrator.onSurfaceHit(*state, optixLaunchParams.scene, diffuse, surface, wo);
         else
             integrator.onSurfaceHit(*state, surface);
-    } else if (state->bounce == 0) {
-        optixLaunchParams.film.accumulate<flux::NormalChannel>(
-            launchSample.pixel, surface.shadingNormal * sampleWeight
-        );
-        integrator.onSurfaceHit(*state, surface);
     } else {
+        if (state->bounce == 0) {
+            optixLaunchParams.film.accumulate<flux::NormalChannel>(
+                launchSample.pixel, surface.shadingNormal * sampleWeight
+            );
+        }
         integrator.onSurfaceHit(*state, surface);
     }
 }

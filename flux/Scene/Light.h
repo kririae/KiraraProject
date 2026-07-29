@@ -123,7 +123,7 @@ PointLight::Impl::sampleDirect(SurfaceInteraction const &surface) const noexcept
     };
 }
 
-/// \brief Maps a global light index to one concrete dense array.
+/// \brief Maps a light table index to one concrete dense array.
 struct LightRecord {
     /// Concrete array selected by this record.
     LightType type{};
@@ -134,19 +134,19 @@ struct LightRecord {
 
 /// \brief Non-owning view of the lights built by one renderer backend.
 struct LightTable {
-    /// Global light records in selection order.
+    /// Light records in selection order.
     LightRecord const *records{};
 
     /// Dense point-light implementations.
     PointLight::Impl const *pointLights{};
 
-    /// Number of global light records.
+    /// Number of light records.
     std::uint32_t numLights{};
 
 public:
     /// \brief Samples the selected light.
     ///
-    /// \param lightIndex Global light index returned by LightSampler.
+    /// \param lightIndex Dense index returned by LightSampler.
     /// \param surface World-space shading point.
     /// \param sample Uniform sample used by non-delta light types.
     /// \pre \p lightIndex is less than \c numLights.

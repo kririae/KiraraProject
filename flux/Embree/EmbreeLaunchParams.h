@@ -10,13 +10,11 @@
 namespace flux {
 /// \brief Immutable state shared by one Embree render.
 struct EmbreeLaunchParams {
-    /// Persistent Embree scene used by this render.
+    /// Borrowed Embree scene view used by this render.
     EmbreeContext::Impl scene;
 
-    /// Launch-time camera.
     Camera::Impl camera;
 
-    /// Launch-time sampler dispatcher.
     Sampler::Impl sampler;
 
     /// Samples accumulated before this batch.
@@ -25,10 +23,9 @@ struct EmbreeLaunchParams {
     /// Number of sequence elements skipped before sample zero.
     std::uint64_t sampleOffset;
 
-    /// Launch-time output channels.
     Film::Impl film;
 
-    /// Number of samples assigned to each pixel in this batch.
+    /// Positive number of samples assigned to each pixel in this batch.
     std::uint32_t batchSize;
 
 public:

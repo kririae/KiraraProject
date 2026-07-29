@@ -45,8 +45,10 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
 
             auto surface = params.scene.makeSurfaceInteraction(state.ray, hit);
             auto const &primitive = params.scene.getPrimitive(hit.primitiveIndex);
-            if (!primitive.hasBSDF()) {
+            if (state.bounce == 0)
                 normalSum = normalSum + surface.shadingNormal;
+
+            if (!primitive.hasBSDF()) {
                 integrator.onSurfaceHit(state, surface);
                 continue;
             }
@@ -54,9 +56,8 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
             auto bsdf = params.scene.getBSDF(primitive.getBSDFIndex());
             auto const wo = -state.ray.direction;
             bsdf.init(surface, wo);
-            normalSum = normalSum + surface.shadingNormal;
 
-            if (params.film.hasChannel<AlbedoChannel>()) {
+            if (state.bounce == 0 && params.film.hasChannel<AlbedoChannel>()) {
                 auto aovSampler = state.sampler;
                 auto const query = BSDFQuery{.surface = surface, .wo = wo};
                 auto const sample = bsdf.sample(query, aovSampler.get1D(), aovSampler.get2D());

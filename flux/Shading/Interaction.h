@@ -44,7 +44,8 @@ public:
     ///
     /// The origin moves along the geometric normal on the target-facing side.
     /// The maximum distance stops before the target to avoid reporting either
-    /// endpoint as an occluder.
+    /// endpoint as an occluder. A coincident target produces an invalid ray
+    /// with zero maximum distance.
     [[nodiscard]] KIRA_HOST_DEVICE Ray spawnRayTo(Vec3f const &target) const noexcept {
         constexpr float originEpsilon = 1.0e-5F;
         constexpr float targetEpsilon = 1.0e-6F;

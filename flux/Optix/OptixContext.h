@@ -77,6 +77,9 @@ private:
 };
 
 /// \brief Device view of an OptiX scene.
+///
+/// The owning OptixContext keeps every referenced device array and OptiX
+/// handle valid until its next sync or destruction.
 struct OptixContext::Impl {
     /// Top-level instance acceleration structure.
     OptixTraversableHandle traversable{};

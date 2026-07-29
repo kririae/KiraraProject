@@ -11,7 +11,7 @@ namespace flux {
 /// \brief Owns the light data used by the Embree light sampler.
 class EmbreeLightSampler final : private Noncopyable {
 public:
-    /// \brief Rebuilds host light data in global selection order.
+    /// \brief Rebuilds host light data in light table order.
     /// \throw kira::Anyhow If the light count exceeds backend limits.
     void build(std::span<Ref<Light const> const> lights);
 

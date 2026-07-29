@@ -114,7 +114,7 @@ TEST(OptixGeometryTests, RendersDirectLightIntoColorChannel) {
     (void)context->create<flux::Primitive>(primitiveProperties(*mesh, bsdf.get()));
 
     kira::Properties lightProperties;
-    lightProperties.set("position", flux::Vec3f{0.25F, 0.25F, 1.0F});
+    lightProperties.set("position", flux::Vec3f{0.75F, 0.25F, 1.0F});
     lightProperties.set("intensity", flux::Spectrum{1.0F, 1.0F, 1.0F});
     (void)context->create<flux::PointLight>(std::move(lightProperties));
 
@@ -138,4 +138,26 @@ TEST(OptixGeometryTests, RendersDirectLightIntoColorChannel) {
     EXPECT_GT(color[0].x(), 0.0F);
     EXPECT_GT(color[0].y(), 0.0F);
     EXPECT_GT(color[0].z(), 0.0F);
+
+    auto blocker = context->create<flux::Primitive>(primitiveProperties(*mesh));
+    blocker->setTransform({
+        0.0F,
+        0.0F,
+        1.0F,
+        0.5F,
+        1.0F,
+        0.0F,
+        0.0F,
+        0.0F,
+        0.0F,
+        1.0F,
+        0.0F,
+        0.0F,
+    });
+
+    handler.sync();
+    handler.render(*product, 4);
+    handler.download(*product);
+    auto const blockedColor = product->getFilm().getChannel<flux::ColorChannel>();
+    EXPECT_EQ(blockedColor[0], flux::Spectrum{});
 }

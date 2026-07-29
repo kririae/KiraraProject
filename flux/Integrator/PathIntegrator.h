@@ -15,9 +15,9 @@
 namespace flux {
 /// \brief Deferred visibility test for one direct-light candidate.
 ///
-/// A closest-hit operation fills this value after selecting a light and
-/// evaluating the BSDF. The backend scheduler traces \c ray after the radiance
-/// trace returns and accepts \c contribution only when the ray is visible.
+/// \c onSurfaceHit stores this value after selecting a light and evaluating
+/// the BSDF. The backend resolves visibility after the radiance traversal and
+/// accepts \c contribution only when the ray is visible.
 struct PendingShadowQuery {
     /// Visibility ray from the surface to the sampled light point.
     Ray ray;
@@ -116,7 +116,7 @@ public:
 
         /// \brief Resolves the pending direct-light visibility test.
         ///
-        /// \param visible Whether the shadow ray reached the sampled light.
+        /// \param visible Whether the visibility ray is unobstructed.
         KIRA_HOST_DEVICE void
         resolvePendingShadowQuery(PathState &state, bool visible) const noexcept {
             if (!state.hasPendingShadowQuery)

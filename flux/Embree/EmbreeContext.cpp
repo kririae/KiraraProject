@@ -161,9 +161,8 @@ void EmbreeContext::sync() try {
         normalTransforms_.push_back(makeNormalTransform(primitive->getTransform()));
     }
 
-    // Embree reads each retained mesh array directly during traversal. Keep
-    // these arrays unchanged until sync replaces the scene. Mutable geometry
-    // must publish replacement storage or use Embree-owned buffers.
+    // Embree borrows retained mesh arrays until the next sync. Keep them
+    // unchanged while this scene is active.
     meshScenes_.reserve(retainedMeshes_.size());
     for (auto const &mesh : retainedMeshes_) {
         RTCScene childScene = rtcNewScene(device_);
