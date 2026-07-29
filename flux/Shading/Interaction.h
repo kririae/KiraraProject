@@ -4,7 +4,6 @@
 #include <type_traits>
 
 #include "flux/Core/Math.h"
-#include "flux/Scene/Primitive.h"
 
 namespace flux {
 /// \brief Geometric information at a ray-surface intersection.
@@ -14,21 +13,21 @@ struct SurfaceInteraction {
     /// World-space position at the intersection.
     Vec3f position{};
 
-    /// World-space normal derived from the underlying geometry.
+    /// World-space normal defined by Geometry.
     ///
-    /// Material initialization does not modify this normal.
+    /// BSDF::init() preserves this normal.
     Vec3f geometricNormal{};
 
     /// World-space normal used for shading.
     ///
-    /// Geometry initializes this normal; material initialization may replace it.
+    /// Geometry initializes this normal; BSDF::init() may replace it.
     Vec3f shadingNormal{};
 
     /// Surface parameterization, or zero when the geometry has no texture coordinates.
     Vec2f uv{};
 
-    /// Primitive in the current device scene.
-    Primitive::DeviceImpl const *primitive{};
+    /// Dense primitive index in the current backend scene.
+    std::uint32_t primitiveIndex{};
 
     /// Element index within the primitive's geometry.
     std::uint32_t elementIndex{};

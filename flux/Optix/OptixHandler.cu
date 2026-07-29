@@ -2,9 +2,11 @@
 #include <optix_function_table_definition.h>
 #include <optix_stubs.h>
 
+#include <cassert>
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
 
 #include "flux/Optix/DeviceBuffer.h"
@@ -102,7 +104,7 @@ struct OptixHandler::Impl final {
     Impl(Ref<Context> hostContext, std::filesystem::path const &modulePath);
     ~Impl();
 
-    /// \brief Rebuilds the device scene from the host context.
+    /// \brief Rebuilds the OptiX scene from the host \c Context.
     void sync();
 
     /// \brief Uploads \p params and launches a one-dimensional grid.
@@ -111,7 +113,7 @@ struct OptixHandler::Impl final {
     /// \brief Returns the stream shared by this backend's device resources.
     [[nodiscard]] cudaStream_t getStream() const noexcept { return deviceContext.getStream(); }
 
-    /// Host scene retained for the lifetime of the backend.
+    /// Host \c Context retained for the lifetime of the backend.
     Ref<Context> context;
 
     /// CUDA execution state destroyed after every dependent resource.
@@ -138,8 +140,7 @@ OptixHandler::Impl::~Impl() {
 void OptixHandler::Impl::sync() {
     deviceContext.selectDevice();
 
-    // A failed scene rebuild invalidates this backend, so no previous target
-    // history may remain observable after sync begins.
+    // Clear accumulation before rebuilding the OptiX scene.
     renderProducts.resetAccumulation();
     optixContext.sync();
 }
@@ -162,22 +163,21 @@ void OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
     if (samples == 0)
         throw std::invalid_argument("OptixHandler: sample batch must be nonzero");
 
-    // Resolve launch-time inputs. None of these objects belong to the
-    // persistent OptiX scene.
+    // Resolve the Camera, Film, and Sampler for this launch.
     auto const &film = product.getFilm();
     auto const resolution = Vec2u{film.getWidth(), film.getHeight()};
     auto const sampler = impl_->context->getActiveSampler();
     auto const camera = product.getCamera().getImpl();
 
-    // Bound values are baked into the module. A changed host spec needs a new
-    // module before its launch data can be used.
+    // The module contains bound values. A changed Context spec requires sync
+    // before launch.
     if (impl_->optixContext.getProgramSpec() != OptixProgram::makeSpec(*impl_->context))
         throw kira::Anyhow(
             "OptixHandler: program specialization changed; call sync before rendering"
         );
 
-    // OptiX launches one work item per pixel sample. Samples of the same pixel
-    // remain consecutive in the one-dimensional launch.
+    // Launch one work item per pixel sample and keep each pixel's samples
+    // consecutive.
     auto const pixelCount =
         static_cast<std::uint64_t>(film.getWidth()) * static_cast<std::uint64_t>(film.getHeight());
     if (pixelCount > maxOptixLaunchDimension || samples > maxOptixLaunchDimension / pixelCount)
@@ -186,11 +186,11 @@ void OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
 
     impl_->deviceContext.selectDevice();
 
-    // Film changes update this product's existing entry. Camera compatibility
-    // only controls whether its pixel history can be reused.
-    auto &target = impl_->renderProducts.getOrCreate(product);
-    auto const accumulatedSamples = target.accumulation && target.accumulation->camera == camera
-                                        ? target.accumulation->samples
+    // Film changes resize the product entry. A matching Camera::Impl keeps its
+    // accumulation.
+    auto &entry = impl_->renderProducts.getOrCreate(product);
+    auto const accumulatedSamples = entry.accumulation && entry.accumulation->camera == camera
+                                        ? entry.accumulation->samples
                                         : 0;
     if (accumulatedSamples > std::numeric_limits<std::uint64_t>::max() - samples)
         throw std::invalid_argument("OptixHandler: accumulated sample count overflows");
@@ -201,18 +201,17 @@ void OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
         throw std::invalid_argument("OptixHandler: sample sequence index overflows");
 
     try {
-        // Pixel writes below may leave a partial image if CUDA reports an
-        // asynchronous failure. Clear the validity marker before enqueueing
-        // them so the next batch starts from a zeroed target.
-        target.accumulation.reset();
+        // Clear accumulation before starting work. The next batch clears
+        // partial pixels after a backend failure.
+        entry.accumulation.reset();
         auto const totalSamples = accumulatedSamples + samples;
         if (accumulatedSamples == 0) {
-            target.storage.forEach([](auto &channel) { channel.buffer.zero(); });
-        } else if (target.enabledChannels != FilmChannels::None) {
+            entry.storage.forEach([](auto &channel) { channel.buffer.zero(); });
+        } else if (entry.requestedChannels != FilmChannels::None) {
             auto const factor =
                 static_cast<float>(accumulatedSamples) / static_cast<float>(totalSamples);
             launchLinearKernel(
-                pixelCount, ScaleFilmChannels{.film = target.film, .factor = factor},
+                pixelCount, ScaleFilmChannels{.film = entry.film, .factor = factor},
                 impl_->getStream()
             );
         }
@@ -225,19 +224,40 @@ void OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
             .sampler = sampler->getImpl(resolution),
             .accumulatedSamples = accumulatedSamples,
             .sampleOffset = impl_->sampleOffset,
-            .film = target.film,
+            .film = entry.film,
             .batchSize = samples,
         };
         impl_->launch(params, launchSize);
         cudaCheck(cudaStreamSynchronize(impl_->getStream()));
 
-        // Publish the new history only after all device writes have completed.
-        target.accumulation = OptixRenderProductPool::AccumulationState{
+        // Publish accumulation after all Film writes complete.
+        entry.accumulation = OptixRenderProductPool::AccumulationState{
             .camera = camera,
             .samples = totalSamples,
         };
     } catch (...) {
-        target.accumulation.reset();
+        entry.accumulation.reset();
+        cudaCheck<false>(cudaStreamSynchronize(impl_->getStream()));
+        throw;
+    }
+}
+
+void OptixHandler::download(RenderProduct &product) {
+    if (getAccumulatedSamples(product) == 0)
+        throw kira::Anyhow("OptixHandler: render product has no valid accumulation");
+
+    impl_->deviceContext.selectDevice();
+    auto *entry = impl_->renderProducts.find(product);
+    assert(entry);
+    auto destination = product.getFilm().prepareDownload();
+    try {
+        entry->storage.forEach([&](auto &channel) {
+            using Channel = typename std::remove_reference_t<decltype(channel)>::ChannelType;
+            auto *output = destination.channels.template get<Channel>().data;
+            channel.buffer.copyToHost({output, channel.buffer.size()}, impl_->getStream());
+        });
+        cudaCheck(cudaStreamSynchronize(impl_->getStream()));
+    } catch (...) {
         cudaCheck<false>(cudaStreamSynchronize(impl_->getStream()));
         throw;
     }
@@ -251,15 +271,14 @@ void OptixHandler::setSampleOffset(std::uint64_t offset) {
 }
 
 std::uint64_t OptixHandler::getAccumulatedSamples(RenderProduct const &product) const {
-    auto const *target = impl_->renderProducts.find(product);
+    auto const *entry = impl_->renderProducts.find(product);
     auto const &film = product.getFilm();
-    if (!target || target->film.width != film.getWidth() ||
-        target->film.height != film.getHeight() || target->enabledChannels != film.getChannels() ||
-        !target->accumulation)
+    if (!entry || entry->film.width != film.getWidth() || entry->film.height != film.getHeight() ||
+        entry->requestedChannels != film.getChannels() || !entry->accumulation)
         return 0;
 
     auto const camera = product.getCamera().getImpl();
-    return target->accumulation->camera == camera ? target->accumulation->samples : 0;
+    return entry->accumulation->camera == camera ? entry->accumulation->samples : 0;
 }
 
 bool OptixHandler::isConverged(RenderProduct const &product) const {

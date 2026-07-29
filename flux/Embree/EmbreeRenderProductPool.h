@@ -3,26 +3,23 @@
 #include <cstdint>
 #include <optional>
 #include <unordered_map>
+#include <vector>
 
 #include "flux/Core/Object.h"
-#include "flux/Optix/DeviceBuffer.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Film.h"
 
 namespace flux {
-class OptixHandler;
+class EmbreeHandler;
 class RenderProduct;
 
-/// \brief Owns OptiX runtime storage for render products.
+/// \brief Owns CPU runtime storage for render products.
 ///
 /// Each render product has one entry. Camera and Film changes update that entry.
-class OptixRenderProductPool final : private Noncopyable, private CudaStreamMixin {
-    friend class OptixHandler;
+class EmbreeRenderProductPool final : private Noncopyable {
+    friend class EmbreeHandler;
 
 public:
-    /// \brief Creates an empty pool bound to \p stream.
-    explicit OptixRenderProductPool(cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
-
     /// \brief Erases runtime storage for \p product.
     void erase(RenderProduct const &product) noexcept;
 
@@ -33,7 +30,7 @@ private:
     /// \brief Storage for one typed Film channel.
     template <typename Channel> struct FilmChannelStorage {
         using ChannelType = Channel;
-        DeviceBuffer<typename Channel::Value> buffer;
+        std::vector<typename Channel::Value> values;
     };
 
     /// \brief Accumulation produced with one \c Camera::Impl.
@@ -47,14 +44,12 @@ private:
 
     /// \brief Runtime storage for one render product.
     struct Entry {
-        Entry(RenderProduct const &product, cudaStream_t stream) noexcept : product(&product) {
-            storage.forEach([stream](auto &channel) { channel.buffer.setStream(stream); });
-        }
+        explicit Entry(RenderProduct const &product) noexcept : product(&product) {}
 
         /// Keeps the product alive until \c erase.
         Ref<RenderProduct const> product;
 
-        /// Device storage for channels requested by Film.
+        /// Host storage for channels requested by Film.
         FilmChannelListOf<FilmChannelStorage> storage;
 
         /// Film view of \c storage.
@@ -68,11 +63,6 @@ private:
     };
 
     /// \brief Returns or creates the entry for \p product.
-    ///
-    /// Resizes Film storage to the current resolution and requested channels.
-    /// \throw std::invalid_argument If the film is too large for device
-    /// storage.
-    /// \throw kira::Anyhow If CUDA cannot allocate the film resources.
     [[nodiscard]] Entry &getOrCreate(RenderProduct const &product);
 
     /// \brief Returns the existing entry for \p product, if any.

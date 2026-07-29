@@ -2,12 +2,22 @@
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
   "dependencies": [
     "backward-cpp",
+    {
+      "name": "embree",
+      "default-features": false,
+      "features": [
+        "geometry-instance",
+        "geometry-triangle",
+        "tasking-tbb"
+      ]
+    },
     "eigen3",
     "fmt",
     "gtest",
     "highway",
     "libigl",
     "magic-enum",
+    "openimageio",
     "spdlog",
     "tbb",
     "tomlplusplus"

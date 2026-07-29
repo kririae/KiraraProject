@@ -20,6 +20,7 @@ void OptixGeometryPool::build(std::span<Ref<TriangleMesh const> const> meshes) {
     staging_.reserve(meshes.size());
 
     for (auto const &mesh : meshes) {
+        auto const hostImpl = mesh->getImpl();
         auto const vertices = mesh->getVertices();
         auto const triangles = mesh->getTriangles();
         auto const normals = mesh->getNormals();
@@ -43,19 +44,21 @@ void OptixGeometryPool::build(std::span<Ref<TriangleMesh const> const> meshes) {
         entry.texCoords.copyFromHost({texCoords.data(), texCoords.size()});
         entry.texCoordIndices.copyFromHost({texCoordIndices.data(), texCoordIndices.size()});
         entry.vertexBuffer = devicePointer(entry.vertices.data());
-        auto const *deviceNormalIndices =
-            entry.normalIndices.empty() ? entry.triangles.data() : entry.normalIndices.data();
-        auto const *deviceTexCoordIndices =
-            entry.texCoordIndices.empty() ? entry.triangles.data() : entry.texCoordIndices.data();
+        auto const *deviceNormalIndices = hostImpl.normalIndices == hostImpl.triangles
+                                              ? entry.triangles.data()
+                                              : entry.normalIndices.data();
+        auto const *deviceTexCoordIndices = hostImpl.texCoordIndices == hostImpl.triangles
+                                                ? entry.triangles.data()
+                                                : entry.texCoordIndices.data();
         staging_.push_back({
             .vertices = entry.vertices.data(),
             .triangles = entry.triangles.data(),
-            .normals = entry.normals.empty() ? nullptr : entry.normals.data(),
-            .normalIndices = entry.normals.empty() ? nullptr : deviceNormalIndices,
-            .texCoords = entry.texCoords.empty() ? nullptr : entry.texCoords.data(),
-            .texCoordIndices = entry.texCoords.empty() ? nullptr : deviceTexCoordIndices,
-            .numVertices = static_cast<std::uint32_t>(vertices.size()),
-            .numTriangles = static_cast<std::uint32_t>(triangles.size()),
+            .normals = hostImpl.normals ? entry.normals.data() : nullptr,
+            .normalIndices = hostImpl.normalIndices ? deviceNormalIndices : nullptr,
+            .texCoords = hostImpl.texCoords ? entry.texCoords.data() : nullptr,
+            .texCoordIndices = hostImpl.texCoordIndices ? deviceTexCoordIndices : nullptr,
+            .numVertices = hostImpl.numVertices,
+            .numTriangles = hostImpl.numTriangles,
         });
     }
 

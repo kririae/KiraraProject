@@ -11,7 +11,7 @@
 #include "flux/Optix/KernelUtils.cuh"
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Scene/Context.h"
-#include "flux/Scene/TriangleMesh.cuh"
+#include "flux/Scene/TriangleMeshImpl.h"
 
 #ifndef FLUX_TEST_FIXTURES_DIR
 #error "FLUX_TEST_FIXTURES_DIR must name the Flux test fixtures directory"
@@ -19,7 +19,7 @@
 
 namespace {
 struct ReconstructTriangleInteraction {
-    flux::TriangleMesh::DeviceImpl geometry;
+    flux::TriangleMesh::Impl geometry;
     flux::PreliminaryIntersection preliminary;
     flux::GeometryInteraction *result;
 

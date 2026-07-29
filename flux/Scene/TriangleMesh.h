@@ -10,20 +10,23 @@
 #include "kira/SmallVector.h"
 
 namespace flux {
-/// \brief Host-side indexed triangle mesh.
+/// \brief Host indexed triangle mesh.
 ///
-/// The \c path property names an OBJ file. This class owns CPU data only;
-/// backend geometry pools decide how and when to upload it.
+/// The \c path property names an OBJ file. TriangleMesh owns its host arrays.
+/// Each backend builds its geometry from these arrays.
 class TriangleMesh final : public Geometry {
     friend class TXContext;
 
 public:
-    /// \brief Non-owning representation consumed by device programs.
-    struct DeviceImpl;
+    /// \brief Stores indexed triangle mesh data for a backend scene.
+    struct Impl;
 
     /// \brief Returns object-space vertex positions.
     [[nodiscard]] std::span<Vec3f const> getVertices() const noexcept {
-        return {vertices_.data(), vertices_.size()};
+        return {
+            vertices_.data(),
+            vertices_.empty() ? 0 : vertices_.size() - 1,
+        };
     }
 
     /// \brief Returns zero-based vertex indices for each triangle.
@@ -57,12 +60,17 @@ public:
         return {texCoordIndices_.data(), texCoordIndices_.size()};
     }
 
+    /// \brief Returns an Impl that refers to the host mesh arrays.
+    [[nodiscard]] Impl getImpl() const noexcept;
+
 private:
     TriangleMesh(TXContext &tx, kira::Properties properties);
 
     /// \brief Replaces this mesh with the triangulated contents of \p path.
     void loadObj(std::filesystem::path const &path);
 
+    /// Embree may read four floats for RTC_FORMAT_FLOAT3, so vertex storage
+    /// includes one padding element.
     kira::SmallVector<Vec3f, 0> vertices_;
     kira::SmallVector<Vec3u, 0> triangles_;
     kira::SmallVector<Vec3f, 0> normals_;
@@ -71,24 +79,24 @@ private:
     kira::SmallVector<Vec3u, 0> texCoordIndices_;
 };
 
-/// \brief Device implementation of an indexed triangle mesh.
+/// \brief Stores indexed triangle mesh data for a backend scene.
 ///
-/// The pointers refer to storage owned by \c OptixGeometryPool. Member
-/// function definitions live in the device-only TriangleMesh header.
-struct TriangleMesh::DeviceImpl {
-    /// Device array of object-space vertex positions.
+/// The active backend keeps every referenced array alive while its scene uses
+/// this Impl.
+struct TriangleMesh::Impl {
+    /// Array of object-space vertex positions.
     Vec3f const *vertices{};
 
-    /// Device array of zero-based triangle vertex indices.
+    /// Array of zero-based triangle vertex indices.
     Vec3u const *triangles{};
 
-    /// Device array of object-space vertex normals, or null when absent.
+    /// Array of object-space vertex normals, or null when absent.
     Vec3f const *normals{};
 
     /// Per-triangle normal indices, valid whenever \c normals is non-null.
     Vec3u const *normalIndices{};
 
-    /// Device array of texture coordinates, or null when absent.
+    /// Array of texture coordinates, or null when absent.
     Vec2f const *texCoords{};
 
     /// Per-triangle texture-coordinate indices, valid whenever \c texCoords is non-null.
@@ -105,21 +113,21 @@ public:
     ///
     /// \pre \p triangle is less than \c numTriangles and \p corner is less
     /// than three.
-    [[nodiscard]] KIRA_DEVICE inline Vec3f
+    [[nodiscard]] KIRA_HOST_DEVICE inline Vec3f
     getVertex(std::uint32_t triangle, std::uint32_t corner) const noexcept;
 
     /// \brief Reconstructs a geometry-space interaction from \p preliminary.
     ///
     /// \pre \p preliminary names a valid, non-degenerate triangle.
-    [[nodiscard]] KIRA_DEVICE inline GeometryInteraction
+    [[nodiscard]] KIRA_HOST_DEVICE inline GeometryInteraction
     computeInteraction(PreliminaryIntersection const &preliminary) const noexcept;
 };
 
-static_assert(std::is_standard_layout_v<TriangleMesh::DeviceImpl>);
-static_assert(std::is_trivially_copyable_v<TriangleMesh::DeviceImpl>);
+static_assert(std::is_standard_layout_v<TriangleMesh::Impl>);
+static_assert(std::is_trivially_copyable_v<TriangleMesh::Impl>);
 
 namespace optix {
-/// Device representation of an indexed triangle mesh.
-using TriangleMesh = ::flux::TriangleMesh::DeviceImpl;
+/// OptiX alias for TriangleMesh::Impl.
+using TriangleMesh = ::flux::TriangleMesh::Impl;
 } // namespace optix
 } // namespace flux

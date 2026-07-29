@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <limits>
+#include <type_traits>
 
 #include "flux/Core/MathUtils.h"
 #include "flux/Scene/Camera.h"
@@ -10,7 +11,7 @@
 #include "flux/Scene/FilmImpl.h"
 #include "flux/Scene/RenderProduct.h"
 
-TEST(RenderProductTests, MaterializesPinholeCameraFrame) {
+TEST(RenderProductTests, BuildsPinholeCameraFrame) {
     kira::Properties properties;
     properties.set("position", flux::Vec3f{0.0F, 0.0F, 0.0F});
     properties.set("look_at", flux::Vec3f{0.0F, 0.0F, -1.0F});
@@ -45,7 +46,7 @@ TEST(RenderProductTests, RejectsDegenerateCameraFrame) {
     EXPECT_THROW((void)camera->getImpl(), kira::Anyhow);
 }
 
-TEST(RenderProductTests, OwnsResizableFilmDescriptor) {
+TEST(RenderProductTests, OwnsFilmAndSampleTarget) {
     auto camera = flux::Camera::create();
     kira::Properties properties;
     properties.set("width", std::uint32_t{640});
@@ -86,7 +87,33 @@ TEST(RenderProductTests, RejectsZeroFilmDimensions) {
     EXPECT_EQ(film.getHeight(), 1U);
 }
 
-TEST(RenderProductTests, SelectsFilmChannelsAtRuntime) {
+TEST(RenderProductTests, MovesAndSwapsFilmResolutionAndChannels) {
+    static_assert(!std::is_copy_constructible_v<flux::Film>);
+    static_assert(!std::is_copy_assignable_v<flux::Film>);
+    static_assert(std::is_nothrow_move_constructible_v<flux::Film>);
+    static_assert(std::is_nothrow_move_assignable_v<flux::Film>);
+    static_assert(std::is_nothrow_swappable_v<flux::Film>);
+
+    flux::Film first(1, 2);
+    first.setChannels(flux::FilmChannels::Normal);
+    flux::Film second(3, 4);
+    second.setChannels(flux::FilmChannels::Albedo);
+
+    swap(first, second);
+    EXPECT_EQ(first.getWidth(), 3);
+    EXPECT_EQ(first.getHeight(), 4);
+    EXPECT_EQ(first.getChannels(), flux::FilmChannels::Albedo);
+    EXPECT_EQ(second.getWidth(), 1);
+    EXPECT_EQ(second.getHeight(), 2);
+    EXPECT_EQ(second.getChannels(), flux::FilmChannels::Normal);
+
+    first = flux::Film(5, 6);
+    EXPECT_EQ(first.getWidth(), 5);
+    EXPECT_EQ(first.getHeight(), 6);
+    EXPECT_EQ(first.getChannels(), flux::FilmChannels::All);
+}
+
+TEST(RenderProductTests, SetsRequestedFilmChannels) {
     flux::Film film(1, 1);
     EXPECT_TRUE(film.hasChannel(flux::FilmChannels::Normal));
     EXPECT_TRUE(film.hasChannel(flux::FilmChannels::Albedo));
@@ -100,7 +127,10 @@ TEST(RenderProductTests, SelectsFilmChannelsAtRuntime) {
     EXPECT_FALSE(film.hasChannel(flux::FilmChannels::Normal));
     EXPECT_FALSE(film.hasChannel(flux::FilmChannels::Albedo));
 
-    EXPECT_THROW(film.setChannels(static_cast<flux::FilmChannels>(1U << 31U)), kira::Anyhow);
+    // Use an underlying value that has no FilmChannels enumerator.
+    // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange)
+    auto const unknownChannels = static_cast<flux::FilmChannels>(1U << 31U);
+    EXPECT_THROW(film.setChannels(unknownChannels), kira::Anyhow);
     EXPECT_EQ(film.getChannels(), flux::FilmChannels::None);
 }
 

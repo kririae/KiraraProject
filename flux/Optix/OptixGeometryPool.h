@@ -21,7 +21,7 @@ public:
     explicit OptixGeometryPool(cudaStream_t stream) noexcept
         : CudaStreamMixin(stream), deviceImpls_(stream) {}
 
-    /// \brief Builds the complete resident triangle-mesh set.
+    /// \brief Builds the resident triangle meshes.
     ///
     /// Meshes omitted from \p meshes are released.
     /// \param meshes Host meshes to upload in device-table order.
@@ -37,7 +37,7 @@ public:
     [[nodiscard]] std::size_t size() const noexcept { return entries_.size(); }
 
     /// \brief Returns the device array of resident mesh implementations.
-    [[nodiscard]] TriangleMesh::DeviceImpl const *getDeviceImpls() const noexcept {
+    [[nodiscard]] TriangleMesh::Impl const *getDeviceImpls() const noexcept {
         return deviceImpls_.data();
     }
 
@@ -58,7 +58,7 @@ private:
     };
 
     std::vector<Entry> entries_;
-    std::vector<TriangleMesh::DeviceImpl> staging_;
-    DeviceBuffer<TriangleMesh::DeviceImpl> deviceImpls_;
+    std::vector<TriangleMesh::Impl> staging_;
+    DeviceBuffer<TriangleMesh::Impl> deviceImpls_;
 };
 } // namespace flux

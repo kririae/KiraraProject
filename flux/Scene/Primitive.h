@@ -16,18 +16,18 @@ class Geometry;
 struct PreliminaryIntersection;
 struct SurfaceInteraction;
 
-/// \brief Places geometry in the host scene.
+/// \brief Places Geometry in a Context.
 ///
-/// The \c geometry_ctx_id property identifies Geometry in the same
-/// context. A primitive owns an instance transform but does not duplicate the
-/// context's geometry ownership. Its stable context ID is not used as a device
-/// array index.
+/// The \c geometry_ctx_id property identifies Geometry in the same Context.
+/// The Primitive owns its instance transform, while the Context owns the
+/// Geometry. A backend scene maps the stable Context ID to a dense geometry
+/// index.
 class Primitive final : public RenderObject {
     friend class TXContext;
 
 public:
-    /// \brief Compact representation consumed by device programs.
-    struct DeviceImpl;
+    /// \brief Stores primitive indices for a backend scene.
+    struct Impl;
 
     /// \brief Returns the context ID of the bound geometry.
     [[nodiscard]] std::size_t getGeometryContextId() const noexcept { return geometryContextId_; }
@@ -76,10 +76,10 @@ private:
     bool visible_{true};
 };
 
-/// \brief Device implementation of a scene primitive.
+/// \brief Stores primitive indices for a backend scene.
 ///
-/// The index addresses the geometry table from the same OptiX context sync.
-struct Primitive::DeviceImpl {
+/// Both indices address tables in that scene.
+struct Primitive::Impl {
     /// Sentinel used when this primitive has no BSDF.
     static constexpr std::uint32_t invalidBSDFIndex = std::numeric_limits<std::uint32_t>::max();
 
@@ -90,33 +90,23 @@ struct Primitive::DeviceImpl {
     std::uint32_t bsdfIndex{invalidBSDFIndex};
 
 public:
-    /// \brief Returns the dense geometry index for this materialization.
-    [[nodiscard]] KIRA_DEVICE inline std::uint32_t getGeometryIndex() const noexcept;
+    /// \brief Returns the dense geometry index in this backend scene.
+    [[nodiscard]] KIRA_HOST_DEVICE inline std::uint32_t getGeometryIndex() const noexcept;
 
     /// \brief Returns whether this primitive has a BSDF.
-    [[nodiscard]] KIRA_DEVICE inline bool hasBSDF() const noexcept;
+    [[nodiscard]] KIRA_HOST_DEVICE inline bool hasBSDF() const noexcept;
 
-    /// \brief Returns the dense BSDF index for this materialization.
+    /// \brief Returns the dense BSDF index in this backend scene.
     ///
     /// \pre \c hasBSDF() is true.
-    [[nodiscard]] KIRA_DEVICE inline std::uint32_t getBSDFIndex() const noexcept;
-
-    /// \brief Reconstructs a world-space interaction for the current OptiX hit.
-    ///
-    /// \tparam GeometryImpl Concrete geometry selected by the hit program.
-    /// \param geometry Geometry-space implementation referenced by this primitive.
-    /// \param preliminary Traversal result for the current hit.
-    template <typename GeometryImpl>
-    [[nodiscard]] KIRA_DEVICE inline SurfaceInteraction computeSurfaceInteraction(
-        GeometryImpl const &geometry, PreliminaryIntersection const &preliminary
-    ) const noexcept;
+    [[nodiscard]] KIRA_HOST_DEVICE inline std::uint32_t getBSDFIndex() const noexcept;
 };
 
-static_assert(std::is_standard_layout_v<Primitive::DeviceImpl>);
-static_assert(std::is_trivially_copyable_v<Primitive::DeviceImpl>);
+static_assert(std::is_standard_layout_v<Primitive::Impl>);
+static_assert(std::is_trivially_copyable_v<Primitive::Impl>);
 
 namespace optix {
-/// Device representation of a scene primitive.
-using Primitive = ::flux::Primitive::DeviceImpl;
+/// OptiX alias for Primitive::Impl.
+using Primitive = ::flux::Primitive::Impl;
 } // namespace optix
 } // namespace flux

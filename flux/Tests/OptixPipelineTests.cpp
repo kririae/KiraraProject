@@ -40,7 +40,7 @@ TEST(OptixPipelineTests, UsesAStableProgramTypeSbtLayout) {
     EXPECT_EQ(flux::OptixSbt::getNumHitgroupRecords(), 2);
 }
 
-TEST(OptixPipelineTests, LaunchesRaygenProgram) {
+TEST(OptixPipelineTests, RendersAndDownloadsFilmChannels) {
     if (!flux::test::hasCudaMemoryPoolSupport())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
@@ -55,14 +55,21 @@ TEST(OptixPipelineTests, LaunchesRaygenProgram) {
     flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
 
     EXPECT_EQ(handler.getContext(), context);
+    EXPECT_THROW(handler.download(*product), kira::Anyhow);
     EXPECT_THROW(handler.render(*product, 0), std::invalid_argument);
     EXPECT_NO_THROW(handler.render(*product, 4));
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 4);
+    EXPECT_NO_THROW(handler.download(*product));
+    ASSERT_EQ(product->getFilm().getChannel<flux::NormalChannel>().size(), 1);
+    EXPECT_EQ(product->getFilm().getChannel<flux::NormalChannel>()[0], (flux::Vec3f{}));
+    ASSERT_EQ(product->getFilm().getChannel<flux::AlbedoChannel>().size(), 1);
+    EXPECT_EQ(product->getFilm().getChannel<flux::AlbedoChannel>()[0], (flux::Vec3f{}));
 
     handler.setSampleOffset(0);
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 4);
     handler.setSampleOffset(100);
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
+    EXPECT_EQ(product->getFilm().getChannel<flux::NormalChannel>().size(), 1);
     EXPECT_NO_THROW(handler.render(*product, 2));
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 2);
 
@@ -70,7 +77,7 @@ TEST(OptixPipelineTests, LaunchesRaygenProgram) {
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
 }
 
-TEST(OptixPipelineTests, ReleasesStateAfterConstructionFails) {
+TEST(OptixPipelineTests, ReleasesContextAfterConstructionFails) {
     if (!flux::test::hasCudaMemoryPoolSupport())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
@@ -89,7 +96,7 @@ TEST(OptixPipelineTests, ReleasesStateAfterConstructionFails) {
     EXPECT_NO_THROW(handler.render(*product, 1));
 }
 
-TEST(OptixPipelineTests, InvalidatesAffectedRenderProducts) {
+TEST(OptixPipelineTests, InvalidatesAccumulationAfterCameraChangeAndSync) {
     if (!flux::test::hasCudaMemoryPoolSupport())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
@@ -129,7 +136,7 @@ TEST(OptixPipelineTests, InvalidatesAffectedRenderProducts) {
     EXPECT_FALSE(handler.isConverged(*secondProduct));
 }
 
-TEST(OptixPipelineTests, TracksFilmLayoutAndConvergence) {
+TEST(OptixPipelineTests, TracksAccumulationAcrossFilmAndSampleTargetChanges) {
     if (!flux::test::hasCudaMemoryPoolSupport())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 

@@ -6,14 +6,13 @@
 #include "flux/Scene/TriangleMesh.h"
 
 namespace flux {
-KIRA_DEVICE inline Vec3f
-TriangleMesh::DeviceImpl::getVertex(std::uint32_t triangle, std::uint32_t corner) const noexcept {
+KIRA_HOST_DEVICE inline Vec3f
+TriangleMesh::Impl::getVertex(std::uint32_t triangle, std::uint32_t corner) const noexcept {
     return vertices[triangles[triangle][corner]];
 }
 
-KIRA_DEVICE inline GeometryInteraction TriangleMesh::DeviceImpl::computeInteraction(
-    PreliminaryIntersection const &preliminary
-) const noexcept {
+KIRA_HOST_DEVICE inline GeometryInteraction
+TriangleMesh::Impl::computeInteraction(PreliminaryIntersection const &preliminary) const noexcept {
     auto const vertex0 = getVertex(preliminary.elementIndex, 0);
     auto const vertex1 = getVertex(preliminary.elementIndex, 1);
     auto const vertex2 = getVertex(preliminary.elementIndex, 2);

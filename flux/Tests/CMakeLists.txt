@@ -49,6 +49,15 @@ krr_add_test(
     HARD_DEPENDENCIES flux)
 
 krr_add_test(
+    flux Embree PipelineTests
+    SOURCES EmbreePipelineTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(
+    flux.Embree.PipelineTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
+                                      FLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/EmbreePipelineTests")
+target_link_libraries(flux.Embree.PipelineTests PRIVATE OpenImageIO::OpenImageIO)
+
+krr_add_test(
     flux Optix PipelineTests
     SOURCES OptixPipelineTests.cpp
     HARD_DEPENDENCIES flux)

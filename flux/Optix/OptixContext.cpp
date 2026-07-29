@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <limits>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "flux/Optix/DeviceBuffer.h"
@@ -26,10 +27,10 @@ namespace flux {
 struct OptixContext::Impl : private CudaStreamMixin {
     Impl(
         Context &context, OptixDeviceContext deviceContext, cudaStream_t stream,
-        std::filesystem::path const &modulePath
+        std::filesystem::path modulePath
     )
         : CudaStreamMixin(stream), context(context), deviceContext(deviceContext),
-          modulePath(modulePath), geometryPool(stream), accel(stream), sbt(stream),
+          modulePath(std::move(modulePath)), geometryPool(stream), accel(stream), sbt(stream),
           primitives(stream), bsdfs(stream) {}
 
     void sync() try {
@@ -40,35 +41,33 @@ struct OptixContext::Impl : private CudaStreamMixin {
         program.reset();
         program = std::make_unique<OptixProgram>(deviceContext, modulePath, spec);
 
-        auto const scenePrimitives = context.getObjects<Primitive>();
-        auto const sceneBSDFs = context.getObjects<BSDF>();
+        auto const contextPrimitives = context.getObjects<Primitive>();
+        auto const contextBSDFs = context.getObjects<BSDF>();
         kira::SmallVector<Ref<TriangleMesh const>> uniqueMeshes;
         std::unordered_map<std::size_t, std::uint32_t> geometryIndexByContextId;
         std::unordered_map<std::size_t, std::uint32_t> bsdfIndexByContextId;
         std::vector<OptixAccel::InstanceDesc> instanceDescs;
         primitiveStaging.clear();
         bsdfStaging.clear();
-        uniqueMeshes.reserve(scenePrimitives.size());
-        geometryIndexByContextId.reserve(scenePrimitives.size());
-        bsdfIndexByContextId.reserve(sceneBSDFs.size());
-        instanceDescs.reserve(scenePrimitives.size());
-        primitiveStaging.reserve(scenePrimitives.size());
-        bsdfStaging.reserve(sceneBSDFs.size());
+        uniqueMeshes.reserve(contextPrimitives.size());
+        geometryIndexByContextId.reserve(contextPrimitives.size());
+        bsdfIndexByContextId.reserve(contextBSDFs.size());
+        instanceDescs.reserve(contextPrimitives.size());
+        primitiveStaging.reserve(contextPrimitives.size());
+        bsdfStaging.reserve(contextBSDFs.size());
 
-        if (sceneBSDFs.size() > Primitive::DeviceImpl::invalidBSDFIndex)
+        if (contextBSDFs.size() > Primitive::Impl::invalidBSDFIndex)
             throw kira::Anyhow("OptixContext: BSDF count exceeds device limits");
 
-        // BSDF indices belong to this device snapshot. Context IDs remain
-        // stable on the host but may contain gaps.
-        for (auto const &bsdf : sceneBSDFs) {
+        // Context IDs may contain gaps. Assign each BSDF a dense OptiX scene index.
+        for (auto const &bsdf : contextBSDFs) {
             auto const index = static_cast<std::uint32_t>(bsdfStaging.size());
             bsdfIndexByContextId.emplace(bsdf->getContextId(), index);
             bsdfStaging.push_back(bsdf->getImpl());
         }
 
-        // Flatten the visible scene into the dense arrays used on the device.
-        // Several primitives may share one geometry, so assign each mesh one
-        // backend-local index before building the primitive and instance arrays.
+        // Pack visible primitives into dense OptiX arrays. Shared meshes use one
+        // OptiX scene geometry index.
         auto const getOrAddGeometryIndex = [&](Ref<Geometry const> const &geometry) {
             auto const contextId = geometry->getContextId();
             if (auto const iterator = geometryIndexByContextId.find(contextId);
@@ -95,19 +94,19 @@ struct OptixContext::Impl : private CudaStreamMixin {
             return index;
         };
 
-        for (auto const &primitive : scenePrimitives) {
+        for (auto const &primitive : contextPrimitives) {
             if (!primitive->isVisible())
                 continue;
 
             auto const geometry = primitive->getGeometry();
             auto const geometryIndex = getOrAddGeometryIndex(geometry);
             auto const bsdf = primitive->getBSDF();
-            auto bsdfIndex = Primitive::DeviceImpl::invalidBSDFIndex;
+            auto bsdfIndex = Primitive::Impl::invalidBSDFIndex;
             if (bsdf) {
                 auto const iterator = bsdfIndexByContextId.find(bsdf->getContextId());
                 KIRA_ASSERT(
                     iterator != bsdfIndexByContextId.end(),
-                    "Linked BSDF is missing from the device snapshot"
+                    "Linked BSDF is missing from the OptiX scene"
                 );
                 bsdfIndex = iterator->second;
             }
@@ -133,7 +132,7 @@ struct OptixContext::Impl : private CudaStreamMixin {
         accel.buildIas(deviceContext, instanceDescs);
         sbt.build(*program);
 
-        // Publish the new snapshot only after every queued upload and build has finished.
+        // Wait for all queued uploads and builds before returning.
         cudaCheck(cudaStreamSynchronize(getStream()));
     } catch (...) {
         cudaCheck<false>(cudaStreamSynchronize(getStream()));
@@ -147,8 +146,8 @@ struct OptixContext::Impl : private CudaStreamMixin {
     OptixGeometryPool geometryPool;
     OptixAccel accel;
     OptixSbt sbt;
-    std::vector<Primitive::DeviceImpl> primitiveStaging;
-    DeviceBuffer<Primitive::DeviceImpl> primitives;
+    std::vector<Primitive::Impl> primitiveStaging;
+    DeviceBuffer<Primitive::Impl> primitives;
     std::vector<BSDF::Impl> bsdfStaging;
     DeviceBuffer<BSDF::Impl> bsdfs;
 };

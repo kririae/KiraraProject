@@ -4,10 +4,13 @@
 
 #include "flux/Integrator/PathIntegratorImpl.h"
 #include "flux/Optix/OptixContext.cuh"
+#include "flux/Optix/OptixInteraction.cuh"
 #include "flux/Optix/OptixLaunchParams.h"
 #include "flux/Sampling/SamplerImpl.h"
 #include "flux/Scene/CameraImpl.h"
 #include "flux/Scene/FilmImpl.h"
+#include "flux/Scene/PrimitiveImpl.h"
+#include "flux/Scene/TriangleMeshImpl.h"
 #include "flux/Shading/DiffuseBSDFImpl.h"
 
 extern "C" {
@@ -33,8 +36,8 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
         .sampler = sampler,
     };
 
-    // The megakernel owns scheduling. Integrator operations advance one path
-    // vertex at a time.
+    // The megakernel schedules each path. Every integrator call advances one
+    // vertex.
     while (state.active)
         optixLaunchParams.scene.trace(state);
 }
@@ -49,8 +52,8 @@ extern "C" __global__ void __miss__shadow() { // NOLINT
 }
 
 extern "C" __global__ void __closesthit__triangle_diffuse() { // NOLINT
-    auto const instanceIndex = optixGetInstanceId();
-    auto const &primitive = optixLaunchParams.scene.getPrimitive(instanceIndex);
+    auto const primitiveIndex = optixGetInstanceId();
+    auto const &primitive = optixLaunchParams.scene.getPrimitive(primitiveIndex);
     auto const &geometry = optixLaunchParams.scene.getGeometry(primitive.getGeometryIndex());
     auto const barycentrics = optixGetTriangleBarycentrics();
     auto const preliminary = flux::PreliminaryIntersection{
@@ -58,7 +61,7 @@ extern "C" __global__ void __closesthit__triangle_diffuse() { // NOLINT
         .coordinates = {barycentrics.x, barycentrics.y},
         .elementIndex = optixGetPrimitiveIndex(),
     };
-    auto surface = primitive.computeSurfaceInteraction(geometry, preliminary);
+    auto surface = flux::optix::makeSurfaceInteraction(geometry, preliminary, primitiveIndex);
     auto const rayDirectionValue = optixGetWorldRayDirection();
     auto const rayDirection =
         flux::Vec3f{rayDirectionValue.x, rayDirectionValue.y, rayDirectionValue.z};
@@ -68,27 +71,26 @@ extern "C" __global__ void __closesthit__triangle_diffuse() { // NOLINT
     auto const sampleWeight = optixLaunchParams.getSampleWeight();
 
     if (primitive.hasBSDF()) {
-        // The SBT selected Diffuse code. The primitive supplies only the
-        // snapshot-local index of its parameter payload.
-        auto const &payload = optixLaunchParams.scene.getBSDF(primitive.getBSDFIndex());
-        auto bsdf = payload.get<flux::DiffuseBSDF::Impl>();
+        // The SBT selects the diffuse hit program. The primitive stores its
+        // OptiX scene BSDF index.
+        auto const &bsdf = optixLaunchParams.scene.getBSDF(primitive.getBSDFIndex());
+        auto diffuse = bsdf.get<flux::DiffuseBSDF::Impl>();
         auto const wo = -rayDirection;
-        bsdf.init(surface, wo);
+        diffuse.init(surface, wo);
 
         if (state->bounce == 0) {
-            // Material initialization may replace the shading normal, so guide
-            // output must follow it.
+            // BSDF initialization may change the shading normal. Write the
+            // result to the normal channel.
             optixLaunchParams.film.accumulate<flux::NormalChannel>(
                 launchSample.pixel, surface.shadingNormal * sampleWeight
             );
 
             if (optixLaunchParams.film.hasChannel<flux::AlbedoChannel>()) {
-                // The albedo guide uses the same directional estimator as the
-                // transport sample. For Lambertian reflection it is exactly
-                // the constant reflectance.
+                // The albedo channel uses the BSDF sample. Diffuse reflection
+                // yields its constant reflectance.
                 auto const query = flux::BSDFQuery{.surface = surface, .wo = wo};
                 auto const bsdfSample =
-                    bsdf.sample(query, state->sampler.get1D(), state->sampler.get2D());
+                    diffuse.sample(query, state->sampler.get1D(), state->sampler.get2D());
                 if (bsdfSample.pdf > 0.0F) {
                     auto const cosine = std::abs(bsdfSample.wi.dot(surface.shadingNormal));
                     auto const albedo = bsdfSample.f * (cosine / bsdfSample.pdf);

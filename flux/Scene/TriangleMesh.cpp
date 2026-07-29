@@ -27,9 +27,8 @@ void generateVertexNormals(
         normals[index] = Vec3f{0.0F};
     });
 
-    // This is libigl's angle-weighted per-vertex scheme adapted to the packed
-    // Flux storage. Relaxed atomic accumulation keeps the pass parallel without
-    // allocating one vertex-sized scratch buffer per worker.
+    // Use libigl's angle-weighted vertex-normal formula. Workers add each
+    // contribution to the shared normal array with relaxed atomics.
     tbb::parallel_for(std::size_t{0}, triangles.size(), [&](std::size_t triangleIndex) {
         auto const &triangle = triangles[triangleIndex];
         auto const &vertex0 = vertices[triangle[0]];
@@ -76,6 +75,25 @@ TriangleMesh::TriangleMesh(TXContext &tx, kira::Properties properties)
     loadObj(getProperties().use<std::filesystem::path>("path"));
 }
 
+TriangleMesh::Impl TriangleMesh::getImpl() const noexcept {
+    auto const vertices = getVertices();
+    return {
+        .vertices = vertices.data(),
+        .triangles = triangles_.data(),
+        .normals = normals_.empty() ? nullptr : normals_.data(),
+        .normalIndices = normals_.empty()
+                             ? nullptr
+                             : (normalIndices_.empty() ? triangles_.data() : normalIndices_.data()),
+        .texCoords = texCoords_.empty() ? nullptr : texCoords_.data(),
+        .texCoordIndices =
+            texCoords_.empty()
+                ? nullptr
+                : (texCoordIndices_.empty() ? triangles_.data() : texCoordIndices_.data()),
+        .numVertices = static_cast<std::uint32_t>(vertices.size()),
+        .numTriangles = static_cast<std::uint32_t>(triangles_.size()),
+    };
+}
+
 void TriangleMesh::loadObj(std::filesystem::path const &path) {
     auto result = rapidobj::ParseFile(path, rapidobj::MaterialLibrary::Ignore());
     if (result.error)
@@ -115,7 +133,7 @@ void TriangleMesh::loadObj(std::filesystem::path const &path) {
     bool allCornersHaveTexCoords = true;
     bool texCoordIndicesAliasVertices = true;
 
-    // Validate the complete parser representation before writing native storage.
+    // Validate all parsed OBJ data before writing TriangleMesh arrays.
     for (std::size_t shapeIndex = 0; shapeIndex < result.shapes.size(); ++shapeIndex) {
         auto const &mesh = result.shapes[shapeIndex].mesh;
         auto const numTriangles = mesh.num_face_vertices.size();
@@ -137,7 +155,7 @@ void TriangleMesh::loadObj(std::filesystem::path const &path) {
 
         for (auto const &index : mesh.indices) {
             if (index.position_index < 0 ||
-                static_cast<std::size_t>(index.position_index) >= numVertices)
+                std::cmp_greater_equal(index.position_index, numVertices))
                 throw kira::Anyhow(
                     "TriangleMesh: OBJ '{}' contains an invalid vertex index", path.string()
                 );
@@ -147,7 +165,7 @@ void TriangleMesh::loadObj(std::filesystem::path const &path) {
                 normalIndicesAliasVertices = false;
             } else {
                 anyNormalIndex = true;
-                if (static_cast<std::size_t>(index.normal_index) >= numNormals)
+                if (std::cmp_greater_equal(index.normal_index, numNormals))
                     throw kira::Anyhow(
                         "TriangleMesh: OBJ '{}' contains an invalid normal index", path.string()
                     );
@@ -159,7 +177,7 @@ void TriangleMesh::loadObj(std::filesystem::path const &path) {
                 texCoordIndicesAliasVertices = false;
             } else {
                 anyTexCoordIndex = true;
-                if (static_cast<std::size_t>(index.texcoord_index) >= numTexCoords)
+                if (std::cmp_greater_equal(index.texcoord_index, numTexCoords))
                     throw kira::Anyhow(
                         "TriangleMesh: OBJ '{}' contains an invalid texture-coordinate index",
                         path.string()
@@ -184,8 +202,7 @@ void TriangleMesh::loadObj(std::filesystem::path const &path) {
     if (!hasCompleteTexCoords && (anyTexCoordIndex || numTexCoords != 0))
         LogWarn("TriangleMesh: ignoring incomplete texture coordinates in '{}'", path.string());
 
-    // Discard parser arrays that cannot contribute to the native mesh before
-    // allocating their replacements.
+    // Release parsed arrays after their last use to limit peak memory.
     release(result.attributes.colors);
     if (!hasCompleteNormals)
         release(result.attributes.normals);
@@ -198,7 +215,7 @@ void TriangleMesh::loadObj(std::filesystem::path const &path) {
     if (hasCompleteTexCoords && !texCoordIndicesAliasVertices)
         texCoordIndices_.resize_for_overwrite(numTriangles);
 
-    // Each shape owns a disjoint output range, so packing needs no shared state.
+    // Write each shape to its own output range in parallel.
     tbb::parallel_for(std::size_t{0}, result.shapes.size(), [&](std::size_t shapeIndex) {
         auto const &indices = result.shapes[shapeIndex].mesh.indices;
         auto const outputOffset = triangleOffsets[shapeIndex];
@@ -226,7 +243,7 @@ void TriangleMesh::loadObj(std::filesystem::path const &path) {
     });
     release(result.shapes);
 
-    vertices_.resize_for_overwrite(numVertices);
+    vertices_.resize_for_overwrite(numVertices + 1);
     tbb::parallel_for(std::size_t{0}, numVertices, [&](std::size_t index) {
         auto const offset = index * 3;
         vertices_[index] = Vec3f{
@@ -235,6 +252,7 @@ void TriangleMesh::loadObj(std::filesystem::path const &path) {
             result.attributes.positions[offset + 2],
         };
     });
+    vertices_[numVertices] = Vec3f{};
     release(result.attributes.positions);
 
     if (hasCompleteNormals) {

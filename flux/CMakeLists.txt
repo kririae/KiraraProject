@@ -1,5 +1,8 @@
 enable_language(CUDA)
 find_package(CUDAToolkit REQUIRED)
+find_package(Eigen3 CONFIG REQUIRED)
+find_package(embree 4 REQUIRED)
+find_package(OpenImageIO CONFIG REQUIRED)
 find_package(TBB CONFIG REQUIRED)
 
 add_compile_options($<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
@@ -21,9 +24,17 @@ add_library(flux_optix_headers INTERFACE)
 add_library(OptiX::OptiX ALIAS flux_optix_headers)
 target_include_directories(flux_optix_headers SYSTEM INTERFACE "${optix_SOURCE_DIR}/include")
 
+# Isolate OIIO compile definitions in the ImageIO implementation.
+add_library(flux_image_io STATIC IO/ImageIO.cpp)
+target_include_directories(flux_image_io PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_link_libraries(flux_image_io PRIVATE kira::Core kira::Vecteur OpenImageIO::OpenImageIO)
+
 add_library(
     flux STATIC
     Core/Object.cpp
+    Embree/EmbreeContext.cpp
+    Embree/EmbreeHandler.cpp
+    Embree/EmbreeRenderProductPool.cpp
     Integrator/PathIntegrator.cpp
     Optix/OptixAccel.cpp
     Optix/OptixContext.cpp
@@ -45,8 +56,14 @@ add_library(
     Shading/BSDF.cpp)
 
 target_include_directories(flux PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
-target_link_libraries(flux PUBLIC CUDA::cudart kira::Core kira::Vecteur OptiX::OptiX)
-target_link_libraries(flux PRIVATE rapidobj::rapidobj TBB::tbb)
+target_link_libraries(
+    flux
+    PUBLIC CUDA::cudart
+           embree
+           kira::Core
+           kira::Vecteur
+           OptiX::OptiX)
+target_link_libraries(flux PRIVATE Eigen3::Eigen flux_image_io rapidobj::rapidobj TBB::tbb)
 
 add_library(flux_megakernel_ir OBJECT Integrator/MegaKernel.cu)
 set_target_properties(flux_megakernel_ir PROPERTIES CUDA_OPTIX_COMPILATION ON)
@@ -55,8 +72,10 @@ target_link_libraries(flux_megakernel_ir PRIVATE kira::Vecteur OptiX::OptiX)
 
 if(MSVC)
     target_compile_options(flux PRIVATE /W4)
+    target_compile_options(flux_image_io PRIVATE /W4)
 else()
     target_compile_options(flux PRIVATE -Wall -Wextra)
+    target_compile_options(flux_image_io PRIVATE -Wall -Wextra)
 endif()
 
 if(KRR_BUILD_TESTS)

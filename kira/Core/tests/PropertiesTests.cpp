@@ -1,10 +1,19 @@
 #include <gtest/gtest.h>
 
 #include <numbers>
+#include <type_traits>
 
 #include "kira/Properties.h"
+#include "kira/SmallVector.h"
 
 using namespace kira;
+
+static_assert(std::is_nothrow_move_constructible_v<SmallVector<int, 0>>);
+static_assert(std::is_nothrow_move_assignable_v<SmallVector<int, 0>>);
+static_assert(std::is_nothrow_swappable_v<SmallVector<int, 0>>);
+static_assert(noexcept(
+    std::swap(std::declval<SmallVector<int, 0> &>(), std::declval<SmallVector<int, 0> &>())
+));
 
 class PropertiesTests : public ::testing::Test {
 protected:

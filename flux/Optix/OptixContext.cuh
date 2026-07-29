@@ -6,8 +6,8 @@
 
 #include "flux/Integrator/PathIntegratorImpl.h"
 #include "flux/Optix/OptixContext.h"
-#include "flux/Scene/Primitive.cuh"
-#include "flux/Scene/TriangleMesh.cuh"
+#include "flux/Scene/PrimitiveImpl.h"
+#include "flux/Scene/TriangleMeshImpl.h"
 
 namespace flux {
 namespace optix {
@@ -65,12 +65,12 @@ KIRA_DEVICE inline void OptixContext::DeviceImpl::trace(PathState &state) const 
     // clang-format on
 }
 
-KIRA_DEVICE inline Primitive::DeviceImpl const &
+KIRA_DEVICE inline Primitive::Impl const &
 OptixContext::DeviceImpl::getPrimitive(std::uint32_t instanceIndex) const noexcept {
     return primitives[instanceIndex];
 }
 
-KIRA_DEVICE inline TriangleMesh::DeviceImpl const &
+KIRA_DEVICE inline TriangleMesh::Impl const &
 OptixContext::DeviceImpl::getGeometry(std::uint32_t geometryIndex) const noexcept {
     return geometries[geometryIndex];
 }
