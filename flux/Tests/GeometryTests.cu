@@ -77,6 +77,85 @@ TEST(GeometryTests, PreservesIndependentObjAttributeIndices) {
     EXPECT_EQ(mesh->getTexCoords()[2], (flux::Vec2f{0.5F, 0.6F}));
 }
 
+TEST(GeometryTests, LoadsAsciiPlyAndTriangulatesConcavePolygons) {
+    auto context = flux::Context::create();
+    auto mesh = context->create<flux::TriangleMesh>(triangleProperties("Polygons.ply"));
+
+    ASSERT_EQ(mesh->getVertices().size(), 9);
+    ASSERT_EQ(mesh->getTriangles().size(), 5);
+    ASSERT_EQ(mesh->getNormals().size(), 9);
+    EXPECT_TRUE(mesh->getNormalIndices().empty());
+    EXPECT_EQ(mesh->getNormals()[0], (flux::Vec3f{0.0F, 0.0F, 1.0F}));
+    EXPECT_TRUE(mesh->getTexCoords().empty());
+    EXPECT_TRUE(mesh->getTexCoordIndices().empty());
+    EXPECT_EQ(mesh->getVertices()[3], (flux::Vec3f{0.0F, 2.0F, 0.0F}));
+
+    std::array<bool, 9> usedVertices{};
+    float totalArea = 0.0F;
+    for (std::size_t triangle = 0; triangle < mesh->getTriangles().size(); ++triangle) {
+        for (std::size_t corner = 0; corner < 3; ++corner) {
+            auto const index = mesh->getTriangles()[triangle][corner];
+            ASSERT_LT(index, mesh->getVertices().size());
+            usedVertices[index] = true;
+            if (triangle < 2)
+                EXPECT_LT(index, 4);
+            else
+                EXPECT_GE(index, 4);
+        }
+        auto const &indices = mesh->getTriangles()[triangle];
+        auto const &vertex0 = mesh->getVertices()[indices[0u]];
+        auto const &vertex1 = mesh->getVertices()[indices[1u]];
+        auto const &vertex2 = mesh->getVertices()[indices[2u]];
+        auto const area = flux::cross(vertex1 - vertex0, vertex2 - vertex0).z() * 0.5F;
+        EXPECT_GT(area, 0.0F);
+        totalArea += area;
+    }
+    for (auto const used : usedVertices)
+        EXPECT_TRUE(used);
+    EXPECT_NEAR(totalArea, 7.0F, 1.0e-6F);
+}
+
+TEST(GeometryTests, LoadsBinaryLittleEndianPly) {
+    auto context = flux::Context::create();
+    auto mesh = context->create<flux::TriangleMesh>(triangleProperties("CboxFloor.ply"));
+
+    ASSERT_EQ(mesh->getVertices().size(), 6);
+    ASSERT_EQ(mesh->getTriangles().size(), 2);
+    ASSERT_EQ(mesh->getNormals().size(), 6);
+    EXPECT_TRUE(mesh->getNormalIndices().empty());
+    ASSERT_EQ(mesh->getTexCoords().size(), 6);
+    EXPECT_TRUE(mesh->getTexCoordIndices().empty());
+    EXPECT_EQ(mesh->getVertices()[0], (flux::Vec3f{-1.0F, 0.0F, 1.0F}));
+    EXPECT_EQ(mesh->getNormals()[0], (flux::Vec3f{0.0F, 1.0F, 0.0F}));
+    EXPECT_EQ(mesh->getTexCoords()[0], (flux::Vec2f{0.0F, 0.0F}));
+    EXPECT_EQ(mesh->getTriangles()[0], (flux::Vec3u{0, 1, 2}));
+    EXPECT_EQ(mesh->getTriangles()[1], (flux::Vec3u{3, 4, 5}));
+}
+
+TEST(GeometryTests, RejectsInvalidPlyVertexIndex) {
+    auto context = flux::Context::create();
+    EXPECT_THROW(
+        (void)context->create<flux::TriangleMesh>(triangleProperties("InvalidIndex.ply")),
+        kira::Anyhow
+    );
+}
+
+TEST(GeometryTests, RejectsTruncatedPlyFace) {
+    auto context = flux::Context::create();
+    EXPECT_THROW(
+        (void)context->create<flux::TriangleMesh>(triangleProperties("TruncatedFace.ply")),
+        kira::Anyhow
+    );
+}
+
+TEST(GeometryTests, RejectsListTypedPlyPosition) {
+    auto context = flux::Context::create();
+    EXPECT_THROW(
+        (void)context->create<flux::TriangleMesh>(triangleProperties("ListPosition.ply")),
+        kira::Anyhow
+    );
+}
+
 TEST(GeometryTests, ReconstructsTriangleInteractionInGeometrySpace) {
     if (!flux::test::hasCudaMemoryPoolSupport())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";

@@ -2,6 +2,7 @@ enable_language(CUDA)
 find_package(CUDAToolkit REQUIRED)
 find_package(Eigen3 CONFIG REQUIRED)
 find_package(embree 4 REQUIRED)
+find_package(unofficial-miniply CONFIG REQUIRED)
 find_package(OpenImageIO CONFIG REQUIRED)
 find_package(TBB CONFIG REQUIRED)
 
@@ -67,7 +68,13 @@ target_link_libraries(
            kira::Core
            kira::Vecteur
            OptiX::OptiX)
-target_link_libraries(flux PRIVATE Eigen3::Eigen flux_image_io rapidobj::rapidobj TBB::tbb)
+target_link_libraries(
+    flux
+    PRIVATE Eigen3::Eigen
+            flux_image_io
+            rapidobj::rapidobj
+            TBB::tbb
+            unofficial::miniply::miniply)
 
 add_library(flux_megakernel_ir OBJECT Optix/OptixMegaKernel.cu)
 set_target_properties(flux_megakernel_ir PROPERTIES CUDA_OPTIX_COMPILATION ON)

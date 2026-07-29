@@ -12,8 +12,12 @@
 namespace flux {
 /// \brief Host indexed triangle mesh.
 ///
-/// The \c path property names an OBJ file. TriangleMesh owns its host arrays.
+/// The \c path property names an OBJ or PLY file. TriangleMesh owns its host arrays.
 /// Each backend builds its geometry from these arrays.
+///
+/// PLY polygons are triangulated. Complete vertex normals and texture coordinates
+/// are imported. Missing or incomplete normals are generated; missing or incomplete
+/// texture coordinates are ignored.
 class TriangleMesh final : public Geometry {
     friend class TXContext;
 
@@ -65,8 +69,8 @@ public:
 private:
     TriangleMesh(TXContext &tx, kira::Properties properties);
 
-    /// \brief Replaces this mesh with the triangulated contents of \p path.
     void loadObj(std::filesystem::path const &path);
+    void loadPly(std::filesystem::path const &path);
 
     /// Embree may read four floats for RTC_FORMAT_FLOAT3, so vertex storage
     /// includes one padding element.

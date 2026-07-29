@@ -17,6 +17,7 @@
     "highway",
     "libigl",
     "magic-enum",
+    "miniply",
     "openimageio",
     "spdlog",
     "tbb",
