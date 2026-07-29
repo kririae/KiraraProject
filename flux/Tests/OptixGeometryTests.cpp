@@ -11,6 +11,7 @@
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
+#include "flux/Scene/Light.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/RenderProduct.h"
 #include "flux/Scene/TriangleMesh.h"
@@ -96,4 +97,45 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
     handler.sync();
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
     EXPECT_NO_THROW(handler.render(*product, 1));
+}
+
+TEST(OptixGeometryTests, RendersDirectLightIntoColorChannel) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    auto context = flux::Context::create();
+    (void)context->create<flux::PathIntegrator>();
+    (void)context->create<flux::IndependentSampler>();
+
+    kira::Properties meshProperties;
+    meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
+    auto mesh = context->create<flux::TriangleMesh>(std::move(meshProperties));
+    auto bsdf = context->create<flux::DiffuseBSDF>();
+    (void)context->create<flux::Primitive>(primitiveProperties(*mesh, bsdf.get()));
+
+    kira::Properties lightProperties;
+    lightProperties.set("position", flux::Vec3f{0.25F, 0.25F, 1.0F});
+    lightProperties.set("intensity", flux::Spectrum{1.0F, 1.0F, 1.0F});
+    (void)context->create<flux::PointLight>(std::move(lightProperties));
+
+    kira::Properties cameraProperties;
+    cameraProperties.set("position", flux::Vec3f{0.25F, 0.25F, 1.0F});
+    cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.0F});
+    cameraProperties.set("fov", 1.0F);
+    auto camera = flux::Camera::create(std::move(cameraProperties));
+    kira::Properties productProperties;
+    productProperties.set("width", std::uint32_t{1});
+    productProperties.set("height", std::uint32_t{1});
+    auto product = flux::RenderProduct::create(camera, std::move(productProperties));
+    product->getFilm().setChannels(flux::FilmChannels::Color);
+
+    flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
+    handler.render(*product, 4);
+    handler.download(*product);
+
+    auto const color = product->getFilm().getChannel<flux::ColorChannel>();
+    ASSERT_EQ(color.size(), 1);
+    EXPECT_GT(color[0].x(), 0.0F);
+    EXPECT_GT(color[0].y(), 0.0F);
+    EXPECT_GT(color[0].z(), 0.0F);
 }

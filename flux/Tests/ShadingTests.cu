@@ -47,6 +47,20 @@ TEST(ShadingTests, BuildsAnOrthonormalFrame) {
     EXPECT_NEAR(frame.toLocal(normal).z(), 1.0F, 1.0e-5F);
 }
 
+TEST(ShadingTests, KeepsShortVisibilityRaysPointedAtTheirTarget) {
+    auto const surface = flux::SurfaceInteraction{
+        .position = {0.0F, 0.0F, 0.0F},
+        .geometricNormal = {0.0F, 0.0F, 1.0F},
+    };
+
+    auto const ray = surface.spawnRayTo({0.0F, 0.0F, 1.0e-7F});
+
+    EXPECT_GT(ray.origin.z(), 0.0F);
+    EXPECT_LT(ray.origin.z(), 1.0e-7F);
+    EXPECT_EQ(ray.direction, (flux::Vec3f{0.0F, 0.0F, 1.0F}));
+    EXPECT_GT(ray.maxDistance, 0.0F);
+}
+
 TEST(ShadingTests, EvaluatesDiffuseOnHost) {
     auto surface = flux::SurfaceInteraction{
         .shadingNormal = {0.0F, 0.0F, 1.0F},

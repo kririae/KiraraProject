@@ -28,7 +28,8 @@ enum class FilmChannels : std::uint32_t {
     None = 0,
     Normal = 1U << 0U,
     Albedo = 1U << 1U,
-    All = (1U << 0U) | (1U << 1U),
+    Color = 1U << 2U,
+    All = (1U << 0U) | (1U << 1U) | (1U << 2U),
 };
 
 /// \brief Combines two FilmChannels values.
@@ -56,8 +57,17 @@ struct AlbedoChannel {
     static constexpr FilmChannels flag = FilmChannels::Albedo;
 };
 
+/// \brief Describes the accumulated scene-linear color channel.
+struct ColorChannel {
+    /// Value stored for each pixel.
+    using Value = Spectrum;
+
+    /// FilmChannels bit for this channel.
+    static constexpr FilmChannels flag = FilmChannels::Color;
+};
+
 /// \brief Type list of all film channels supported by the renderer.
-using FilmChannelTypes = detail::TypeList<NormalChannel, AlbedoChannel>;
+using FilmChannelTypes = detail::TypeList<ColorChannel, NormalChannel, AlbedoChannel>;
 
 /// \brief Stores one channel-specific element for every type in \c Channels.
 ///
@@ -136,6 +146,11 @@ template <typename Channel> struct FilmChannelView {
     typename Channel::Value *data{};
 };
 
+static_assert(
+    std::is_same_v<
+        decltype(std::declval<FilmChannelListOf<FilmChannelView> &>().template get<ColorChannel>()),
+        FilmChannelView<ColorChannel> &>
+);
 static_assert(std::is_same_v<
               decltype(std::declval<FilmChannelListOf<FilmChannelView> &>()
                            .template get<NormalChannel>()),
@@ -144,6 +159,10 @@ static_assert(std::is_same_v<
               decltype(std::declval<FilmChannelListOf<FilmChannelView> &>()
                            .template get<AlbedoChannel>()),
               FilmChannelView<AlbedoChannel> &>);
+static_assert(std::is_same_v<
+              decltype(std::declval<FilmChannelListOf<FilmChannelView> const &>()
+                           .template get<ColorChannel>()),
+              FilmChannelView<ColorChannel> const &>);
 static_assert(std::is_same_v<
               decltype(std::declval<FilmChannelListOf<FilmChannelView> const &>()
                            .template get<NormalChannel>()),

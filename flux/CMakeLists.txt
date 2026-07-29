@@ -34,12 +34,15 @@ add_library(
     Core/Object.cpp
     Embree/EmbreeContext.cpp
     Embree/EmbreeHandler.cpp
+    Embree/EmbreeLightSampler.cpp
+    Embree/EmbreeMegaKernel.cpp
     Embree/EmbreeRenderProductPool.cpp
     Integrator/PathIntegrator.cpp
     Optix/OptixAccel.cpp
     Optix/OptixContext.cpp
     Optix/OptixGeometryPool.cpp
     Optix/OptixHandler.cu
+    Optix/OptixLightSampler.cpp
     Optix/OptixProgram.cpp
     Optix/OptixRenderProductPool.cpp
     Optix/OptixSbt.cpp
@@ -48,6 +51,7 @@ add_library(
     Scene/Context.cpp
     Scene/Film.cpp
     Scene/Geometry.cpp
+    Scene/Light.cpp
     Scene/Primitive.cpp
     Scene/RenderObject.cpp
     Scene/RenderProduct.cpp
@@ -65,7 +69,7 @@ target_link_libraries(
            OptiX::OptiX)
 target_link_libraries(flux PRIVATE Eigen3::Eigen flux_image_io rapidobj::rapidobj TBB::tbb)
 
-add_library(flux_megakernel_ir OBJECT Integrator/MegaKernel.cu)
+add_library(flux_megakernel_ir OBJECT Optix/OptixMegaKernel.cu)
 set_target_properties(flux_megakernel_ir PROPERTIES CUDA_OPTIX_COMPILATION ON)
 target_include_directories(flux_megakernel_ir PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(flux_megakernel_ir PRIVATE kira::Vecteur OptiX::OptiX)

@@ -4,7 +4,7 @@
 
 #include <cstdint>
 
-#include "flux/Integrator/PathIntegratorImpl.h"
+#include "flux/Integrator/PathIntegrator.h"
 #include "flux/Optix/OptixContext.h"
 #include "flux/Scene/PrimitiveImpl.h"
 #include "flux/Scene/TriangleMeshImpl.h"
@@ -37,7 +37,7 @@ template <typename T> [[nodiscard]] KIRA_DEVICE T *getPayloadPointer() noexcept 
 }
 } // namespace optix
 
-KIRA_DEVICE inline void OptixContext::DeviceImpl::trace(PathState &state) const noexcept {
+KIRA_DEVICE inline void OptixContext::Impl::trace(PathState &state) const noexcept {
     if (!traversable) {
         PathIntegrator::Impl{}.onMiss(state);
         return;
@@ -65,18 +65,42 @@ KIRA_DEVICE inline void OptixContext::DeviceImpl::trace(PathState &state) const 
     // clang-format on
 }
 
+KIRA_DEVICE inline bool OptixContext::Impl::isVisible(Ray const &ray) const noexcept {
+    if (!traversable)
+        return true;
+
+    std::uint32_t occluded = 0;
+    // clang-format off
+    optixTrace(
+        /* handle =          */ traversable,
+        /* rayOrigin =       */ make_float3(ray.origin.x(), ray.origin.y(), ray.origin.z()),
+        /* rayDirection =    */ make_float3(ray.direction.x(), ray.direction.y(), ray.direction.z()),
+        /* tmin =            */ ray.minDistance,
+        /* tmax =            */ ray.maxDistance,
+        /* rayTime =         */ 0.0F,
+        /* visibilityMask =  */ 255,
+        /* rayFlags =        */ OPTIX_RAY_FLAG_DISABLE_ANYHIT |
+                               OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT,
+        /* sbtOffset =       */ static_cast<unsigned int>(RayType::Shadow),
+        /* sbtStride =       */ static_cast<unsigned int>(RayType::Count),
+        /* missSbtIndex =    */ static_cast<unsigned int>(RayType::Shadow),
+        /* occluded =        */ occluded);
+    // clang-format on
+    return occluded == 0;
+}
+
 KIRA_DEVICE inline Primitive::Impl const &
-OptixContext::DeviceImpl::getPrimitive(std::uint32_t instanceIndex) const noexcept {
+OptixContext::Impl::getPrimitive(std::uint32_t instanceIndex) const noexcept {
     return primitives[instanceIndex];
 }
 
 KIRA_DEVICE inline TriangleMesh::Impl const &
-OptixContext::DeviceImpl::getGeometry(std::uint32_t geometryIndex) const noexcept {
+OptixContext::Impl::getGeometry(std::uint32_t geometryIndex) const noexcept {
     return geometries[geometryIndex];
 }
 
 KIRA_DEVICE inline BSDF::Impl const &
-OptixContext::DeviceImpl::getBSDF(std::uint32_t bsdfIndex) const noexcept {
+OptixContext::Impl::getBSDF(std::uint32_t bsdfIndex) const noexcept {
     return bsdfs[bsdfIndex];
 }
 } // namespace flux

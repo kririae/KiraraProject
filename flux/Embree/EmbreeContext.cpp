@@ -21,6 +21,21 @@ namespace {
 static_assert(sizeof(Vec3f) == 3 * sizeof(float));
 static_assert(sizeof(Vec3u) == 3 * sizeof(std::uint32_t));
 
+[[nodiscard]] RTCRay makeRay(Ray const &ray) noexcept {
+    RTCRay result{};
+    result.org_x = ray.origin.x();
+    result.org_y = ray.origin.y();
+    result.org_z = ray.origin.z();
+    result.tnear = ray.minDistance;
+    result.dir_x = ray.direction.x();
+    result.dir_y = ray.direction.y();
+    result.dir_z = ray.direction.z();
+    result.time = 0.0F;
+    result.tfar = ray.maxDistance;
+    result.mask = std::numeric_limits<unsigned int>::max();
+    return result;
+}
+
 class EmbreeGeometryHandle final : private Noncopyable {
 public:
     explicit EmbreeGeometryHandle(RTCGeometry geometry) noexcept : geometry_(geometry) {}
@@ -63,6 +78,7 @@ void EmbreeContext::reset() noexcept {
     primitives_.clear();
     normalTransforms_.clear();
     bsdfs_.clear();
+    lightSampler_.clear();
 }
 
 void EmbreeContext::sync() try {
@@ -71,6 +87,7 @@ void EmbreeContext::sync() try {
 
     auto const contextPrimitives = context_.getObjects<Primitive>();
     auto const contextBSDFs = context_.getObjects<BSDF>();
+    auto const contextLights = context_.getObjects<Light>();
     std::unordered_map<std::size_t, std::uint32_t> geometryIndexByContextId;
     std::unordered_map<std::size_t, std::uint32_t> bsdfIndexByContextId;
     geometryIndexByContextId.reserve(contextPrimitives.size());
@@ -90,6 +107,7 @@ void EmbreeContext::sync() try {
         bsdfIndexByContextId.emplace(bsdf->getContextId(), index);
         bsdfs_.push_back(bsdf->getImpl());
     }
+    lightSampler_.build(contextLights);
 
     auto const getOrAddGeometryIndex = [&](Ref<Geometry const> const &geometry) {
         auto const contextId = geometry->getContextId();
@@ -202,26 +220,32 @@ void EmbreeContext::sync() try {
     throw;
 }
 
-bool EmbreeContext::intersect(Ray const &ray, Hit &hit) const noexcept {
+EmbreeContext::Impl EmbreeContext::getImpl() const noexcept {
+    return {
+        .scene = scene_,
+        .geometries = meshImpls_.data(),
+        .primitives = primitives_.data(),
+        .normalTransforms = normalTransforms_.data(),
+        .bsdfs = bsdfs_.data(),
+        .lightSampler = lightSampler_.getSampler(),
+        .numGeometries = static_cast<std::uint32_t>(meshImpls_.size()),
+        .numPrimitives = static_cast<std::uint32_t>(primitives_.size()),
+        .numBSDFs = static_cast<std::uint32_t>(bsdfs_.size()),
+    };
+}
+
+bool EmbreeContext::Impl::intersect(Ray const &ray, Hit &hit) const noexcept {
+    if (!scene)
+        return false;
+
     RTCRayHit rayHit{};
-    rayHit.ray.org_x = ray.origin.x();
-    rayHit.ray.org_y = ray.origin.y();
-    rayHit.ray.org_z = ray.origin.z();
-    rayHit.ray.tnear = ray.minDistance;
-    rayHit.ray.dir_x = ray.direction.x();
-    rayHit.ray.dir_y = ray.direction.y();
-    rayHit.ray.dir_z = ray.direction.z();
-    rayHit.ray.time = 0.0F;
-    rayHit.ray.tfar = ray.maxDistance;
-    rayHit.ray.mask = std::numeric_limits<unsigned int>::max();
-    rayHit.ray.id = 0;
-    rayHit.ray.flags = 0;
+    rayHit.ray = makeRay(ray);
     rayHit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
     std::ranges::fill(rayHit.hit.instID, RTC_INVALID_GEOMETRY_ID);
 
     RTCIntersectArguments arguments;
     rtcInitIntersectArguments(&arguments);
-    rtcIntersect1(scene_, &rayHit, &arguments);
+    rtcIntersect1(scene, &rayHit, &arguments);
     if (rayHit.hit.geomID == RTC_INVALID_GEOMETRY_ID)
         return false;
 
@@ -237,16 +261,37 @@ bool EmbreeContext::intersect(Ray const &ray, Hit &hit) const noexcept {
     return true;
 }
 
+bool EmbreeContext::Impl::isVisible(Ray const &ray) const noexcept {
+    if (!scene)
+        return true;
+
+    auto visibilityRay = makeRay(ray);
+    RTCOccludedArguments arguments;
+    rtcInitOccludedArguments(&arguments);
+    rtcOccluded1(scene, &visibilityRay, &arguments);
+    return visibilityRay.tfar >= 0.0F;
+}
+
 SurfaceInteraction
-EmbreeContext::makeSurfaceInteraction(Ray const &ray, Hit const &hit) const noexcept {
-    auto const &primitive = primitives_[hit.primitiveIndex];
+EmbreeContext::Impl::makeSurfaceInteraction(Ray const &ray, Hit const &hit) const noexcept {
+    auto const &primitive = primitives[hit.primitiveIndex];
     auto const geometryInteraction =
-        meshImpls_[primitive.getGeometryIndex()].computeInteraction(hit.preliminary);
-    auto const &normalTransform = normalTransforms_[hit.primitiveIndex];
+        geometries[primitive.getGeometryIndex()].computeInteraction(hit.preliminary);
+    auto const &normalTransform = normalTransforms[hit.primitiveIndex];
+    auto const transformNormal = [&](Vec3f const &normal) {
+        return Vec3f{
+            normalTransform[0] * normal.x() + normalTransform[1] * normal.y() +
+                normalTransform[2] * normal.z(),
+            normalTransform[3] * normal.x() + normalTransform[4] * normal.y() +
+                normalTransform[5] * normal.z(),
+            normalTransform[6] * normal.x() + normalTransform[7] * normal.y() +
+                normalTransform[8] * normal.z(),
+        };
+    };
     return {
         .position = ray.origin + ray.direction * hit.preliminary.distance,
-        .geometricNormal = normalTransform.apply(geometryInteraction.geometricNormal).normalize(),
-        .shadingNormal = normalTransform.apply(geometryInteraction.shadingNormal).normalize(),
+        .geometricNormal = transformNormal(geometryInteraction.geometricNormal).normalize(),
+        .shadingNormal = transformNormal(geometryInteraction.shadingNormal).normalize(),
         .uv = geometryInteraction.uv,
         .primitiveIndex = hit.primitiveIndex,
         .elementIndex = geometryInteraction.elementIndex,
@@ -254,24 +299,19 @@ EmbreeContext::makeSurfaceInteraction(Ray const &ray, Hit const &hit) const noex
     };
 }
 
-Primitive::Impl const &EmbreeContext::getPrimitive(std::uint32_t index) const noexcept {
-    return primitives_[index];
+Primitive::Impl const &EmbreeContext::Impl::getPrimitive(std::uint32_t index) const noexcept {
+    return primitives[index];
 }
 
-BSDF::Impl const &EmbreeContext::getBSDF(std::uint32_t index) const noexcept {
-    return bsdfs_[index];
+TriangleMesh::Impl const &EmbreeContext::Impl::getGeometry(std::uint32_t index) const noexcept {
+    return geometries[index];
 }
 
-Vec3f EmbreeContext::NormalTransform::apply(Vec3f const &normal) const noexcept {
-    return {
-        values[0] * normal.x() + values[1] * normal.y() + values[2] * normal.z(),
-        values[3] * normal.x() + values[4] * normal.y() + values[5] * normal.z(),
-        values[6] * normal.x() + values[7] * normal.y() + values[8] * normal.z(),
-    };
+BSDF::Impl const &EmbreeContext::Impl::getBSDF(std::uint32_t index) const noexcept {
+    return bsdfs[index];
 }
 
-EmbreeContext::NormalTransform
-EmbreeContext::makeNormalTransform(std::array<float, 12> const &transform) {
+std::array<float, 9> EmbreeContext::makeNormalTransform(std::array<float, 12> const &transform) {
     using AffineTransform = Eigen::Matrix<float, 3, 4, Eigen::RowMajor>;
     using NormalMatrix = Eigen::Matrix<float, 3, 3, Eigen::RowMajor>;
 
@@ -283,8 +323,8 @@ EmbreeContext::makeNormalTransform(std::array<float, 12> const &transform) {
     if (!decomposition.isInvertible())
         throw kira::Anyhow("EmbreeContext: primitive transform is singular");
 
-    NormalTransform result;
-    Eigen::Map<NormalMatrix> normalMatrix(result.values.data());
+    std::array<float, 9> result{};
+    Eigen::Map<NormalMatrix> normalMatrix(result.data());
     normalMatrix = decomposition.inverse().transpose();
     if (!normalMatrix.allFinite())
         throw kira::Anyhow("EmbreeContext: primitive normal transform is not finite");

@@ -8,6 +8,7 @@
 
 #include "flux/Core/Object.h"
 #include "flux/Core/Ray.h"
+#include "flux/Embree/EmbreeLightSampler.h"
 #include "flux/Scene/Geometry.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/TriangleMesh.h"
@@ -24,6 +25,9 @@ class Context;
 /// Call \c sync from one thread. Traversal supports concurrent calls after sync.
 class EmbreeContext final : private Noncopyable {
 public:
+    /// \brief Borrowed view of the current Embree scene.
+    struct Impl;
+
     /// \brief Embree intersection result.
     struct Hit {
         /// Geometry-space intersection data.
@@ -49,33 +53,14 @@ public:
     /// \throw std::out_of_range If a primitive refers to an unknown object.
     void sync();
 
-    /// \brief Finds the closest intersection of \p ray.
-    ///
-    /// Concurrent calls are safe after a successful sync.
-    [[nodiscard]] bool intersect(Ray const &ray, Hit &hit) const noexcept;
-
-    /// \brief Returns the world-space interaction at \p hit.
-    [[nodiscard]] SurfaceInteraction
-    makeSurfaceInteraction(Ray const &ray, Hit const &hit) const noexcept;
-
-    /// \brief Returns the primitive at \p index.
-    [[nodiscard]] Primitive::Impl const &getPrimitive(std::uint32_t index) const noexcept;
-
-    /// \brief Returns the BSDF at \p index.
-    [[nodiscard]] BSDF::Impl const &getBSDF(std::uint32_t index) const noexcept;
+    /// \brief Returns a borrowed view of the current scene.
+    [[nodiscard]] Impl getImpl() const noexcept;
 
 private:
     struct EmptyState {};
 
-    /// \brief Applies an inverse-transpose instance transform to a normal.
-    struct NormalTransform {
-        std::array<float, 9> values{};
-
-        [[nodiscard]] Vec3f apply(Vec3f const &normal) const noexcept;
-    };
-
     EmbreeContext(EmptyState, Context &context) noexcept;
-    [[nodiscard]] static NormalTransform
+    [[nodiscard]] static std::array<float, 9>
     makeNormalTransform(std::array<float, 12> const &transform);
     void reset() noexcept;
 
@@ -101,9 +86,71 @@ private:
     std::vector<Primitive::Impl> primitives_;
 
     /// World-space normal transforms indexed by top-level instance ID.
-    std::vector<NormalTransform> normalTransforms_;
+    std::vector<std::array<float, 9>> normalTransforms_;
 
     /// Dense BSDF implementations referenced by \c primitives_.
     std::vector<BSDF::Impl> bsdfs_;
+
+    /// Persistent light data and selection state.
+    EmbreeLightSampler lightSampler_;
 };
+
+/// \brief Borrowed view of an Embree scene.
+///
+/// The owning EmbreeContext keeps every referenced array and Embree handle
+/// valid until its next sync or destruction.
+struct EmbreeContext::Impl {
+    /// Current top-level Embree scene.
+    RTCScene scene{};
+
+    /// Geometry-space triangle mesh views.
+    TriangleMesh::Impl const *geometries{};
+
+    /// Visible primitives indexed by Embree instance ID.
+    Primitive::Impl const *primitives{};
+
+    /// Inverse-transpose normal transforms indexed by primitive.
+    std::array<float, 9> const *normalTransforms{};
+
+    /// Dense BSDF implementations.
+    BSDF::Impl const *bsdfs{};
+
+    /// Borrowed light sampler.
+    LightSampler lightSampler{};
+
+    /// Number of geometry entries.
+    std::uint32_t numGeometries{};
+
+    /// Number of primitive entries.
+    std::uint32_t numPrimitives{};
+
+    /// Number of BSDF entries.
+    std::uint32_t numBSDFs{};
+
+public:
+    /// \brief Finds the closest intersection of \p ray.
+    [[nodiscard]] bool intersect(Ray const &ray, Hit &hit) const noexcept;
+
+    /// \brief Returns whether \p ray reaches its endpoint without obstruction.
+    [[nodiscard]] bool isVisible(Ray const &ray) const noexcept;
+
+    /// \brief Returns the world-space interaction at \p hit.
+    [[nodiscard]] SurfaceInteraction
+    makeSurfaceInteraction(Ray const &ray, Hit const &hit) const noexcept;
+
+    /// \brief Returns the primitive at dense \p index.
+    [[nodiscard]] Primitive::Impl const &getPrimitive(std::uint32_t index) const noexcept;
+
+    /// \brief Returns the geometry at dense \p index.
+    [[nodiscard]] TriangleMesh::Impl const &getGeometry(std::uint32_t index) const noexcept;
+
+    /// \brief Returns the BSDF at dense \p index.
+    [[nodiscard]] BSDF::Impl const &getBSDF(std::uint32_t index) const noexcept;
+
+    /// \brief Returns the light sampler built with this scene.
+    [[nodiscard]] LightSampler const &getLightSampler() const noexcept { return lightSampler; }
+};
+
+static_assert(std::is_standard_layout_v<EmbreeContext::Impl>);
+static_assert(std::is_trivially_copyable_v<EmbreeContext::Impl>);
 } // namespace flux

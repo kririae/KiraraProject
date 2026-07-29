@@ -21,7 +21,7 @@ struct OptixLaunchSample {
 /// \brief Parameters shared by an OptiX render launch.
 struct OptixLaunchParams {
     /// Persistent OptiX scene used by this launch.
-    OptixContext::DeviceImpl scene;
+    OptixContext::Impl scene;
 
     /// Launch-time camera.
     Camera::Impl camera;

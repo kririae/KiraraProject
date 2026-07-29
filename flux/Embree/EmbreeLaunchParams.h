@@ -2,18 +2,16 @@
 
 #include <cstdint>
 
-#include "flux/Core/Object.h"
+#include "flux/Embree/EmbreeContext.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Film.h"
 
 namespace flux {
-class EmbreeContext;
-
 /// \brief Immutable state shared by one Embree render.
 struct EmbreeLaunchParams {
     /// Persistent Embree scene used by this render.
-    EmbreeContext const *scene;
+    EmbreeContext::Impl scene;
 
     /// Launch-time camera.
     Camera::Impl camera;
@@ -53,23 +51,4 @@ public:
     }
 };
 
-namespace embree::detail {
-/// \brief Returns the parameters bound to the current CPU render task.
-///
-/// \pre The current thread is inside a \c ScopedLaunchParams lifetime.
-[[nodiscard]] EmbreeLaunchParams const &getLaunchParams() noexcept;
-
-/// \brief Binds launch parameters to one CPU render task.
-///
-/// The previous binding is restored on destruction, so nested work on the
-/// same thread remains well-defined.
-class ScopedLaunchParams final : private Noncopyable {
-public:
-    explicit ScopedLaunchParams(EmbreeLaunchParams const &params) noexcept;
-    ~ScopedLaunchParams();
-
-private:
-    EmbreeLaunchParams const *previous_;
-};
-} // namespace embree::detail
 } // namespace flux

@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-#include "flux/Integrator/PathIntegratorImpl.h"
+#include "flux/Integrator/PathIntegrator.h"
 #include "flux/Optix/OptixContext.cuh"
 #include "flux/Optix/OptixInteraction.cuh"
 #include "flux/Optix/OptixLaunchParams.h"
@@ -36,10 +36,18 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
         .sampler = sampler,
     };
 
-    // The megakernel schedules each path. Every integrator call advances one
-    // vertex.
-    while (state.active)
+    auto const integrator = flux::PathIntegrator::Impl{};
+    while (state.active) {
         optixLaunchParams.scene.trace(state);
+        if (state.hasPendingShadowQuery) {
+            auto const visible = optixLaunchParams.scene.isVisible(state.pendingShadowQuery.ray);
+            integrator.resolvePendingShadowQuery(state, visible);
+        }
+    }
+
+    optixLaunchParams.film.accumulate<flux::ColorChannel>(
+        launchSample.pixel, state.radiance * optixLaunchParams.getSampleWeight()
+    );
 }
 
 extern "C" __global__ void __miss__radiance() { // NOLINT
@@ -70,27 +78,23 @@ extern "C" __global__ void __closesthit__triangle_diffuse() { // NOLINT
     auto *state = flux::optix::getPayloadPointer<flux::PathState>();
     auto const sampleWeight = optixLaunchParams.getSampleWeight();
 
+    auto const integrator = flux::PathIntegrator::Impl{};
     if (primitive.hasBSDF()) {
-        // The SBT selects the diffuse hit program. The primitive stores its
-        // OptiX scene BSDF index.
         auto const &bsdf = optixLaunchParams.scene.getBSDF(primitive.getBSDFIndex());
         auto diffuse = bsdf.get<flux::DiffuseBSDF::Impl>();
         auto const wo = -rayDirection;
         diffuse.init(surface, wo);
 
         if (state->bounce == 0) {
-            // BSDF initialization may change the shading normal. Write the
-            // result to the normal channel.
             optixLaunchParams.film.accumulate<flux::NormalChannel>(
                 launchSample.pixel, surface.shadingNormal * sampleWeight
             );
 
             if (optixLaunchParams.film.hasChannel<flux::AlbedoChannel>()) {
-                // The albedo channel uses the BSDF sample. Diffuse reflection
-                // yields its constant reflectance.
+                auto aovSampler = state->sampler;
                 auto const query = flux::BSDFQuery{.surface = surface, .wo = wo};
                 auto const bsdfSample =
-                    diffuse.sample(query, state->sampler.get1D(), state->sampler.get2D());
+                    diffuse.sample(query, aovSampler.get1D(), aovSampler.get2D());
                 if (bsdfSample.pdf > 0.0F) {
                     auto const cosine = std::abs(bsdfSample.wi.dot(surface.shadingNormal));
                     auto const albedo = bsdfSample.f * (cosine / bsdfSample.pdf);
@@ -100,13 +104,19 @@ extern "C" __global__ void __closesthit__triangle_diffuse() { // NOLINT
                 }
             }
         }
+
+        if (optixLaunchParams.film.hasChannel<flux::ColorChannel>())
+            integrator.onSurfaceHit(*state, optixLaunchParams.scene, diffuse, surface, wo);
+        else
+            integrator.onSurfaceHit(*state, surface);
     } else if (state->bounce == 0) {
         optixLaunchParams.film.accumulate<flux::NormalChannel>(
             launchSample.pixel, surface.shadingNormal * sampleWeight
         );
+        integrator.onSurfaceHit(*state, surface);
+    } else {
+        integrator.onSurfaceHit(*state, surface);
     }
-
-    flux::PathIntegrator::Impl{}.onSurfaceHit(*state, surface);
 }
 
 extern "C" __global__ void __closesthit__triangle_shadow() { // NOLINT

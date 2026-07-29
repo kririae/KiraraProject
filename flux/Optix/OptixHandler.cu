@@ -219,7 +219,7 @@ void OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
         // The stream orders normalization, parameter upload, and OptiX work.
         // Synchronization below also closes the host lifetime of launch data.
         auto const params = OptixLaunchParams{
-            .scene = impl_->optixContext.getDeviceImpl(),
+            .scene = impl_->optixContext.getImpl(),
             .camera = camera,
             .sampler = sampler->getImpl(resolution),
             .accumulatedSamples = accumulatedSamples,

@@ -1,9 +1,13 @@
 #pragma once
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <type_traits>
 
 #include "flux/Core/Math.h"
+#include "flux/Core/Ray.h"
+#include "kira/Compiler.h"
 
 namespace flux {
 /// \brief Geometric information at a ray-surface intersection.
@@ -34,6 +38,43 @@ struct SurfaceInteraction {
 
     /// Ray distance at the intersection.
     float distance{};
+
+public:
+    /// \brief Spawns a visibility ray toward \p target.
+    ///
+    /// The origin moves along the geometric normal on the target-facing side.
+    /// The maximum distance stops before the target to avoid reporting either
+    /// endpoint as an occluder.
+    [[nodiscard]] KIRA_HOST_DEVICE Ray spawnRayTo(Vec3f const &target) const noexcept {
+        constexpr float originEpsilon = 1.0e-5F;
+        constexpr float targetEpsilon = 1.0e-6F;
+
+        auto const initialDirection = target - position;
+        auto const initialSquaredDistance = initialDirection.norm2();
+        if (!(initialSquaredDistance > 0.0F))
+            return {.origin = position, .direction = {}, .maxDistance = 0.0F};
+
+        auto const normal =
+            initialDirection.dot(geometricNormal) >= 0.0F ? geometricNormal : -geometricNormal;
+        auto const magnitude = 1.0F + std::max(
+                                          std::abs(position.x()),
+                                          std::max(std::abs(position.y()), std::abs(position.z()))
+                                      );
+        auto const initialDistance = std::sqrt(initialSquaredDistance);
+        auto const offsetDistance = std::min(magnitude * originEpsilon, initialDistance * 0.5F);
+        auto const origin = position + normal * offsetDistance;
+        auto const offset = target - origin;
+        auto const squaredDistance = offset.norm2();
+        if (!(squaredDistance > 0.0F))
+            return {.origin = origin, .direction = {}, .maxDistance = 0.0F};
+
+        auto const rayDistance = std::sqrt(squaredDistance);
+        return {
+            .origin = origin,
+            .direction = offset / rayDistance,
+            .maxDistance = rayDistance * (1.0F - targetEpsilon),
+        };
+    }
 };
 
 static_assert(std::is_standard_layout_v<SurfaceInteraction>);

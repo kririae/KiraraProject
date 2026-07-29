@@ -10,6 +10,8 @@
 #include <type_traits>
 
 #include "flux/Core/Object.h"
+#include "flux/Core/Ray.h"
+#include "flux/Sampling/LightSampler.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
@@ -27,7 +29,7 @@ class OptixContext final : private Noncopyable {
 
 public:
     /// \brief Device view of the current OptiX scene.
-    struct DeviceImpl;
+    struct Impl;
 
     /// \brief Releases OptiX scene resources.
     ~OptixContext();
@@ -65,17 +67,17 @@ private:
     ) const;
 
     /// \brief Returns the current OptiX scene view.
-    [[nodiscard]] DeviceImpl getDeviceImpl() const noexcept;
+    [[nodiscard]] Impl getImpl() const noexcept;
 
     /// \brief Returns the values specialized into the current pipeline.
     [[nodiscard]] OptixProgramSpec const &getProgramSpec() const noexcept;
 
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
+    struct Storage;
+    std::unique_ptr<Storage> storage_;
 };
 
 /// \brief Device view of an OptiX scene.
-struct OptixContext::DeviceImpl {
+struct OptixContext::Impl {
     /// Top-level instance acceleration structure.
     OptixTraversableHandle traversable{};
 
@@ -87,6 +89,9 @@ struct OptixContext::DeviceImpl {
 
     /// Device array of BSDFs registered in the host \c Context.
     BSDF::Impl const *bsdfs{};
+
+    /// Borrowed light sampler.
+    LightSampler lightSampler{};
 
     /// Number of elements in \c geometries.
     std::uint32_t numGeometries{};
@@ -103,6 +108,9 @@ public:
     /// An empty scene takes the same transition as a miss. Otherwise, the
     /// selected miss or closest-hit program advances \p state.
     KIRA_DEVICE void trace(PathState &state) const noexcept;
+
+    /// \brief Returns whether \p ray reaches its endpoint without obstruction.
+    [[nodiscard]] KIRA_DEVICE bool isVisible(Ray const &ray) const noexcept;
 
     /// \brief Returns the primitive at dense \p instanceIndex.
     ///
@@ -121,13 +129,18 @@ public:
     /// \pre \p bsdfIndex is less than \c numBSDFs.
     [[nodiscard]] KIRA_DEVICE inline BSDF::Impl const &
     getBSDF(std::uint32_t bsdfIndex) const noexcept;
+
+    /// \brief Returns the light sampler built with this scene.
+    [[nodiscard]] KIRA_DEVICE inline LightSampler const &getLightSampler() const noexcept {
+        return lightSampler;
+    }
 };
 
-static_assert(std::is_standard_layout_v<OptixContext::DeviceImpl>);
-static_assert(std::is_trivially_copyable_v<OptixContext::DeviceImpl>);
+static_assert(std::is_standard_layout_v<OptixContext::Impl>);
+static_assert(std::is_trivially_copyable_v<OptixContext::Impl>);
 
 namespace optix {
 /// OptiX device scene view.
-using Scene = ::flux::OptixContext::DeviceImpl;
+using Scene = ::flux::OptixContext::Impl;
 } // namespace optix
 } // namespace flux
