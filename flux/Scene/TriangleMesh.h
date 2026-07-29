@@ -18,7 +18,6 @@ class TriangleMesh final : public Geometry {
     friend class TXContext;
 
 public:
-    /// \brief Stores indexed triangle mesh data for a backend scene.
     struct Impl;
 
     /// \brief Returns object-space vertex positions.

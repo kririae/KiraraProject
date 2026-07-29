@@ -35,7 +35,7 @@ TEST(KernelUtilsTests, AppliesFunctorToEveryLinearIndex) {
     flux::DeviceBuffer<std::size_t> output(cudaStreamPerThread);
     output.resize(elementCount);
 
-    flux::launchLinearKernel(
+    flux::launchLinearKernel<64>(
         elementCount, StoreLinearIndex{.output = output.data()}, cudaStreamPerThread
     );
 

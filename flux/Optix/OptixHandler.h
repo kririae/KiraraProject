@@ -18,47 +18,35 @@ class RenderProduct;
 /// \c sync after changing the host \c Context.
 class OptixHandler final : private Noncopyable {
 public:
-    /// \brief Creates an OptiX handler using the program in \p modulePath.
+    /// \brief Creates a handler and builds its initial OptiX scene.
     ///
-    /// \param context Host \c Context retained for the lifetime of the handler.
-    /// \param modulePath Path to the OptiX IR module used by the pipeline.
-    /// \throw kira::Anyhow if \p context is null, has no active integrator or
-    /// sampler, or setup fails.
-    /// \throw std::out_of_range If a primitive refers to an unknown geometry.
+    /// \p modulePath names the OptiX IR module used by the pipeline.
     OptixHandler(Ref<Context> context, std::filesystem::path const &modulePath);
 
-    /// \brief Waits for pending work and releases device resources.
     ~OptixHandler();
 
-    /// \brief Rebuilds the OptiX scene from the host \c Context.
+    /// \brief Commits the host \c Context and rebuilds the OptiX scene.
     ///
-    /// This function fully rebuilds the OptiX scene and waits for queued work
-    /// before returning. Destroy this handler after a failed rebuild.
-    /// \throw kira::Anyhow If scene linking, CUDA, or OptiX setup fails.
-    /// \throw std::out_of_range If a primitive refers to an unknown geometry.
+    /// Rebuilding clears the current scene first and waits for queued work. A
+    /// failed sync leaves this handler unusable. Sync also clears accumulation
+    /// for every render product. Recover by creating a new handler.
     void sync();
 
     /// \brief Renders one sample batch into \p product and waits for completion.
     ///
-    /// The host \c Context owns the active Sampler. Call \c sync after changing
-    /// the Context or program specialization.
-    /// \param product Render product receiving the sample.
-    /// \param samples Number of samples assigned to every pixel.
-    /// \throw kira::Anyhow If the Context has no active Sampler, the program
-    /// specialization changed, or CUDA or OptiX reports an error.
-    /// \throw std::invalid_argument If \p samples is zero, arithmetic
-    /// overflows, or the launch is too large.
+    /// \p samples is the nonzero number of samples assigned to each pixel. Call
+    /// \c sync after changing the host \c Context.
+    /// A product with no requested channels still advances its sample count.
     void render(RenderProduct const &product, std::uint32_t samples);
 
     /// \brief Downloads every requested channel of \p product into its Film.
     ///
-    /// The handler-owned stream orders each copy. This function waits for that
-    /// stream and accepts any valid accumulation.
-    /// After an exception modifies Film, destroy, swap, or move-assign Film.
-    /// \throw kira::Anyhow If no valid accumulation exists or CUDA download
-    /// fails.
+    /// The handler stream orders the copies. This function waits for that
+    /// stream before returning.
+    /// \throw kira::Anyhow If \p product has no valid accumulation.
     void download(RenderProduct &product);
 
+public:
     /// \brief Sets the sequence offset used by later render batches.
     ///
     /// Changing the offset clears accumulation for every render product.
@@ -66,24 +54,21 @@ public:
 
     /// \brief Returns the samples accumulated for \p product.
     ///
-    /// A changed Camera, Film resolution, or channel request reports zero.
-    /// \throw kira::Anyhow If the Camera parameters are invalid.
+    /// A missing entry or changed Camera, Film resolution, or channel request
+    /// reports zero.
     [[nodiscard]] std::uint64_t getAccumulatedSamples(RenderProduct const &product) const;
 
     /// \brief Returns whether \p product has reached its target sample count.
     ///
     /// Valid accumulation converges at the target sample count. Changing the
     /// target sample count keeps the accumulated samples.
-    /// \throw kira::Anyhow If the Camera parameters are invalid.
     [[nodiscard]] bool isConverged(RenderProduct const &product) const;
 
-    /// \brief Erases runtime storage for \p product.
+    /// \brief Releases runtime storage for \p product.
     ///
-    /// The render product remains valid. Rendering it again creates new runtime
-    /// storage.
+    /// Does nothing if no storage exists. The render product remains valid, and
+    /// a later render creates new storage.
     void release(RenderProduct const &product) noexcept;
-
-    /// \brief Returns the host \c Context.
     [[nodiscard]] Ref<Context> getContext() const;
 
 private:

@@ -23,10 +23,7 @@ struct OptixLaunchParams {
     /// Borrowed OptiX scene view used by this launch.
     OptixContext::Impl scene;
 
-    /// Launch-time camera.
     Camera::Impl camera;
-
-    /// Launch-time sampler dispatcher.
     Sampler::Impl sampler;
 
     /// Samples accumulated before this batch.
@@ -35,7 +32,6 @@ struct OptixLaunchParams {
     /// Number of sequence elements skipped before sample zero.
     std::uint64_t sampleOffset;
 
-    /// Launch-time output channels.
     Film::Impl film;
 
     /// Number of samples assigned to each pixel in this batch.

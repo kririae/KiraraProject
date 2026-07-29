@@ -9,7 +9,6 @@
 
 namespace flux {
 namespace detail {
-/// \brief Writes tightly packed 32-bit float pixels to an EXR file.
 void writeExr(
     std::filesystem::path const &path, std::uint32_t width, std::uint32_t height,
     void const *pixels, std::size_t pixelCount, int components

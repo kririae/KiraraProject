@@ -17,7 +17,6 @@ namespace flux {
 /// callers provide external synchronization.
 class OptixGeometryPool final : private Noncopyable, private CudaStreamMixin {
 public:
-    /// \brief Creates an empty pool bound to \p stream.
     explicit OptixGeometryPool(cudaStream_t stream) noexcept
         : CudaStreamMixin(stream), deviceImpls_(stream) {}
 
@@ -36,7 +35,7 @@ public:
     /// \brief Returns the number of resident meshes.
     [[nodiscard]] std::size_t size() const noexcept { return entries_.size(); }
 
-    /// \brief Returns the device array of resident mesh implementations.
+    ///
     [[nodiscard]] TriangleMesh::Impl const *getDeviceImpls() const noexcept {
         return deviceImpls_.data();
     }

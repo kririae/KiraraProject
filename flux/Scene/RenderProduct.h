@@ -20,34 +20,27 @@ class RenderProduct final : public Object {
 public:
     /// \brief Creates a render product bound to \p camera.
     ///
-    /// \throw kira::Anyhow If \p camera is null or a property is invalid.
+    /// \p camera must be nonnull.
     [[nodiscard]] static Ref<RenderProduct>
     create(Ref<Camera const> camera, kira::Properties properties = {});
 
-    /// \brief Returns the camera selected for this product.
     [[nodiscard]] Camera const &getCamera() const noexcept { return *camera_; }
 
-    /// \brief Selects the camera used by later launches.
+    /// \brief Selects the camera used by later renders.
     ///
-    /// Existing renderer accumulation becomes stale when the resulting camera
-    /// payload changes.
-    /// \throw kira::Anyhow If \p camera is null.
+    /// Existing renderer accumulation becomes stale when the resulting
+    /// \c Camera::Impl changes. \p camera must be nonnull.
     void setCamera(Ref<Camera const> camera);
 
-    /// \brief Returns the channelized film descriptor.
     [[nodiscard]] Film const &getFilm() const noexcept { return film_; }
-
-    /// \brief Returns the mutable channelized film descriptor.
     [[nodiscard]] Film &getFilm() noexcept { return film_; }
 
-    /// \brief Returns the target number of samples per pixel.
     [[nodiscard]] std::uint32_t getSamplesPerPixel() const noexcept { return samplesPerPixel_; }
 
     /// \brief Changes the target number of samples per pixel.
     ///
-    /// Increasing the target does not invalidate samples already accumulated
-    /// by a renderer.
-    /// \throw kira::Anyhow If \p samples is zero.
+    /// Changing the target keeps samples already accumulated by a renderer.
+    /// \p samples must be nonzero.
     void setSamplesPerPixel(std::uint32_t samples);
 
 private:

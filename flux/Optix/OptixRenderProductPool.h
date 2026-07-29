@@ -15,70 +15,60 @@ class RenderProduct;
 
 /// \brief Owns OptiX runtime storage for render products.
 ///
-/// Each render product has one entry. Camera and Film changes update that entry.
+/// Each render product has at most one entry. Camera or Film changes invalidate
+/// the corresponding accumulation.
 class OptixRenderProductPool final : private Noncopyable, private CudaStreamMixin {
     friend class OptixHandler;
 
 public:
-    /// \brief Creates an empty pool bound to \p stream.
     explicit OptixRenderProductPool(cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
 
     /// \brief Erases runtime storage for \p product.
+    ///
+    /// Does nothing if \p product has no entry.
     void erase(RenderProduct const &product) noexcept;
 
-    /// \brief Clears accumulation and keeps Film storage.
+    /// \brief Clears every accumulation while keeping allocated Film storage.
     void resetAccumulation() noexcept;
 
 private:
-    /// \brief Storage for one typed Film channel.
     template <typename Channel> struct FilmChannelStorage {
         using ChannelType = Channel;
         DeviceBuffer<typename Channel::Value> buffer;
     };
 
-    /// \brief Accumulation produced with one \c Camera::Impl.
+    /// Tracks the Camera snapshot and sample count of one accumulation.
     struct AccumulationState {
-        /// Camera::Impl used for this accumulation.
+        /// Camera::Impl used to generate the samples.
         Camera::Impl camera;
-
-        /// Samples in this accumulation.
+        /// Number of samples accumulated per pixel.
         std::uint64_t samples;
     };
 
-    /// \brief Runtime storage for one render product.
     struct Entry {
         Entry(RenderProduct const &product, cudaStream_t stream) noexcept : product(&product) {
             storage.forEach([stream](auto &channel) { channel.buffer.setStream(stream); });
         }
 
-        /// Keeps the product alive until \c erase.
+        /// Keeps the map key alive for the entry's lifetime.
         Ref<RenderProduct const> product;
-
-        /// Device storage for channels requested by Film.
         FilmChannelListOf<FilmChannelStorage> storage;
-
-        /// Film view of \c storage.
+        /// Non-owning device view into \c storage.
         Film::Impl film;
-
-        /// Channels requested by Film and stored in this entry.
+        /// Requested channels used to build \c storage and \c film.
         FilmChannels requestedChannels{FilmChannels::None};
-
         /// Current accumulation. Empty after invalidation or failure.
         std::optional<AccumulationState> accumulation;
     };
 
-    /// \brief Returns or creates the entry for \p product.
+    /// \brief Returns or creates runtime storage for \p product.
     ///
-    /// Resizes Film storage to the current resolution and requested channels.
-    /// \throw std::invalid_argument If the film is too large for device
-    /// storage.
-    /// \throw kira::Anyhow If CUDA cannot allocate the film resources.
+    /// The entry matches the current Film resolution and requested channels.
+    /// Changing either resizes channel storage and clears accumulation.
+    /// The reference remains valid until the entry is erased.
     [[nodiscard]] Entry &getOrCreate(RenderProduct const &product);
 
-    /// \brief Returns the existing entry for \p product, if any.
     [[nodiscard]] Entry *find(RenderProduct const &product) noexcept;
-
-    /// \brief Returns the existing entry for \p product, if any.
     [[nodiscard]] Entry const *find(RenderProduct const &product) const noexcept;
 
     std::unordered_map<RenderProduct const *, Entry> entries_;

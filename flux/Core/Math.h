@@ -9,24 +9,14 @@
 #include "kira/Vecteur.h"
 
 namespace flux {
-/// Two-component floating-point vector.
 using Vec2f = kira::Vec2f;
-
-/// Two-component unsigned integer vector.
 using Vec2u = kira::Vecteur<std::uint32_t, 2, kira::defaultBackend>;
-
-/// Three-component floating-point vector.
 using Vec3f = kira::Vec3f;
-
-/// RGB spectrum used by the current transport implementation.
 using Spectrum = Vec3f;
-
-/// Three-component unsigned integer vector.
 using Vec3u = kira::Vecteur<std::uint32_t, 3, kira::defaultBackend>;
 } // namespace flux
 
 namespace kira {
-/// \brief Converts Vecteur values to and from TOML arrays.
 template <typename Scalar, std::size_t Size, vecteur::VecteurBackend Backend>
 struct PropertyProcessor<vecteur::Vecteur<Scalar, Size, Backend>> : std::true_type {
     using Vector = vecteur::Vecteur<Scalar, Size, Backend>;

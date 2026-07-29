@@ -23,16 +23,12 @@ enum class LightType : std::uint8_t {
 struct DirectLightSample {
     /// Incident radiance along \c wi.
     Spectrum radiance{};
-
     /// World-space direction from the surface toward the light.
     Vec3f wi{};
-
     /// Distance from the surface to the sampled light point.
     float distance{};
-
     /// Conditional sampling density, or unit mass for a delta light.
     float pdf{};
-
     /// Whether the sampled light has a discrete directional distribution.
     bool delta{};
 };
@@ -40,11 +36,9 @@ struct DirectLightSample {
 /// \brief Host-side base for authored lights.
 class Light : public RenderObject {
 protected:
-    /// \brief Creates a light of \p type in \p tx.
     Light(TXContext &tx, kira::Properties properties, LightType type);
 
 public:
-    /// \brief Returns the concrete light type.
     [[nodiscard]] LightType getType() const noexcept { return type_; }
 
 private:
@@ -60,26 +54,24 @@ class PointLight final : public Light {
     friend class TXContext;
 
 public:
-    /// \brief Compact point-light implementation shared by all backends.
     struct Impl;
 
-    /// \brief Returns the world-space light position.
+    /// World-space light position.
     [[nodiscard]] Vec3f const &getPosition() const noexcept { return position_; }
 
     /// \brief Sets the world-space light position.
     ///
-    /// \throw kira::Anyhow If \p position is not finite.
+    /// All coordinates must be finite.
     void setPosition(Vec3f const &position);
 
-    /// \brief Returns the RGB radiant intensity.
+    /// RGB radiant intensity.
     [[nodiscard]] Spectrum const &getIntensity() const noexcept { return intensity_; }
 
     /// \brief Sets the RGB radiant intensity.
     ///
-    /// \throw kira::Anyhow If a component is negative or non-finite.
+    /// All components must be finite and nonnegative.
     void setIntensity(Spectrum const &intensity);
 
-    /// \brief Builds the implementation used by renderer backends.
     [[nodiscard]] Impl getImpl() const noexcept;
 
 private:
@@ -89,11 +81,9 @@ private:
     Spectrum intensity_{1.0F, 1.0F, 1.0F};
 };
 
-/// \brief Compact point-light implementation shared by all backends.
 struct PointLight::Impl {
     /// World-space light position.
     Vec3f position{};
-
     /// RGB radiant intensity.
     Spectrum intensity{};
 
@@ -101,7 +91,8 @@ public:
     /// \brief Samples incident radiance at \p surface.
     ///
     /// A point light has one discrete direction, so a valid sample has unit
-    /// conditional mass and \c delta set.
+    /// conditional mass and \c delta set. A coincident surface produces an
+    /// invalid sample.
     [[nodiscard]] KIRA_HOST_DEVICE DirectLightSample
     sampleDirect(SurfaceInteraction const &surface) const noexcept;
 };
@@ -127,7 +118,6 @@ PointLight::Impl::sampleDirect(SurfaceInteraction const &surface) const noexcept
 struct LightRecord {
     /// Concrete array selected by this record.
     LightType type{};
-
     /// Index within the selected concrete array.
     std::uint32_t typedIndex{};
 };
@@ -136,19 +126,15 @@ struct LightRecord {
 struct LightTable {
     /// Light records in selection order.
     LightRecord const *records{};
-
     /// Dense point-light implementations.
     PointLight::Impl const *pointLights{};
-
-    /// Number of light records.
+    /// Number of records in \c records.
     std::uint32_t numLights{};
 
 public:
-    /// \brief Samples the selected light.
+    /// \brief Samples incident radiance from one selected light.
     ///
-    /// \param lightIndex Dense index returned by LightSampler.
-    /// \param surface World-space shading point.
-    /// \param sample Uniform sample used by non-delta light types.
+    /// \p sample is a uniform sample used by non-delta light types.
     /// \pre \p lightIndex is less than \c numLights.
     [[nodiscard]] KIRA_HOST_DEVICE DirectLightSample sampleDirect(
         std::uint32_t lightIndex, SurfaceInteraction const &surface, Vec2f const &sample

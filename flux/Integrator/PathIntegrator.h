@@ -21,7 +21,6 @@ namespace flux {
 struct PendingShadowQuery {
     /// Visibility ray from the surface to the sampled light point.
     Ray ray;
-
     /// Candidate radiance contribution before visibility.
     Spectrum contribution{};
 };
@@ -30,25 +29,18 @@ struct PendingShadowQuery {
 struct PathState {
     /// Ray for the next radiance traversal.
     Ray ray;
-
     /// Sampling sequence advanced across path vertices.
     Sampler::Impl sampler;
-
     /// Radiance accumulated by this sample.
     Spectrum radiance{};
-
     /// Throughput from the camera to the current vertex.
     Spectrum throughput{1.0F, 1.0F, 1.0F};
-
     /// Direct-light candidate awaiting a visibility trace.
     PendingShadowQuery pendingShadowQuery;
-
     /// Number of surface bounces already processed.
     std::uint32_t bounce{};
-
     /// Whether another radiance vertex should be processed.
     bool active{true};
-
     /// Whether \c pendingShadowQuery awaits a visibility trace.
     bool hasPendingShadowQuery{};
 };
@@ -114,9 +106,10 @@ public:
             state.hasPendingShadowQuery = true;
         }
 
-        /// \brief Resolves the pending direct-light visibility test.
+        /// \brief Resolves a pending direct-light visibility test.
         ///
-        /// \param visible Whether the visibility ray is unobstructed.
+        /// Does nothing when no test is pending. A visible test adds the
+        /// candidate contribution. The test is then cleared.
         KIRA_HOST_DEVICE void
         resolvePendingShadowQuery(PathState &state, bool visible) const noexcept {
             if (!state.hasPendingShadowQuery)
@@ -130,7 +123,6 @@ public:
     };
 
 private:
-    /// \brief Constructs a path integrator in \p tx.
     PathIntegrator(TXContext &tx, kira::Properties properties);
 
     /// \copydoc ContextObject::registerTo

@@ -47,5 +47,4 @@ public:
                static_cast<float>(accumulatedSamples + batchSize);
     }
 };
-
 } // namespace flux

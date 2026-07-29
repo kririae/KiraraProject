@@ -26,7 +26,6 @@ class Primitive final : public RenderObject {
     friend class TXContext;
 
 public:
-    /// \brief Stores primitive indices for a backend scene.
     struct Impl;
 
     /// \brief Returns the context ID of the bound geometry.

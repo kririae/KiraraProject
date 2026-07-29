@@ -20,22 +20,15 @@ enum class SamplerType : std::uint8_t {
 /// The first sampler successfully added to a context becomes active.
 class Sampler : public RenderObject {
 protected:
-    /// \brief Constructs a sampler in \p tx.
     Sampler(TXContext &tx, kira::Properties properties, SamplerType type);
 
     /// \copydoc ContextObject::registerTo
     void registerTo(TXContext &tx) override;
 
 public:
-    /// \brief Compact sampler dispatcher.
     struct Impl;
 
-    /// \brief Returns the concrete sampler type.
     [[nodiscard]] SamplerType getType() const noexcept { return type_; }
-
-    /// \brief Creates the sampler dispatcher for \p resolution.
-    ///
-    /// \param resolution Nonzero image resolution for the launch.
     [[nodiscard]] Impl getImpl(Vec2u const &resolution) const;
 
 private:
@@ -47,7 +40,6 @@ class IndependentSampler final : public Sampler {
     friend class TXContext;
 
 public:
-    /// \brief Independent sampling implementation.
     struct Impl;
 
     /// \brief Creates the concrete sampler for \p resolution.

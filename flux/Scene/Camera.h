@@ -20,7 +20,6 @@ namespace flux {
 ///   defaults to 0 and must be positive when the lens radius is positive.
 class Camera final : public Object {
 public:
-    /// \brief Compact perspective-camera implementation.
     struct Impl;
 
     /// \brief Creates a camera from \p properties.
@@ -62,18 +61,10 @@ public:
     /// positive radius has no positive focal distance.
     void setLensRadius(float radius);
 
-    /// \brief Returns the focus-plane distance along the viewing direction.
     [[nodiscard]] float getFocalDistance() const noexcept { return focalDistance_; }
-
-    /// \brief Sets the focus-plane distance.
-    ///
-    /// \throw kira::Anyhow If \p distance is negative or non-finite, or if it
-    /// is not positive while the lens radius is positive.
     void setFocalDistance(float distance);
 
-    /// \brief Materializes the current camera implementation.
     ///
-    /// \throw kira::Anyhow If the camera frame is non-finite or degenerate.
     [[nodiscard]] Impl getImpl() const;
 
 private:

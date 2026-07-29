@@ -25,7 +25,6 @@ class Context;
 /// Call \c sync from one thread. Traversal supports concurrent calls after sync.
 class EmbreeContext final : private Noncopyable {
 public:
-    /// \brief Borrowed view of the current Embree scene.
     struct Impl;
 
     /// \brief Embree intersection result.
@@ -37,23 +36,18 @@ public:
         std::uint32_t primitiveIndex;
     };
 
-    /// \brief Creates an Embree device for \p context.
+    /// \brief Creates an empty scene and its Embree device.
     ///
-    /// \throw kira::Anyhow If Embree setup fails.
+    /// \p context is borrowed and must outlive this object.
     explicit EmbreeContext(Context &context);
-
-    /// \brief Releases all Embree resources.
     ~EmbreeContext();
 
-    /// \brief Rebuilds the Embree scene from the host \c Context.
+    /// \brief Commits the host \c Context and rebuilds the Embree scene.
     ///
-    /// This function clears the current Embree scene before rebuilding it.
-    /// Destroy this context after a failed rebuild.
-    /// \throw kira::Anyhow If scene linking or Embree setup fails.
-    /// \throw std::out_of_range If a primitive refers to an unknown object.
+    /// Rebuilding clears the current scene first. A failed sync leaves this
+    /// context unusable.
     void sync();
 
-    /// \brief Returns a borrowed view of the current scene.
     [[nodiscard]] Impl getImpl() const noexcept;
 
 private:
@@ -91,7 +85,7 @@ private:
     /// Dense BSDF implementations referenced by \c primitives_.
     std::vector<BSDF::Impl> bsdfs_;
 
-    /// Persistent light data and selection state.
+    /// Persistent light data referenced by scene views.
     EmbreeLightSampler lightSampler_;
 };
 
@@ -118,14 +112,9 @@ struct EmbreeContext::Impl {
     /// Borrowed light sampler.
     LightSampler lightSampler{};
 
-    /// Number of geometry entries.
-    std::uint32_t numGeometries{};
-
-    /// Number of primitive entries.
-    std::uint32_t numPrimitives{};
-
-    /// Number of BSDF entries.
-    std::uint32_t numBSDFs{};
+    std::uint32_t numGeometries{}; // *geometries
+    std::uint32_t numPrimitives{}; // *primitives
+    std::uint32_t numBSDFs{};      // *bsdfs
 
 public:
     /// \brief Finds the closest intersection of \p ray.
@@ -153,7 +142,6 @@ public:
     /// \pre \p index is less than \c numBSDFs.
     [[nodiscard]] BSDF::Impl const &getBSDF(std::uint32_t index) const noexcept;
 
-    /// \brief Returns the light sampler built with this scene.
     [[nodiscard]] LightSampler const &getLightSampler() const noexcept { return lightSampler; }
 };
 

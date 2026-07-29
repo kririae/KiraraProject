@@ -31,45 +31,32 @@ public:
     /// \brief Device view of the current OptiX scene.
     struct Impl;
 
-    /// \brief Releases OptiX scene resources.
     ~OptixContext();
 
 private:
     /// \brief Creates an empty OptiX scene for \p context.
     ///
-    /// \param context Host \c Context borrowed from the owning \c OptixHandler.
-    /// \param deviceContext OptiX device context borrowed from the owning
-    /// \c OptixHandler.
-    /// \param stream CUDA stream that orders OptiX scene builds and launches.
-    /// \param modulePath Path to the OptiX IR module used by \c OptixProgram.
-    /// \throw kira::Anyhow if the module cannot be read or OptiX setup fails.
+    /// The host \c Context, OptiX device context, and CUDA stream are borrowed
+    /// from the owning handler and must outlive this object.
     OptixContext(
         Context &context, OptixDeviceContext deviceContext, cudaStream_t stream,
         std::filesystem::path const &modulePath
     );
 
-    /// \brief Rebuilds the OptiX scene from the current host \c Context.
+    /// \brief Commits the host \c Context and rebuilds the OptiX scene.
     ///
-    /// This function fully rebuilds the OptiX scene and waits for queued work
-    /// before returning. Destroy this context after a failed rebuild.
-    /// \throw kira::Anyhow If scene linking, CUDA, or OptiX setup fails.
-    /// \throw std::out_of_range If a primitive refers to an unknown geometry.
+    /// Rebuilding clears the current scene first and waits for queued work. A
+    /// failed sync leaves this context unusable.
     void sync();
 
-    /// \brief Launches the persistent pipeline as a one-dimensional grid.
+    /// \brief Launches \p size ray-generation work items on \p stream.
     ///
-    /// \param stream CUDA stream that orders the launch.
-    /// \param params Device address of the launch parameters.
-    /// \param paramsSize Size of the launch parameters in bytes.
-    /// \param size Number of ray-generation work items.
+    /// \p params addresses \p paramsSize bytes of device memory.
     void launch(
         cudaStream_t stream, CUdeviceptr params, std::size_t paramsSize, std::uint32_t size
     ) const;
 
-    /// \brief Returns the current OptiX scene view.
     [[nodiscard]] Impl getImpl() const noexcept;
-
-    /// \brief Returns the values specialized into the current pipeline.
     [[nodiscard]] OptixProgramSpec const &getProgramSpec() const noexcept;
 
     struct Storage;
@@ -96,14 +83,9 @@ struct OptixContext::Impl {
     /// Borrowed light sampler.
     LightSampler lightSampler{};
 
-    /// Number of elements in \c geometries.
-    std::uint32_t numGeometries{};
-
-    /// Number of elements in \c primitives.
-    std::uint32_t numPrimitives{};
-
-    /// Number of elements in \c bsdfs.
-    std::uint32_t numBSDFs{};
+    std::uint32_t numGeometries{}; // *geometries
+    std::uint32_t numPrimitives{}; // *primitives
+    std::uint32_t numBSDFs{};      // *bsdfs
 
 public:
     /// \brief Traces the ray in \p state.
@@ -133,7 +115,6 @@ public:
     [[nodiscard]] KIRA_DEVICE inline BSDF::Impl const &
     getBSDF(std::uint32_t bsdfIndex) const noexcept;
 
-    /// \brief Returns the light sampler built with this scene.
     [[nodiscard]] KIRA_DEVICE inline LightSampler const &getLightSampler() const noexcept {
         return lightSampler;
     }

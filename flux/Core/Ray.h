@@ -7,7 +7,7 @@
 
 namespace flux {
 /// \brief Selects one SBT ray path.
-enum class RayType : std::uint32_t {
+enum class RayType : std::uint32_t { // NOLINT
     Radiance,
     Shadow,
     Count,
@@ -18,7 +18,7 @@ struct Ray {
     /// Ray origin in world space.
     Vec3f origin;
 
-    /// Normalized ray direction in world space.
+    /// *Normalized* ray direction in world space.
     Vec3f direction;
 
     /// Minimum trace distance.

@@ -33,7 +33,6 @@ public:
         };
     };
 
-    /// \brief Creates an empty acceleration structure bound to \p stream.
     explicit OptixAccel(cudaStream_t stream) noexcept
         : CudaStreamMixin(stream), instances_(stream), ias_(stream) {}
 

@@ -16,10 +16,8 @@ namespace flux {
 struct SampledLight {
     /// Sentinel used when no light can be selected.
     static constexpr std::uint32_t invalidIndex = std::numeric_limits<std::uint32_t>::max();
-
     /// Dense index in LightSampler::lights.
     std::uint32_t lightIndex{invalidIndex};
-
     /// Discrete probability of selecting \c lightIndex.
     float pmf{};
 };
@@ -33,14 +31,13 @@ struct LightSampler {
     /// Largest light table addressed without exceeding sampler precision.
     static constexpr std::uint32_t maxLightCount = 1U << 24U;
 
-    /// Lights selected and sampled through this view.
+    /// Light table borrowed from the owning renderer backend.
     LightTable lights;
 
 public:
-    /// \brief Selects one light with uniform probability.
+    /// \brief Selects one light for \p surface with uniform probability.
     ///
-    /// \param surface Current shading point.
-    /// \param sample Uniform value in the half-open unit interval.
+    /// An empty light table returns an invalid selection.
     /// \pre \p sample is in \f$[0,1)\f$.
     /// \pre \c lights.numLights is at most \c maxLightCount.
     [[nodiscard]] KIRA_HOST_DEVICE SampledLight
@@ -60,6 +57,8 @@ public:
     }
 
     /// \brief Returns the uniform selection probability of \p lightIndex.
+    ///
+    /// Returns zero when \p lightIndex is outside the light table.
     [[nodiscard]] KIRA_HOST_DEVICE float
     pmf(SurfaceInteraction const &surface, std::uint32_t lightIndex) const noexcept {
         (void)surface;

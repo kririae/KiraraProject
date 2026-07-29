@@ -12,19 +12,17 @@ namespace flux {
 /// \brief Owns the light data used by the OptiX light sampler.
 class OptixLightSampler final : private Noncopyable, private CudaStreamMixin {
 public:
-    /// \brief Creates an empty sampler bound to \p stream.
     explicit OptixLightSampler(cudaStream_t stream) noexcept
         : CudaStreamMixin(stream), records_(stream), pointLights_(stream) {}
 
     /// \brief Rebuilds device light data in light table order.
     ///
+    /// An empty span clears the light table.
     /// Host staging remains valid until the owning OptixContext completes its
     /// sync stream.
-    /// \throw kira::Anyhow If the light count exceeds device limits or CUDA
-    /// cannot enqueue an allocation or copy.
     void build(std::span<Ref<Light const> const> lights);
 
-    /// \brief Returns a sampler that borrows the current device data.
+    /// \brief Returns a device view valid until the next \c build.
     [[nodiscard]] LightSampler getSampler() const noexcept;
 
 private:

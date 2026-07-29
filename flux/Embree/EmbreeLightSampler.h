@@ -12,13 +12,13 @@ namespace flux {
 class EmbreeLightSampler final : private Noncopyable {
 public:
     /// \brief Rebuilds host light data in light table order.
-    /// \throw kira::Anyhow If the light count exceeds backend limits.
+    ///
+    /// An empty span clears the light table.
     void build(std::span<Ref<Light const> const> lights);
 
-    /// \brief Releases all light data.
     void clear() noexcept;
 
-    /// \brief Returns a sampler that borrows the current host data.
+    /// \brief Returns a view valid until the next \c build or \c clear.
     [[nodiscard]] LightSampler getSampler() const noexcept;
 
 private:
