@@ -1,0 +1,28 @@
+[camera]
+position = [0.0, 1.0, 3.0]
+look_at = [0.0, 0.0, 0.0]
+ref_up = [0.0, 1.0, 0.0]
+fov = 35.0
+focal_length = 1.0
+
+[film]
+resolution = [8, 8]
+denoise = false
+num_samples = 1
+
+[integrator]
+type = "path"
+max_depth = 64
+rr_depth = 8
+rr_prob = 0.1
+
+[[bsdf]]
+type = "diffuse"
+name = "grey"
+R = [0.725, 0.71, 0.68]
+
+[[primitive]]
+type = "trimesh"
+path = "CboxFloor.ply"
+face_normals = true
+bsdf = "grey"

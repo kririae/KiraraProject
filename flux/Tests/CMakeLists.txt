@@ -1,6 +1,14 @@
 include(KRR_AddTest)
 
 krr_add_test(
+    flux CLI CLITests
+    SOURCES FLuxCLITests.cpp ../FLuxCLI.cpp
+    HARD_DEPENDENCIES argparse::argparse flux)
+
+add_test(NAME flux.CLI.CboxSmoke COMMAND $<TARGET_FILE:flux_cli> ${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/CboxMinimal.toml
+                                         --backend embree --output ${CMAKE_CURRENT_BINARY_DIR}/FluxCLISmoke/cbox.exr)
+
+krr_add_test(
     flux Scene ContextTests
     SOURCES ContextTests.cpp
     HARD_DEPENDENCIES flux)

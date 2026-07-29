@@ -56,7 +56,7 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
     meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
     auto mesh = context->create<flux::TriangleMesh>(std::move(meshProperties));
     kira::Properties bsdfProperties;
-    bsdfProperties.set("reflectance", flux::Spectrum{0.2F, 0.4F, 0.8F});
+    bsdfProperties.set("R", flux::Spectrum{0.2F, 0.4F, 0.8F});
     auto bsdf = context->create<flux::DiffuseBSDF>(std::move(bsdfProperties));
 
     EXPECT_THROW((void)context->create<ThrowingGapObject>(), std::runtime_error);

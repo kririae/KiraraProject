@@ -127,7 +127,7 @@ TEST(ShadingTests, EvaluatesAndSamplesDiffuseOnDevice) {
 TEST(ShadingTests, ValidatesDiffuseReflectance) {
     auto context = flux::Context::create();
     kira::Properties properties;
-    properties.set("reflectance", flux::Spectrum{0.25F, 0.5F, 1.0F});
+    properties.set("R", flux::Spectrum{0.25F, 0.5F, 1.0F});
     auto bsdf = context->create<flux::DiffuseBSDF>(properties);
 
     EXPECT_TRUE(properties.is_all_used());
@@ -135,6 +135,6 @@ TEST(ShadingTests, ValidatesDiffuseReflectance) {
     EXPECT_EQ(bsdf->getReflectance(), (flux::Spectrum{0.25F, 0.5F, 1.0F}));
 
     kira::Properties invalid;
-    invalid.set("reflectance", flux::Spectrum{0.0F, 0.5F, 1.1F});
+    invalid.set("R", flux::Spectrum{0.0F, 0.5F, 1.1F});
     EXPECT_THROW((void)context->create<flux::DiffuseBSDF>(std::move(invalid)), kira::Anyhow);
 }

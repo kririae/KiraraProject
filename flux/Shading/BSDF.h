@@ -140,7 +140,7 @@ private:
 /// \brief Lambertian reflection with constant reflectance.
 ///
 /// \par Properties
-/// - \c reflectance: optional RGB value in \f$[0,1]^3\f$; defaults to 0.5.
+/// - \c R: optional RGB reflectance in \f$[0,1]^3\f$; defaults to 0.5.
 class DiffuseBSDF final : public BSDF {
     friend class TXContext;
 

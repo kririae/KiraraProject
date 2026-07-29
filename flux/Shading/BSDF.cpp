@@ -28,7 +28,7 @@ BSDF::Impl BSDF::getImpl() const {
 
 DiffuseBSDF::DiffuseBSDF(TXContext &tx, kira::Properties properties)
     : BSDF(tx, std::move(properties), BSDFType::Diffuse) {
-    reflectance_ = getProperties().use_or<Spectrum>("reflectance", reflectance_);
+    reflectance_ = getProperties().use_or<Spectrum>("R", reflectance_);
     validateReflectance(reflectance_);
 }
 
