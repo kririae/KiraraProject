@@ -6,7 +6,7 @@
 
 namespace flux {
 /// \brief Renderer selected for one command-line invocation.
-enum class RenderBackend {
+enum class RenderBackend { // NOLINT
     Optix,
     Embree,
 };

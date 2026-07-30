@@ -1,9 +1,10 @@
 #include "flux/Shading/BSDF.h"
 
 #include <cmath>
-#include <utility>
+#include <string>
 
 #include "flux/Core/KIRA.h"
+#include "flux/Scene/TXContext.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
@@ -15,8 +16,14 @@ void validateReflectance(Spectrum const &reflectance) {
 }
 } // namespace
 
-BSDF::BSDF(TXContext &tx, kira::Properties properties, BSDFType type)
-    : RenderObject(tx, std::move(properties)), type_(type) {}
+Ref<BSDF> BSDF::create(TXContext &tx, kira::Properties const &props) {
+    auto const type = props.use<std::string>("type");
+    if (type == "diffuse")
+        return tx.create<DiffuseBSDF>(props);
+    throw kira::Anyhow("BSDF: unsupported type '{}'", type);
+}
+
+BSDF::BSDF(TXContext &tx, BSDFType type) : RenderObject(tx), type_(type) {}
 
 BSDF::Impl BSDF::getImpl() const {
     switch (type_) {
@@ -26,9 +33,9 @@ BSDF::Impl BSDF::getImpl() const {
     KIRA_UNREACHABLE();
 }
 
-DiffuseBSDF::DiffuseBSDF(TXContext &tx, kira::Properties properties)
-    : BSDF(tx, std::move(properties), BSDFType::Diffuse) {
-    reflectance_ = getProperties().use_or<Spectrum>("R", reflectance_);
+DiffuseBSDF::DiffuseBSDF(TXContext &tx, kira::Properties const &props)
+    : BSDF(tx, BSDFType::Diffuse) {
+    reflectance_ = props.use_or<Spectrum>("R", reflectance_);
     validateReflectance(reflectance_);
 }
 

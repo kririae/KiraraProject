@@ -3,7 +3,6 @@
 #include <array>
 #include <cstddef>
 #include <numbers>
-#include <utility>
 
 #include "TestUtils.h"
 #include "flux/Optix/DeviceBuffer.h"
@@ -136,5 +135,22 @@ TEST(ShadingTests, ValidatesDiffuseReflectance) {
 
     kira::Properties invalid;
     invalid.set("R", flux::Spectrum{0.0F, 0.5F, 1.1F});
-    EXPECT_THROW((void)context->create<flux::DiffuseBSDF>(std::move(invalid)), kira::Anyhow);
+    EXPECT_THROW((void)context->create<flux::DiffuseBSDF>(invalid), kira::Anyhow);
+}
+
+TEST(ShadingTests, CreatesTheSelectedBsdfThroughTheBaseType) {
+    auto context = flux::Context::create();
+    kira::Properties properties;
+    properties.set("type", "diffuse");
+    properties.set("R", flux::Spectrum{0.25F, 0.5F, 1.0F});
+
+    auto bsdf = context->create<flux::BSDF>(properties);
+
+    EXPECT_TRUE(properties.is_all_used());
+    EXPECT_NE(bsdf.dynamicCast<flux::DiffuseBSDF>(), nullptr);
+
+    kira::Properties invalid;
+    invalid.set("type", "unknown");
+    EXPECT_THROW((void)context->create<flux::BSDF>(invalid), kira::Anyhow);
+    EXPECT_EQ(context->getNumContextObjects(), 1);
 }

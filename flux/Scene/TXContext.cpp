@@ -5,6 +5,12 @@
 namespace flux {
 std::size_t TXContext::allocateId() { return context_->allocateId(); }
 
+Ref<ContextObject> TXContext::getObject(std::size_t contextId) const {
+    if (auto const iterator = objects_.find(contextId); iterator != objects_.end())
+        return iterator->second;
+    return context_->get<ContextObject>(contextId);
+}
+
 void TXContext::registerObject(Ref<ContextObject> object) {
     if (object->getContext() != context_)
         throw kira::Anyhow("TXContext: object belongs to another context");
@@ -13,8 +19,6 @@ void TXContext::registerObject(Ref<ContextObject> object) {
     if (!inserted)
         throw kira::Anyhow("TXContext: object ID is already registered");
 }
-
-void TXContext::stageForLink(std::size_t contextId) { stagedForLink_.push_back(contextId); }
 
 void TXContext::stageActiveIntegrator(std::size_t contextId) noexcept {
     if (!activeIntegratorId_)

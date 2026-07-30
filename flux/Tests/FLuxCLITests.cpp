@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-#include "flux/FLuxCLI.h"
+#include "flux/FLux/FLuxCLI.h"
 #include "kira/Anyhow.h"
 
 namespace {

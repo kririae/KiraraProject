@@ -23,7 +23,7 @@ public:
     struct Impl;
 
     /// \brief Creates a camera from \p properties.
-    [[nodiscard]] static Ref<Camera> create(kira::Properties properties = {});
+    [[nodiscard]] static Ref<Camera> create(kira::Properties const &props = {});
 
     /// \brief Returns the camera position in world space.
     [[nodiscard]] Vec3f const &getPosition() const noexcept { return position_; }
@@ -68,7 +68,7 @@ public:
     [[nodiscard]] Impl getImpl() const;
 
 private:
-    explicit Camera(kira::Properties properties);
+    explicit Camera(kira::Properties const &props);
 
     Vec3f position_{0.0F, 0.0F, 0.0F};
     Vec3f lookAt_{0.0F, 0.0F, -1.0F};

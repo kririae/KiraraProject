@@ -3,7 +3,6 @@
 #include <array>
 #include <numbers>
 #include <stdexcept>
-#include <utility>
 
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Sampling/Sampler.h"
@@ -27,8 +26,7 @@ struct TestScene {
 class ThrowingIntegratorOwner final : public flux::RenderObject {
     friend class flux::TXContext;
 
-    ThrowingIntegratorOwner(flux::TXContext &tx, kira::Properties properties)
-        : RenderObject(tx, std::move(properties)) {
+    ThrowingIntegratorOwner(flux::TXContext &tx, kira::Properties const &) : RenderObject(tx) {
         (void)tx.create<flux::PathIntegrator>();
         throw std::runtime_error("intentional integrator transaction failure");
     }

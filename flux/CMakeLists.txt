@@ -82,7 +82,7 @@ set_target_properties(flux_megakernel_ir PROPERTIES CUDA_OPTIX_COMPILATION ON)
 target_include_directories(flux_megakernel_ir PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(flux_megakernel_ir PRIVATE kira::Vecteur OptiX::OptiX)
 
-add_executable(flux_cli FLux.cpp FLuxCLI.cpp)
+add_executable(flux_cli FLux/FLux.cpp FLux/FLuxCLI.cpp FLux/TomlScene.cpp)
 set_target_properties(flux_cli PROPERTIES OUTPUT_NAME flux)
 target_compile_definitions(flux_cli PRIVATE FLUX_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
 target_link_libraries(flux_cli PRIVATE argparse::argparse flux)

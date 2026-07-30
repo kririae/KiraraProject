@@ -1,7 +1,5 @@
 #include "flux/Scene/Light.h"
 
-#include <utility>
-
 #include "kira/Anyhow.h"
 
 namespace flux {
@@ -19,13 +17,11 @@ void validateIntensity(Spectrum const &intensity) {
 }
 } // namespace
 
-Light::Light(TXContext &tx, kira::Properties properties, LightType type)
-    : RenderObject(tx, std::move(properties)), type_(type) {}
+Light::Light(TXContext &tx, LightType type) : RenderObject(tx), type_(type) {}
 
-PointLight::PointLight(TXContext &tx, kira::Properties properties)
-    : Light(tx, std::move(properties), LightType::Point) {
-    position_ = getProperties().use_or<Vec3f>("position", position_);
-    intensity_ = getProperties().use_or<Spectrum>("intensity", intensity_);
+PointLight::PointLight(TXContext &tx, kira::Properties const &props) : Light(tx, LightType::Point) {
+    position_ = props.use_or<Vec3f>("position", position_);
+    intensity_ = props.use_or<Spectrum>("intensity", intensity_);
     validatePosition(position_);
     validateIntensity(intensity_);
 }

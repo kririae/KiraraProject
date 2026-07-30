@@ -2,7 +2,7 @@ include(KRR_AddTest)
 
 krr_add_test(
     flux CLI CLITests
-    SOURCES FLuxCLITests.cpp ../FLuxCLI.cpp
+    SOURCES FLuxCLITests.cpp ../FLux/FLuxCLI.cpp
     HARD_DEPENDENCIES argparse::argparse flux)
 
 add_test(NAME flux.CLI.CboxSmoke COMMAND $<TARGET_FILE:flux_cli> ${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/CboxMinimal.toml

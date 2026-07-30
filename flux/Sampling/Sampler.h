@@ -19,8 +19,10 @@ enum class SamplerType : std::uint8_t {
 ///
 /// The first sampler successfully added to a context becomes active.
 class Sampler : public RenderObject {
+    friend class TXContext;
+
 protected:
-    Sampler(TXContext &tx, kira::Properties properties, SamplerType type);
+    Sampler(TXContext &tx, SamplerType type);
 
     /// \copydoc ContextObject::registerTo
     void registerTo(TXContext &tx) override;
@@ -32,6 +34,8 @@ public:
     [[nodiscard]] Impl getImpl(Vec2u const &resolution) const;
 
 private:
+    [[nodiscard]] static Ref<Sampler> create(TXContext &tx, kira::Properties const &props);
+
     SamplerType type_;
 };
 
@@ -48,7 +52,7 @@ public:
     [[nodiscard]] Impl getImpl(Vec2u const &resolution) const noexcept;
 
 private:
-    IndependentSampler(TXContext &tx, kira::Properties properties);
+    IndependentSampler(TXContext &tx, kira::Properties const &props);
 };
 
 /// \brief Independent pseudorandom sampling implementation.

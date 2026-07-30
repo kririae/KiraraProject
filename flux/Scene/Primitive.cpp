@@ -1,52 +1,54 @@
 #include "flux/Scene/Primitive.h"
 
-#include <cstdint>
-#include <limits>
-#include <string_view>
+#include <cstddef>
+#include <string>
 #include <utility>
 
-#include "flux/Scene/Context.h"
 #include "flux/Scene/Geometry.h"
+#include "flux/Scene/TXContext.h"
 #include "flux/Shading/BSDF.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
-namespace {
-[[nodiscard]] std::size_t readContextId(kira::Properties const &properties, std::string_view name) {
-    auto const value = properties.use<std::int64_t>(name);
-    if (value < 0 || static_cast<std::uint64_t>(value) >
-                         static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max()))
-        throw kira::Anyhow("Primitive: {} is out of range", name);
-    return static_cast<std::size_t>(value);
-}
-} // namespace
+Primitive::Primitive(TXContext &tx, kira::Properties const &props) : RenderObject(tx) {
+    if (props.contains("geometry_ctx_id")) {
+        auto const contextId = static_cast<std::size_t>(props.use<std::int64_t>("geometry_ctx_id"));
+        geometry_ = tx.get<Geometry>(contextId);
+    } else {
+        geometry_ = tx.create<Geometry>(props);
+    }
 
-Primitive::Primitive(TXContext &tx, kira::Properties properties)
-    : RenderObject(tx, std::move(properties)) {
-    geometryContextId_ = readContextId(getProperties(), "geometry_ctx_id");
-    if (getProperties().contains("bsdf_ctx_id"))
-        bsdfContextId_ = readContextId(getProperties(), "bsdf_ctx_id");
-}
-
-Ref<Geometry const> Primitive::getGeometry() const {
-    auto const *context = getContext();
-    if (!context)
-        throw kira::Anyhow("Primitive: owning context no longer exists");
-    return context->get<Geometry>(geometryContextId_);
+    if (props.contains("bsdf_ctx_id"))
+        bsdf_ = tx.get<BSDF>(static_cast<std::size_t>(props.use<std::int64_t>("bsdf_ctx_id")));
+    else if (props.is_type_of<kira::Properties>("bsdf"))
+        bsdf_ = tx.create<BSDF>(props.use_view("bsdf"));
+    else if (props.is_type_of<std::string>("bsdf"))
+        throw kira::Anyhow("Primitive: named BSDF must be resolved before creation");
+    else if (props.contains("bsdf"))
+        throw kira::Anyhow("Primitive: bsdf must be an inline table");
 }
 
-Ref<BSDF const> Primitive::getBSDF() const {
-    if (!bsdfContextId_)
-        return {};
+Primitive::~Primitive() = default;
 
-    auto const *context = getContext();
-    if (!context)
-        throw kira::Anyhow("Primitive: owning context no longer exists");
-    return context->get<BSDF>(*bsdfContextId_);
+Ref<Geometry const> Primitive::getGeometry() const noexcept { return geometry_; }
+
+void Primitive::setGeometry(Ref<Geometry const> geometry) {
+    if (!geometry)
+        throw kira::Anyhow("Primitive: geometry must not be null");
+    if (!getContext() || geometry->getContext() != getContext())
+        throw kira::Anyhow("Primitive: geometry belongs to another context");
+    if (geometry_ == geometry)
+        return;
+    geometry_ = std::move(geometry);
 }
 
-void Primitive::link() {
-    (void)getGeometry();
-    (void)getBSDF();
+Ref<BSDF const> Primitive::getBSDF() const noexcept { return bsdf_; }
+
+void Primitive::setBSDF(Ref<BSDF const> bsdf) {
+    if (bsdf && (!getContext() || bsdf->getContext() != getContext()))
+        throw kira::Anyhow("Primitive: BSDF belongs to another context");
+    if (bsdf_ == bsdf)
+        return;
+    bsdf_ = std::move(bsdf);
 }
 } // namespace flux

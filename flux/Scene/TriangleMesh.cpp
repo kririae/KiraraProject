@@ -14,11 +14,11 @@
 #include <rapidobj/rapidobj.hpp>
 #include <string>
 #include <type_traits>
-#include <utility>
 #include <vector>
 
 #include "flux/Core/KIRA.h"
 #include "flux/Core/MathUtils.h"
+#include "flux/Scene/Context.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
@@ -77,9 +77,12 @@ void generateVertexNormals(
 }
 } // namespace
 
-TriangleMesh::TriangleMesh(TXContext &tx, kira::Properties properties)
-    : Geometry(tx, std::move(properties), GeometryType::TriangleMesh) {
-    auto const path = getProperties().use<std::filesystem::path>("path");
+TriangleMesh::TriangleMesh(TXContext &tx, kira::Properties const &props)
+    : Geometry(tx, GeometryType::TriangleMesh) {
+    auto const authoredPath = props.use<std::filesystem::path>("path");
+    auto const path = getContext()->getFileResolver().resolve(authoredPath);
+    if (!std::filesystem::exists(path))
+        throw kira::Anyhow("TriangleMesh: failed to resolve '{}'", authoredPath.string());
     auto extension = path.extension().string();
     std::ranges::transform(extension, extension.begin(), [](unsigned char character) {
         return static_cast<char>(std::tolower(character));

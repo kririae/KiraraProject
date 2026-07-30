@@ -1,16 +1,16 @@
 #pragma once
 
+#include <concepts>
 #include <cstddef>
 #include <optional>
 #include <unordered_map>
 #include <utility>
 
 #include "flux/Core/Object.h"
-#include "kira/SmallVector.h"
+#include "kira/Anyhow.h"
 
 namespace flux {
 class PathIntegrator;
-class RenderObject;
 class Sampler;
 
 /// \brief Collects objects created by one \c Context::create call.
@@ -21,17 +21,32 @@ class TXContext {
     friend class Context;
     friend class ContextObject;
     friend class PathIntegrator;
-    friend class RenderObject;
     friend class Sampler;
 
 public:
     /// \brief Creates and registers a configurable object in this transaction.
     ///
-    /// \c T must grant \c TXContext access to its constructor.
+    /// Base context object types provide a private \c create function that
+    /// selects a concrete type inside this transaction. Concrete types grant
+    /// \c TXContext access to their constructor.
     template <IsConfigurableObject T>
-    [[nodiscard]] Ref<T> create(kira::Properties properties = {}) {
-        Ref<T> object{new T(*this, std::move(properties))};
-        static_cast<ContextObject *>(object.get())->registerTo(*this);
+    [[nodiscard]] Ref<T> create(kira::Properties const &props = {}) {
+        if constexpr (requires {
+                          { T::create(*this, props) } -> std::same_as<Ref<T>>;
+                      }) {
+            return T::create(*this, props);
+        } else {
+            Ref<T> object{new T(*this, props)};
+            static_cast<ContextObject *>(object.get())->registerTo(*this);
+            return object;
+        }
+    }
+
+    /// \brief Gets an object from this transaction or its owning context.
+    template <IsContextObject T> [[nodiscard]] Ref<T> get(std::size_t contextId) const {
+        auto object = getObject(contextId).template dynamicCast<T>();
+        if (!object)
+            throw kira::Anyhow("TXContext: object has the wrong type");
         return object;
     }
 
@@ -39,15 +54,14 @@ private:
     explicit TXContext(Context &context) noexcept : context_(&context) {}
 
     [[nodiscard]] Context &getContext() const noexcept { return *context_; }
+    [[nodiscard]] Ref<ContextObject> getObject(std::size_t contextId) const;
     [[nodiscard]] std::size_t allocateId();
     void registerObject(Ref<ContextObject> object);
-    void stageForLink(std::size_t contextId);
     void stageActiveIntegrator(std::size_t contextId) noexcept;
     void stageActiveSampler(std::size_t contextId) noexcept;
 
     Context *context_;
     std::unordered_map<std::size_t, Ref<ContextObject>> objects_;
-    kira::SmallVector<std::size_t> stagedForLink_;
     std::optional<std::size_t> activeIntegratorId_;
     std::optional<std::size_t> activeSamplerId_;
 };

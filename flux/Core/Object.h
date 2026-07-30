@@ -163,6 +163,14 @@ public:
 };
 
 /// \brief An object owned by a \c Context.
+///
+/// A successful \c Context::create call makes its Context an owner.
+/// References between context objects use \c Ref and keep their targets alive.
+///
+/// Public setters provide the strong exception guarantee. If validation fails,
+/// the object and its Context keep their previous state. For example,
+/// \c Primitive::setGeometry validates the new Geometry before replacing the
+/// current one.
 class ContextObject : public Object {
     friend class Context;
     friend class TXContext;
@@ -192,15 +200,7 @@ private:
 /// \brief A context object constructed from \c kira::Properties.
 class ConfigurableObject : public ContextObject {
 protected:
-    /// \brief Stores \p properties with the object created in \p tx.
-    ConfigurableObject(TXContext &tx, kira::Properties properties);
-
-public:
-    /// \brief Returns the properties used to construct this object.
-    [[nodiscard]] kira::Properties const &getProperties() const noexcept { return properties_; }
-
-private:
-    kira::Properties properties_;
+    explicit ConfigurableObject(TXContext &tx);
 };
 
 /// \brief Matches objects owned by a \c Context.

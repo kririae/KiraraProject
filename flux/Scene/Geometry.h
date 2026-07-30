@@ -48,15 +48,19 @@ struct GeometryInteraction {
 
 /// \brief Host-side base for geometry stored in a scene.
 class Geometry : public RenderObject {
+    friend class TXContext;
+
 protected:
     /// \brief Creates geometry of \p type in \p tx.
-    Geometry(TXContext &tx, kira::Properties properties, GeometryType type);
+    Geometry(TXContext &tx, GeometryType type);
 
 public:
     /// \brief Returns the concrete geometry type.
     [[nodiscard]] GeometryType getType() const noexcept { return type_; }
 
 private:
+    [[nodiscard]] static Ref<Geometry> create(TXContext &tx, kira::Properties const &props);
+
     GeometryType type_;
 };
 

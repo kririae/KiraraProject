@@ -1,4 +1,4 @@
-#include "flux/FLuxCLI.h"
+#include "flux/FLux/FLuxCLI.h"
 
 #include <argparse/argparse.hpp>
 #include <string>
@@ -33,6 +33,7 @@ FluxCLIRequest parseFluxCLI(int argc, char **argv) {
         else
             throw kira::Anyhow("unsupported backend '{}'", *backend);
     }
+
     return request;
 }
 } // namespace flux

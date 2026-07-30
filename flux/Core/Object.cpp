@@ -8,6 +8,5 @@ ContextObject::ContextObject(TXContext &tx)
 
 void ContextObject::registerTo(TXContext &tx) { tx.registerObject(Ref<ContextObject>{this}); }
 
-ConfigurableObject::ConfigurableObject(TXContext &tx, kira::Properties properties)
-    : ContextObject(tx), properties_(std::move(properties)) {}
+ConfigurableObject::ConfigurableObject(TXContext &tx) : ContextObject(tx) {}
 } // namespace flux

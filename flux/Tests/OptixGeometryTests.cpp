@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <filesystem>
 #include <stdexcept>
-#include <utility>
 
 #include "TestUtils.h"
 #include "flux/Integrator/PathIntegrator.h"
@@ -29,8 +28,7 @@ namespace {
 class ThrowingGapObject final : public flux::RenderObject {
     friend class flux::TXContext;
 
-    explicit ThrowingGapObject(flux::TXContext &tx, kira::Properties properties)
-        : RenderObject(tx, std::move(properties)) {
+    explicit ThrowingGapObject(flux::TXContext &tx, kira::Properties const &) : RenderObject(tx) {
         throw std::runtime_error("intentional context ID gap");
     }
 };
@@ -54,10 +52,10 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
     (void)context->create<flux::IndependentSampler>();
     kira::Properties meshProperties;
     meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
-    auto mesh = context->create<flux::TriangleMesh>(std::move(meshProperties));
+    auto mesh = context->create<flux::TriangleMesh>(meshProperties);
     kira::Properties bsdfProperties;
     bsdfProperties.set("R", flux::Spectrum{0.2F, 0.4F, 0.8F});
-    auto bsdf = context->create<flux::DiffuseBSDF>(std::move(bsdfProperties));
+    auto bsdf = context->create<flux::DiffuseBSDF>(bsdfProperties);
 
     EXPECT_THROW((void)context->create<ThrowingGapObject>(), std::runtime_error);
     auto firstPrimitive = context->create<flux::Primitive>(primitiveProperties(*mesh, bsdf.get()));
@@ -66,11 +64,10 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
     kira::Properties cameraProperties;
     cameraProperties.set("position", flux::Vec3f{0.25F, 0.25F, 1.0F});
     cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.0F});
-    auto camera = flux::Camera::create(std::move(cameraProperties));
+    auto camera = flux::Camera::create(cameraProperties);
     kira::Properties productProperties;
-    productProperties.set("width", std::uint32_t{3});
-    productProperties.set("height", std::uint32_t{1});
-    auto product = flux::RenderProduct::create(camera, std::move(productProperties));
+    productProperties.set("resolution", flux::Vec2u{3, 1});
+    auto product = flux::RenderProduct::create(camera, productProperties);
 
     flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
     EXPECT_NO_THROW(handler.render(*product, 1));
@@ -109,24 +106,23 @@ TEST(OptixGeometryTests, RendersDirectLightIntoColorChannel) {
 
     kira::Properties meshProperties;
     meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
-    auto mesh = context->create<flux::TriangleMesh>(std::move(meshProperties));
+    auto mesh = context->create<flux::TriangleMesh>(meshProperties);
     auto bsdf = context->create<flux::DiffuseBSDF>();
     (void)context->create<flux::Primitive>(primitiveProperties(*mesh, bsdf.get()));
 
     kira::Properties lightProperties;
     lightProperties.set("position", flux::Vec3f{0.75F, 0.25F, 1.0F});
     lightProperties.set("intensity", flux::Spectrum{1.0F, 1.0F, 1.0F});
-    (void)context->create<flux::PointLight>(std::move(lightProperties));
+    (void)context->create<flux::PointLight>(lightProperties);
 
     kira::Properties cameraProperties;
     cameraProperties.set("position", flux::Vec3f{0.25F, 0.25F, 1.0F});
     cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.0F});
     cameraProperties.set("fov", 1.0F);
-    auto camera = flux::Camera::create(std::move(cameraProperties));
+    auto camera = flux::Camera::create(cameraProperties);
     kira::Properties productProperties;
-    productProperties.set("width", std::uint32_t{1});
-    productProperties.set("height", std::uint32_t{1});
-    auto product = flux::RenderProduct::create(camera, std::move(productProperties));
+    productProperties.set("resolution", flux::Vec2u{1, 1});
+    auto product = flux::RenderProduct::create(camera, productProperties);
     product->getFilm().setChannels(flux::FilmChannels::Color);
 
     flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));

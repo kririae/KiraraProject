@@ -49,8 +49,7 @@ TEST(RenderProductTests, RejectsDegenerateCameraFrame) {
 TEST(RenderProductTests, OwnsFilmAndSampleTarget) {
     auto camera = flux::Camera::create();
     kira::Properties properties;
-    properties.set("width", std::uint32_t{640});
-    properties.set("height", std::uint32_t{480});
+    properties.set("resolution", flux::Vec2u{640, 480});
     properties.set("num_samples", std::uint32_t{16});
     auto product = flux::RenderProduct::create(camera, properties);
 

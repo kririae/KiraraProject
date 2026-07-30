@@ -178,6 +178,21 @@ TEST_F(PropertiesTests, ViewsKeepRootAlive) {
     EXPECT_EQ(primitives.get_view(0).get<std::string>("type"), "trimesh");
 }
 
+TEST(PropertiesParseTests, ReportsTheSourceLocation) {
+    constexpr std::string_view malformed = "[camera\nposition = [0, 0, 0]\n";
+
+    try {
+        (void)Properties::parse(malformed, "scene.toml");
+        FAIL();
+    } catch (Anyhow const &error) {
+        std::string_view const message = error.what();
+        EXPECT_NE(message.find("scene.toml"), std::string_view::npos);
+        EXPECT_NE(message.find("line 1, column 8"), std::string_view::npos);
+        EXPECT_NE(message.find("[camera"), std::string_view::npos);
+        EXPECT_NE(message.find('^'), std::string_view::npos);
+    }
+}
+
 TEST_F(PropertiesTests, SettingValuesClearsUsageOnReplacedNodes) {
     EXPECT_TRUE(props.mark_used("camera"));
     props.set("camera", true);

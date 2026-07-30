@@ -1,20 +1,27 @@
 #include "flux/Sampling/Sampler.h"
 
-#include <utility>
+#include <string>
 
 #include "flux/Scene/TXContext.h"
+#include "kira/Anyhow.h"
 
 namespace flux {
-Sampler::Sampler(TXContext &tx, kira::Properties properties, SamplerType type)
-    : RenderObject(tx, std::move(properties)), type_(type) {}
+Ref<Sampler> Sampler::create(TXContext &tx, kira::Properties const &props) {
+    auto const type = props.use_or<std::string>("type", "independent");
+    if (type == "independent")
+        return tx.create<IndependentSampler>(props);
+    throw kira::Anyhow("Sampler: unsupported type '{}'", type);
+}
+
+Sampler::Sampler(TXContext &tx, SamplerType type) : RenderObject(tx), type_(type) {}
 
 void Sampler::registerTo(TXContext &tx) {
     RenderObject::registerTo(tx);
     tx.stageActiveSampler(getContextId());
 }
 
-IndependentSampler::IndependentSampler(TXContext &tx, kira::Properties properties)
-    : Sampler(tx, std::move(properties), SamplerType::Independent) {}
+IndependentSampler::IndependentSampler(TXContext &tx, kira::Properties const &)
+    : Sampler(tx, SamplerType::Independent) {}
 
 Sampler::Impl Sampler::getImpl(Vec2u const &resolution) const {
     auto const type = getType();

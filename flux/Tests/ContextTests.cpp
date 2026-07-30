@@ -13,27 +13,23 @@ namespace {
 class TestRenderObject final : public flux::RenderObject {
     friend class flux::TXContext;
 
-    explicit TestRenderObject(flux::TXContext &tx, kira::Properties properties)
-        : RenderObject(tx, std::move(properties)) {}
+    explicit TestRenderObject(flux::TXContext &tx, kira::Properties const &props)
+        : RenderObject(tx), answer(props.use_or<int>("answer", 0)) {}
 
 public:
-    void link() override { ++linkCount; }
-
-    int linkCount{0};
+    int answer;
 };
 
 class OtherRenderObject final : public flux::RenderObject {
     friend class flux::TXContext;
 
-    explicit OtherRenderObject(flux::TXContext &tx, kira::Properties properties)
-        : RenderObject(tx, std::move(properties)) {}
+    explicit OtherRenderObject(flux::TXContext &tx, kira::Properties const &) : RenderObject(tx) {}
 };
 
 class NestedRenderObject final : public flux::RenderObject {
     friend class flux::TXContext;
 
-    explicit NestedRenderObject(flux::TXContext &tx, kira::Properties properties)
-        : RenderObject(tx, std::move(properties)) {
+    explicit NestedRenderObject(flux::TXContext &tx, kira::Properties const &) : RenderObject(tx) {
         childId = tx.create<TestRenderObject>()->getContextId();
     }
 
@@ -44,8 +40,7 @@ public:
 class TrackedRenderObject final : public flux::RenderObject {
     friend class flux::TXContext;
 
-    explicit TrackedRenderObject(flux::TXContext &tx, kira::Properties properties)
-        : RenderObject(tx, std::move(properties)) {
+    explicit TrackedRenderObject(flux::TXContext &tx, kira::Properties const &) : RenderObject(tx) {
         ++liveCount;
     }
 
@@ -58,8 +53,7 @@ public:
 class ThrowingConstructor final : public flux::RenderObject {
     friend class flux::TXContext;
 
-    explicit ThrowingConstructor(flux::TXContext &tx, kira::Properties properties)
-        : RenderObject(tx, std::move(properties)) {
+    explicit ThrowingConstructor(flux::TXContext &tx, kira::Properties const &) : RenderObject(tx) {
         (void)tx.create<TrackedRenderObject>();
         throw std::runtime_error("constructor failed");
     }
@@ -68,8 +62,8 @@ class ThrowingConstructor final : public flux::RenderObject {
 class ThrowingRegistration final : public flux::RenderObject {
     friend class flux::TXContext;
 
-    explicit ThrowingRegistration(flux::TXContext &tx, kira::Properties properties)
-        : RenderObject(tx, std::move(properties)) {
+    explicit ThrowingRegistration(flux::TXContext &tx, kira::Properties const &)
+        : RenderObject(tx) {
         (void)tx.create<TrackedRenderObject>();
         ++liveCount;
     }
@@ -86,54 +80,19 @@ protected:
     }
 };
 
-class RetryLinkObject final : public flux::RenderObject {
-    friend class flux::TXContext;
-
-    explicit RetryLinkObject(flux::TXContext &tx, kira::Properties properties)
-        : RenderObject(tx, std::move(properties)) {}
-
-public:
-    void link() override {
-        ++linkCount;
-        if (linkCount == 1)
-            throw std::runtime_error("link failed");
-    }
-
-    int linkCount{0};
-};
-
-class CreatesDuringLink final : public flux::RenderObject {
-    friend class flux::TXContext;
-
-    explicit CreatesDuringLink(flux::TXContext &tx, kira::Properties properties)
-        : RenderObject(tx, std::move(properties)) {}
-
-public:
-    void link() override { (void)getContext()->create<TestRenderObject>(); }
-};
-
-class CommitsDuringLink final : public flux::RenderObject {
-    friend class flux::TXContext;
-
-    explicit CommitsDuringLink(flux::TXContext &tx, kira::Properties properties)
-        : RenderObject(tx, std::move(properties)) {}
-
-public:
-    void link() override { getContext()->commit(); }
-};
 } // namespace
 
-TEST(ContextTests, OwnsCreatedObjectsAndProperties) {
+TEST(ContextTests, OwnsCreatedObjectsAndConsumesProperties) {
     auto context = flux::Context::create();
     kira::Properties properties;
     properties.set("answer", 42);
 
-    auto object = context->create<TestRenderObject>(std::move(properties));
+    auto object = context->create<TestRenderObject>(properties);
     auto const id = object->getContextId();
     auto *rawObject = object.get();
 
     EXPECT_EQ(object->getContext(), context.get());
-    EXPECT_EQ(object->getProperties().get<int>("answer"), 42);
+    EXPECT_EQ(object->answer, 42);
     EXPECT_EQ(context->getNumContextObjects(), 1);
     EXPECT_EQ(context->get<TestRenderObject>(id), object);
     auto constObject = std::as_const(*context).get<TestRenderObject>(id);
@@ -175,46 +134,6 @@ TEST(ContextTests, RollsBackConstructionAndRegistrationFailures) {
     EXPECT_EQ(TrackedRenderObject::liveCount, 0);
     EXPECT_EQ(ThrowingRegistration::liveCount, 0);
     EXPECT_NO_THROW(context->commit());
-}
-
-TEST(ContextTests, LinksEachSuccessfulBatchOnce) {
-    auto context = flux::Context::create();
-    auto object = context->create<TestRenderObject>();
-
-    context->commit();
-    EXPECT_EQ(object->linkCount, 1);
-
-    context->commit();
-    EXPECT_EQ(object->linkCount, 1);
-}
-
-TEST(ContextTests, RetriesTheBatchAfterLinkFailure) {
-    auto context = flux::Context::create();
-    auto object = context->create<RetryLinkObject>();
-
-    EXPECT_THROW(context->commit(), std::runtime_error);
-    EXPECT_EQ(object->linkCount, 1);
-
-    EXPECT_NO_THROW(context->commit());
-    EXPECT_EQ(object->linkCount, 2);
-
-    context->commit();
-    EXPECT_EQ(object->linkCount, 2);
-}
-
-TEST(ContextTests, RejectsCreationDuringCommit) {
-    auto context = flux::Context::create();
-    (void)context->create<CreatesDuringLink>();
-
-    EXPECT_THROW(context->commit(), kira::Anyhow);
-    EXPECT_EQ(context->getNumContextObjects(), 1);
-}
-
-TEST(ContextTests, RejectsRecursiveCommit) {
-    auto context = flux::Context::create();
-    (void)context->create<CommitsDuringLink>();
-
-    EXPECT_THROW(context->commit(), kira::Anyhow);
 }
 
 TEST(ContextTests, RejectsUnknownIdsAndWrongTypes) {

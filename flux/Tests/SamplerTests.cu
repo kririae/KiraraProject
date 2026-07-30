@@ -2,7 +2,6 @@
 #include <gtest/gtest.h>
 
 #include <stdexcept>
-#include <utility>
 
 #include "TestUtils.h"
 #include "flux/Optix/DeviceBuffer.h"
@@ -16,8 +15,7 @@ namespace {
 class ThrowingSamplerOwner final : public flux::RenderObject {
     friend class flux::TXContext;
 
-    ThrowingSamplerOwner(flux::TXContext &tx, kira::Properties properties)
-        : RenderObject(tx, std::move(properties)) {
+    ThrowingSamplerOwner(flux::TXContext &tx, kira::Properties const &) : RenderObject(tx) {
         (void)tx.create<flux::IndependentSampler>();
         throw std::runtime_error("intentional sampler transaction failure");
     }
@@ -64,6 +62,23 @@ TEST(SamplerTests, KeepsFirstSuccessfulSamplerActive) {
 
     (void)context->create<flux::IndependentSampler>();
     EXPECT_EQ(context->getActiveSampler().get(), first.get());
+}
+
+TEST(SamplerTests, CreatesTheSelectedSamplerThroughTheBaseType) {
+    auto context = flux::Context::create();
+    kira::Properties properties;
+    properties.set("type", "independent");
+
+    auto sampler = context->create<flux::Sampler>(properties);
+
+    EXPECT_TRUE(properties.is_all_used());
+    EXPECT_NE(sampler.dynamicCast<flux::IndependentSampler>(), nullptr);
+    EXPECT_EQ(context->getActiveSampler(), sampler);
+
+    kira::Properties invalid;
+    invalid.set("type", "unknown");
+    EXPECT_THROW((void)context->create<flux::Sampler>(invalid), kira::Anyhow);
+    EXPECT_EQ(context->getNumContextObjects(), 1);
 }
 
 TEST(SamplerTests, DispatchesDeterministicPixelSequencesOnHost) {

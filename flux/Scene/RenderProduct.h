@@ -13,8 +13,7 @@ namespace flux {
 /// it. Renderer backends keep device storage separately.
 ///
 /// \par Properties
-/// - \c width: required nonzero uint32 image width.
-/// - \c height: required nonzero uint32 image height.
+/// - \c resolution: required nonzero uint32 image resolution.
 /// - \c num_samples: optional nonzero uint32 target sample count; defaults to 1.
 class RenderProduct final : public Object {
 public:
@@ -22,7 +21,7 @@ public:
     ///
     /// \p camera must be nonnull.
     [[nodiscard]] static Ref<RenderProduct>
-    create(Ref<Camera const> camera, kira::Properties properties = {});
+    create(Ref<Camera const> camera, kira::Properties const &props = {});
 
     [[nodiscard]] Camera const &getCamera() const noexcept { return *camera_; }
 
@@ -44,7 +43,7 @@ public:
     void setSamplesPerPixel(std::uint32_t samples);
 
 private:
-    RenderProduct(Ref<Camera const> camera, kira::Properties properties);
+    RenderProduct(Ref<Camera const> camera, kira::Properties const &props);
 
     Film film_;
     Ref<Camera const> camera_;

@@ -9,6 +9,7 @@
 
 #include "flux/Scene/TXContext.h"
 #include "kira/Anyhow.h"
+#include "kira/FileResolver.h"
 #include "kira/SmallVector.h"
 
 namespace flux {
@@ -33,14 +34,11 @@ public:
     ///
     /// Nested calls through the supplied \c TXContext join the same
     /// transaction. If construction or registration throws, the context keeps
-    /// none of its objects.
+    /// none of the transaction's objects.
     template <IsConfigurableObject T>
-    [[nodiscard]] Ref<T> create(kira::Properties properties = {}) {
-        if (committing_)
-            throw kira::Anyhow("Context: object creation is not allowed during commit");
-
+    [[nodiscard]] Ref<T> create(kira::Properties const &props = {}) {
         TXContext tx(*this);
-        auto object = tx.create<T>(std::move(properties));
+        auto object = tx.create<T>(props);
         absorb(std::move(tx));
         return object;
     }
@@ -78,6 +76,12 @@ public:
     /// \brief Returns the number of objects owned by this context.
     [[nodiscard]] std::size_t getNumContextObjects() const noexcept { return objects_.size(); }
 
+    /// \brief Returns the resolver used by later object construction.
+    [[nodiscard]] kira::FileResolver &getFileResolver() noexcept { return fileResolver_; }
+    [[nodiscard]] kira::FileResolver const &getFileResolver() const noexcept {
+        return fileResolver_;
+    }
+
     /// \brief Returns the first integrator successfully added to this context.
     ///
     /// \throw kira::Anyhow If the context has no integrator.
@@ -101,11 +105,8 @@ public:
         return result;
     }
 
-    /// \brief Links every object added since the last successful commit.
-    ///
-    /// A failed batch remains staged so the caller can fix external state and
-    /// retry it.
-    void commit();
+    /// \brief Commits Context-owned changes before backend synchronization.
+    void commit() noexcept;
 
 private:
     Context() = default;
@@ -114,10 +115,9 @@ private:
     void absorb(TXContext &&tx);
 
     std::unordered_map<std::size_t, Ref<ContextObject>> objects_;
-    kira::SmallVector<std::size_t> stagedForLink_;
     std::optional<std::size_t> activeIntegratorId_;
     std::optional<std::size_t> activeSamplerId_;
+    kira::FileResolver fileResolver_;
     std::size_t nextId_{0};
-    bool committing_{false};
 };
 } // namespace flux

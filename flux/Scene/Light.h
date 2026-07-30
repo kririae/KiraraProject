@@ -36,7 +36,7 @@ struct DirectLightSample {
 /// \brief Host-side base for authored lights.
 class Light : public RenderObject {
 protected:
-    Light(TXContext &tx, kira::Properties properties, LightType type);
+    Light(TXContext &tx, LightType type);
 
 public:
     [[nodiscard]] LightType getType() const noexcept { return type_; }
@@ -75,7 +75,7 @@ public:
     [[nodiscard]] Impl getImpl() const noexcept;
 
 private:
-    PointLight(TXContext &tx, kira::Properties properties);
+    PointLight(TXContext &tx, kira::Properties const &props);
 
     Vec3f position_{};
     Spectrum intensity_{1.0F, 1.0F, 1.0F};

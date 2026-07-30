@@ -67,7 +67,7 @@ public:
     [[nodiscard]] Impl getImpl() const noexcept;
 
 private:
-    TriangleMesh(TXContext &tx, kira::Properties properties);
+    TriangleMesh(TXContext &tx, kira::Properties const &props);
 
     void loadObj(std::filesystem::path const &path);
     void loadPly(std::filesystem::path const &path);

@@ -2,7 +2,6 @@
 
 #include <cmath>
 #include <numbers>
-#include <utility>
 
 #include "flux/Core/MathUtils.h"
 #include "kira/Anyhow.h"
@@ -22,20 +21,17 @@ void validateThinLens(float radius, float focalDistance) {
     if (radius > 0.0F && !(focalDistance > 0.0F))
         throw kira::Anyhow("Camera: a positive lens radius requires a positive focal distance");
 }
-
 } // namespace
 
-Ref<Camera> Camera::create(kira::Properties properties) {
-    return Ref<Camera>{new Camera(std::move(properties))};
-}
+Ref<Camera> Camera::create(kira::Properties const &props) { return Ref<Camera>{new Camera(props)}; }
 
-Camera::Camera(kira::Properties properties) {
-    position_ = properties.use_or<Vec3f>("position", position_);
-    lookAt_ = properties.use_or<Vec3f>("look_at", lookAt_);
-    referenceUp_ = properties.use_or<Vec3f>("ref_up", referenceUp_);
-    verticalFieldOfView_ = properties.use_or<float>("fov", verticalFieldOfView_);
-    lensRadius_ = properties.use_or<float>("lens_radius", lensRadius_);
-    focalDistance_ = properties.use_or<float>("focal_distance", focalDistance_);
+Camera::Camera(kira::Properties const &props) {
+    position_ = props.use_or<Vec3f>("position", position_);
+    lookAt_ = props.use_or<Vec3f>("look_at", lookAt_);
+    referenceUp_ = props.use_or<Vec3f>("ref_up", referenceUp_);
+    verticalFieldOfView_ = props.use_or<float>("fov", verticalFieldOfView_);
+    lensRadius_ = props.use_or<float>("lens_radius", lensRadius_);
+    focalDistance_ = props.use_or<float>("focal_distance", focalDistance_);
     validateVerticalFieldOfView(verticalFieldOfView_);
     validateThinLens(lensRadius_, focalDistance_);
 }

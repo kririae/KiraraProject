@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <filesystem>
 #include <stdexcept>
-#include <utility>
 
 #include "flux/Embree/EmbreeHandler.h"
 #include "flux/IO/ImageIO.h"
@@ -41,8 +40,7 @@ primitiveProperties(flux::TriangleMesh const &mesh, flux::BSDF const &bsdf) {
     std::uint32_t width = 1, std::uint32_t height = 1, std::uint32_t samplesPerPixel = 1
 ) {
     kira::Properties properties;
-    properties.set("width", width);
-    properties.set("height", height);
+    properties.set("resolution", flux::Vec2u{width, height});
     properties.set("num_samples", samplesPerPixel);
     return properties;
 }
@@ -55,7 +53,7 @@ TEST(EmbreePipelineTests, RendersSecondInstanceAndDownloadsFilmChannels) {
 
     kira::Properties meshProperties;
     meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
-    auto mesh = context->create<flux::TriangleMesh>(std::move(meshProperties));
+    auto mesh = context->create<flux::TriangleMesh>(meshProperties);
     auto bsdf = context->create<flux::DiffuseBSDF>();
     (void)context->create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
     auto primitive = context->create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
@@ -81,7 +79,7 @@ TEST(EmbreePipelineTests, RendersSecondInstanceAndDownloadsFilmChannels) {
     );
     cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.25F});
     cameraProperties.set("fov", 1.0F);
-    auto camera = flux::Camera::create(std::move(cameraProperties));
+    auto camera = flux::Camera::create(cameraProperties);
     auto product = flux::RenderProduct::create(camera, renderProductProperties(1, 1, 2));
 
     flux::EmbreeHandler handler(context);
@@ -136,7 +134,7 @@ TEST(EmbreePipelineTests, RejectsSingularInstanceTransforms) {
 
     kira::Properties meshProperties;
     meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
-    auto mesh = context->create<flux::TriangleMesh>(std::move(meshProperties));
+    auto mesh = context->create<flux::TriangleMesh>(meshProperties);
     auto bsdf = context->create<flux::DiffuseBSDF>();
     auto primitive = context->create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
     primitive->setTransform({
@@ -164,20 +162,20 @@ TEST(EmbreePipelineTests, RendersDirectLightIntoColorChannel) {
 
     kira::Properties meshProperties;
     meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
-    auto mesh = context->create<flux::TriangleMesh>(std::move(meshProperties));
+    auto mesh = context->create<flux::TriangleMesh>(meshProperties);
     auto bsdf = context->create<flux::DiffuseBSDF>();
     (void)context->create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
 
     kira::Properties lightProperties;
     lightProperties.set("position", flux::Vec3f{0.75F, 0.25F, 1.0F});
     lightProperties.set("intensity", flux::Spectrum{1.0F, 1.0F, 1.0F});
-    (void)context->create<flux::PointLight>(std::move(lightProperties));
+    (void)context->create<flux::PointLight>(lightProperties);
 
     kira::Properties cameraProperties;
     cameraProperties.set("position", flux::Vec3f{0.25F, 0.25F, 1.0F});
     cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.0F});
     cameraProperties.set("fov", 1.0F);
-    auto camera = flux::Camera::create(std::move(cameraProperties));
+    auto camera = flux::Camera::create(cameraProperties);
     auto product = flux::RenderProduct::create(camera, renderProductProperties(1, 1, 4));
     product->getFilm().setChannels(flux::FilmChannels::Color);
 
@@ -193,7 +191,7 @@ TEST(EmbreePipelineTests, RendersDirectLightIntoColorChannel) {
 
     kira::Properties blockerProperties;
     blockerProperties.set("geometry_ctx_id", static_cast<std::int64_t>(mesh->getContextId()));
-    auto blocker = context->create<flux::Primitive>(std::move(blockerProperties));
+    auto blocker = context->create<flux::Primitive>(blockerProperties);
     blocker->setTransform({
         0.0F,
         0.0F,

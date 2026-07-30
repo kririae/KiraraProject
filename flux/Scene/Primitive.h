@@ -1,10 +1,8 @@
 #pragma once
 
 #include <array>
-#include <cstddef>
 #include <cstdint>
 #include <limits>
-#include <optional>
 #include <type_traits>
 
 #include "flux/Scene/RenderObject.h"
@@ -16,40 +14,36 @@ class Geometry;
 struct PreliminaryIntersection;
 struct SurfaceInteraction;
 
-/// \brief Places Geometry in a Context.
+/// \brief Places Geometry and its shading state in a scene.
 ///
-/// The \c geometry_ctx_id property identifies Geometry in the same Context.
-/// The Primitive owns its instance transform, while the Context owns the
-/// Geometry. A backend scene maps the stable Context ID to a dense geometry
-/// index.
+/// \par Properties
+/// - \c geometry_ctx_id binds existing Geometry. Otherwise the properties
+///   create Geometry inline.
+/// - \c bsdf_ctx_id binds an existing BSDF. An inline \c bsdf table creates one
+///   in the same transaction.
+///
+/// Scene loaders translate symbolic references to context IDs before creation.
 class Primitive final : public RenderObject {
     friend class TXContext;
 
 public:
     struct Impl;
 
-    /// \brief Returns the context ID of the bound geometry.
-    [[nodiscard]] std::size_t getGeometryContextId() const noexcept { return geometryContextId_; }
+    ~Primitive() override;
 
-    /// \brief Resolves and returns the bound geometry.
+    /// \brief Returns the bound geometry.
+    [[nodiscard]] Ref<Geometry const> getGeometry() const noexcept;
+
+    /// \brief Replaces the geometry with one from the same Context.
+    void setGeometry(Ref<Geometry const> geometry);
+
+    /// \brief Returns the bound BSDF, or an empty reference.
+    [[nodiscard]] Ref<BSDF const> getBSDF() const noexcept;
+
+    /// \brief Replaces the BSDF binding with one from the same Context.
     ///
-    /// \throw std::out_of_range if the geometry no longer exists.
-    /// \throw kira::Anyhow if the ID does not identify Geometry or this
-    /// primitive no longer belongs to a context.
-    [[nodiscard]] Ref<Geometry const> getGeometry() const;
-
-    /// \brief Returns the context ID of the bound BSDF, if present.
-    [[nodiscard]] std::optional<std::size_t> getBSDFContextId() const noexcept {
-        return bsdfContextId_;
-    }
-
-    /// \brief Resolves and returns the bound BSDF.
-    ///
-    /// A primitive without a BSDF returns an empty reference.
-    /// \throw std::out_of_range if the BSDF no longer exists.
-    /// \throw kira::Anyhow if the ID does not identify a BSDF or this
-    /// primitive no longer belongs to a context.
-    [[nodiscard]] Ref<BSDF const> getBSDF() const;
+    /// An empty reference removes the binding.
+    void setBSDF(Ref<BSDF const> bsdf);
 
     /// \brief Returns the row-major object-to-world affine transform.
     [[nodiscard]] std::array<float, 12> const &getTransform() const noexcept { return transform_; }
@@ -64,11 +58,10 @@ public:
     void setVisible(bool visible) noexcept { visible_ = visible; }
 
 private:
-    Primitive(TXContext &tx, kira::Properties properties);
-    void link() override;
+    Primitive(TXContext &tx, kira::Properties const &props);
 
-    std::size_t geometryContextId_;
-    std::optional<std::size_t> bsdfContextId_;
+    Ref<Geometry const> geometry_;
+    Ref<BSDF const> bsdf_;
     std::array<float, 12> transform_{
         1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F,
     };

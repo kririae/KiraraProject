@@ -119,9 +119,11 @@ public:
 
 /// \brief Host-side base for surface scattering models.
 class BSDF : public RenderObject {
+    friend class TXContext;
+
 protected:
     /// \brief Creates a BSDF of \p type in \p tx.
-    BSDF(TXContext &tx, kira::Properties properties, BSDFType type);
+    BSDF(TXContext &tx, BSDFType type);
 
 public:
     /// \brief Heterogeneous scattering implementation.
@@ -134,6 +136,8 @@ public:
     [[nodiscard]] Impl getImpl() const;
 
 private:
+    [[nodiscard]] static Ref<BSDF> create(TXContext &tx, kira::Properties const &props);
+
     BSDFType type_;
 };
 
@@ -155,7 +159,7 @@ public:
     [[nodiscard]] Impl getImpl() const noexcept;
 
 private:
-    DiffuseBSDF(TXContext &tx, kira::Properties properties);
+    DiffuseBSDF(TXContext &tx, kira::Properties const &props);
 
     Spectrum reflectance_{0.5F, 0.5F, 0.5F};
 };
