@@ -19,7 +19,13 @@ enum class BSDFType : std::uint8_t {
 
 /// \brief Identifies the lobe represented by a BSDF sample.
 enum class BSDFLobe : std::uint8_t {
+    None,
     DiffuseReflection,
+    DiffuseTransmission,
+    GlossyReflection,
+    GlossyTransmission,
+    DeltaReflection,
+    DeltaTransmission,
 };
 
 /// \brief Hit-local input shared by BSDF evaluation and sampling.
@@ -55,7 +61,12 @@ struct BSDFSample {
     float eta{1.0F};
 
     /// Lobe selected by the sample.
-    BSDFLobe lobe{BSDFLobe::DiffuseReflection};
+    BSDFLobe lobe{BSDFLobe::None};
+
+public:
+    [[nodiscard]] KIRA_HOST_DEVICE bool isDelta() const noexcept {
+        return lobe == BSDFLobe::DeltaReflection || lobe == BSDFLobe::DeltaTransmission;
+    }
 };
 
 /// \brief Supplies the common concrete BSDF interface.

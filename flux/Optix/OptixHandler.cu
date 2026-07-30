@@ -163,10 +163,10 @@ void OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
     if (samples == 0)
         throw std::invalid_argument("OptixHandler: sample batch must be nonzero");
 
-    // Resolve the Camera, Film, and Sampler for this launch.
     auto const &film = product.getFilm();
     auto const resolution = Vec2u{film.getWidth(), film.getHeight()};
     auto const sampler = impl_->context->getActiveSampler();
+    auto const integrator = impl_->context->getActiveIntegrator();
     auto const camera = product.getCamera().getImpl();
 
     // The module contains bound values. A changed Context spec requires sync
@@ -222,6 +222,7 @@ void OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
             .scene = impl_->optixContext.getImpl(),
             .camera = camera,
             .sampler = sampler->getImpl(resolution),
+            .integrator = integrator->getImpl(),
             .accumulatedSamples = accumulatedSamples,
             .sampleOffset = impl_->sampleOffset,
             .film = entry.film,

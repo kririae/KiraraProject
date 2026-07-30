@@ -19,7 +19,6 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
         static_cast<std::uint32_t>(linearIndex % params.film.width),
         static_cast<std::uint32_t>(linearIndex / params.film.width),
     };
-    auto const integrator = PathIntegrator::Impl{};
     Vec3f colorSum{};
     Vec3f normalSum{};
     Vec3f albedoSum{};
@@ -39,17 +38,17 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
         while (state.active) {
             EmbreeContext::Hit hit;
             if (!params.scene.intersect(state.ray, hit)) {
-                integrator.onMiss(state);
+                params.integrator.onMiss(state);
                 continue;
             }
 
             auto surface = params.scene.makeSurfaceInteraction(state.ray, hit);
             auto const &primitive = params.scene.getPrimitive(hit.primitiveIndex);
-            if (state.bounce == 0)
+            if (state.depth == 0)
                 normalSum = normalSum + surface.shadingNormal;
 
             if (!primitive.hasBSDF()) {
-                integrator.onSurfaceHit(state, surface);
+                params.integrator.onSurfaceHit(state, surface);
                 continue;
             }
 
@@ -57,7 +56,7 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
             auto const wo = -state.ray.direction;
             bsdf.init(surface, wo);
 
-            if (state.bounce == 0 && params.film.hasChannel<AlbedoChannel>()) {
+            if (state.depth == 0 && params.film.hasChannel<AlbedoChannel>()) {
                 auto aovSampler = state.sampler;
                 auto const query = BSDFQuery{.surface = surface, .wo = wo};
                 auto const sample = bsdf.sample(query, aovSampler.get1D(), aovSampler.get2D());
@@ -68,13 +67,13 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
             }
 
             if (params.film.hasChannel<ColorChannel>())
-                integrator.onSurfaceHit(state, params.scene, bsdf, surface, wo);
+                params.integrator.onSurfaceHit(state, params.scene, bsdf, surface, wo);
             else
-                integrator.onSurfaceHit(state, surface);
+                params.integrator.onSurfaceHit(state, surface);
 
             if (state.hasPendingShadowQuery) {
                 auto const visible = params.scene.isVisible(state.pendingShadowQuery.ray);
-                integrator.resolvePendingShadowQuery(state, visible);
+                params.integrator.resolvePendingShadowQuery(state, visible);
             }
         }
         colorSum = colorSum + state.radiance;

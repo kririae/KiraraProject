@@ -6,7 +6,6 @@
 
 #include "flux/Core/Math.h"
 #include "flux/Scene/RenderObject.h"
-#include "flux/Shading/Interaction.h"
 #include "kira/Compiler.h"
 
 namespace flux {
@@ -16,10 +15,19 @@ enum class LightType : std::uint8_t {
     Count,
 };
 
+/// \brief Path vertex data used to select and sample lights.
+struct LightSamplingContext {
+    /// World-space receiving position.
+    Vec3f position{};
+    /// World-space shading normal at a surface vertex.
+    Vec3f normal{};
+};
+
 /// \brief Result of sampling incident radiance from one selected light.
 ///
-/// \c wi points from the surface toward the light. \c pdf is conditional on
-/// the light already being selected. A zero PDF marks an invalid sample.
+/// \c wi points from the surface toward the light. For a non-delta light,
+/// \c pdf is the conditional solid-angle density after light selection. A
+/// delta light uses unit mass. A zero PDF marks an invalid sample.
 struct DirectLightSample {
     /// Incident radiance along \c wi.
     Spectrum radiance{};
@@ -27,7 +35,7 @@ struct DirectLightSample {
     Vec3f wi{};
     /// Distance from the surface to the sampled light point.
     float distance{};
-    /// Conditional sampling density, or unit mass for a delta light.
+    /// Conditional solid-angle density, or unit mass for a delta light.
     float pdf{};
     /// Whether the sampled light has a discrete directional distribution.
     bool delta{};
@@ -88,27 +96,27 @@ struct PointLight::Impl {
     Spectrum intensity{};
 
 public:
-    /// \brief Samples incident radiance at \p surface.
+    /// \brief Samples incident radiance at \p context.
     ///
     /// A point light has one discrete direction, so a valid sample has unit
-    /// conditional mass and \c delta set. A coincident surface produces an
-    /// invalid sample.
+    /// conditional mass and \c delta set. A coincident receiving position
+    /// produces an invalid sample.
     [[nodiscard]] KIRA_HOST_DEVICE DirectLightSample
-    sampleDirect(SurfaceInteraction const &surface) const noexcept;
+    sampleDirect(LightSamplingContext const &context) const noexcept;
 };
 
 KIRA_HOST_DEVICE inline DirectLightSample
-PointLight::Impl::sampleDirect(SurfaceInteraction const &surface) const noexcept {
-    auto const offset = position - surface.position;
-    auto const squaredDistance = offset.norm2();
-    if (!(squaredDistance > 0.0F))
+PointLight::Impl::sampleDirect(LightSamplingContext const &context) const noexcept {
+    auto const d = position - context.position;
+    auto const dist2 = d.norm2();
+    if (!(dist2 > 0.0F))
         return {};
 
-    auto const distance = std::sqrt(squaredDistance);
+    auto const dist = std::sqrt(dist2);
     return {
-        .radiance = intensity / squaredDistance,
-        .wi = offset / distance,
-        .distance = distance,
+        .radiance = intensity / dist2,
+        .wi = d / dist,
+        .distance = dist,
         .pdf = 1.0F,
         .delta = true,
     };
@@ -137,12 +145,12 @@ public:
     /// \p sample is a uniform sample used by non-delta light types.
     /// \pre \p lightIndex is less than \c numLights.
     [[nodiscard]] KIRA_HOST_DEVICE DirectLightSample sampleDirect(
-        std::uint32_t lightIndex, SurfaceInteraction const &surface, Vec2f const &sample
+        std::uint32_t lightIndex, LightSamplingContext const &context, Vec2f const &sample
     ) const noexcept {
         (void)sample;
         auto const record = records[lightIndex];
         switch (record.type) {
-        case LightType::Point: return pointLights[record.typedIndex].sampleDirect(surface);
+        case LightType::Point: return pointLights[record.typedIndex].sampleDirect(context);
         case LightType::Count: break;
         }
         return {};
@@ -151,6 +159,8 @@ public:
 
 static_assert(std::is_standard_layout_v<DirectLightSample>);
 static_assert(std::is_trivially_copyable_v<DirectLightSample>);
+static_assert(std::is_standard_layout_v<LightSamplingContext>);
+static_assert(std::is_trivially_copyable_v<LightSamplingContext>);
 static_assert(std::is_standard_layout_v<PointLight::Impl>);
 static_assert(std::is_trivially_copyable_v<PointLight::Impl>);
 static_assert(std::is_standard_layout_v<LightRecord>);

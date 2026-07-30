@@ -38,11 +38,6 @@ template <typename T> [[nodiscard]] KIRA_DEVICE T *getPayloadPointer() noexcept 
 } // namespace optix
 
 KIRA_DEVICE inline void OptixContext::Impl::trace(PathState &state) const noexcept {
-    if (!traversable) {
-        PathIntegrator::Impl{}.onMiss(state);
-        return;
-    }
-
     std::uint32_t payloadUpper = 0;
     std::uint32_t payloadLower = 0;
     optix::packPayloadPointer(&state, payloadUpper, payloadLower);

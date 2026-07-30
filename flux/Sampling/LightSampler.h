@@ -35,14 +35,14 @@ struct LightSampler {
     LightTable lights;
 
 public:
-    /// \brief Selects one light for \p surface with uniform probability.
+    /// \brief Selects one light for \p context with uniform probability.
     ///
     /// An empty light table returns an invalid selection.
     /// \pre \p sample is in \f$[0,1)\f$.
     /// \pre \c lights.numLights is at most \c maxLightCount.
     [[nodiscard]] KIRA_HOST_DEVICE SampledLight
-    sample(SurfaceInteraction const &surface, float sample) const noexcept {
-        (void)surface;
+    sample(LightSamplingContext const &context, float sample) const noexcept {
+        (void)context;
         if (lights.numLights == 0)
             return {};
 
@@ -60,8 +60,8 @@ public:
     ///
     /// Returns zero when \p lightIndex is outside the light table.
     [[nodiscard]] KIRA_HOST_DEVICE float
-    pmf(SurfaceInteraction const &surface, std::uint32_t lightIndex) const noexcept {
-        (void)surface;
+    pmf(LightSamplingContext const &context, std::uint32_t lightIndex) const noexcept {
+        (void)context;
         return lightIndex < lights.numLights ? 1.0F / static_cast<float>(lights.numLights) : 0.0F;
     }
 
@@ -69,9 +69,9 @@ public:
     ///
     /// \pre \p lightIndex is less than `lights.numLights`.
     [[nodiscard]] KIRA_HOST_DEVICE DirectLightSample sampleDirect(
-        std::uint32_t lightIndex, SurfaceInteraction const &surface, Vec2f const &sample
+        std::uint32_t lightIndex, LightSamplingContext const &context, Vec2f const &sample
     ) const noexcept {
-        return lights.sampleDirect(lightIndex, surface, sample);
+        return lights.sampleDirect(lightIndex, context, sample);
     }
 };
 

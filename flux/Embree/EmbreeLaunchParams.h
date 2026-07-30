@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "flux/Embree/EmbreeContext.h"
+#include "flux/Integrator/PathIntegrator.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Film.h"
@@ -16,6 +17,8 @@ struct EmbreeLaunchParams {
     Camera::Impl camera;
 
     Sampler::Impl sampler;
+
+    PathIntegrator::Impl integrator;
 
     /// Samples accumulated before this batch.
     std::uint64_t accumulatedSamples;

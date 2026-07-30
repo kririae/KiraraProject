@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <type_traits>
 
+#include "flux/Integrator/PathIntegrator.h"
 #include "flux/Optix/OptixContext.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
@@ -25,6 +26,7 @@ struct OptixLaunchParams {
 
     Camera::Impl camera;
     Sampler::Impl sampler;
+    PathIntegrator::Impl integrator;
 
     /// Samples accumulated before this batch.
     std::uint64_t accumulatedSamples;

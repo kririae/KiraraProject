@@ -90,8 +90,8 @@ struct OptixContext::Impl {
 public:
     /// \brief Traces the ray in \p state.
     ///
-    /// An empty scene takes the same transition as a miss. Otherwise, the
-    /// selected miss or closest-hit program advances \p state.
+    /// The selected miss or closest-hit program advances \p state.
+    /// \pre \c traversable is not zero.
     KIRA_DEVICE void trace(PathState &state) const noexcept;
 
     /// \brief Returns whether \p ray reaches its endpoint without obstruction.

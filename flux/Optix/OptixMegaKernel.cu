@@ -36,12 +36,14 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
         .sampler = sampler,
     };
 
-    auto const integrator = flux::PathIntegrator::Impl{};
     while (state.active) {
-        optixLaunchParams.scene.trace(state);
+        if (optixLaunchParams.scene.traversable)
+            optixLaunchParams.scene.trace(state);
+        else
+            optixLaunchParams.integrator.onMiss(state);
         if (state.hasPendingShadowQuery) {
             auto const visible = optixLaunchParams.scene.isVisible(state.pendingShadowQuery.ray);
-            integrator.resolvePendingShadowQuery(state, visible);
+            optixLaunchParams.integrator.resolvePendingShadowQuery(state, visible);
         }
     }
 
@@ -52,7 +54,7 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
 
 extern "C" __global__ void __miss__radiance() { // NOLINT
     auto *state = flux::optix::getPayloadPointer<flux::PathState>();
-    flux::PathIntegrator::Impl{}.onMiss(*state);
+    optixLaunchParams.integrator.onMiss(*state);
 }
 
 extern "C" __global__ void __miss__shadow() { // NOLINT
@@ -74,18 +76,17 @@ extern "C" __global__ void __closesthit__triangle_diffuse() { // NOLINT
     auto const rayDirection =
         flux::Vec3f{rayDirectionValue.x, rayDirectionValue.y, rayDirectionValue.z};
 
-    auto const launchSample = optixLaunchParams.getLaunchSample(optixGetLaunchIndex().x);
     auto *state = flux::optix::getPayloadPointer<flux::PathState>();
-    auto const sampleWeight = optixLaunchParams.getSampleWeight();
 
-    auto const integrator = flux::PathIntegrator::Impl{};
     if (primitive.hasBSDF()) {
         auto const &bsdf = optixLaunchParams.scene.getBSDF(primitive.getBSDFIndex());
         auto diffuse = bsdf.get<flux::DiffuseBSDF::Impl>();
         auto const wo = -rayDirection;
         diffuse.init(surface, wo);
 
-        if (state->bounce == 0) {
+        if (state->depth == 0) {
+            auto const launchSample = optixLaunchParams.getLaunchSample(optixGetLaunchIndex().x);
+            auto const sampleWeight = optixLaunchParams.getSampleWeight();
             optixLaunchParams.film.accumulate<flux::NormalChannel>(
                 launchSample.pixel, surface.shadingNormal * sampleWeight
             );
@@ -106,16 +107,19 @@ extern "C" __global__ void __closesthit__triangle_diffuse() { // NOLINT
         }
 
         if (optixLaunchParams.film.hasChannel<flux::ColorChannel>())
-            integrator.onSurfaceHit(*state, optixLaunchParams.scene, diffuse, surface, wo);
+            optixLaunchParams.integrator.onSurfaceHit(
+                *state, optixLaunchParams.scene, diffuse, surface, wo
+            );
         else
-            integrator.onSurfaceHit(*state, surface);
+            optixLaunchParams.integrator.onSurfaceHit(*state, surface);
     } else {
-        if (state->bounce == 0) {
+        if (state->depth == 0) {
+            auto const launchSample = optixLaunchParams.getLaunchSample(optixGetLaunchIndex().x);
             optixLaunchParams.film.accumulate<flux::NormalChannel>(
-                launchSample.pixel, surface.shadingNormal * sampleWeight
+                launchSample.pixel, surface.shadingNormal * optixLaunchParams.getSampleWeight()
             );
         }
-        integrator.onSurfaceHit(*state, surface);
+        optixLaunchParams.integrator.onSurfaceHit(*state, surface);
     }
 }
 

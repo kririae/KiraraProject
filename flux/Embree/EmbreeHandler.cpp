@@ -59,13 +59,13 @@ void EmbreeHandler::render(RenderProduct const &product, std::uint32_t samples) 
     if (samples == 0)
         throw std::invalid_argument("EmbreeHandler: sample batch must be nonzero");
 
-    // Resolve the Camera, Film, Sampler, and linear pixel range for this render.
     auto const &film = product.getFilm();
     if (film.getHeight() > std::numeric_limits<std::size_t>::max() / film.getWidth())
         throw std::invalid_argument("EmbreeHandler: film dimensions are too large");
     auto const pixelCount =
         static_cast<std::size_t>(film.getWidth()) * static_cast<std::size_t>(film.getHeight());
     auto const sampler = impl_->context->getActiveSampler();
+    auto const integrator = impl_->context->getActiveIntegrator();
     auto const camera = product.getCamera().getImpl();
 
     // Film changes resize the product entry. A matching Camera::Impl keeps its
@@ -86,6 +86,7 @@ void EmbreeHandler::render(RenderProduct const &product, std::uint32_t samples) 
         .scene = impl_->embreeContext.getImpl(),
         .camera = camera,
         .sampler = sampler->getImpl({film.getWidth(), film.getHeight()}),
+        .integrator = integrator->getImpl(),
         .accumulatedSamples = accumulatedSamples,
         .sampleOffset = impl_->sampleOffset,
         .film = entry.film,
