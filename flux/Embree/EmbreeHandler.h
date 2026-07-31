@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "flux/Core/Object.h"
+#include "flux/Core/RenderStats.h"
 
 namespace flux {
 class Context;
@@ -32,7 +33,8 @@ public:
     ///
     /// \p samples is the nonzero number of samples assigned to each pixel.
     /// A product with no requested channels still advances its sample count.
-    void render(RenderProduct const &product, std::uint32_t samples);
+    /// \return Executed camera paths and backend execution time.
+    RenderStats render(RenderProduct const &product, std::uint32_t samples);
 
     /// \brief Downloads every requested channel of \p product into its Film.
     ///

@@ -1,15 +1,28 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <limits>
 #include <type_traits>
 
 #include "flux/Core/MathUtils.h"
+#include "flux/Core/RenderStats.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/CameraImpl.h"
 #include "flux/Scene/FilmImpl.h"
 #include "flux/Scene/RenderProduct.h"
+
+TEST(RenderStatsTests, ReportsCameraPathRate) {
+    auto stats = flux::RenderStats{
+        .paths = 10,
+        .elapsed = std::chrono::seconds{2},
+    };
+    EXPECT_DOUBLE_EQ(stats.getPathsPerSecond(), 5.0);
+
+    stats.elapsed = {};
+    EXPECT_DOUBLE_EQ(stats.getPathsPerSecond(), 0.0);
+}
 
 TEST(RenderProductTests, BuildsPinholeCameraFrame) {
     kira::Properties properties;

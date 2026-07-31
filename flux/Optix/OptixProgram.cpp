@@ -112,6 +112,9 @@ OptixProgramSpec OptixProgram::makeSpec(Context const &context) {
 void OptixProgram::buildModule(std::filesystem::path const &modulePath) {
     auto const ir = readBinary(modulePath);
     OptixModuleCompileOptions moduleOptions{};
+    moduleOptions.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
+    moduleOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_3;
+    moduleOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
 
     // Keep these entries in the numbered order used by OptixProgramSpec.
     auto const boundValues = std::array{

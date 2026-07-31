@@ -78,7 +78,7 @@ public:
         ///
         /// A value of one only evaluates directly visible emission.
         std::uint32_t maxDepth;
-        /// RR applies when path depth exceeds this value.
+        /// RR applies at and after this path depth.
         std::uint32_t rrDepth;
         /// Maximum RR continuation probability.
         float rrProb;
@@ -180,7 +180,7 @@ public:
                 return;
             }
 
-            if (state.depth > rrDepth) {
+            if (state.depth >= rrDepth) {
                 // Squared IOR compensates radiance scaling across transmission.
                 auto const q = std::min(state.throughput.hmax() * state.eta * state.eta, rrProb);
                 if (q <= 0.0F || state.sampler.get1D() >= q) {

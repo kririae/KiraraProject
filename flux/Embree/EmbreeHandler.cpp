@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -55,7 +56,7 @@ EmbreeHandler::~EmbreeHandler() = default;
 
 void EmbreeHandler::sync() { impl_->sync(); }
 
-void EmbreeHandler::render(RenderProduct const &product, std::uint32_t samples) {
+RenderStats EmbreeHandler::render(RenderProduct const &product, std::uint32_t samples) {
     if (samples == 0)
         throw std::invalid_argument("EmbreeHandler: sample batch must be nonzero");
 
@@ -64,6 +65,9 @@ void EmbreeHandler::render(RenderProduct const &product, std::uint32_t samples) 
         throw std::invalid_argument("EmbreeHandler: film dimensions are too large");
     auto const pixelCount =
         static_cast<std::size_t>(film.getWidth()) * static_cast<std::size_t>(film.getHeight());
+    if (pixelCount != 0 && samples > std::numeric_limits<std::uint64_t>::max() / pixelCount)
+        throw std::invalid_argument("EmbreeHandler: render batch path count overflows");
+    auto const batchPaths = static_cast<std::uint64_t>(pixelCount) * samples;
     auto const sampler = impl_->context->getActiveSampler();
     auto const integrator = impl_->context->getActiveIntegrator();
     auto const camera = product.getCamera().getImpl();
@@ -97,6 +101,8 @@ void EmbreeHandler::render(RenderProduct const &product, std::uint32_t samples) 
         // Clear accumulation before starting work. The next batch clears
         // partial pixels after a backend failure.
         entry.accumulation.reset();
+        auto const start = std::chrono::steady_clock::now();
+        std::uint64_t renderedPaths = 0;
         if (entry.requestedChannels != FilmChannels::None) {
             tbb::parallel_for(
                 tbb::blocked_range<std::size_t>{0, pixelCount},
@@ -105,12 +111,20 @@ void EmbreeHandler::render(RenderProduct const &product, std::uint32_t samples) 
                     embree::runMegaKernel(params, index);
             }
             );
+            renderedPaths = batchPaths;
         }
+        auto const elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - start
+        );
 
         // Publish accumulation after all Film writes complete.
         entry.accumulation = EmbreeRenderProductPool::AccumulationState{
             .camera = camera,
             .samples = accumulatedSamples + samples,
+        };
+        return {
+            .paths = renderedPaths,
+            .elapsed = elapsed,
         };
     } catch (...) {
         entry.accumulation.reset();

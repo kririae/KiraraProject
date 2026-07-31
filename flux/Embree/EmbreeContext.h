@@ -32,6 +32,9 @@ public:
         /// Geometry-space intersection data.
         PreliminaryIntersection preliminary;
 
+        /// Unnormalized geometry-space normal reported by Embree.
+        Vec3f geometricNormal;
+
         /// Dense primitive index in this Embree scene.
         std::uint32_t primitiveIndex;
     };

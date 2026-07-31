@@ -78,6 +78,13 @@ extern "C" __global__ void __closesthit__triangle_diffuse() { // NOLINT
 
     auto *state = flux::optix::getPayloadPointer<flux::PathState>();
 
+    if (state->depth == 0) {
+        auto const launchSample = optixLaunchParams.getLaunchSample(optixGetLaunchIndex().x);
+        optixLaunchParams.film.accumulate<flux::NormalChannel>(
+            launchSample.pixel, surface.shadingNormal * optixLaunchParams.getSampleWeight()
+        );
+    }
+
     if (primitive.hasBSDF()) {
         auto const &bsdf = optixLaunchParams.scene.getBSDF(primitive.getBSDFIndex());
         auto diffuse = bsdf.get<flux::DiffuseBSDF::Impl>();
@@ -87,10 +94,6 @@ extern "C" __global__ void __closesthit__triangle_diffuse() { // NOLINT
         if (state->depth == 0) {
             auto const launchSample = optixLaunchParams.getLaunchSample(optixGetLaunchIndex().x);
             auto const sampleWeight = optixLaunchParams.getSampleWeight();
-            optixLaunchParams.film.accumulate<flux::NormalChannel>(
-                launchSample.pixel, surface.shadingNormal * sampleWeight
-            );
-
             if (optixLaunchParams.film.hasChannel<flux::AlbedoChannel>()) {
                 auto aovSampler = state->sampler;
                 auto const query = flux::BSDFQuery{.surface = surface, .wo = wo};
@@ -113,12 +116,6 @@ extern "C" __global__ void __closesthit__triangle_diffuse() { // NOLINT
         else
             optixLaunchParams.integrator.onSurfaceHit(*state, surface);
     } else {
-        if (state->depth == 0) {
-            auto const launchSample = optixLaunchParams.getLaunchSample(optixGetLaunchIndex().x);
-            optixLaunchParams.film.accumulate<flux::NormalChannel>(
-                launchSample.pixel, surface.shadingNormal * optixLaunchParams.getSampleWeight()
-            );
-        }
         optixLaunchParams.integrator.onSurfaceHit(*state, surface);
     }
 }

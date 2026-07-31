@@ -161,13 +161,15 @@ void EmbreeContext::sync() try {
         normalTransforms_.push_back(makeNormalTransform(primitive->getTransform()));
     }
 
-    // Embree borrows retained mesh arrays until the next sync. Keep them
-    // unchanged while this scene is active.
+    // Embree borrows retained mesh arrays until the next sync. A sync builds
+    // immutable final-frame scenes, so favor traversal over build time.
     meshScenes_.reserve(retainedMeshes_.size());
     for (auto const &mesh : retainedMeshes_) {
         RTCScene childScene = rtcNewScene(device_);
         embreeCheck(device_);
         meshScenes_.push_back(childScene);
+        rtcSetSceneBuildQuality(childScene, RTC_BUILD_QUALITY_HIGH);
+        embreeCheck(device_);
 
         EmbreeGeometryHandle geometry(rtcNewGeometry(device_, RTC_GEOMETRY_TYPE_TRIANGLE));
         embreeCheck(device_);
@@ -195,6 +197,8 @@ void EmbreeContext::sync() try {
     // Instance each mesh scene into the top-level scene. Explicit geometry IDs
     // make Embree hit IDs identical to primitive-array indices.
     scene_ = rtcNewScene(device_);
+    embreeCheck(device_);
+    rtcSetSceneBuildQuality(scene_, RTC_BUILD_QUALITY_HIGH);
     embreeCheck(device_);
     for (std::size_t index = 0; index < primitives_.size(); ++index) {
         EmbreeGeometryHandle instance(rtcNewGeometry(device_, RTC_GEOMETRY_TYPE_INSTANCE));
@@ -242,9 +246,7 @@ bool EmbreeContext::Impl::intersect(Ray const &ray, Hit &hit) const noexcept {
     rayHit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
     std::ranges::fill(rayHit.hit.instID, RTC_INVALID_GEOMETRY_ID);
 
-    RTCIntersectArguments arguments;
-    rtcInitIntersectArguments(&arguments);
-    rtcIntersect1(scene, &rayHit, &arguments);
+    rtcIntersect1(scene, &rayHit);
     if (rayHit.hit.geomID == RTC_INVALID_GEOMETRY_ID)
         return false;
 
@@ -255,6 +257,7 @@ bool EmbreeContext::Impl::intersect(Ray const &ray, Hit &hit) const noexcept {
                 .coordinates = {rayHit.hit.u, rayHit.hit.v},
                 .elementIndex = rayHit.hit.primID,
             },
+        .geometricNormal = {rayHit.hit.Ng_x, rayHit.hit.Ng_y, rayHit.hit.Ng_z},
         .primitiveIndex = rayHit.hit.instID[0],
     };
     return true;
@@ -265,17 +268,16 @@ bool EmbreeContext::Impl::isVisible(Ray const &ray) const noexcept {
         return true;
 
     auto visibilityRay = makeRay(ray);
-    RTCOccludedArguments arguments;
-    rtcInitOccludedArguments(&arguments);
-    rtcOccluded1(scene, &visibilityRay, &arguments);
+    rtcOccluded1(scene, &visibilityRay);
     return visibilityRay.tfar >= 0.0F;
 }
 
 SurfaceInteraction
 EmbreeContext::Impl::makeSurfaceInteraction(Ray const &ray, Hit const &hit) const noexcept {
     auto const &primitive = primitives[hit.primitiveIndex];
-    auto const geometryInteraction =
-        geometries[primitive.getGeometryIndex()].computeInteraction(hit.preliminary);
+    auto const &geometry = geometries[primitive.getGeometryIndex()];
+    auto const shadingNormal =
+        geometry.interpolateShadingNormal(hit.preliminary, hit.geometricNormal);
     auto const &normalTransform = normalTransforms[hit.primitiveIndex];
     auto const transformNormal = [&](Vec3f const &normal) {
         return Vec3f{
@@ -289,11 +291,11 @@ EmbreeContext::Impl::makeSurfaceInteraction(Ray const &ray, Hit const &hit) cons
     };
     return {
         .position = ray.origin + ray.direction * hit.preliminary.distance,
-        .geometricNormal = transformNormal(geometryInteraction.geometricNormal).normalize(),
-        .shadingNormal = transformNormal(geometryInteraction.shadingNormal).normalize(),
-        .uv = geometryInteraction.uv,
+        .geometricNormal = transformNormal(hit.geometricNormal).normalize(),
+        .shadingNormal = transformNormal(shadingNormal).normalize(),
+        .uv = geometry.interpolateTexCoord(hit.preliminary),
         .primitiveIndex = hit.primitiveIndex,
-        .elementIndex = geometryInteraction.elementIndex,
+        .elementIndex = hit.preliminary.elementIndex,
         .distance = hit.preliminary.distance,
     };
 }

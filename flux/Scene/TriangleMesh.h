@@ -119,6 +119,15 @@ public:
     [[nodiscard]] KIRA_HOST_DEVICE inline Vec3f
     getVertex(std::uint32_t triangle, std::uint32_t corner) const noexcept;
 
+    /// \brief Interpolates the shading normal, or returns \p geometricNormal.
+    [[nodiscard]] KIRA_HOST_DEVICE inline Vec3f interpolateShadingNormal(
+        PreliminaryIntersection const &preliminary, Vec3f const &geometricNormal
+    ) const noexcept;
+
+    /// \brief Interpolates texture coordinates, or returns zero when absent.
+    [[nodiscard]] KIRA_HOST_DEVICE inline Vec2f
+    interpolateTexCoord(PreliminaryIntersection const &preliminary) const noexcept;
+
     /// \brief Reconstructs a geometry-space interaction from \p preliminary.
     ///
     /// \pre \p preliminary names a valid, non-degenerate triangle.

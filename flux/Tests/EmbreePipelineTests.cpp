@@ -83,9 +83,10 @@ TEST(EmbreePipelineTests, RendersSecondInstanceAndDownloadsFilmChannels) {
     auto product = flux::RenderProduct::create(camera, renderProductProperties(1, 1, 2));
 
     flux::EmbreeHandler handler(context);
-    handler.render(*product, 2);
+    auto const stats = handler.render(*product, 2);
     handler.download(*product);
 
+    EXPECT_EQ(stats.paths, 2);
     auto const normal = product->getFilm().getChannel<flux::NormalChannel>();
     ASSERT_EQ(normal.size(), 1);
     EXPECT_NEAR(normal[0].x(), -inverseSqrtTwo, 1.0e-5F);

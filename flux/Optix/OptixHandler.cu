@@ -122,6 +122,7 @@ struct OptixHandler::Impl final {
     OptixContext optixContext;
     OptixRenderProductPool renderProducts{getStream()};
     DeviceBuffer<OptixLaunchParams> launchParams{getStream()};
+    CudaStreamTimer timer{getStream()};
     std::uint64_t sampleOffset{};
 };
 
@@ -159,7 +160,7 @@ OptixHandler::~OptixHandler() = default;
 
 void OptixHandler::sync() { impl_->sync(); }
 
-void OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
+RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
     if (samples == 0)
         throw std::invalid_argument("OptixHandler: sample batch must be nonzero");
 
@@ -204,6 +205,7 @@ void OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
         // Clear accumulation before starting work. The next batch clears
         // partial pixels after a backend failure.
         entry.accumulation.reset();
+        impl_->timer.start();
         auto const totalSamples = accumulatedSamples + samples;
         if (accumulatedSamples == 0) {
             entry.storage.forEach([](auto &channel) { channel.buffer.zero(); });
@@ -229,12 +231,16 @@ void OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
             .batchSize = samples,
         };
         impl_->launch(params, launchSize);
-        cudaCheck(cudaStreamSynchronize(impl_->getStream()));
+        auto const elapsed = impl_->timer.stop();
 
         // Publish accumulation after all Film writes complete.
         entry.accumulation = OptixRenderProductPool::AccumulationState{
             .camera = camera,
             .samples = totalSamples,
+        };
+        return {
+            .paths = launchSize,
+            .elapsed = elapsed,
         };
     } catch (...) {
         entry.accumulation.reset();

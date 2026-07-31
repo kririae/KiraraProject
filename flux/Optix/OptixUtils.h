@@ -3,10 +3,12 @@
 #include <cuda_runtime_api.h>
 #include <optix_stubs.h>
 
+#include <chrono>
 #include <source_location>
 #include <utility>
 
 #include "flux/Core/KIRA.h"
+#include "flux/Core/Object.h"
 
 namespace flux {
 /// \brief Converts a CUDA allocation pointer to an OptiX device address.
@@ -70,6 +72,49 @@ inline void cudaCheck(
     else
         LogError("{}", message);
 }
+
+/// \brief Measures work ordered by a CUDA stream.
+class CudaStreamTimer final : private Noncopyable, private CudaStreamMixin {
+public:
+    explicit CudaStreamTimer(cudaStream_t stream) : CudaStreamTimer(EmptyState{}, stream) {
+        cudaCheck(cudaEventCreate(&start_));
+        try {
+            cudaCheck(cudaEventCreate(&stop_));
+        } catch (...) {
+            cudaCheck<false>(cudaEventDestroy(start_));
+            throw;
+        }
+    }
+
+    ~CudaStreamTimer() {
+        if (stop_)
+            cudaCheck<false>(cudaEventDestroy(stop_));
+        if (start_)
+            cudaCheck<false>(cudaEventDestroy(start_));
+    }
+
+    void start() { cudaCheck(cudaEventRecord(start_, getStream())); }
+
+    /// \brief Waits for the measured work and returns its elapsed time.
+    [[nodiscard]] std::chrono::nanoseconds stop() {
+        cudaCheck(cudaEventRecord(stop_, getStream()));
+        cudaCheck(cudaEventSynchronize(stop_));
+
+        float milliseconds = 0.0F;
+        cudaCheck(cudaEventElapsedTime(&milliseconds, start_, stop_));
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::duration<float, std::milli>{milliseconds}
+        );
+    }
+
+private:
+    struct EmptyState {};
+
+    CudaStreamTimer(EmptyState, cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
+
+    cudaEvent_t start_{};
+    cudaEvent_t stop_{};
+};
 
 /// \brief Checks an OptiX API result.
 ///
