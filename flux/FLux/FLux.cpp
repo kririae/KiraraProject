@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <chrono>
 #include <exception>
 #include <filesystem>
@@ -22,7 +23,17 @@ int main(int argc, char **argv) try {
     auto const stats = [&] {
         if (request.backend == flux::RenderBackend::Optix) {
             flux::OptixHandler handler{scene.context, std::filesystem::path{FLUX_OPTIX_IR}};
-            auto result = handler.render(*scene.product, scene.product->getSamplesPerPixel());
+            flux::RenderStats result;
+            auto remaining = scene.product->getSamplesPerPixel();
+            // A full batch assigns one pixel's samples to one warp.
+            constexpr auto launchBatchSize = 32U;
+            while (remaining != 0) {
+                auto const batchSize = std::min(remaining, launchBatchSize);
+                auto const batch = handler.render(*scene.product, batchSize);
+                result.paths += batch.paths;
+                result.elapsed += batch.elapsed;
+                remaining -= batchSize;
+            }
             handler.download(*scene.product);
             return result;
         }

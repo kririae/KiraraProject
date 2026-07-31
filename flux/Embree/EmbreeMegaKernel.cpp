@@ -52,7 +52,7 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
                 continue;
             }
 
-            auto bsdf = params.scene.getBSDF(primitive.getBSDFIndex());
+            auto const &bsdf = params.scene.getBSDF(primitive.getBSDFIndex());
             auto const wo = -state.ray.direction;
             bsdf.init(surface, wo);
 
@@ -66,14 +66,13 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
                 }
             }
 
-            if (params.film.hasChannel<ColorChannel>())
-                params.integrator.onSurfaceHit(state, params.scene, bsdf, surface, wo);
-            else
+            if (params.film.hasChannel<ColorChannel>()) {
+                auto const directLight =
+                    params.integrator.onSurfaceHit(state, params.scene, bsdf, surface, wo);
+                if (directLight.valid && params.scene.isVisible(directLight.visibilityRay))
+                    state.radiance = state.radiance + directLight.contribution;
+            } else {
                 params.integrator.onSurfaceHit(state, surface);
-
-            if (state.hasPendingShadowQuery) {
-                auto const visible = params.scene.isVisible(state.pendingShadowQuery.ray);
-                params.integrator.resolvePendingShadowQuery(state, visible);
             }
         }
         colorSum = colorSum + state.radiance;

@@ -14,28 +14,21 @@
 #include "kira/Compiler.h"
 
 namespace flux {
-/// \brief Deferred visibility test for one direct-light candidate.
-///
-/// \c onSurfaceHit stores this value after selecting a light and evaluating
-/// the BSDF. The backend resolves visibility after the radiance traversal and
-/// accepts \c contribution only when the ray is visible.
-struct PendingShadowQuery {
-    /// Visibility ray from the surface to the sampled light point.
-    Ray ray;
-    /// Candidate radiance contribution before visibility.
+/// \brief Candidate contribution awaiting a visibility test.
+struct DirectLightCandidate {
+    Ray visibilityRay;
     Spectrum contribution{};
+    bool valid{};
 };
 
 /// \brief State carried by one path between radiance traversals.
 ///
 /// \verbatim
-/// input:             ray --> hit
-/// continuation:      hit -- ray --> next hit
-/// traversal result:  hit -- pendingShadowQuery --> sampled light
+/// input:         ray --> hit
+/// continuation:  hit -- ray --> next hit
 /// \endverbatim
 ///
 /// A valid BSDF sample replaces \c ray with the continuation.
-/// The scheduler resolves the shadow query before the next radiance traversal.
 struct PathState {
     /// Ray for the next radiance traversal.
     Ray ray;
@@ -50,15 +43,9 @@ struct PathState {
     /// Number of surface interactions that produced a continuation ray.
     std::uint32_t depth{};
 
-    // Traversal results consumed by the scheduler. An inactive path may still
-    // carry a direct-light candidate.
 public:
-    /// Direct-light candidate awaiting a visibility trace.
-    PendingShadowQuery pendingShadowQuery;
     /// Whether another radiance vertex should be processed.
     bool active{true};
-    /// Whether \c pendingShadowQuery awaits a visibility trace.
-    bool hasPendingShadowQuery{};
 };
 
 /// \brief Selects path tracing as a context's transport algorithm.
@@ -111,11 +98,10 @@ public:
         /// \brief Samples one direct-light candidate.
         ///
         /// Light selection and light sampling consume one 1D and one 2D sample
-        /// in that order. Visibility remains pending when this function
-        /// returns.
-        template <typename Scene, typename BSDFType>
-        KIRA_HOST_DEVICE void sampleDirectLighting(
-            PathState &state, Scene const &scene, BSDFType const &bsdf,
+        /// in that order. A valid result contains its visibility ray and candidate contribution.
+        template <typename Scene, typename BSDFImpl>
+        [[nodiscard]] KIRA_HOST_DEVICE DirectLightCandidate sampleDirectLighting(
+            PathState &state, Scene const &scene, BSDFImpl const &bsdf,
             SurfaceInteraction const &surface, Vec3f const &wo
         ) const noexcept {
             auto const ctx = LightSamplingContext{
@@ -127,47 +113,48 @@ public:
             auto const uLight = state.sampler.get2D();
             auto const selected = lightSampler.sample(ctx, uSelect);
             if (selected.pmf <= 0.0F)
-                return;
+                return {};
 
             auto const lightSample = lightSampler.sampleDirect(selected.lightIndex, ctx, uLight);
             if (lightSample.pdf <= 0.0F)
-                return;
+                return {};
 
             auto const query = BSDFQuery{.surface = surface, .wo = wo};
             auto const eval = bsdf.evaluateAndPdf(query, lightSample.wi);
             auto const cosTheta = std::abs(lightSample.wi.dot(surface.shadingNormal));
             if (cosTheta == 0.0F || eval.f.norm2() == 0.0F)
-                return;
+                return {};
 
             auto const lightPdf = selected.pmf * lightSample.pdf;
             auto const mis = lightSample.delta ? 1.0F : misWeight(lightPdf, eval.pdf);
-            state.pendingShadowQuery = {
-                .ray = surface.spawnRayTo(surface.position + lightSample.wi * lightSample.distance),
+            return {
+                .visibilityRay =
+                    surface.spawnRayTo(surface.position + lightSample.wi * lightSample.distance),
                 .contribution =
                     state.throughput * eval.f * lightSample.radiance * (cosTheta * mis / lightPdf),
+                .valid = true,
             };
-            state.hasPendingShadowQuery = true;
         }
 
-        /// \brief Evaluates one surface and prepares the next radiance ray.
-        template <typename Scene, typename BSDFType>
-        KIRA_HOST_DEVICE void onSurfaceHit(
-            PathState &state, Scene const &scene, BSDFType const &bsdf,
+        /// \brief Samples direct lighting and prepares the next radiance ray.
+        template <typename Scene, typename BSDFImpl>
+        [[nodiscard]] KIRA_HOST_DEVICE DirectLightCandidate onSurfaceHit(
+            PathState &state, Scene const &scene, BSDFImpl const &bsdf,
             SurfaceInteraction const &surface, Vec3f const &wo
         ) const noexcept {
             if (state.depth + 1 >= maxDepth) {
                 state.active = false;
-                return;
+                return {};
             }
 
-            sampleDirectLighting(state, scene, bsdf, surface, wo);
+            auto const directLight = sampleDirectLighting(state, scene, bsdf, surface, wo);
 
             auto const query = BSDFQuery{.surface = surface, .wo = wo};
             auto const sample = bsdf.sample(query, state.sampler.get1D(), state.sampler.get2D());
             auto const cosTheta = std::abs(sample.wi.dot(surface.shadingNormal));
             if (sample.pdf <= 0.0F || cosTheta == 0.0F || sample.f.norm2() == 0.0F) {
                 state.active = false;
-                return;
+                return directLight;
             }
 
             state.ray = surface.spawnRay(sample.wi);
@@ -177,7 +164,7 @@ public:
 
             if (state.throughput.hmax() == 0.0F) {
                 state.active = false;
-                return;
+                return directLight;
             }
 
             if (state.depth >= rrDepth) {
@@ -185,24 +172,11 @@ public:
                 auto const q = std::min(state.throughput.hmax() * state.eta * state.eta, rrProb);
                 if (q <= 0.0F || state.sampler.get1D() >= q) {
                     state.active = false;
-                    return;
+                    return directLight;
                 }
                 state.throughput = state.throughput / q;
             }
-        }
-
-        /// \brief Resolves a pending direct-light visibility test.
-        ///
-        /// Does nothing when no test is pending. A visible test adds the
-        /// candidate contribution. The test is then cleared.
-        KIRA_HOST_DEVICE void
-        resolvePendingShadowQuery(PathState &state, bool visible) const noexcept {
-            if (!state.hasPendingShadowQuery)
-                return;
-
-            if (visible)
-                state.radiance = state.radiance + state.pendingShadowQuery.contribution;
-            state.hasPendingShadowQuery = false;
+            return directLight;
         }
     };
 
@@ -217,11 +191,11 @@ private:
     Impl impl_;
 };
 
-static_assert(std::is_standard_layout_v<PendingShadowQuery>);
-static_assert(std::is_trivially_copyable_v<PendingShadowQuery>);
+static_assert(std::is_standard_layout_v<DirectLightCandidate>);
+static_assert(std::is_trivially_copyable_v<DirectLightCandidate>);
 static_assert(std::is_standard_layout_v<PathState>);
 static_assert(std::is_trivially_copyable_v<PathState>);
-static_assert(sizeof(PathState) <= 136, "PathState carry-over grew");
+static_assert(sizeof(PathState) <= 96, "PathState carry-over grew");
 static_assert(std::is_standard_layout_v<PathIntegrator::Impl>);
 static_assert(std::is_trivially_copyable_v<PathIntegrator::Impl>);
 } // namespace flux

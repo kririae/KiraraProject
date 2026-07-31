@@ -13,7 +13,8 @@ void OptixSbt::build(OptixProgram const &program) {
         auto const bsdfType = static_cast<BSDFType>(bsdf);
         for (std::size_t geometry = 0; geometry < numGeometryTypes; ++geometry) {
             auto const geometryType = static_cast<GeometryType>(geometry);
-            auto &record = staging_[hitgroupRecords + getHitgroupBlock(bsdfType, geometryType)];
+            auto &record =
+                staging_[hitgroupRecords + getHitgroupRecordIndex(bsdfType, geometryType)];
             optixCheck(optixSbtRecordPackHeader(program.getHitgroupProgram(geometryType), &record));
             record.data.bsdfType = bsdfType;
         }

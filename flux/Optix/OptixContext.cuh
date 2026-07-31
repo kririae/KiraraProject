@@ -32,6 +32,7 @@ KIRA_DEVICE inline bool OptixContext::Impl::intersect(Ray const &ray, Hit &hit) 
     if (!optixHitObjectIsHit())
         return false;
 
+    // Capture the world-space interaction while the outgoing hit object provides its transform.
     auto const primitiveIndex = optixHitObjectGetInstanceId();
     auto const &primitive = getPrimitive(primitiveIndex);
     auto const &geometry = getGeometry(primitive.getGeometryIndex());

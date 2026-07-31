@@ -64,7 +64,7 @@ TEST(ShadingTests, EvaluatesDiffuseOnHost) {
     auto surface = flux::SurfaceInteraction{
         .shadingNormal = {0.0F, 0.0F, 1.0F},
     };
-    auto bsdf = flux::BSDF::Impl{flux::DiffuseBSDF::Impl{
+    auto const bsdf = flux::BSDF::Impl{flux::DiffuseBSDF::Impl{
         .reflectance = {0.25F, 0.5F, 1.0F},
     }};
     auto const wo = flux::Vec3f{0.0F, 0.0F, 1.0F};

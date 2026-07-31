@@ -80,14 +80,10 @@ private:
         return *static_cast<Derived const *>(this);
     }
 
-    [[nodiscard]] KIRA_HOST_DEVICE Derived &derived_() noexcept {
-        return *static_cast<Derived *>(this);
-    }
-
 public:
-    /// \brief Prepares state local to one surface hit.
-    KIRA_HOST_DEVICE void init(SurfaceInteraction &surface, Vec3f const &wo) noexcept {
-        if constexpr (requires(Derived &bsdf) { bsdf.init_(surface, wo); })
+    /// \brief Applies hit-local shading changes to \p surface.
+    KIRA_HOST_DEVICE void init(SurfaceInteraction &surface, Vec3f const &wo) const noexcept {
+        if constexpr (requires(Derived const &bsdf) { bsdf.init_(surface, wo); })
             derived_().init_(surface, wo);
     }
 
@@ -195,28 +191,22 @@ public:
 
 /// \brief Heterogeneous scattering implementation.
 ///
-/// Generic callers use the common BSDF operations below. A caller that
-/// already knows the concrete type, such as an OptiX hit program selected by
-/// the SBT, may use \c get to bypass dynamic dispatch.
+/// Generic callers use the common BSDF operations below. A caller that knows
+/// the concrete type may use \c get to bypass dynamic dispatch.
 struct BSDF::Impl : cuda::std::variant<DiffuseBSDF::Impl> {
     using Base = cuda::std::variant<DiffuseBSDF::Impl>;
     using Base::Base;
 
 private:
     template <typename Function>
-    KIRA_HOST_DEVICE decltype(auto) dispatch(Function &&function) noexcept {
-        return cuda::std::visit(std::forward<Function>(function), static_cast<Base &>(*this));
-    }
-
-    template <typename Function>
     KIRA_HOST_DEVICE decltype(auto) dispatch(Function &&function) const noexcept {
         return cuda::std::visit(std::forward<Function>(function), static_cast<Base const &>(*this));
     }
 
 public:
-    /// \brief Prepares state local to one surface hit.
-    KIRA_HOST_DEVICE void init(SurfaceInteraction &surface, Vec3f const &wo) noexcept {
-        dispatch([&](auto &bsdf) { bsdf.init(surface, wo); });
+    /// \brief Applies hit-local shading changes to \p surface.
+    KIRA_HOST_DEVICE void init(SurfaceInteraction &surface, Vec3f const &wo) const noexcept {
+        dispatch([&](auto const &bsdf) { bsdf.init(surface, wo); });
     }
 
     /// \brief Evaluates the BSDF without the cosine factor.

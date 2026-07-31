@@ -42,7 +42,7 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
         } else {
             auto const &primitive =
                 optixLaunchParams.scene.getPrimitive(hit.surface.primitiveIndex);
-            auto surface = hit.surface;
+            auto &surface = hit.surface;
             auto const wo = -state.ray.direction;
 
             if (state.depth == 0) {
@@ -55,7 +55,8 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
                 optixLaunchParams.integrator.onSurfaceHit(state, surface);
             } else {
                 auto const &bsdf = optixLaunchParams.scene.getBSDF(primitive.getBSDFIndex());
-                auto const shade = [&](auto concrete) {
+                flux::DirectLightCandidate directLight{};
+                auto const shade = [&](auto const &concrete) {
                     concrete.init(surface, wo);
 
                     if (state.depth == 0 &&
@@ -74,7 +75,7 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
                     }
 
                     if (optixLaunchParams.film.hasChannel<flux::ColorChannel>())
-                        optixLaunchParams.integrator.onSurfaceHit(
+                        directLight = optixLaunchParams.integrator.onSurfaceHit(
                             state, optixLaunchParams.scene, concrete, surface, wo
                         );
                     else
@@ -85,12 +86,11 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
                 case flux::BSDFType::Diffuse: shade(bsdf.get<flux::DiffuseBSDF::Impl>()); break;
                 case flux::BSDFType::Count: KIRA_UNREACHABLE();
                 }
-            }
-        }
 
-        if (state.hasPendingShadowQuery) {
-            auto const visible = optixLaunchParams.scene.isVisible(state.pendingShadowQuery.ray);
-            optixLaunchParams.integrator.resolvePendingShadowQuery(state, visible);
+                if (directLight.valid &&
+                    optixLaunchParams.scene.isVisible(directLight.visibilityRay))
+                    state.radiance = state.radiance + directLight.contribution;
+            }
         }
     }
 

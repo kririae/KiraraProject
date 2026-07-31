@@ -14,7 +14,7 @@
 namespace flux {
 class OptixProgram;
 
-/// \brief Data shared by every instance that uses one material implementation.
+/// \brief Data shared by instances using one BSDF and geometry implementation pair.
 struct OptixHitgroupData {
     BSDFType bsdfType;
 };
@@ -31,17 +31,17 @@ public:
     /// \brief Returns the populated shader binding table.
     [[nodiscard]] OptixShaderBindingTable const &getTable() const noexcept { return table_; }
 
-    /// \brief Returns the hitgroup block for one BSDF and geometry pair.
+    /// \brief Returns the hitgroup record index for one BSDF and geometry pair.
     [[nodiscard]] static constexpr std::size_t
-    getHitgroupBlock(BSDFType bsdf, GeometryType geometry) noexcept {
+    getHitgroupRecordIndex(BSDFType bsdf, GeometryType geometry) noexcept {
         return static_cast<std::size_t>(bsdf) * numGeometryTypes +
                static_cast<std::size_t>(geometry);
     }
 
-    /// \brief Returns the IAS SBT offset for one program-type block.
+    /// \brief Returns the IAS SBT offset for the selected record.
     [[nodiscard]] static constexpr std::uint32_t
     getInstanceOffset(BSDFType bsdf, GeometryType geometry) noexcept {
-        return static_cast<std::uint32_t>(getHitgroupBlock(bsdf, geometry));
+        return static_cast<std::uint32_t>(getHitgroupRecordIndex(bsdf, geometry));
     }
 
     /// \brief Returns the number of records in the hitgroup section.

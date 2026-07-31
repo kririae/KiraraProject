@@ -19,7 +19,9 @@
 
 TEST(OptixPipelineTests, UsesAStableProgramTypeSbtLayout) {
     EXPECT_EQ(
-        flux::OptixSbt::getHitgroupBlock(flux::BSDFType::Diffuse, flux::GeometryType::TriangleMesh),
+        flux::OptixSbt::getHitgroupRecordIndex(
+            flux::BSDFType::Diffuse, flux::GeometryType::TriangleMesh
+        ),
         0
     );
     EXPECT_EQ(
