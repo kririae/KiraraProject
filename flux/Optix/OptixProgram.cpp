@@ -52,7 +52,7 @@ void logCompilerOutput(OptixResult result, std::array<char, 4096> const &log, st
 [[nodiscard]] OptixPipelineCompileOptions pipelineCompileOptions() {
     OptixPipelineCompileOptions options{};
     options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
-    options.numPayloadValues = 2;
+    options.numPayloadValues = 0;
     options.numAttributeValues = 2;
     options.pipelineLaunchParamsVariableName = "optixLaunchParams";
     options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE;
@@ -159,42 +159,13 @@ void OptixProgram::buildProgramGroups() {
     };
     raygenProgram_ = createProgramGroup(deviceContext_, raygen);
 
-    auto const radianceMiss = OptixProgramGroupDesc{
-        .kind = OPTIX_PROGRAM_GROUP_KIND_MISS,
+    auto const triangle = OptixProgramGroupDesc{
+        .kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP,
         .flags = OPTIX_PROGRAM_GROUP_FLAGS_NONE,
-        .miss = {
-            .module = module_,
-            .entryFunctionName = "__miss__radiance",
-        },
+        .hitgroup = {},
     };
-    missPrograms_[static_cast<std::size_t>(RayType::Radiance)] =
-        createProgramGroup(deviceContext_, radianceMiss);
-
-    auto const shadowMiss = OptixProgramGroupDesc{
-        .kind = OPTIX_PROGRAM_GROUP_KIND_MISS,
-        .flags = OPTIX_PROGRAM_GROUP_FLAGS_NONE,
-        .miss = {
-            .module = module_,
-            .entryFunctionName = "__miss__shadow",
-        },
-    };
-    missPrograms_[static_cast<std::size_t>(RayType::Shadow)] =
-        createProgramGroup(deviceContext_, shadowMiss);
-
-    OptixProgramGroupDesc diffuseTriangle{};
-    diffuseTriangle.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
-    diffuseTriangle.hitgroup.moduleCH = module_;
-    diffuseTriangle.hitgroup.entryFunctionNameCH = "__closesthit__triangle_diffuse";
-    radianceHitgroupPrograms_[OptixSbt::getHitgroupBlock(
-        BSDFType::Diffuse, GeometryType::TriangleMesh
-    )] = createProgramGroup(deviceContext_, diffuseTriangle);
-
-    OptixProgramGroupDesc triangleShadow{};
-    triangleShadow.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
-    triangleShadow.hitgroup.moduleCH = module_;
-    triangleShadow.hitgroup.entryFunctionNameCH = "__closesthit__triangle_shadow";
-    shadowHitgroupPrograms_[static_cast<std::size_t>(GeometryType::TriangleMesh)] =
-        createProgramGroup(deviceContext_, triangleShadow);
+    hitgroupPrograms_[static_cast<std::size_t>(GeometryType::TriangleMesh)] =
+        createProgramGroup(deviceContext_, triangle);
 }
 
 void OptixProgram::buildPipeline() {
@@ -203,16 +174,9 @@ void OptixProgram::buildPipeline() {
     linkOptions.maxTraceDepth = 1;
     linkOptions.maxTraversableGraphDepth = 2;
 
-    std::vector<OptixProgramGroup> programs;
-    programs.reserve(
-        1 + missPrograms_.size() + radianceHitgroupPrograms_.size() + shadowHitgroupPrograms_.size()
-    );
-    programs.push_back(raygenProgram_);
-    programs.insert(programs.end(), missPrograms_.begin(), missPrograms_.end());
-    programs.insert(
-        programs.end(), radianceHitgroupPrograms_.begin(), radianceHitgroupPrograms_.end()
-    );
-    programs.insert(programs.end(), shadowHitgroupPrograms_.begin(), shadowHitgroupPrograms_.end());
+    std::array<OptixProgramGroup, 1 + static_cast<std::size_t>(GeometryType::Count)> programs{};
+    programs.front() = raygenProgram_;
+    std::ranges::copy(hitgroupPrograms_, programs.begin() + 1);
     std::array<char, 4096> log{};
     std::size_t logSize = log.size();
     // clang-format off
@@ -243,13 +207,7 @@ void OptixProgram::buildPipeline() {
 void OptixProgram::reset() noexcept {
     if (pipeline_)
         optixCheck<false>(optixPipelineDestroy(pipeline_));
-    for (auto &program : shadowHitgroupPrograms_)
-        if (program)
-            optixCheck<false>(optixProgramGroupDestroy(program));
-    for (auto &program : radianceHitgroupPrograms_)
-        if (program)
-            optixCheck<false>(optixProgramGroupDestroy(program));
-    for (auto &program : missPrograms_)
+    for (auto &program : hitgroupPrograms_)
         if (program)
             optixCheck<false>(optixProgramGroupDestroy(program));
     if (raygenProgram_)
@@ -258,9 +216,7 @@ void OptixProgram::reset() noexcept {
         optixCheck<false>(optixModuleDestroy(module_));
 
     pipeline_ = nullptr;
-    shadowHitgroupPrograms_.fill(nullptr);
-    radianceHitgroupPrograms_.fill(nullptr);
-    missPrograms_.fill(nullptr);
+    hitgroupPrograms_.fill(nullptr);
     raygenProgram_ = nullptr;
     module_ = nullptr;
     deviceContext_ = nullptr;

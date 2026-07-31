@@ -15,12 +15,12 @@
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
+#include "flux/Shading/Interaction.h"
 #include "kira/Compiler.h"
 
 namespace flux {
 class Context;
 class OptixHandler;
-struct PathState;
 struct OptixProgramSpec;
 
 /// \brief Owns the OptiX scene built from a host \c Context.
@@ -68,6 +68,11 @@ private:
 /// The owning OptixContext keeps every referenced device array and OptiX
 /// handle valid until its next sync or destruction.
 struct OptixContext::Impl {
+    struct Hit {
+        SurfaceInteraction surface;
+        BSDFType bsdfType;
+    };
+
     /// Top-level instance acceleration structure.
     OptixTraversableHandle traversable{};
 
@@ -88,11 +93,10 @@ struct OptixContext::Impl {
     std::uint32_t numBSDFs{};      // *bsdfs
 
 public:
-    /// \brief Traces the ray in \p state.
+    /// \brief Finds the closest surface hit for \p ray.
     ///
-    /// The selected miss or closest-hit program advances \p state.
-    /// \pre \c traversable is not zero.
-    KIRA_DEVICE void trace(PathState &state) const noexcept;
+    /// Returns false when the scene is empty or the ray misses.
+    [[nodiscard]] KIRA_DEVICE bool intersect(Ray const &ray, Hit &hit) const noexcept;
 
     /// \brief Returns whether \p ray reaches its endpoint without obstruction.
     [[nodiscard]] KIRA_DEVICE bool isVisible(Ray const &ray) const noexcept;

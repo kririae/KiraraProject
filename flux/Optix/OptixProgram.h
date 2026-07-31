@@ -6,10 +6,8 @@
 #include <filesystem>
 
 #include "flux/Core/Object.h"
-#include "flux/Core/Ray.h"
-#include "flux/Optix/OptixSbt.h"
 #include "flux/Sampling/Sampler.h"
-#include "flux/Shading/BSDF.h"
+#include "flux/Scene/Geometry.h"
 
 namespace flux {
 class Context;
@@ -28,8 +26,7 @@ class OptixProgram final : private Noncopyable {
 public:
     /// \brief Builds a triangle-intersection pipeline from \p modulePath.
     ///
-    /// The module must provide \c __raygen__megakernel, the radiance and shadow
-    /// miss programs, and the diffuse and shadow triangle hit programs.
+    /// The module must provide \c __raygen__megakernel.
     OptixProgram(
         OptixDeviceContext deviceContext, std::filesystem::path const &modulePath,
         OptixProgramSpec spec
@@ -47,17 +44,8 @@ public:
     [[nodiscard]] OptixProgramSpec const &getSpec() const noexcept { return spec_; }
     [[nodiscard]] OptixProgramGroup getRaygenProgram() const noexcept { return raygenProgram_; }
 
-    [[nodiscard]] OptixProgramGroup getMissProgram(RayType ray) const noexcept {
-        return missPrograms_[static_cast<std::size_t>(ray)];
-    }
-
-    [[nodiscard]] OptixProgramGroup
-    getRadianceHitgroupProgram(BSDFType bsdf, GeometryType geometry) const noexcept {
-        return radianceHitgroupPrograms_[OptixSbt::getHitgroupBlock(bsdf, geometry)];
-    }
-
-    [[nodiscard]] OptixProgramGroup getShadowHitgroupProgram(GeometryType geometry) const noexcept {
-        return shadowHitgroupPrograms_[static_cast<std::size_t>(geometry)];
+    [[nodiscard]] OptixProgramGroup getHitgroupProgram(GeometryType geometry) const noexcept {
+        return hitgroupPrograms_[static_cast<std::size_t>(geometry)];
     }
 
 private:
@@ -70,13 +58,8 @@ private:
     OptixProgramSpec spec_;
     OptixModule module_{};
     OptixProgramGroup raygenProgram_{};
-    std::array<OptixProgramGroup, static_cast<std::size_t>(RayType::Count)> missPrograms_{};
-    std::array<
-        OptixProgramGroup,
-        static_cast<std::size_t>(BSDFType::Count) * static_cast<std::size_t>(GeometryType::Count)>
-        radianceHitgroupPrograms_{};
     std::array<OptixProgramGroup, static_cast<std::size_t>(GeometryType::Count)>
-        shadowHitgroupPrograms_{};
+        hitgroupPrograms_{};
     OptixPipeline pipeline_{};
 };
 } // namespace flux

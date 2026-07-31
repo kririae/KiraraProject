@@ -11,31 +11,25 @@ namespace flux::optix {
 /// \brief Reconstructs a world-space interaction for the current OptiX hit.
 ///
 /// Geometry computes geometry-space fields. OptiX transforms normals and reads
-/// the world ray from the current hit.
+/// the instance transform from the outgoing hit object.
 template <typename GeometryImpl>
 [[nodiscard]] KIRA_DEVICE inline SurfaceInteraction makeSurfaceInteraction(
     GeometryImpl const &geometry, PreliminaryIntersection const &preliminary,
-    std::uint32_t primitiveIndex
+    std::uint32_t primitiveIndex, Ray const &ray
 ) noexcept {
     auto const geometryInteraction = geometry.computeInteraction(preliminary);
-    auto const geometricNormalValue = optixTransformNormalFromObjectToWorldSpace(make_float3(
-        geometryInteraction.geometricNormal.x(), geometryInteraction.geometricNormal.y(),
-        geometryInteraction.geometricNormal.z()
-    ));
-    auto const shadingNormalValue = optixTransformNormalFromObjectToWorldSpace(make_float3(
+    auto const geometricNormalValue =
+        optixHitObjectTransformNormalFromObjectToWorldSpace(make_float3(
+            geometryInteraction.geometricNormal.x(), geometryInteraction.geometricNormal.y(),
+            geometryInteraction.geometricNormal.z()
+        ));
+    auto const shadingNormalValue = optixHitObjectTransformNormalFromObjectToWorldSpace(make_float3(
         geometryInteraction.shadingNormal.x(), geometryInteraction.shadingNormal.y(),
         geometryInteraction.shadingNormal.z()
     ));
-    auto const rayOrigin = optixGetWorldRayOrigin();
-    auto const rayDirection = optixGetWorldRayDirection();
 
     return {
-        .position =
-            {
-                rayOrigin.x + rayDirection.x * preliminary.distance,
-                rayOrigin.y + rayDirection.y * preliminary.distance,
-                rayOrigin.z + rayDirection.z * preliminary.distance,
-            },
+        .position = ray.origin + ray.direction * preliminary.distance,
         .geometricNormal =
             Vec3f{geometricNormalValue.x, geometricNormalValue.y, geometricNormalValue.z}
                 .normalize(),

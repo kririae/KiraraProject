@@ -19,16 +19,8 @@
 
 TEST(OptixPipelineTests, UsesAStableProgramTypeSbtLayout) {
     EXPECT_EQ(
-        flux::OptixSbt::getHitgroupRecord(
-            flux::BSDFType::Diffuse, flux::GeometryType::TriangleMesh, flux::RayType::Radiance
-        ),
+        flux::OptixSbt::getHitgroupBlock(flux::BSDFType::Diffuse, flux::GeometryType::TriangleMesh),
         0
-    );
-    EXPECT_EQ(
-        flux::OptixSbt::getHitgroupRecord(
-            flux::BSDFType::Diffuse, flux::GeometryType::TriangleMesh, flux::RayType::Shadow
-        ),
-        1
     );
     EXPECT_EQ(
         flux::OptixSbt::getInstanceOffset(
@@ -36,7 +28,7 @@ TEST(OptixPipelineTests, UsesAStableProgramTypeSbtLayout) {
         ),
         0
     );
-    EXPECT_EQ(flux::OptixSbt::getNumHitgroupRecords(), 2);
+    EXPECT_EQ(flux::OptixSbt::getNumHitgroupRecords(), 1);
 }
 
 TEST(OptixPipelineTests, RendersAndDownloadsFilmChannels) {

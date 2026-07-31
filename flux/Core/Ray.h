@@ -12,13 +12,6 @@
 namespace flux {
 inline constexpr float shadowEpsilon = 1.0e-6F;
 
-/// \brief Selects one SBT ray path.
-enum class RayType : std::uint32_t { // NOLINT
-    Radiance,
-    Shadow,
-    Count,
-};
-
 /// \brief Ray traced by the renderer.
 struct Ray {
     /// Ray origin in world space.

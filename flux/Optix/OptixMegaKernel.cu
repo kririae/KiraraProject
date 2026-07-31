@@ -4,7 +4,6 @@
 
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Optix/OptixContext.cuh"
-#include "flux/Optix/OptixInteraction.cuh"
 #include "flux/Optix/OptixLaunchParams.h"
 #include "flux/Sampling/SamplerImpl.h"
 #include "flux/Scene/CameraImpl.h"
@@ -37,10 +36,58 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
     };
 
     while (state.active) {
-        if (optixLaunchParams.scene.traversable)
-            optixLaunchParams.scene.trace(state);
-        else
+        flux::OptixContext::Impl::Hit hit;
+        if (!optixLaunchParams.scene.intersect(state.ray, hit)) {
             optixLaunchParams.integrator.onMiss(state);
+        } else {
+            auto const &primitive =
+                optixLaunchParams.scene.getPrimitive(hit.surface.primitiveIndex);
+            auto surface = hit.surface;
+            auto const wo = -state.ray.direction;
+
+            if (state.depth == 0) {
+                optixLaunchParams.film.accumulate<flux::NormalChannel>(
+                    launchSample.pixel, surface.shadingNormal * optixLaunchParams.getSampleWeight()
+                );
+            }
+
+            if (!primitive.hasBSDF()) {
+                optixLaunchParams.integrator.onSurfaceHit(state, surface);
+            } else {
+                auto const &bsdf = optixLaunchParams.scene.getBSDF(primitive.getBSDFIndex());
+                auto const shade = [&](auto concrete) {
+                    concrete.init(surface, wo);
+
+                    if (state.depth == 0 &&
+                        optixLaunchParams.film.hasChannel<flux::AlbedoChannel>()) {
+                        auto aovSampler = state.sampler;
+                        auto const query = flux::BSDFQuery{.surface = surface, .wo = wo};
+                        auto const bsdfSample =
+                            concrete.sample(query, aovSampler.get1D(), aovSampler.get2D());
+                        if (bsdfSample.pdf > 0.0F) {
+                            auto const cosine = std::abs(bsdfSample.wi.dot(surface.shadingNormal));
+                            auto const albedo = bsdfSample.f * (cosine / bsdfSample.pdf);
+                            optixLaunchParams.film.accumulate<flux::AlbedoChannel>(
+                                launchSample.pixel, albedo * optixLaunchParams.getSampleWeight()
+                            );
+                        }
+                    }
+
+                    if (optixLaunchParams.film.hasChannel<flux::ColorChannel>())
+                        optixLaunchParams.integrator.onSurfaceHit(
+                            state, optixLaunchParams.scene, concrete, surface, wo
+                        );
+                    else
+                        optixLaunchParams.integrator.onSurfaceHit(state, surface);
+                };
+
+                switch (hit.bsdfType) {
+                case flux::BSDFType::Diffuse: shade(bsdf.get<flux::DiffuseBSDF::Impl>()); break;
+                case flux::BSDFType::Count: KIRA_UNREACHABLE();
+                }
+            }
+        }
+
         if (state.hasPendingShadowQuery) {
             auto const visible = optixLaunchParams.scene.isVisible(state.pendingShadowQuery.ray);
             optixLaunchParams.integrator.resolvePendingShadowQuery(state, visible);
@@ -50,76 +97,4 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
     optixLaunchParams.film.accumulate<flux::ColorChannel>(
         launchSample.pixel, state.radiance * optixLaunchParams.getSampleWeight()
     );
-}
-
-extern "C" __global__ void __miss__radiance() { // NOLINT
-    auto *state = flux::optix::getPayloadPointer<flux::PathState>();
-    optixLaunchParams.integrator.onMiss(*state);
-}
-
-extern "C" __global__ void __miss__shadow() { // NOLINT
-    optixSetPayload_0(0);
-}
-
-extern "C" __global__ void __closesthit__triangle_diffuse() { // NOLINT
-    auto const primitiveIndex = optixGetInstanceId();
-    auto const &primitive = optixLaunchParams.scene.getPrimitive(primitiveIndex);
-    auto const &geometry = optixLaunchParams.scene.getGeometry(primitive.getGeometryIndex());
-    auto const barycentrics = optixGetTriangleBarycentrics();
-    auto const preliminary = flux::PreliminaryIntersection{
-        .distance = optixGetRayTmax(),
-        .coordinates = {barycentrics.x, barycentrics.y},
-        .elementIndex = optixGetPrimitiveIndex(),
-    };
-    auto surface = flux::optix::makeSurfaceInteraction(geometry, preliminary, primitiveIndex);
-    auto const rayDirectionValue = optixGetWorldRayDirection();
-    auto const rayDirection =
-        flux::Vec3f{rayDirectionValue.x, rayDirectionValue.y, rayDirectionValue.z};
-
-    auto *state = flux::optix::getPayloadPointer<flux::PathState>();
-
-    if (state->depth == 0) {
-        auto const launchSample = optixLaunchParams.getLaunchSample(optixGetLaunchIndex().x);
-        optixLaunchParams.film.accumulate<flux::NormalChannel>(
-            launchSample.pixel, surface.shadingNormal * optixLaunchParams.getSampleWeight()
-        );
-    }
-
-    if (primitive.hasBSDF()) {
-        auto const &bsdf = optixLaunchParams.scene.getBSDF(primitive.getBSDFIndex());
-        auto diffuse = bsdf.get<flux::DiffuseBSDF::Impl>();
-        auto const wo = -rayDirection;
-        diffuse.init(surface, wo);
-
-        if (state->depth == 0) {
-            auto const launchSample = optixLaunchParams.getLaunchSample(optixGetLaunchIndex().x);
-            auto const sampleWeight = optixLaunchParams.getSampleWeight();
-            if (optixLaunchParams.film.hasChannel<flux::AlbedoChannel>()) {
-                auto aovSampler = state->sampler;
-                auto const query = flux::BSDFQuery{.surface = surface, .wo = wo};
-                auto const bsdfSample =
-                    diffuse.sample(query, aovSampler.get1D(), aovSampler.get2D());
-                if (bsdfSample.pdf > 0.0F) {
-                    auto const cosine = std::abs(bsdfSample.wi.dot(surface.shadingNormal));
-                    auto const albedo = bsdfSample.f * (cosine / bsdfSample.pdf);
-                    optixLaunchParams.film.accumulate<flux::AlbedoChannel>(
-                        launchSample.pixel, albedo * sampleWeight
-                    );
-                }
-            }
-        }
-
-        if (optixLaunchParams.film.hasChannel<flux::ColorChannel>())
-            optixLaunchParams.integrator.onSurfaceHit(
-                *state, optixLaunchParams.scene, diffuse, surface, wo
-            );
-        else
-            optixLaunchParams.integrator.onSurfaceHit(*state, surface);
-    } else {
-        optixLaunchParams.integrator.onSurfaceHit(*state, surface);
-    }
-}
-
-extern "C" __global__ void __closesthit__triangle_shadow() { // NOLINT
-    optixSetPayload_0(1);
 }
