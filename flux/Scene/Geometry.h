@@ -46,6 +46,18 @@ struct GeometryInteraction {
     std::uint32_t elementIndex{};
 };
 
+/// \brief Geometry-space position sample with an area density.
+struct GeometrySample {
+    /// Sampled position.
+    Vec3f position{};
+
+    /// Normal derived from the sampled surface.
+    Vec3f geometricNormal{};
+
+    /// Density with respect to geometry-space area.
+    float pdf{};
+};
+
 /// \brief Host-side base for geometry stored in a scene.
 class Geometry : public RenderObject {
     friend class TXContext;
@@ -55,8 +67,13 @@ protected:
     Geometry(TXContext &tx, GeometryType type);
 
 public:
+    struct Impl;
+
     /// \brief Returns the concrete geometry type.
     [[nodiscard]] GeometryType getType() const noexcept { return type_; }
+
+    /// \brief Returns the geometry-space surface area.
+    [[nodiscard]] virtual float getSurfaceArea() const noexcept = 0;
 
 private:
     [[nodiscard]] static Ref<Geometry> create(TXContext &tx, kira::Properties const &props);
@@ -68,4 +85,6 @@ static_assert(std::is_standard_layout_v<PreliminaryIntersection>);
 static_assert(std::is_trivially_copyable_v<PreliminaryIntersection>);
 static_assert(std::is_standard_layout_v<GeometryInteraction>);
 static_assert(std::is_trivially_copyable_v<GeometryInteraction>);
+static_assert(std::is_standard_layout_v<GeometrySample>);
+static_assert(std::is_trivially_copyable_v<GeometrySample>);
 } // namespace flux

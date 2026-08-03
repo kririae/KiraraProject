@@ -2,6 +2,8 @@
 
 #include <miniply.h>
 #include <tbb/parallel_for.h>
+#include <tbb/parallel_reduce.h>
+#include <tbb/parallel_scan.h>
 
 #include <algorithm>
 #include <array>
@@ -19,6 +21,7 @@
 #include "flux/Core/KIRA.h"
 #include "flux/Core/MathUtils.h"
 #include "flux/Scene/Context.h"
+#include "flux/Scene/TriangleMeshImpl.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
@@ -43,7 +46,7 @@ void generateVertexNormals(
         auto const &vertex2 = vertices[triangle[2u]];
         auto const faceVector = cross(vertex1 - vertex0, vertex2 - vertex0);
         auto const faceLengthSquared = faceVector.norm2();
-        if (!(faceLengthSquared > 0.0F) || !std::isfinite(faceLengthSquared))
+        if (!(faceLengthSquared > 0.0F))
             return;
         auto const faceNormal = faceVector / std::sqrt(faceLengthSquared);
 
@@ -53,8 +56,7 @@ void generateVertexNormals(
             auto next = vertices[triangle[(corner + 1) % 3]] - center;
             auto const previousLengthSquared = previous.norm2();
             auto const nextLengthSquared = next.norm2();
-            if (!(previousLengthSquared > 0.0F) || !std::isfinite(previousLengthSquared) ||
-                !(nextLengthSquared > 0.0F) || !std::isfinite(nextLengthSquared))
+            if (!(previousLengthSquared > 0.0F) || !(nextLengthSquared > 0.0F))
                 continue;
 
             previous = previous / std::sqrt(previousLengthSquared);
@@ -71,7 +73,7 @@ void generateVertexNormals(
 
     tbb::parallel_for(std::size_t{0}, normals.size(), [&](std::size_t index) {
         auto const lengthSquared = normals[index].norm2();
-        if (lengthSquared > 0.0F && std::isfinite(lengthSquared))
+        if (lengthSquared > 0.0F)
             normals[index] = normals[index] / std::sqrt(lengthSquared);
     });
 }
@@ -96,6 +98,16 @@ TriangleMesh::TriangleMesh(TXContext &tx, kira::Properties const &props)
         throw kira::Anyhow(
             "TriangleMesh: unsupported file extension '{}' for '{}'", extension, path.string()
         );
+
+    auto const impl = getImpl();
+    surfaceArea_ = tbb::parallel_reduce(
+        tbb::blocked_range<std::uint32_t>{0, impl.numTriangles}, 0.0F,
+        [&](auto const &range, float area) {
+        for (auto triangle = range.begin(); triangle != range.end(); ++triangle)
+            area += impl.getTriangleArea(triangle);
+        return area;
+    }, std::plus<>{}
+    );
 }
 
 TriangleMesh::Impl TriangleMesh::getImpl() const noexcept {
@@ -114,7 +126,49 @@ TriangleMesh::Impl TriangleMesh::getImpl() const noexcept {
                 : (texCoordIndices_.empty() ? triangles_.data() : texCoordIndices_.data()),
         .numVertices = static_cast<std::uint32_t>(vertices.size()),
         .numTriangles = static_cast<std::uint32_t>(triangles_.size()),
+        .surfaceArea = surfaceArea_,
     };
+}
+
+void TriangleMesh::computeSamplingDistribution(
+    Impl const &mesh, std::span<float> areaCDF, std::span<float> areaPDF
+) {
+    KIRA_ASSERT(
+        areaCDF.size() == mesh.numTriangles && areaPDF.size() == mesh.numTriangles,
+        "Triangle sampling arrays do not match the mesh"
+    );
+
+    tbb::parallel_for(std::uint32_t{0}, mesh.numTriangles, [&](std::uint32_t triangle) {
+        areaPDF[triangle] = mesh.getTriangleArea(triangle);
+    });
+    tbb::parallel_scan(
+        tbb::blocked_range<std::uint32_t>{0, mesh.numTriangles}, 0.0,
+        [&](auto const &range, double area, bool const isFinalScan) {
+        for (auto triangle = range.begin(); triangle != range.end(); ++triangle) {
+            area += areaPDF[triangle];
+            if (isFinalScan)
+                areaCDF[triangle] = static_cast<float>(area);
+        }
+        return area;
+    }, std::plus<>{}
+    );
+    if (areaCDF.empty() || areaCDF.back() == 0.0F) {
+        std::ranges::fill(areaPDF, 0.0F);
+        return;
+    }
+
+    auto const cdfTotal = areaCDF.back();
+    tbb::parallel_for(std::size_t{0}, areaPDF.size(), [&](std::size_t index) {
+        auto const previous = index == 0 ? 0.0F : areaCDF[index - 1];
+        auto const interval = areaCDF[index] - previous;
+        auto const area = areaPDF[index];
+        areaPDF[index] =
+            area == 0.0F
+                ? 0.0F
+                : static_cast<float>(
+                      static_cast<double>(interval) / (static_cast<double>(cdfTotal) * area)
+                  );
+    });
 }
 
 void TriangleMesh::loadObj(std::filesystem::path const &path) {
@@ -407,7 +461,7 @@ void TriangleMesh::loadPly(std::filesystem::path const &path) {
                 }
 
                 auto const normalLengthSquared = polygonNormal.norm2();
-                if (!(normalLengthSquared > 0.0F) || !std::isfinite(normalLengthSquared))
+                if (!(normalLengthSquared > 0.0F))
                     throw kira::Anyhow(
                         "TriangleMesh: failed to triangulate a degenerate face in PLY '{}'",
                         pathString

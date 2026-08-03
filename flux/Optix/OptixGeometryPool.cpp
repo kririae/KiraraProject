@@ -43,6 +43,18 @@ void OptixGeometryPool::build(std::span<Ref<TriangleMesh const> const> meshes) {
         entry.normalIndices.copyFromHost({normalIndices.data(), normalIndices.size()});
         entry.texCoords.copyFromHost({texCoords.data(), texCoords.size()});
         entry.texCoordIndices.copyFromHost({texCoordIndices.data(), texCoordIndices.size()});
+        entry.triangleAreaCDFStaging.resize_for_overwrite(hostImpl.numTriangles);
+        entry.triangleAreaPDFStaging.resize_for_overwrite(hostImpl.numTriangles);
+        TriangleMesh::computeSamplingDistribution(
+            hostImpl, {entry.triangleAreaCDFStaging.data(), entry.triangleAreaCDFStaging.size()},
+            {entry.triangleAreaPDFStaging.data(), entry.triangleAreaPDFStaging.size()}
+        );
+        entry.triangleAreaCDF.copyFromHost(
+            {entry.triangleAreaCDFStaging.data(), entry.triangleAreaCDFStaging.size()}
+        );
+        entry.triangleAreaPDF.copyFromHost(
+            {entry.triangleAreaPDFStaging.data(), entry.triangleAreaPDFStaging.size()}
+        );
         entry.vertexBuffer = devicePointer(entry.vertices.data());
         auto const *deviceNormalIndices = hostImpl.normalIndices == hostImpl.triangles
                                               ? entry.triangles.data()
@@ -50,16 +62,23 @@ void OptixGeometryPool::build(std::span<Ref<TriangleMesh const> const> meshes) {
         auto const *deviceTexCoordIndices = hostImpl.texCoordIndices == hostImpl.triangles
                                                 ? entry.triangles.data()
                                                 : entry.texCoordIndices.data();
-        staging_.push_back({
-            .vertices = entry.vertices.data(),
-            .triangles = entry.triangles.data(),
-            .normals = hostImpl.normals ? entry.normals.data() : nullptr,
-            .normalIndices = hostImpl.normalIndices ? deviceNormalIndices : nullptr,
-            .texCoords = hostImpl.texCoords ? entry.texCoords.data() : nullptr,
-            .texCoordIndices = hostImpl.texCoordIndices ? deviceTexCoordIndices : nullptr,
-            .numVertices = hostImpl.numVertices,
-            .numTriangles = hostImpl.numTriangles,
-        });
+        staging_.emplace_back(
+            TriangleMesh::Impl{
+                .vertices = entry.vertices.data(),
+                .triangles = entry.triangles.data(),
+                .normals = hostImpl.normals ? entry.normals.data() : nullptr,
+                .normalIndices = hostImpl.normalIndices ? deviceNormalIndices : nullptr,
+                .texCoords = hostImpl.texCoords ? entry.texCoords.data() : nullptr,
+                .texCoordIndices = hostImpl.texCoordIndices ? deviceTexCoordIndices : nullptr,
+                .numVertices = hostImpl.numVertices,
+                .numTriangles = hostImpl.numTriangles,
+                .triangleAreaCDF = entry.triangleAreaCDF.data(),
+                .triangleAreaPDF = entry.triangleAreaPDF.data(),
+                .surfaceArea = entry.triangleAreaCDFStaging.empty()
+                                   ? hostImpl.surfaceArea
+                                   : entry.triangleAreaCDFStaging.back(),
+            }
+        );
     }
 
     deviceImpls_.copyFromHost({staging_.data(), staging_.size()});

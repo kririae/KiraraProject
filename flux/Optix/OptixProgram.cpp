@@ -1,5 +1,6 @@
 #include "flux/Optix/OptixProgram.h"
 
+#include <optix_stack_size.h>
 #include <optix_stubs.h>
 
 #include <algorithm>
@@ -112,7 +113,8 @@ OptixProgramSpec OptixProgram::makeSpec(Context const &context) {
 void OptixProgram::buildModule(std::filesystem::path const &modulePath) {
     auto const ir = readBinary(modulePath);
     OptixModuleCompileOptions moduleOptions{};
-    moduleOptions.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
+    // Keep the megakernel below the measured OptiX register-allocation cliff.
+    moduleOptions.maxRegisterCount = 96;
     moduleOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_3;
     moduleOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
 
@@ -192,6 +194,16 @@ void OptixProgram::buildPipeline() {
     // clang-format on
     logCompilerOutput(result, log, logSize);
     optixCheck(result);
+
+    OptixStackSizes stackSizes{};
+    for (auto const program : programs)
+        optixCheck(optixUtilAccumulateStackSizes(program, &stackSizes, pipeline_));
+    LogDebug(
+        "OptiX stack sizes (bytes): raygen={}, miss={}, closest-hit={}, any-hit={}, "
+        "intersection={}, continuation-callable={}, direct-callable={}",
+        stackSizes.cssRG, stackSizes.cssMS, stackSizes.cssCH, stackSizes.cssAH, stackSizes.cssIS,
+        stackSizes.cssCC, stackSizes.dssDC
+    );
 
     // clang-format off
     optixCheck(optixPipelineSetStackSizeFromCallDepths(

@@ -1,5 +1,8 @@
 #include "flux/Scene/Light.h"
 
+#include <numbers>
+
+#include "flux/Core/MathUtils.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
@@ -41,5 +44,9 @@ PointLight::Impl PointLight::getImpl() const noexcept {
         .position = position_,
         .intensity = intensity_,
     };
+}
+
+float PointLight::estimatePower() const noexcept {
+    return 4.0F * std::numbers::pi_v<float> * luminance(intensity_);
 }
 } // namespace flux

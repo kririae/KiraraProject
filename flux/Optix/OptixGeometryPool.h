@@ -2,13 +2,16 @@
 
 #include <optix_types.h>
 
+#include <cstdint>
 #include <span>
 #include <vector>
 
 #include "flux/Core/Object.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/OptixUtils.h"
+#include "flux/Scene/GeometryImpl.h"
 #include "flux/Scene/TriangleMesh.h"
+#include "kira/SmallVector.h"
 
 namespace flux {
 /// \brief Owns the device storage used by OptiX triangle build inputs.
@@ -36,7 +39,7 @@ public:
     [[nodiscard]] std::size_t size() const noexcept { return entries_.size(); }
 
     ///
-    [[nodiscard]] TriangleMesh::Impl const *getDeviceImpls() const noexcept {
+    [[nodiscard]] Geometry::Impl const *getDeviceImpls() const noexcept {
         return deviceImpls_.data();
     }
 
@@ -44,7 +47,8 @@ private:
     struct Entry {
         explicit Entry(cudaStream_t stream)
             : vertices(stream), triangles(stream), normals(stream), normalIndices(stream),
-              texCoords(stream), texCoordIndices(stream) {}
+              texCoords(stream), texCoordIndices(stream), triangleAreaCDF(stream),
+              triangleAreaPDF(stream) {}
 
         DeviceBuffer<Vec3f> vertices;
         DeviceBuffer<Vec3u> triangles;
@@ -52,12 +56,16 @@ private:
         DeviceBuffer<Vec3u> normalIndices;
         DeviceBuffer<Vec2f> texCoords;
         DeviceBuffer<Vec3u> texCoordIndices;
+        kira::SmallVector<float, 0> triangleAreaCDFStaging;
+        kira::SmallVector<float, 0> triangleAreaPDFStaging;
+        DeviceBuffer<float> triangleAreaCDF;
+        DeviceBuffer<float> triangleAreaPDF;
         CUdeviceptr vertexBuffer{};
         unsigned int flags{OPTIX_GEOMETRY_FLAG_NONE};
     };
 
     std::vector<Entry> entries_;
-    std::vector<TriangleMesh::Impl> staging_;
-    DeviceBuffer<TriangleMesh::Impl> deviceImpls_;
+    std::vector<Geometry::Impl> staging_;
+    DeviceBuffer<Geometry::Impl> deviceImpls_;
 };
 } // namespace flux

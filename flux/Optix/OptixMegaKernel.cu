@@ -35,6 +35,7 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
         .ray = ray,
         .sampler = sampler,
     };
+    auto const writesColor = optixLaunchParams.film.hasChannel<flux::ColorChannel>();
 
     while (state.active) {
         flux::OptixContext::Impl::Hit hit;
@@ -53,13 +54,17 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
             );
         }
 
+        auto const wo = -state.ray.direction;
         if (!primitive.hasBSDF()) {
+            if (writesColor)
+                optixLaunchParams.integrator.onEmitterHit(
+                    state, optixLaunchParams.scene, primitive, surface, wo
+                );
             optixLaunchParams.integrator.onSurfaceHit(state, surface);
             break;
         }
 
         auto const &bsdf = optixLaunchParams.scene.getBSDF(primitive.getBSDFIndex());
-        auto const wo = -state.ray.direction;
         bsdf.init(surface, wo);
 
         if (isPrimary && optixLaunchParams.film.hasChannel<flux::AlbedoChannel>()) {
@@ -75,10 +80,14 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
             }
         }
 
-        if (!optixLaunchParams.film.hasChannel<flux::ColorChannel>()) {
+        if (!writesColor) {
             optixLaunchParams.integrator.onSurfaceHit(state, surface);
             break;
         }
+
+        optixLaunchParams.integrator.onEmitterHit(
+            state, optixLaunchParams.scene, primitive, surface, wo
+        );
 
         auto const directLight = optixLaunchParams.integrator.onSurfaceHit(
             state, optixLaunchParams.scene, bsdf, surface, wo

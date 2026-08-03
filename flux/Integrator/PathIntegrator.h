@@ -8,8 +8,10 @@
 #include "flux/Core/Ray.h"
 #include "flux/Sampling/LightSampler.h"
 #include "flux/Sampling/SamplerImpl.h"
+#include "flux/Scene/PrimitiveImpl.h"
 #include "flux/Scene/RenderObject.h"
 #include "flux/Shading/BSDF.h"
+#include "flux/Shading/EDF.h"
 #include "flux/Shading/Interaction.h"
 #include "kira/Compiler.h"
 
@@ -24,11 +26,12 @@ struct DirectLightCandidate {
 /// \brief State carried by one path between radiance traversals.
 ///
 /// \verbatim
-/// input:         ray --> hit
-/// continuation:  hit -- ray --> next hit
+/// previous vertex -- ray --> current hit
+///                    \---- previous light context and BSDF PDF
 /// \endverbatim
 ///
-/// A valid BSDF sample replaces \c ray with the continuation.
+/// A BSDF sample replaces \c ray and records the data needed when that ray
+/// reaches an emitter.
 struct PathState {
     /// Ray for the next radiance traversal.
     Ray ray;
@@ -40,12 +43,18 @@ struct PathState {
     Spectrum throughput{1.0F, 1.0F, 1.0F};
     /// Product of relative IORs along the path.
     float eta{1.0F};
-    /// Number of surface interactions that produced a continuation ray.
-    std::uint32_t depth{};
 
 public:
+    /// Previous vertex used to evaluate the light-sampling PDF at an emitter.
+    LightSamplingContext previousLightContext{};
+    /// BSDF PDF that produced \c ray.
+    float previousBSDFPdf{};
+    /// Number of surface interactions that produced a continuation ray.
+    std::uint32_t depth{};
     /// Whether another radiance vertex should be processed.
     bool active{true};
+    /// Whether the BSDF sample that produced \c ray was discrete.
+    bool previousDelta{};
 };
 
 /// \brief Selects path tracing as a context's transport algorithm.
@@ -99,23 +108,27 @@ public:
         ///
         /// Light selection and light sampling consume one 1D and one 2D sample
         /// in that order. A valid result contains its visibility ray and candidate contribution.
-        template <typename Scene, typename BSDFImpl>
+        template <typename BackendContext, typename BSDFImpl>
         [[nodiscard]] KIRA_HOST_DEVICE DirectLightCandidate sampleDirectLighting(
-            PathState &state, Scene const &scene, BSDFImpl const &bsdf,
+            PathState &state, BackendContext const &backend, BSDFImpl const &bsdf,
             SurfaceInteraction const &surface, Vec3f const &wo
         ) const noexcept {
+            if (state.depth + 1 >= maxDepth)
+                return {};
+
             auto const ctx = LightSamplingContext{
                 .position = surface.position,
                 .normal = surface.shadingNormal,
             };
-            auto const &lightSampler = scene.getLightSampler();
+            auto const &lightSampler = backend.getLightSampler();
             auto const uSelect = state.sampler.get1D();
             auto const uLight = state.sampler.get2D();
             auto const selected = lightSampler.sample(ctx, uSelect);
             if (selected.pmf <= 0.0F)
                 return {};
 
-            auto const lightSample = lightSampler.sampleDirect(selected.lightIndex, ctx, uLight);
+            auto const lightSample =
+                lightSampler.sampleDirect(backend, selected.lightIndex, ctx, uLight);
             if (lightSample.pdf <= 0.0F)
                 return {};
 
@@ -128,18 +141,44 @@ public:
             auto const lightPdf = selected.pmf * lightSample.pdf;
             auto const mis = lightSample.delta ? 1.0F : misWeight(lightPdf, eval.pdf);
             return {
-                .visibilityRay =
-                    surface.spawnRayTo(surface.position + lightSample.wi * lightSample.distance),
+                .visibilityRay = surface.spawnRayTo(lightSample.position),
                 .contribution =
                     state.throughput * eval.f * lightSample.radiance * (cosTheta * mis / lightPdf),
                 .valid = true,
             };
         }
 
+        /// \brief Adds emission at the current surface with the BSDF-sampling MIS weight.
+        template <typename BackendContext>
+        KIRA_HOST_DEVICE void onEmitterHit(
+            PathState &state, BackendContext const &backend, Primitive::Impl const &primitive,
+            SurfaceInteraction const &surface, Vec3f const &wo
+        ) const noexcept {
+            if (!primitive.hasEDF())
+                return;
+
+            auto weight = 1.0F;
+            if (state.depth > 0 && !state.previousDelta) {
+                auto const &lightSampler = backend.getLightSampler();
+                auto const lightPdf =
+                    lightSampler.pmf(state.previousLightContext, primitive.getLightIndex()) *
+                    lightSampler.pdfDirect(
+                        backend, primitive.getLightIndex(), state.previousLightContext, surface
+                    );
+                weight = misWeight(state.previousBSDFPdf, lightPdf);
+            }
+            auto const emission = backend.getEDF(primitive.getEDFIndex())
+                                      .evaluate({
+                                          .geometricNormal = surface.geometricNormal,
+                                          .wo = wo,
+                                      });
+            state.radiance = state.radiance + state.throughput * emission * weight;
+        }
+
         /// \brief Samples direct lighting and prepares the next radiance ray.
-        template <typename Scene, typename BSDFImpl>
+        template <typename BackendContext, typename BSDFImpl>
         [[nodiscard]] KIRA_HOST_DEVICE DirectLightCandidate onSurfaceHit(
-            PathState &state, Scene const &scene, BSDFImpl const &bsdf,
+            PathState &state, BackendContext const &backend, BSDFImpl const &bsdf,
             SurfaceInteraction const &surface, Vec3f const &wo
         ) const noexcept {
             if (state.depth + 1 >= maxDepth) {
@@ -147,8 +186,7 @@ public:
                 return {};
             }
 
-            auto const directLight = sampleDirectLighting(state, scene, bsdf, surface, wo);
-
+            auto const directLight = sampleDirectLighting(state, backend, bsdf, surface, wo);
             auto const query = BSDFQuery{.surface = surface, .wo = wo};
             auto const sample = bsdf.sample(query, state.sampler.get1D(), state.sampler.get2D());
             auto const cosTheta = std::abs(sample.wi.dot(surface.shadingNormal));
@@ -157,6 +195,12 @@ public:
                 return directLight;
             }
 
+            state.previousLightContext = {
+                .position = surface.position,
+                .normal = surface.shadingNormal,
+            };
+            state.previousBSDFPdf = sample.pdf;
+            state.previousDelta = sample.isDelta();
             state.ray = surface.spawnRay(sample.wi);
             state.throughput = state.throughput * sample.f * (cosTheta / sample.pdf);
             state.eta *= sample.eta;
@@ -195,7 +239,7 @@ static_assert(std::is_standard_layout_v<DirectLightCandidate>);
 static_assert(std::is_trivially_copyable_v<DirectLightCandidate>);
 static_assert(std::is_standard_layout_v<PathState>);
 static_assert(std::is_trivially_copyable_v<PathState>);
-static_assert(sizeof(PathState) <= 96, "PathState carry-over grew");
+static_assert(sizeof(PathState) <= 128, "PathState carry-over grew");
 static_assert(std::is_standard_layout_v<PathIntegrator::Impl>);
 static_assert(std::is_trivially_copyable_v<PathIntegrator::Impl>);
 } // namespace flux

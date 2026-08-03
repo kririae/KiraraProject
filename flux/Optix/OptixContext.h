@@ -12,9 +12,10 @@
 #include "flux/Core/Object.h"
 #include "flux/Core/Ray.h"
 #include "flux/Sampling/LightSampler.h"
+#include "flux/Scene/GeometryImpl.h"
 #include "flux/Scene/Primitive.h"
-#include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
+#include "flux/Shading/EDF.h"
 #include "flux/Shading/Interaction.h"
 #include "kira/Compiler.h"
 
@@ -75,8 +76,8 @@ struct OptixContext::Impl {
     /// Top-level instance acceleration structure.
     OptixTraversableHandle traversable{};
 
-    /// Device array of unique triangle meshes.
-    TriangleMesh::Impl const *geometries{};
+    /// Device array of unique geometries.
+    Geometry::Impl const *geometries{};
 
     /// Device array of visible primitives.
     Primitive::Impl const *primitives{};
@@ -84,12 +85,16 @@ struct OptixContext::Impl {
     /// Device array of BSDFs registered in the host \c Context.
     BSDF::Impl const *bsdfs{};
 
+    /// Device array of EDFs registered in the host \c Context.
+    EDF::Impl const *edfs{};
+
     /// Borrowed light sampler.
     LightSampler lightSampler{};
 
     std::uint32_t numGeometries{}; // *geometries
     std::uint32_t numPrimitives{}; // *primitives
     std::uint32_t numBSDFs{};      // *bsdfs
+    std::uint32_t numEDFs{};       // *edfs
 
 public:
     /// \brief Finds the closest surface hit for \p ray.
@@ -100,6 +105,14 @@ public:
     /// \brief Returns whether \p ray reaches its endpoint without obstruction.
     [[nodiscard]] KIRA_DEVICE bool isVisible(Ray const &ray) const noexcept;
 
+    /// \brief Maps a geometry-space point through primitive \p primitiveIndex.
+    [[nodiscard]] KIRA_DEVICE Vec3f
+    transformPointToWorld(std::uint32_t primitiveIndex, Vec3f const &point) const noexcept;
+
+    /// \brief Maps a geometry-space normal through primitive \p primitiveIndex.
+    [[nodiscard]] KIRA_DEVICE Vec3f
+    transformNormalToWorld(std::uint32_t primitiveIndex, Vec3f const &normal) const noexcept;
+
     /// \brief Returns the primitive at dense \p instanceIndex.
     ///
     /// \pre \p instanceIndex is less than \c numPrimitives.
@@ -109,7 +122,7 @@ public:
     /// \brief Returns the geometry at dense \p geometryIndex.
     ///
     /// \pre \p geometryIndex is less than \c numGeometries.
-    [[nodiscard]] KIRA_DEVICE inline TriangleMesh::Impl const &
+    [[nodiscard]] KIRA_DEVICE inline Geometry::Impl const &
     getGeometry(std::uint32_t geometryIndex) const noexcept;
 
     /// \brief Returns the BSDF at dense \p bsdfIndex.
@@ -117,6 +130,8 @@ public:
     /// \pre \p bsdfIndex is less than \c numBSDFs.
     [[nodiscard]] KIRA_DEVICE inline BSDF::Impl const &
     getBSDF(std::uint32_t bsdfIndex) const noexcept;
+
+    [[nodiscard]] KIRA_DEVICE inline EDF::Impl const &getEDF(std::uint32_t edfIndex) const noexcept;
 
     [[nodiscard]] KIRA_DEVICE inline LightSampler const &getLightSampler() const noexcept {
         return lightSampler;

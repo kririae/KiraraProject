@@ -7,11 +7,13 @@
 #include <utility>
 
 #include "TestUtils.h"
+#include "flux/Core/MathUtils.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/KernelUtils.cuh"
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/TriangleMeshImpl.h"
+#include "kira/SmallVector.h"
 
 #ifndef FLUX_TEST_FIXTURES_DIR
 #error "FLUX_TEST_FIXTURES_DIR must name the Flux test fixtures directory"
@@ -34,6 +36,24 @@ struct ReconstructTriangleInteraction {
     return properties;
 }
 } // namespace
+
+TEST(GeometryTests, AppliesPointerBasedAffineTransforms) {
+    std::array const pointTransform{
+        2.0F, 0.0F, 0.0F, 1.0F, 0.0F, 3.0F, 0.0F, 2.0F, 0.0F, 0.0F, 4.0F, 3.0F,
+    };
+    std::array const vectorTransform{
+        2.0F, 0.0F, 0.0F, 0.0F, 3.0F, 0.0F, 0.0F, 0.0F, 4.0F,
+    };
+
+    EXPECT_EQ(
+        flux::transformPoint(pointTransform.data(), {2.0F, 3.0F, 4.0F}),
+        (flux::Vec3f{5.0F, 11.0F, 19.0F})
+    );
+    EXPECT_EQ(
+        flux::transformVec(vectorTransform.data(), {2.0F, 3.0F, 4.0F}),
+        (flux::Vec3f{4.0F, 9.0F, 16.0F})
+    );
+}
 
 TEST(GeometryTests, LoadsObjAndGeneratesMissingNormals) {
     auto context = flux::Context::create();
@@ -130,6 +150,64 @@ TEST(GeometryTests, LoadsBinaryLittleEndianPly) {
     EXPECT_EQ(mesh->getTexCoords()[0], (flux::Vec2f{0.0F, 0.0F}));
     EXPECT_EQ(mesh->getTriangles()[0], (flux::Vec3u{0, 1, 2}));
     EXPECT_EQ(mesh->getTriangles()[1], (flux::Vec3u{3, 4, 5}));
+}
+
+TEST(GeometryTests, SamplesTriangleMeshesByGeometrySpaceArea) {
+    auto context = flux::Context::create();
+    auto mesh = context->create<flux::TriangleMesh>(triangleProperties("Polygons.ply"));
+    kira::SmallVector<float, 0> areaCDF;
+    kira::SmallVector<float, 0> areaPDF;
+    areaCDF.resize_for_overwrite(mesh->getTriangles().size());
+    areaPDF.resize_for_overwrite(mesh->getTriangles().size());
+    auto impl = mesh->getImpl();
+    flux::TriangleMesh::computeSamplingDistribution(impl, areaCDF, areaPDF);
+    impl.triangleAreaCDF = areaCDF.data();
+    impl.triangleAreaPDF = areaPDF.data();
+    impl.surfaceArea = areaCDF.back();
+
+    auto const sample = impl.sample({0.25F, 0.5F});
+
+    ASSERT_GT(sample.pdf, 0.0F);
+    EXPECT_NEAR(areaCDF.back(), mesh->getSurfaceArea(), 1.0e-5F);
+    EXPECT_NEAR(sample.pdf, 1.0F / mesh->getSurfaceArea(), 1.0e-6F);
+    EXPECT_NEAR(sample.geometricNormal.norm(), 1.0F, 1.0e-6F);
+}
+
+TEST(GeometryTests, ReportsZeroDensityForAnUnsampledTriangle) {
+    auto const cdf = std::array{1.0F, 1.0F};
+    auto const pdf = std::array{1.0F, 0.0F};
+    auto const impl = flux::TriangleMesh::Impl{
+        .numTriangles = 2,
+        .triangleAreaCDF = cdf.data(),
+        .triangleAreaPDF = pdf.data(),
+        .surfaceArea = cdf.back(),
+    };
+
+    EXPECT_FLOAT_EQ(impl.pdf(0), 1.0F);
+    EXPECT_FLOAT_EQ(impl.pdf(1), 0.0F);
+}
+
+TEST(GeometryTests, ReportsTheQuantizedTriangleSelectionDensity) {
+    auto const vertices = std::array{
+        flux::Vec3f{0.0F, 0.0F, 0.0F},    flux::Vec3f{8192.0F, 0.0F, 0.0F},
+        flux::Vec3f{0.0F, 4096.0F, 0.0F}, flux::Vec3f{0.0F, 0.0F, 0.0F},
+        flux::Vec3f{3.0F, 0.0F, 0.0F},    flux::Vec3f{0.0F, 1.0F, 0.0F},
+    };
+    auto const triangles = std::array{flux::Vec3u{0, 1, 2}, flux::Vec3u{3, 4, 5}};
+    auto const mesh = flux::TriangleMesh::Impl{
+        .vertices = vertices.data(),
+        .triangles = triangles.data(),
+        .numVertices = static_cast<std::uint32_t>(vertices.size()),
+        .numTriangles = static_cast<std::uint32_t>(triangles.size()),
+    };
+
+    std::array<float, 2> areaCDF;
+    std::array<float, 2> areaPDF;
+    flux::TriangleMesh::computeSamplingDistribution(mesh, areaCDF, areaPDF);
+    auto const interval = areaCDF[1] - areaCDF[0];
+    auto const expected = interval / (areaCDF.back() * mesh.getTriangleArea(1));
+    EXPECT_FLOAT_EQ(areaPDF[1], expected);
+    EXPECT_NE(areaPDF[1], 1.0F / areaCDF.back());
 }
 
 TEST(GeometryTests, RejectsInvalidPlyVertexIndex) {

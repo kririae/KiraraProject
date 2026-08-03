@@ -10,6 +10,7 @@
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Scene/Context.h"
 #include "flux/Shading/DiffuseBSDFImpl.h"
+#include "flux/Shading/EDF.h"
 #include "flux/Shading/Frame.h"
 #include "kira/Anyhow.h"
 
@@ -153,4 +154,31 @@ TEST(ShadingTests, CreatesTheSelectedBsdfThroughTheBaseType) {
     invalid.set("type", "unknown");
     EXPECT_THROW((void)context->create<flux::BSDF>(invalid), kira::Anyhow);
     EXPECT_EQ(context->getNumContextObjects(), 1);
+}
+
+TEST(ShadingTests, EvaluatesOneSidedConstantEmission) {
+    auto context = flux::Context::create();
+    kira::Properties props;
+    props.set("radiance", flux::Spectrum{1.0F, 2.0F, 3.0F});
+    auto edf = context->create<flux::ConstantEDF>(props);
+    auto const impl = edf->getImpl();
+
+    EXPECT_EQ(
+        impl.evaluate({
+            .geometricNormal = {0.0F, 0.0F, 1.0F},
+            .wo = {0.0F, 0.0F, 1.0F},
+        }),
+        (flux::Spectrum{1.0F, 2.0F, 3.0F})
+    );
+    EXPECT_EQ(
+        impl.evaluate({
+            .geometricNormal = {0.0F, 0.0F, 1.0F},
+            .wo = {0.0F, 0.0F, -1.0F},
+        }),
+        flux::Spectrum{}
+    );
+
+    kira::Properties invalid;
+    invalid.set("radiance", flux::Spectrum{-1.0F, 0.0F, 0.0F});
+    EXPECT_THROW((void)context->create<flux::ConstantEDF>(invalid), kira::Anyhow);
 }

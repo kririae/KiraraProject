@@ -24,7 +24,7 @@ class TriangleMesh final : public Geometry {
 public:
     struct Impl;
 
-    /// \brief Returns object-space vertex positions.
+    /// \brief Returns geometry-space vertex positions.
     [[nodiscard]] std::span<Vec3f const> getVertices() const noexcept {
         return {
             vertices_.data(),
@@ -37,7 +37,7 @@ public:
         return {triangles_.data(), triangles_.size()};
     }
 
-    /// \brief Returns object-space shading normals.
+    /// \brief Returns geometry-space shading normals.
     [[nodiscard]] std::span<Vec3f const> getNormals() const noexcept {
         return {normals_.data(), normals_.size()};
     }
@@ -66,6 +66,15 @@ public:
     /// \brief Returns an Impl that refers to the host mesh arrays.
     [[nodiscard]] Impl getImpl() const noexcept;
 
+    /// \brief Computes the triangle-selection distribution for \p mesh.
+    ///
+    /// \pre Both output spans contain \c mesh.numTriangles elements.
+    static void computeSamplingDistribution(
+        Impl const &mesh, std::span<float> areaCDF, std::span<float> areaPDF
+    );
+
+    [[nodiscard]] float getSurfaceArea() const noexcept override { return surfaceArea_; }
+
 private:
     TriangleMesh(TXContext &tx, kira::Properties const &props);
 
@@ -80,6 +89,7 @@ private:
     kira::SmallVector<Vec3u, 0> normalIndices_;
     kira::SmallVector<Vec2f, 0> texCoords_;
     kira::SmallVector<Vec3u, 0> texCoordIndices_;
+    float surfaceArea_{};
 };
 
 /// \brief Stores indexed triangle mesh data for a backend scene.
@@ -87,13 +97,13 @@ private:
 /// The active backend keeps every referenced array alive while its scene uses
 /// this Impl.
 struct TriangleMesh::Impl {
-    /// Array of object-space vertex positions.
+    /// Array of geometry-space vertex positions.
     Vec3f const *vertices{};
 
     /// Array of zero-based triangle vertex indices.
     Vec3u const *triangles{};
 
-    /// Array of object-space vertex normals, or null when absent.
+    /// Array of geometry-space vertex normals, or null when absent.
     Vec3f const *normals{};
 
     /// Per-triangle normal indices, valid whenever \c normals is non-null.
@@ -111,6 +121,15 @@ struct TriangleMesh::Impl {
     /// Number of elements in \c triangles.
     std::uint32_t numTriangles{};
 
+    /// Cumulative geometry-space triangle areas, or null when unavailable.
+    float const *triangleAreaCDF{};
+
+    /// Geometry-space area densities, or null when unavailable.
+    float const *triangleAreaPDF{};
+
+    /// Total geometry-space surface area.
+    float surfaceArea{};
+
 public:
     /// \brief Returns one vertex of \p triangle.
     ///
@@ -118,6 +137,9 @@ public:
     /// than three.
     [[nodiscard]] KIRA_HOST_DEVICE inline Vec3f
     getVertex(std::uint32_t triangle, std::uint32_t corner) const noexcept;
+
+    [[nodiscard]] KIRA_HOST_DEVICE inline float
+    getTriangleArea(std::uint32_t triangle) const noexcept;
 
     /// \brief Interpolates the shading normal, or returns \p geometricNormal.
     [[nodiscard]] KIRA_HOST_DEVICE inline Vec3f interpolateShadingNormal(
@@ -133,6 +155,12 @@ public:
     /// \pre \p preliminary names a valid, non-degenerate triangle.
     [[nodiscard]] KIRA_HOST_DEVICE inline GeometryInteraction
     computeInteraction(PreliminaryIntersection const &preliminary) const noexcept;
+
+    /// \brief Samples the surface with respect to geometry-space area.
+    [[nodiscard]] KIRA_HOST_DEVICE inline GeometrySample sample(Vec2f const &sample) const noexcept;
+
+    /// \brief Returns the geometry-space area density used by \c sample.
+    [[nodiscard]] KIRA_HOST_DEVICE inline float pdf(std::uint32_t triangle) const noexcept;
 };
 
 static_assert(std::is_standard_layout_v<TriangleMesh::Impl>);

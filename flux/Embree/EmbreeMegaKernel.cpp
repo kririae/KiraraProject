@@ -22,6 +22,7 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
     Vec3f colorSum{};
     Vec3f normalSum{};
     Vec3f albedoSum{};
+    auto const writesColor = params.film.hasChannel<ColorChannel>();
 
     for (std::uint32_t batchIndex = 0; batchIndex < params.batchSize; ++batchIndex) {
         auto sampler = params.sampler;
@@ -50,13 +51,15 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
             if (isPrimary)
                 normalSum = normalSum + surface.shadingNormal;
 
+            auto const wo = -state.ray.direction;
             if (!primitive.hasBSDF()) {
+                if (writesColor)
+                    params.integrator.onEmitterHit(state, params.scene, primitive, surface, wo);
                 params.integrator.onSurfaceHit(state, surface);
                 break;
             }
 
             auto const &bsdf = params.scene.getBSDF(primitive.getBSDFIndex());
-            auto const wo = -state.ray.direction;
             bsdf.init(surface, wo);
 
             if (isPrimary && params.film.hasChannel<AlbedoChannel>()) {
@@ -69,10 +72,12 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
                 }
             }
 
-            if (!params.film.hasChannel<ColorChannel>()) {
+            if (!writesColor) {
                 params.integrator.onSurfaceHit(state, surface);
                 break;
             }
+
+            params.integrator.onEmitterHit(state, params.scene, primitive, surface, wo);
 
             auto const directLight =
                 params.integrator.onSurfaceHit(state, params.scene, bsdf, surface, wo);

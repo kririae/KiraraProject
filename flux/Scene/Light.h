@@ -31,6 +31,8 @@ struct LightSamplingContext {
 struct DirectLightSample {
     /// Incident radiance along \c wi.
     Spectrum radiance{};
+    /// World-space sampled position.
+    Vec3f position{};
     /// World-space direction from the surface toward the light.
     Vec3f wi{};
     /// Distance from the surface to the sampled light point.
@@ -48,6 +50,7 @@ protected:
 
 public:
     [[nodiscard]] LightType getType() const noexcept { return type_; }
+    [[nodiscard]] virtual float estimatePower() const noexcept = 0;
 
 private:
     LightType type_;
@@ -81,6 +84,7 @@ public:
     void setIntensity(Spectrum const &intensity);
 
     [[nodiscard]] Impl getImpl() const noexcept;
+    [[nodiscard]] float estimatePower() const noexcept override;
 
 private:
     PointLight(TXContext &tx, kira::Properties const &props);
@@ -115,6 +119,7 @@ PointLight::Impl::sampleDirect(LightSamplingContext const &context) const noexce
     auto const dist = std::sqrt(dist2);
     return {
         .radiance = intensity / dist2,
+        .position = position,
         .wi = d / dist,
         .distance = dist,
         .pdf = 1.0F,
@@ -122,39 +127,34 @@ PointLight::Impl::sampleDirect(LightSamplingContext const &context) const noexce
     };
 }
 
-/// \brief Maps one scene light instance to a concrete dense array.
+enum class LightRecordType : std::uint8_t {
+    Point,
+    Primitive,
+};
+
+/// \brief Maps one selectable light to backend data.
 struct LightRecord {
-    /// Concrete array selected by this record.
-    LightType type{};
+    LightRecordType type{};
     /// Index within the selected concrete array.
     std::uint32_t typedIndex{};
 };
 
-/// \brief Non-owning view of scene light instances built by one renderer backend.
+/// \brief Non-owning view of selectable lights built by one renderer backend.
 struct LightTable {
     /// Light records in selection order.
     LightRecord const *records{};
     /// Dense point-light implementations.
     PointLight::Impl const *pointLights{};
+    /// Dense primitive indices for emissive primitive records.
+    std::uint32_t const *primitiveIndices{};
+    /// Estimated object-to-world area scales for emissive primitives.
+    float const *primitiveAreaScales{};
+    /// Cumulative estimated light powers in record order.
+    float const *powerCDF{};
+    /// Final value of \c powerCDF.
+    float powerSum{};
     /// Number of records in \c records.
     std::uint32_t numLights{};
-
-public:
-    /// \brief Samples incident radiance from one selected light.
-    ///
-    /// \p sample is a uniform sample used by non-delta light types.
-    /// \pre \p lightIndex is less than \c numLights.
-    [[nodiscard]] KIRA_HOST_DEVICE DirectLightSample sampleDirect(
-        std::uint32_t lightIndex, LightSamplingContext const &context, Vec2f const &sample
-    ) const noexcept {
-        (void)sample;
-        auto const record = records[lightIndex];
-        switch (record.type) {
-        case LightType::Point: return pointLights[record.typedIndex].sampleDirect(context);
-        case LightType::Count: break;
-        }
-        return {};
-    }
 };
 
 static_assert(std::is_standard_layout_v<DirectLightSample>);

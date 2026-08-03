@@ -48,6 +48,7 @@ add_library(
     Optix/OptixProgram.cpp
     Optix/OptixRenderProductPool.cpp
     Optix/OptixSbt.cpp
+    Sampling/LightSampler.cpp
     Sampling/Sampler.cpp
     Scene/Camera.cpp
     Scene/Context.cpp
@@ -59,7 +60,8 @@ add_library(
     Scene/RenderProduct.cpp
     Scene/TriangleMesh.cpp
     Scene/TXContext.cpp
-    Shading/BSDF.cpp)
+    Shading/BSDF.cpp
+    Shading/EDF.cpp)
 
 target_include_directories(flux PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(

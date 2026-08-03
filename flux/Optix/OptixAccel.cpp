@@ -152,7 +152,8 @@ void OptixAccel::buildIas(
         },
     };
     OptixAccelBuildOptions const options{
-        .buildFlags = OPTIX_BUILD_FLAG_PREFER_FAST_TRACE,
+        .buildFlags =
+            OPTIX_BUILD_FLAG_PREFER_FAST_TRACE | OPTIX_BUILD_FLAG_ALLOW_RANDOM_INSTANCE_ACCESS,
         .operation = OPTIX_BUILD_OPERATION_BUILD,
         .motionOptions = {},
     };

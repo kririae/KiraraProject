@@ -21,6 +21,7 @@
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
+#include "flux/Shading/EDF.h"
 #include "kira/Anyhow.h"
 #include "kira/Assertions.h"
 
@@ -32,7 +33,7 @@ struct OptixContext::Storage : private CudaStreamMixin {
     )
         : CudaStreamMixin(stream), context(context), deviceContext(deviceContext),
           modulePath(std::move(modulePath)), geometryPool(stream), lightSampler(stream),
-          accel(stream), sbt(stream), primitives(stream), bsdfs(stream) {}
+          accel(stream), sbt(stream), primitives(stream), bsdfs(stream), edfs(stream) {}
 
     void sync() try {
         context.commit();
@@ -44,28 +45,42 @@ struct OptixContext::Storage : private CudaStreamMixin {
 
         auto const contextPrimitives = context.getObjects<Primitive>();
         auto const contextBSDFs = context.getObjects<BSDF>();
+        auto const contextEDFs = context.getObjects<EDF>();
         auto const contextLights = context.getObjects<Light>();
         kira::SmallVector<Ref<TriangleMesh const>> uniqueMeshes;
+        kira::SmallVector<Ref<Primitive const>> visiblePrimitives;
         std::unordered_map<std::size_t, std::uint32_t> geometryIndexByContextId;
         std::unordered_map<std::size_t, std::uint32_t> bsdfIndexByContextId;
+        std::unordered_map<std::size_t, std::uint32_t> edfIndexByContextId;
         std::vector<OptixAccel::InstanceDesc> instanceDescs;
         primitiveStaging.clear();
         bsdfStaging.clear();
+        edfStaging.clear();
         uniqueMeshes.reserve(contextPrimitives.size());
+        visiblePrimitives.reserve(contextPrimitives.size());
         geometryIndexByContextId.reserve(contextPrimitives.size());
         bsdfIndexByContextId.reserve(contextBSDFs.size());
+        edfIndexByContextId.reserve(contextEDFs.size());
         instanceDescs.reserve(contextPrimitives.size());
         primitiveStaging.reserve(contextPrimitives.size());
         bsdfStaging.reserve(contextBSDFs.size());
+        edfStaging.reserve(contextEDFs.size());
 
         if (contextBSDFs.size() > Primitive::Impl::invalidBSDFIndex)
             throw kira::Anyhow("OptixContext: BSDF count exceeds device limits");
+        if (contextEDFs.size() > Primitive::Impl::invalidEDFIndex)
+            throw kira::Anyhow("OptixContext: EDF count exceeds device limits");
 
         // Context IDs may contain gaps. Assign each BSDF a dense OptiX scene index.
         for (auto const &bsdf : contextBSDFs) {
             auto const index = static_cast<std::uint32_t>(bsdfStaging.size());
             bsdfIndexByContextId.emplace(bsdf->getContextId(), index);
             bsdfStaging.push_back(bsdf->getImpl());
+        }
+        for (auto const &edf : contextEDFs) {
+            auto const index = static_cast<std::uint32_t>(edfStaging.size());
+            edfIndexByContextId.emplace(edf->getContextId(), index);
+            edfStaging.push_back(edf->getImpl());
         }
 
         // Pack visible primitives into dense OptiX arrays. Shared meshes use one
@@ -99,6 +114,8 @@ struct OptixContext::Storage : private CudaStreamMixin {
         for (auto const &primitive : contextPrimitives) {
             if (!primitive->isVisible())
                 continue;
+            if (primitiveStaging.size() >= std::numeric_limits<std::uint32_t>::max())
+                throw kira::Anyhow("OptixContext: primitive count exceeds device limits");
 
             auto const geometry = primitive->getGeometry();
             auto const geometryIndex = getOrAddGeometryIndex(geometry);
@@ -112,10 +129,22 @@ struct OptixContext::Storage : private CudaStreamMixin {
                 );
                 bsdfIndex = iterator->second;
             }
+            auto const edf = primitive->getEDF();
+            auto edfIndex = Primitive::Impl::invalidEDFIndex;
+            if (edf) {
+                auto const iterator = edfIndexByContextId.find(edf->getContextId());
+                KIRA_ASSERT(
+                    iterator != edfIndexByContextId.end(),
+                    "Linked EDF is missing from the OptiX scene"
+                );
+                edfIndex = iterator->second;
+            }
             primitiveStaging.push_back({
                 .geometryIndex = geometryIndex,
                 .bsdfIndex = bsdfIndex,
+                .edfIndex = edfIndex,
             });
+            visiblePrimitives.push_back(primitive);
             auto const bsdfType = bsdf ? bsdf->getType() : BSDFType::Diffuse;
             instanceDescs.push_back({
                 .geometryIndex = geometryIndex,
@@ -127,11 +156,12 @@ struct OptixContext::Storage : private CudaStreamMixin {
         // Rebuild in dependency order. GAS consumes the geometry buffers; IAS
         // then consumes the GAS handles and the matching primitive layout.
         geometryPool.build(uniqueMeshes);
-        lightSampler.build(contextLights);
+        lightSampler.build(contextLights, visiblePrimitives, primitiveStaging);
         auto const buildInputs = geometryPool.getBuildInputs();
         accel.buildGas(deviceContext, buildInputs);
         primitives.copyFromHost({primitiveStaging.data(), primitiveStaging.size()});
         bsdfs.copyFromHost({bsdfStaging.data(), bsdfStaging.size()});
+        edfs.copyFromHost({edfStaging.data(), edfStaging.size()});
         accel.buildIas(deviceContext, instanceDescs);
         sbt.build(*program);
 
@@ -154,6 +184,8 @@ struct OptixContext::Storage : private CudaStreamMixin {
     DeviceBuffer<Primitive::Impl> primitives;
     std::vector<BSDF::Impl> bsdfStaging;
     DeviceBuffer<BSDF::Impl> bsdfs;
+    std::vector<EDF::Impl> edfStaging;
+    DeviceBuffer<EDF::Impl> edfs;
 };
 
 OptixContext::OptixContext(
@@ -192,10 +224,12 @@ OptixContext::Impl OptixContext::getImpl() const noexcept {
         .geometries = storage_->geometryPool.getDeviceImpls(),
         .primitives = storage_->primitives.data(),
         .bsdfs = storage_->bsdfs.data(),
+        .edfs = storage_->edfs.data(),
         .lightSampler = storage_->lightSampler.getSampler(),
         .numGeometries = static_cast<std::uint32_t>(storage_->geometryPool.size()),
         .numPrimitives = static_cast<std::uint32_t>(storage_->primitives.size()),
         .numBSDFs = static_cast<std::uint32_t>(storage_->bsdfs.size()),
+        .numEDFs = static_cast<std::uint32_t>(storage_->edfs.size()),
     };
 }
 } // namespace flux

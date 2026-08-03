@@ -1,15 +1,19 @@
 #pragma once
 
-#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <limits>
+#include <span>
 #include <type_traits>
+#include <vector>
 
+#include "flux/Core/MathUtils.h"
 #include "flux/Scene/Light.h"
+#include "flux/Shading/Interaction.h"
 #include "kira/Compiler.h"
 
 namespace flux {
-/// \brief One scene light instance selected from a backend light table.
+/// \brief One light selected from a backend light table.
 ///
 /// A zero PMF marks an empty selection. Light indices are dense only within
 /// the backend sync that produced the sampler.
@@ -22,7 +26,7 @@ struct SampledLight {
     float pmf{};
 };
 
-/// \brief Uniform light-selection view used by shared transport code.
+/// \brief Light-selection view used by shared transport code.
 ///
 /// Renderer backends own the light table and any persistent sampling data.
 /// This view remains valid until the owning backend rebuilds or destroys its
@@ -35,7 +39,7 @@ struct LightSampler {
     LightTable lights;
 
 public:
-    /// \brief Selects one light for \p context with uniform probability.
+    /// \brief Selects one light for \p context by estimated power.
     ///
     /// An empty light table returns an invalid selection.
     /// \pre \p sample is in \f$[0,1)\f$.
@@ -45,35 +49,116 @@ public:
         (void)context;
         if (lights.numLights == 0)
             return {};
+        if (lights.numLights == 1)
+            return {.lightIndex = 0, .pmf = 1.0F};
 
-        auto const index = std::min(
-            static_cast<std::uint32_t>(sample * static_cast<float>(lights.numLights)),
-            lights.numLights - 1
-        );
+        auto target = sample * lights.powerSum;
+        if (!(target < lights.powerSum))
+            target = std::nextafter(lights.powerSum, 0.0F);
+        auto const index =
+            static_cast<std::uint32_t>(upperBoundIndex(lights.powerCDF, lights.numLights, target));
         return {
             .lightIndex = index,
-            .pmf = 1.0F / static_cast<float>(lights.numLights),
+            .pmf = pmf(context, index),
         };
     }
 
-    /// \brief Returns the uniform selection probability of \p lightIndex.
+    /// \brief Returns the selection probability of \p lightIndex.
     ///
     /// Returns zero when \p lightIndex is outside the light table.
     [[nodiscard]] KIRA_HOST_DEVICE float
     pmf(LightSamplingContext const &context, std::uint32_t lightIndex) const noexcept {
         (void)context;
-        return lightIndex < lights.numLights ? 1.0F / static_cast<float>(lights.numLights) : 0.0F;
+        if (lightIndex >= lights.numLights)
+            return 0.0F;
+        if (lights.numLights == 1)
+            return 1.0F;
+        auto const previous = lightIndex == 0 ? 0.0F : lights.powerCDF[lightIndex - 1];
+        return (lights.powerCDF[lightIndex] - previous) / lights.powerSum;
     }
 
     /// \brief Samples incident radiance from one selected light.
     ///
     /// \pre \p lightIndex is less than `lights.numLights`.
+    template <typename BackendContext>
     [[nodiscard]] KIRA_HOST_DEVICE DirectLightSample sampleDirect(
-        std::uint32_t lightIndex, LightSamplingContext const &context, Vec2f const &sample
+        BackendContext const &backend, std::uint32_t lightIndex,
+        LightSamplingContext const &context, Vec2f const &sample
     ) const noexcept {
-        return lights.sampleDirect(lightIndex, context, sample);
+        auto const record = lights.records[lightIndex];
+        if (record.type == LightRecordType::Point)
+            return lights.pointLights[record.typedIndex].sampleDirect(context);
+
+        auto const primitiveIndex = lights.primitiveIndices[record.typedIndex];
+        auto const &primitive = backend.getPrimitive(primitiveIndex);
+        auto const areaScale = lights.primitiveAreaScales[record.typedIndex];
+        if (!(areaScale > 0.0F))
+            return {};
+        auto const geometrySample =
+            backend.getGeometry(primitive.getGeometryIndex()).sample(sample);
+        if (geometrySample.pdf <= 0.0F)
+            return {};
+
+        auto const position =
+            backend.transformPointToWorld(primitiveIndex, geometrySample.position);
+        auto const geometricNormal =
+            backend.transformNormalToWorld(primitiveIndex, geometrySample.geometricNormal)
+                .normalize();
+        auto const d = position - context.position;
+        auto const dist2 = d.norm2();
+        if (!(dist2 > 0.0F))
+            return {};
+        auto const distance = std::sqrt(dist2);
+        auto const wi = d / distance;
+        auto const cosLight = std::abs(geometricNormal.dot(-wi));
+        if (!(cosLight > 0.0F))
+            return {};
+
+        return {
+            .radiance = backend.getEDF(primitive.getEDFIndex())
+                            .evaluate({
+                                .geometricNormal = geometricNormal,
+                                .wo = -wi,
+                            }),
+            .position = position,
+            .wi = wi,
+            .distance = distance,
+            .pdf = geometrySample.pdf / areaScale * dist2 / cosLight,
+        };
+    }
+
+    template <typename BackendContext>
+    [[nodiscard]] KIRA_HOST_DEVICE float pdfDirect(
+        BackendContext const &backend, std::uint32_t lightIndex,
+        LightSamplingContext const &context, SurfaceInteraction const &surface
+    ) const noexcept {
+        auto const record = lights.records[lightIndex];
+        if (record.type != LightRecordType::Primitive)
+            return 0.0F;
+
+        auto const primitiveIndex = lights.primitiveIndices[record.typedIndex];
+        auto const &primitive = backend.getPrimitive(primitiveIndex);
+        auto const areaScale = lights.primitiveAreaScales[record.typedIndex];
+        if (!(areaScale > 0.0F))
+            return 0.0F;
+        auto const d = surface.position - context.position;
+        auto const dist2 = d.norm2();
+        if (!(dist2 > 0.0F))
+            return 0.0F;
+        auto const wi = d / std::sqrt(dist2);
+        auto const cosLight = std::abs(surface.geometricNormal.dot(-wi));
+        if (!(cosLight > 0.0F))
+            return 0.0F;
+        return backend.getGeometry(primitive.getGeometryIndex()).pdf(surface.elementIndex) /
+               areaScale * dist2 / cosLight;
     }
 };
+
+/// \brief Builds a normalized power CDF.
+///
+/// Each positive weight receives a probability representable by a 24-bit
+/// uniform sample.
+[[nodiscard]] std::vector<float> buildLightPowerCDF(std::span<float const> weights);
 
 static_assert(std::is_standard_layout_v<SampledLight>);
 static_assert(std::is_trivially_copyable_v<SampledLight>);

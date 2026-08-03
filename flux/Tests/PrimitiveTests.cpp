@@ -8,6 +8,7 @@
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
+#include "flux/Shading/EDF.h"
 #include "kira/Anyhow.h"
 
 #ifndef FLUX_TEST_FIXTURES_DIR
@@ -145,6 +146,8 @@ TEST(PrimitiveTests, SettersKeepRelationshipsInsideTheContext) {
     auto foreignGeometry = otherContext->create<flux::TriangleMesh>(triangleProperties());
     auto bsdf = context->create<flux::DiffuseBSDF>();
     auto foreignBsdf = otherContext->create<flux::DiffuseBSDF>();
+    auto edf = context->create<flux::ConstantEDF>();
+    auto foreignEdf = otherContext->create<flux::ConstantEDF>();
 
     kira::Properties properties;
     properties.set("geometry_ctx_id", static_cast<std::int64_t>(geometry->getContextId()));
@@ -163,4 +166,9 @@ TEST(PrimitiveTests, SettersKeepRelationshipsInsideTheContext) {
 
     primitive->setBSDF(nullptr);
     EXPECT_EQ(primitive->getBSDF(), nullptr);
+
+    primitive->setEDF(edf);
+    EXPECT_EQ(primitive->getEDF(), edf);
+    EXPECT_THROW(primitive->setEDF(foreignEdf), kira::Anyhow);
+    EXPECT_EQ(primitive->getEDF(), edf);
 }

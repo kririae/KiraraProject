@@ -14,7 +14,6 @@
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
-#include "flux/Scene/Light.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/RenderProduct.h"
 #include "flux/Shading/BSDF.h"
@@ -65,7 +64,6 @@ LoadedScene loadTomlScene(FluxCLIRequest const &request) {
         }
     }
 
-    bool hasAreaLight = false;
     if (scene.contains("primitive")) {
         auto primitives = scene.use_array_view("primitive");
         for (std::size_t index = 0; index < primitives.size(); ++index) {
@@ -80,17 +78,19 @@ LoadedScene loadTomlScene(FluxCLIRequest const &request) {
                 );
             }
 
-            hasAreaLight |= props.contains("light");
+            if (props.contains("light")) {
+                auto lightProps = props.use_view("light");
+                auto const type = lightProps.use_or<std::string>("type", "area");
+                if (type != "area")
+                    throw kira::Anyhow("primitive uses unsupported light type '{}'", type);
+                kira::Properties edfProps;
+                edfProps.set("type", std::string{"constant"});
+                edfProps.set("radiance", lightProps.use<Spectrum>("emission"));
+                props.set("edf", edfProps);
+            }
+
             (void)context->create<Primitive>(props);
         }
-    }
-
-    // Approximate authored area lights until Primitive supports them.
-    if (hasAreaLight) {
-        kira::Properties lightProps;
-        lightProps.set("position", Vec3f{0.0F, 1.8F, 0.0F});
-        lightProps.set("intensity", Spectrum{4.25F, 3.0F, 1.25F});
-        (void)context->create<PointLight>(lightProps);
     }
 
     return {

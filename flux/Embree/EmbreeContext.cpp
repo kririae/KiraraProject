@@ -1,17 +1,18 @@
 #include "flux/Embree/EmbreeContext.h"
 
-#include <Eigen/Core>
-#include <Eigen/LU>
 #include <algorithm>
 #include <cstddef>
 #include <limits>
 #include <unordered_map>
 #include <utility>
 
+#include "flux/Core/MathUtils.h"
 #include "flux/Embree/EmbreeUtils.h"
 #include "flux/Scene/Context.h"
+#include "flux/Scene/GeometryImpl.h"
 #include "flux/Scene/PrimitiveImpl.h"
 #include "flux/Scene/TriangleMeshImpl.h"
+#include "flux/Shading/EDF.h"
 #include "kira/Anyhow.h"
 #include "kira/Assertions.h"
 #include "kira/SmallVector.h"
@@ -74,10 +75,13 @@ void EmbreeContext::reset() noexcept {
         rtcReleaseScene(scene);
     meshScenes_.clear();
     retainedMeshes_.clear();
-    meshImpls_.clear();
+    geometryImpls_.clear();
+    triangleSampling_.clear();
     primitives_.clear();
+    transforms_.clear();
     normalTransforms_.clear();
     bsdfs_.clear();
+    edfs_.clear();
     lightSampler_.clear();
 }
 
@@ -87,19 +91,29 @@ void EmbreeContext::sync() try {
 
     auto const contextPrimitives = context_.getObjects<Primitive>();
     auto const contextBSDFs = context_.getObjects<BSDF>();
+    auto const contextEDFs = context_.getObjects<EDF>();
     auto const contextLights = context_.getObjects<Light>();
+    kira::SmallVector<Ref<Primitive const>> visiblePrimitives;
     std::unordered_map<std::size_t, std::uint32_t> geometryIndexByContextId;
     std::unordered_map<std::size_t, std::uint32_t> bsdfIndexByContextId;
+    std::unordered_map<std::size_t, std::uint32_t> edfIndexByContextId;
     geometryIndexByContextId.reserve(contextPrimitives.size());
     bsdfIndexByContextId.reserve(contextBSDFs.size());
+    edfIndexByContextId.reserve(contextEDFs.size());
     retainedMeshes_.reserve(contextPrimitives.size());
-    meshImpls_.reserve(contextPrimitives.size());
+    geometryImpls_.reserve(contextPrimitives.size());
+    triangleSampling_.reserve(contextPrimitives.size());
     primitives_.reserve(contextPrimitives.size());
+    visiblePrimitives.reserve(contextPrimitives.size());
+    transforms_.reserve(contextPrimitives.size());
     normalTransforms_.reserve(contextPrimitives.size());
     bsdfs_.reserve(contextBSDFs.size());
+    edfs_.reserve(contextEDFs.size());
 
     if (contextBSDFs.size() > Primitive::Impl::invalidBSDFIndex)
         throw kira::Anyhow("EmbreeContext: BSDF count exceeds Embree index limits");
+    if (contextEDFs.size() > Primitive::Impl::invalidEDFIndex)
+        throw kira::Anyhow("EmbreeContext: EDF count exceeds Embree index limits");
 
     // Context IDs may contain gaps. Assign each BSDF a dense Embree scene index.
     for (auto const &bsdf : contextBSDFs) {
@@ -107,7 +121,11 @@ void EmbreeContext::sync() try {
         bsdfIndexByContextId.emplace(bsdf->getContextId(), index);
         bsdfs_.push_back(bsdf->getImpl());
     }
-    lightSampler_.build(contextLights);
+    for (auto const &edf : contextEDFs) {
+        auto const index = static_cast<std::uint32_t>(edfs_.size());
+        edfIndexByContextId.emplace(edf->getContextId(), index);
+        edfs_.push_back(edf->getImpl());
+    }
 
     auto const getOrAddGeometryIndex = [&](Ref<Geometry const> const &geometry) {
         auto const contextId = geometry->getContextId();
@@ -123,14 +141,22 @@ void EmbreeContext::sync() try {
             throw kira::Anyhow("EmbreeContext: unsupported geometry implementation");
 
         auto const index = static_cast<std::uint32_t>(retainedMeshes_.size());
-        meshImpls_.push_back(mesh->getImpl());
+        auto impl = mesh->getImpl();
+        auto &sampling = triangleSampling_.emplace_back();
+        sampling.areaCDF.resize_for_overwrite(impl.numTriangles);
+        sampling.areaPDF.resize_for_overwrite(impl.numTriangles);
+        TriangleMesh::computeSamplingDistribution(
+            impl, {sampling.areaCDF.data(), sampling.areaCDF.size()},
+            {sampling.areaPDF.data(), sampling.areaPDF.size()}
+        );
+        impl.triangleAreaCDF = sampling.areaCDF.data();
+        impl.triangleAreaPDF = sampling.areaPDF.data();
+        impl.surfaceArea = sampling.areaCDF.empty() ? impl.surfaceArea : sampling.areaCDF.back();
+        geometryImpls_.emplace_back(impl);
         retainedMeshes_.push_back(std::move(mesh));
         geometryIndexByContextId.emplace(contextId, index);
         return index;
     };
-
-    kira::SmallVector<std::array<float, 12>> instanceTransforms;
-    instanceTransforms.reserve(contextPrimitives.size());
 
     // Pack visible primitives into dense Embree arrays. All arrays use the same
     // primitive order.
@@ -141,6 +167,7 @@ void EmbreeContext::sync() try {
             throw kira::Anyhow("EmbreeContext: primitive count exceeds Embree index limits");
 
         auto const geometry = primitive->getGeometry();
+        auto const edf = primitive->getEDF();
         auto const geometryIndex = getOrAddGeometryIndex(geometry);
         auto const bsdf = primitive->getBSDF();
         auto bsdfIndex = Primitive::Impl::invalidBSDFIndex;
@@ -153,13 +180,25 @@ void EmbreeContext::sync() try {
             bsdfIndex = iterator->second;
         }
 
+        auto edfIndex = Primitive::Impl::invalidEDFIndex;
+        if (edf) {
+            auto const iterator = edfIndexByContextId.find(edf->getContextId());
+            KIRA_ASSERT(
+                iterator != edfIndexByContextId.end(), "Linked EDF is missing from the Embree scene"
+            );
+            edfIndex = iterator->second;
+        }
+
         primitives_.push_back({
             .geometryIndex = geometryIndex,
             .bsdfIndex = bsdfIndex,
+            .edfIndex = edfIndex,
         });
-        instanceTransforms.push_back(primitive->getTransform());
-        normalTransforms_.push_back(makeNormalTransform(primitive->getTransform()));
+        visiblePrimitives.push_back(primitive);
+        transforms_.push_back(primitive->getTransform());
+        normalTransforms_.push_back(primitive->getNormalTransform());
     }
+    lightSampler_.build(contextLights, visiblePrimitives, primitives_);
 
     // Embree borrows retained mesh arrays until the next sync. A sync builds
     // immutable final-frame scenes, so favor traversal over build time.
@@ -208,7 +247,7 @@ void EmbreeContext::sync() try {
         );
         embreeCheck(device_);
         rtcSetGeometryTransform(
-            instance.get(), 0, RTC_FORMAT_FLOAT3X4_ROW_MAJOR, instanceTransforms[index].data()
+            instance.get(), 0, RTC_FORMAT_FLOAT3X4_ROW_MAJOR, transforms_[index].data()
         );
         embreeCheck(device_);
         rtcCommitGeometry(instance.get());
@@ -226,14 +265,17 @@ void EmbreeContext::sync() try {
 EmbreeContext::Impl EmbreeContext::getImpl() const noexcept {
     return {
         .scene = scene_,
-        .geometries = meshImpls_.data(),
+        .geometries = geometryImpls_.data(),
         .primitives = primitives_.data(),
+        .transforms = transforms_.data(),
         .normalTransforms = normalTransforms_.data(),
         .bsdfs = bsdfs_.data(),
+        .edfs = edfs_.data(),
         .lightSampler = lightSampler_.getSampler(),
-        .numGeometries = static_cast<std::uint32_t>(meshImpls_.size()),
+        .numGeometries = static_cast<std::uint32_t>(geometryImpls_.size()),
         .numPrimitives = static_cast<std::uint32_t>(primitives_.size()),
         .numBSDFs = static_cast<std::uint32_t>(bsdfs_.size()),
+        .numEDFs = static_cast<std::uint32_t>(edfs_.size()),
     };
 }
 
@@ -279,20 +321,10 @@ EmbreeContext::Impl::makeSurfaceInteraction(Ray const &ray, Hit const &hit) cons
     auto const shadingNormal =
         geometry.interpolateShadingNormal(hit.preliminary, hit.geometricNormal);
     auto const &normalTransform = normalTransforms[hit.primitiveIndex];
-    auto const transformNormal = [&](Vec3f const &normal) {
-        return Vec3f{
-            normalTransform[0] * normal.x() + normalTransform[1] * normal.y() +
-                normalTransform[2] * normal.z(),
-            normalTransform[3] * normal.x() + normalTransform[4] * normal.y() +
-                normalTransform[5] * normal.z(),
-            normalTransform[6] * normal.x() + normalTransform[7] * normal.y() +
-                normalTransform[8] * normal.z(),
-        };
-    };
     return {
         .position = ray.origin + ray.direction * hit.preliminary.distance,
-        .geometricNormal = transformNormal(hit.geometricNormal).normalize(),
-        .shadingNormal = transformNormal(shadingNormal).normalize(),
+        .geometricNormal = transformVec(normalTransform.data(), hit.geometricNormal).normalize(),
+        .shadingNormal = transformVec(normalTransform.data(), shadingNormal).normalize(),
         .uv = geometry.interpolateTexCoord(hit.preliminary),
         .primitiveIndex = hit.primitiveIndex,
         .elementIndex = hit.preliminary.elementIndex,
@@ -300,35 +332,4 @@ EmbreeContext::Impl::makeSurfaceInteraction(Ray const &ray, Hit const &hit) cons
     };
 }
 
-Primitive::Impl const &EmbreeContext::Impl::getPrimitive(std::uint32_t index) const noexcept {
-    return primitives[index];
-}
-
-TriangleMesh::Impl const &EmbreeContext::Impl::getGeometry(std::uint32_t index) const noexcept {
-    return geometries[index];
-}
-
-BSDF::Impl const &EmbreeContext::Impl::getBSDF(std::uint32_t index) const noexcept {
-    return bsdfs[index];
-}
-
-std::array<float, 9> EmbreeContext::makeNormalTransform(std::array<float, 12> const &transform) {
-    using AffineTransform = Eigen::Matrix<float, 3, 4, Eigen::RowMajor>;
-    using NormalMatrix = Eigen::Matrix<float, 3, 3, Eigen::RowMajor>;
-
-    Eigen::Map<AffineTransform const> objectToWorld(transform.data());
-    Eigen::Matrix3f const linear = objectToWorld.leftCols<3>();
-    if (!linear.allFinite())
-        throw kira::Anyhow("EmbreeContext: primitive transform is not finite");
-    auto const decomposition = linear.fullPivLu();
-    if (!decomposition.isInvertible())
-        throw kira::Anyhow("EmbreeContext: primitive transform is singular");
-
-    std::array<float, 9> result{};
-    Eigen::Map<NormalMatrix> normalMatrix(result.data());
-    normalMatrix = decomposition.inverse().transpose();
-    if (!normalMatrix.allFinite())
-        throw kira::Anyhow("EmbreeContext: primitive normal transform is not finite");
-    return result;
-}
 } // namespace flux
