@@ -70,7 +70,6 @@ private:
 struct OptixContext::Impl {
     struct Hit {
         SurfaceInteraction surface;
-        BSDFType bsdfType;
     };
 
     /// Top-level instance acceleration structure.

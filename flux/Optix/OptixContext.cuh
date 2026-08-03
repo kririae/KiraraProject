@@ -6,7 +6,6 @@
 
 #include "flux/Optix/OptixContext.h"
 #include "flux/Optix/OptixInteraction.cuh"
-#include "flux/Optix/OptixSbt.h"
 #include "flux/Scene/PrimitiveImpl.h"
 #include "flux/Scene/TriangleMeshImpl.h"
 
@@ -42,11 +41,8 @@ KIRA_DEVICE inline bool OptixContext::Impl::intersect(Ray const &ray, Hit &hit) 
         .coordinates = {barycentrics.x, barycentrics.y},
         .elementIndex = optixHitObjectGetPrimitiveIndex(),
     };
-    auto const *data =
-        reinterpret_cast<OptixHitgroupData const *>(optixHitObjectGetSbtDataPointer());
     hit = {
         .surface = optix::makeSurfaceInteraction(geometry, preliminary, primitiveIndex, ray),
-        .bsdfType = data->bsdfType,
     };
     return true;
 }

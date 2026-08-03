@@ -31,50 +31,55 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
             static_cast<float>(pixel.x()) + pixelSample.x(),
             static_cast<float>(pixel.y()) + pixelSample.y(),
         };
-        PathState state{};
-        state.ray = params.camera.generateRay(rasterPosition, sampler.get2D(), resolution);
-        state.sampler = sampler;
+        auto const ray = params.camera.generateRay(rasterPosition, sampler.get2D(), resolution);
+        PathState state{
+            .ray = ray,
+            .sampler = sampler,
+        };
 
         while (state.active) {
             EmbreeContext::Hit hit;
             if (!params.scene.intersect(state.ray, hit)) {
                 params.integrator.onMiss(state);
-                continue;
+                break;
             }
 
             auto surface = params.scene.makeSurfaceInteraction(state.ray, hit);
             auto const &primitive = params.scene.getPrimitive(hit.primitiveIndex);
-            if (state.depth == 0)
+            auto const isPrimary = state.depth == 0;
+            if (isPrimary)
                 normalSum = normalSum + surface.shadingNormal;
 
             if (!primitive.hasBSDF()) {
                 params.integrator.onSurfaceHit(state, surface);
-                continue;
+                break;
             }
 
             auto const &bsdf = params.scene.getBSDF(primitive.getBSDFIndex());
             auto const wo = -state.ray.direction;
             bsdf.init(surface, wo);
 
-            if (state.depth == 0 && params.film.hasChannel<AlbedoChannel>()) {
+            if (isPrimary && params.film.hasChannel<AlbedoChannel>()) {
                 auto aovSampler = state.sampler;
                 auto const query = BSDFQuery{.surface = surface, .wo = wo};
-                auto const sample = bsdf.sample(query, aovSampler.get1D(), aovSampler.get2D());
-                if (sample.pdf > 0.0F) {
-                    auto const cosine = std::abs(sample.wi.dot(surface.shadingNormal));
-                    albedoSum = albedoSum + sample.f * (cosine / sample.pdf);
+                auto const bsdfSample = bsdf.sample(query, aovSampler.get1D(), aovSampler.get2D());
+                if (bsdfSample.pdf > 0.0F) {
+                    auto const cosTheta = std::abs(bsdfSample.wi.dot(surface.shadingNormal));
+                    albedoSum = albedoSum + bsdfSample.f * (cosTheta / bsdfSample.pdf);
                 }
             }
 
-            if (params.film.hasChannel<ColorChannel>()) {
-                auto const directLight =
-                    params.integrator.onSurfaceHit(state, params.scene, bsdf, surface, wo);
-                if (directLight.valid && params.scene.isVisible(directLight.visibilityRay))
-                    state.radiance = state.radiance + directLight.contribution;
-            } else {
+            if (!params.film.hasChannel<ColorChannel>()) {
                 params.integrator.onSurfaceHit(state, surface);
+                break;
             }
+
+            auto const directLight =
+                params.integrator.onSurfaceHit(state, params.scene, bsdf, surface, wo);
+            if (directLight.valid && params.scene.isVisible(directLight.visibilityRay))
+                state.radiance = state.radiance + directLight.contribution;
         }
+
         colorSum = colorSum + state.radiance;
     }
 

@@ -16,7 +16,6 @@ void OptixSbt::build(OptixProgram const &program) {
             auto &record =
                 staging_[hitgroupRecords + getHitgroupRecordIndex(bsdfType, geometryType)];
             optixCheck(optixSbtRecordPackHeader(program.getHitgroupProgram(geometryType), &record));
-            record.data.bsdfType = bsdfType;
         }
     }
 

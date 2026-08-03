@@ -20,6 +20,7 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
     auto const launchSample = optixLaunchParams.getLaunchSample(optixGetLaunchIndex().x);
     auto const resolution =
         flux::Vec2u{optixLaunchParams.film.width, optixLaunchParams.film.height};
+    auto const sampleWeight = optixLaunchParams.getSampleWeight();
     auto sampler = optixLaunchParams.sampler;
     sampler.startPixelSample(launchSample.pixel, launchSample.sampleIndex, resolution);
     auto const pixelSample = sampler.getPixel2D();
@@ -39,62 +40,54 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
         flux::OptixContext::Impl::Hit hit;
         if (!optixLaunchParams.scene.intersect(state.ray, hit)) {
             optixLaunchParams.integrator.onMiss(state);
-        } else {
-            auto const &primitive =
-                optixLaunchParams.scene.getPrimitive(hit.surface.primitiveIndex);
-            auto &surface = hit.surface;
-            auto const wo = -state.ray.direction;
+            break;
+        }
 
-            if (state.depth == 0) {
-                optixLaunchParams.film.accumulate<flux::NormalChannel>(
-                    launchSample.pixel, surface.shadingNormal * optixLaunchParams.getSampleWeight()
+        auto &surface = hit.surface;
+        auto const &primitive = optixLaunchParams.scene.getPrimitive(surface.primitiveIndex);
+        auto const isPrimary = state.depth == 0;
+
+        if (isPrimary) {
+            optixLaunchParams.film.accumulate<flux::NormalChannel>(
+                launchSample.pixel, surface.shadingNormal * sampleWeight
+            );
+        }
+
+        if (!primitive.hasBSDF()) {
+            optixLaunchParams.integrator.onSurfaceHit(state, surface);
+            break;
+        }
+
+        auto const &bsdf = optixLaunchParams.scene.getBSDF(primitive.getBSDFIndex());
+        auto const wo = -state.ray.direction;
+        bsdf.init(surface, wo);
+
+        if (isPrimary && optixLaunchParams.film.hasChannel<flux::AlbedoChannel>()) {
+            auto aovSampler = state.sampler;
+            auto const query = flux::BSDFQuery{.surface = surface, .wo = wo};
+            auto const bsdfSample = bsdf.sample(query, aovSampler.get1D(), aovSampler.get2D());
+            if (bsdfSample.pdf > 0.0F) {
+                auto const cosTheta = std::abs(bsdfSample.wi.dot(surface.shadingNormal));
+                auto const albedo = bsdfSample.f * (cosTheta / bsdfSample.pdf);
+                optixLaunchParams.film.accumulate<flux::AlbedoChannel>(
+                    launchSample.pixel, albedo * sampleWeight
                 );
             }
-
-            if (!primitive.hasBSDF()) {
-                optixLaunchParams.integrator.onSurfaceHit(state, surface);
-            } else {
-                auto const &bsdf = optixLaunchParams.scene.getBSDF(primitive.getBSDFIndex());
-                flux::DirectLightCandidate directLight{};
-                auto const shade = [&](auto const &concrete) {
-                    concrete.init(surface, wo);
-
-                    if (state.depth == 0 &&
-                        optixLaunchParams.film.hasChannel<flux::AlbedoChannel>()) {
-                        auto aovSampler = state.sampler;
-                        auto const query = flux::BSDFQuery{.surface = surface, .wo = wo};
-                        auto const bsdfSample =
-                            concrete.sample(query, aovSampler.get1D(), aovSampler.get2D());
-                        if (bsdfSample.pdf > 0.0F) {
-                            auto const cosine = std::abs(bsdfSample.wi.dot(surface.shadingNormal));
-                            auto const albedo = bsdfSample.f * (cosine / bsdfSample.pdf);
-                            optixLaunchParams.film.accumulate<flux::AlbedoChannel>(
-                                launchSample.pixel, albedo * optixLaunchParams.getSampleWeight()
-                            );
-                        }
-                    }
-
-                    if (optixLaunchParams.film.hasChannel<flux::ColorChannel>())
-                        directLight = optixLaunchParams.integrator.onSurfaceHit(
-                            state, optixLaunchParams.scene, concrete, surface, wo
-                        );
-                    else
-                        optixLaunchParams.integrator.onSurfaceHit(state, surface);
-                };
-
-                switch (hit.bsdfType) {
-                case flux::BSDFType::Diffuse: shade(bsdf.get<flux::DiffuseBSDF::Impl>()); break;
-                case flux::BSDFType::Count: KIRA_UNREACHABLE();
-                }
-
-                if (directLight.valid &&
-                    optixLaunchParams.scene.isVisible(directLight.visibilityRay))
-                    state.radiance = state.radiance + directLight.contribution;
-            }
         }
+
+        if (!optixLaunchParams.film.hasChannel<flux::ColorChannel>()) {
+            optixLaunchParams.integrator.onSurfaceHit(state, surface);
+            break;
+        }
+
+        auto const directLight = optixLaunchParams.integrator.onSurfaceHit(
+            state, optixLaunchParams.scene, bsdf, surface, wo
+        );
+        if (directLight.valid && optixLaunchParams.scene.isVisible(directLight.visibilityRay))
+            state.radiance = state.radiance + directLight.contribution;
     }
 
     optixLaunchParams.film.accumulate<flux::ColorChannel>(
-        launchSample.pixel, state.radiance * optixLaunchParams.getSampleWeight()
+        launchSample.pixel, state.radiance * sampleWeight
     );
 }

@@ -190,9 +190,6 @@ public:
 };
 
 /// \brief Heterogeneous scattering implementation.
-///
-/// Generic callers use the common BSDF operations below. A caller that knows
-/// the concrete type may use \c get to bypass dynamic dispatch.
 struct BSDF::Impl : cuda::std::variant<DiffuseBSDF::Impl> {
     using Base = cuda::std::variant<DiffuseBSDF::Impl>;
     using Base::Base;
@@ -233,13 +230,6 @@ public:
         return dispatch([&](auto const &bsdf) {
             return bsdf.sample(query, lobeSample, directionSample);
         });
-    }
-
-    /// \brief Returns the selected concrete implementation.
-    ///
-    /// \pre \c T matches the concrete implementation held by this object.
-    template <typename T> [[nodiscard]] KIRA_HOST_DEVICE T const &get() const noexcept {
-        return cuda::std::get<T>(static_cast<Base const &>(*this));
     }
 };
 

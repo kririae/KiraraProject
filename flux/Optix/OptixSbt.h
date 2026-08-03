@@ -14,11 +14,6 @@
 namespace flux {
 class OptixProgram;
 
-/// \brief Data shared by instances using one BSDF and geometry implementation pair.
-struct OptixHitgroupData {
-    BSDFType bsdfType;
-};
-
 /// \brief Owns the records for the current OptiX pipeline.
 class OptixSbt final : private Noncopyable {
 public:
@@ -59,9 +54,7 @@ private:
 
     struct alignas(OPTIX_SBT_RECORD_ALIGNMENT) Record {
         std::array<char, OPTIX_SBT_RECORD_HEADER_SIZE> header;
-        OptixHitgroupData data{};
     };
-    static_assert(offsetof(Record, data) == OPTIX_SBT_RECORD_HEADER_SIZE);
     static_assert(sizeof(Record) % OPTIX_SBT_RECORD_ALIGNMENT == 0);
 
     std::array<Record, numRecords> staging_{};
