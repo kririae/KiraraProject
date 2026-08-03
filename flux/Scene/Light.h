@@ -122,7 +122,7 @@ PointLight::Impl::sampleDirect(LightSamplingContext const &context) const noexce
     };
 }
 
-/// \brief Maps a light table index to one concrete dense array.
+/// \brief Maps one scene light instance to a concrete dense array.
 struct LightRecord {
     /// Concrete array selected by this record.
     LightType type{};
@@ -130,7 +130,7 @@ struct LightRecord {
     std::uint32_t typedIndex{};
 };
 
-/// \brief Non-owning view of the lights built by one renderer backend.
+/// \brief Non-owning view of scene light instances built by one renderer backend.
 struct LightTable {
     /// Light records in selection order.
     LightRecord const *records{};

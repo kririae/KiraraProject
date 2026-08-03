@@ -9,7 +9,7 @@
 #include "kira/Compiler.h"
 
 namespace flux {
-/// \brief One light selected from a backend light table.
+/// \brief One scene light instance selected from a backend light table.
 ///
 /// A zero PMF marks an empty selection. Light indices are dense only within
 /// the backend sync that produced the sampler.
