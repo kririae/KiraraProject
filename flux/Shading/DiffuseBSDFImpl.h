@@ -7,9 +7,10 @@
 #include "flux/Shading/Frame.h"
 
 namespace flux {
-KIRA_HOST_DEVICE inline BSDFEvaluation
-DiffuseBSDF::Impl::evaluateAndPdf_(BSDFQuery const &query, Vec3f const &wi) const noexcept {
-    Frame const frame(query.surface.shadingNormal);
+KIRA_HOST_DEVICE inline BSDFEvaluation DiffuseBSDF::Impl::evaluateAndPdf_(
+    BSDFState const &state, BSDFQuery const &query, Vec3f const &wi
+) const noexcept {
+    Frame const frame(state.shadingNormal);
     auto const localWo = frame.toLocal(query.wo);
     auto const localWi = frame.toLocal(wi);
     if (Frame::cosTheta(localWo) <= 0.0F || Frame::cosTheta(localWi) <= 0.0F)
@@ -17,22 +18,22 @@ DiffuseBSDF::Impl::evaluateAndPdf_(BSDFQuery const &query, Vec3f const &wi) cons
 
     constexpr auto inversePi = std::numbers::inv_pi_v<float>;
     return {
-        .f = reflectance * inversePi,
+        .value = reflectance * (Frame::cosTheta(localWi) * inversePi),
         .pdf = cosineHemispherePdf(localWi),
     };
 }
 
 KIRA_HOST_DEVICE inline BSDFSample DiffuseBSDF::Impl::sample_(
-    BSDFQuery const &query, [[maybe_unused]] float lobeSample, Vec2f const &directionSample
+    BSDFState const &state, BSDFQuery const &query, [[maybe_unused]] float lobeSample,
+    Vec2f const &directionSample
 ) const noexcept {
-    Frame const frame(query.surface.shadingNormal);
+    Frame const frame(state.shadingNormal);
     if (Frame::cosTheta(frame.toLocal(query.wo)) <= 0.0F)
         return {};
 
     auto const localWi = cosineSampleHemisphere(directionSample);
-    constexpr auto inversePi = std::numbers::inv_pi_v<float>;
     return {
-        .f = reflectance * inversePi,
+        .weight = reflectance,
         .wi = frame.toWorld(localWi),
         .pdf = cosineHemispherePdf(localWi),
         .eta = 1.0F,

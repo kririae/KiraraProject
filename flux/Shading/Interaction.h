@@ -24,7 +24,8 @@ struct SurfaceInteraction {
 
     /// World-space normal used for shading.
     ///
-    /// Geometry initializes this normal; BSDF::init() may replace it.
+    /// Geometry initializes this normal. BSDF::init() uses it to initialize
+    /// hit-local shading state.
     Vec3f shadingNormal{};
 
     /// Surface parameterization, or zero when the geometry has no texture coordinates.

@@ -35,8 +35,6 @@ struct DirectLightSample {
     Vec3f position{};
     /// World-space direction from the surface toward the light.
     Vec3f wi{};
-    /// Distance from the surface to the sampled light point.
-    float distance{};
     /// Conditional solid-angle density, or unit mass for a delta light.
     float pdf{};
     /// Whether the sampled light has a discrete directional distribution.
@@ -121,7 +119,6 @@ PointLight::Impl::sampleDirect(LightSamplingContext const &context) const noexce
         .radiance = intensity / dist2,
         .position = position,
         .wi = d / dist,
-        .distance = dist,
         .pdf = 1.0F,
         .delta = true,
     };

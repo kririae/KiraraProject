@@ -1,5 +1,6 @@
 #pragma once
 
+#include <concepts>
 #include <cstdint>
 #include <cuda/std/variant>
 #include <type_traits>
@@ -29,18 +30,24 @@ enum class BSDFLobe : std::uint8_t {
 };
 
 /// \brief Hit-local input shared by BSDF evaluation and sampling.
-///
-/// Both directions used with this query point away from the surface. \c wo
-/// points toward the previous path vertex.
 struct BSDFQuery {
-    SurfaceInteraction const &surface;
+    /// Direction toward the previous path vertex.
     Vec3f wo;
+};
+
+/// \brief Hit-local data shared by concrete BSDF states.
+struct BSDFState {
+    KIRA_HOST_DEVICE explicit BSDFState(Vec3f const &shadingNormal) noexcept
+        : shadingNormal(shadingNormal) {}
+
+    /// Material-local shading normal initialized from the surface hit.
+    Vec3f shadingNormal;
 };
 
 /// \brief Joint result of BSDF evaluation and PDF calculation.
 struct BSDFEvaluation {
-    /// BSDF value without the cosine factor.
-    Spectrum f{};
+    /// BSDF value multiplied by the shading cosine.
+    Spectrum value{};
 
     /// Solid-angle PDF for the queried direction.
     float pdf{};
@@ -48,8 +55,8 @@ struct BSDFEvaluation {
 
 /// \brief Result of sampling one BSDF lobe.
 struct BSDFSample {
-    /// BSDF value without the cosine factor.
-    Spectrum f{};
+    /// Throughput multiplier for the sampled direction.
+    Spectrum weight{};
 
     /// Sampled direction toward the next path vertex.
     Vec3f wi{};
@@ -70,10 +77,6 @@ public:
 };
 
 /// \brief Supplies the common concrete BSDF interface.
-///
-/// A concrete implementation may provide either \c evaluateAndPdf_ or the
-/// pair \c evaluate_ and \c pdf_. The mixin derives the other form without
-/// introducing another runtime dispatch layer.
 template <typename Derived> class BSDFMixin {
 private:
     [[nodiscard]] KIRA_HOST_DEVICE Derived const &derived_() const noexcept {
@@ -81,46 +84,34 @@ private:
     }
 
 public:
-    /// \brief Applies hit-local shading changes to \p surface.
-    KIRA_HOST_DEVICE void init(SurfaceInteraction &surface, Vec3f const &wo) const noexcept {
-        if constexpr (requires(Derived const &bsdf) { bsdf.init_(surface, wo); })
-            derived_().init_(surface, wo);
-    }
+    /// \brief Initializes one hit and invokes \p func while its BSDF state is valid.
+    template <typename F>
+    KIRA_HOST_DEVICE decltype(auto)
+    init(SurfaceInteraction const &isect, Vec3f const &wo, F &&func) const {
+        using State = typename Derived::BSDFState;
+        static_assert(std::derived_from<State, flux::BSDFState>);
 
-    /// \brief Evaluates the BSDF without the cosine factor.
-    [[nodiscard]] KIRA_HOST_DEVICE Spectrum
-    evaluate(BSDFQuery const &query, Vec3f const &wi) const noexcept {
-        if constexpr (requires(Derived const &bsdf) { bsdf.evaluate_(query, wi); })
-            return derived_().evaluate_(query, wi);
-        else
-            return derived_().evaluateAndPdf_(query, wi).f;
-    }
+        State state{isect.shadingNormal};
+        if constexpr (requires(Derived const &bsdf) { bsdf.init_(state, isect, wo); })
+            derived_().init_(state, isect, wo);
 
-    /// \brief Returns the solid-angle PDF for \p wi.
-    [[nodiscard]] KIRA_HOST_DEVICE float
-    pdf(BSDFQuery const &query, Vec3f const &wi) const noexcept {
-        if constexpr (requires(Derived const &bsdf) { bsdf.pdf_(query, wi); })
-            return derived_().pdf_(query, wi);
-        else
-            return derived_().evaluateAndPdf_(query, wi).pdf;
+        return std::forward<F>(func)(derived_(), static_cast<State const &>(state));
     }
 
     /// \brief Jointly evaluates the BSDF and its sampling PDF.
+    template <typename BSDFState>
     [[nodiscard]] KIRA_HOST_DEVICE BSDFEvaluation
-    evaluateAndPdf(BSDFQuery const &query, Vec3f const &wi) const noexcept {
-        if constexpr (requires(Derived const &bsdf) { bsdf.evaluateAndPdf_(query, wi); })
-            return derived_().evaluateAndPdf_(query, wi);
-        else
-            return {
-                .f = derived_().evaluate_(query, wi),
-                .pdf = derived_().pdf_(query, wi),
-            };
+    evaluateAndPdf(BSDFState const &state, BSDFQuery const &query, Vec3f const &wi) const noexcept {
+        return derived_().evaluateAndPdf_(state, query, wi);
     }
 
     /// \brief Samples the concrete BSDF.
-    [[nodiscard]] KIRA_HOST_DEVICE BSDFSample
-    sample(BSDFQuery const &query, float lobeSample, Vec2f const &directionSample) const noexcept {
-        return derived_().sample_(query, lobeSample, directionSample);
+    template <typename BSDFState>
+    [[nodiscard]] KIRA_HOST_DEVICE BSDFSample sample(
+        BSDFState const &state, BSDFQuery const &query, float lobeSample,
+        Vec2f const &directionSample
+    ) const noexcept {
+        return derived_().sample_(state, query, lobeSample, directionSample);
     }
 };
 
@@ -173,6 +164,11 @@ private:
 
 /// \brief Lambertian reflection implementation.
 struct DiffuseBSDF::Impl : BSDFMixin<Impl> {
+    /// \brief Hit-local diffuse shading data.
+    struct BSDFState : flux::BSDFState {
+        using flux::BSDFState::BSDFState;
+    };
+
     /// Constant RGB reflectance.
     Spectrum reflectance;
 
@@ -181,12 +177,14 @@ public:
     ///
     /// \param lobeSample Reserved for selecting a lobe in multi-lobe BSDFs.
     /// \param directionSample Uniform sample in the unit square.
-    [[nodiscard]] KIRA_HOST_DEVICE BSDFSample
-    sample_(BSDFQuery const &query, float lobeSample, Vec2f const &directionSample) const noexcept;
+    [[nodiscard]] KIRA_HOST_DEVICE BSDFSample sample_(
+        BSDFState const &state, BSDFQuery const &query, float lobeSample,
+        Vec2f const &directionSample
+    ) const noexcept;
 
     /// \brief Evaluates the BSDF and sampling PDF for \p wi.
     [[nodiscard]] KIRA_HOST_DEVICE BSDFEvaluation
-    evaluateAndPdf_(BSDFQuery const &query, Vec3f const &wi) const noexcept;
+    evaluateAndPdf_(BSDFState const &state, BSDFQuery const &query, Vec3f const &wi) const noexcept;
 };
 
 /// \brief Heterogeneous scattering implementation.
@@ -196,39 +194,17 @@ struct BSDF::Impl : cuda::std::variant<DiffuseBSDF::Impl> {
 
 private:
     template <typename Function>
-    KIRA_HOST_DEVICE decltype(auto) dispatch(Function &&function) const noexcept {
+    KIRA_HOST_DEVICE decltype(auto) dispatch(Function &&function) const {
         return cuda::std::visit(std::forward<Function>(function), static_cast<Base const &>(*this));
     }
 
 public:
-    /// \brief Applies hit-local shading changes to \p surface.
-    KIRA_HOST_DEVICE void init(SurfaceInteraction &surface, Vec3f const &wo) const noexcept {
-        dispatch([&](auto const &bsdf) { bsdf.init(surface, wo); });
-    }
-
-    /// \brief Evaluates the BSDF without the cosine factor.
-    [[nodiscard]] KIRA_HOST_DEVICE Spectrum
-    evaluate(BSDFQuery const &query, Vec3f const &wi) const noexcept {
-        return dispatch([&](auto const &bsdf) { return bsdf.evaluate(query, wi); });
-    }
-
-    /// \brief Returns the solid-angle PDF for \p wi.
-    [[nodiscard]] KIRA_HOST_DEVICE float
-    pdf(BSDFQuery const &query, Vec3f const &wi) const noexcept {
-        return dispatch([&](auto const &bsdf) { return bsdf.pdf(query, wi); });
-    }
-
-    /// \brief Jointly evaluates the BSDF and its sampling PDF.
-    [[nodiscard]] KIRA_HOST_DEVICE BSDFEvaluation
-    evaluateAndPdf(BSDFQuery const &query, Vec3f const &wi) const noexcept {
-        return dispatch([&](auto const &bsdf) { return bsdf.evaluateAndPdf(query, wi); });
-    }
-
-    /// \brief Samples the selected BSDF implementation.
-    [[nodiscard]] KIRA_HOST_DEVICE BSDFSample
-    sample(BSDFQuery const &query, float lobeSample, Vec2f const &directionSample) const noexcept {
-        return dispatch([&](auto const &bsdf) {
-            return bsdf.sample(query, lobeSample, directionSample);
+    /// \brief Dispatches one hit and invokes \p func while its BSDF state is valid.
+    template <typename F>
+    KIRA_HOST_DEVICE decltype(auto)
+    init(SurfaceInteraction const &isect, Vec3f const &wo, F &&func) const {
+        return dispatch([&](auto const &bsdf) -> decltype(auto) {
+            return bsdf.init(isect, wo, std::forward<F>(func));
         });
     }
 };

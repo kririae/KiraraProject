@@ -1,6 +1,5 @@
 #include "flux/Embree/EmbreeMegaKernel.h"
 
-#include <cmath>
 #include <cstdint>
 
 #include "flux/Embree/EmbreeLaunchParams.h"
@@ -45,44 +44,72 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
                 break;
             }
 
-            auto surface = params.scene.makeSurfaceInteraction(state.ray, hit);
+            auto const isect = params.scene.makeSurfaceInteraction(state.ray, hit);
             auto const &primitive = params.scene.getPrimitive(hit.primitiveIndex);
             auto const isPrimary = state.depth == 0;
-            if (isPrimary)
-                normalSum = normalSum + surface.shadingNormal;
-
             auto const wo = -state.ray.direction;
+            if (writesColor)
+                params.integrator.onEmitterHit(state, params.scene, primitive, isect, wo);
             if (!primitive.hasBSDF()) {
-                if (writesColor)
-                    params.integrator.onEmitterHit(state, params.scene, primitive, surface, wo);
-                params.integrator.onSurfaceHit(state, surface);
+                if (isPrimary)
+                    normalSum = normalSum + isect.shadingNormal;
+                params.integrator.onSurfaceHit(state);
                 break;
             }
 
             auto const &bsdf = params.scene.getBSDF(primitive.getBSDFIndex());
-            bsdf.init(surface, wo);
+            auto const continues = writesColor && params.integrator.canContinue(state);
+            auto const directLight = continues ? params.integrator.sampleDirectLight(
+                                                     state, params.scene,
+                                                     {
+                                                         .position = isect.position,
+                                                         .normal = isect.geometricNormal,
+                                                     }
+                                                 )
+                                               : DirectLightSample{};
+            bsdf.init(
+                isect, wo,
+                [&, u1 = state.sampler.get1D(),
+                 u2 = state.sampler.get2D()](auto const &bsdf, auto const &bsdfState) {
+                if (isPrimary)
+                    normalSum = normalSum + isect.shadingNormal;
 
-            if (isPrimary && params.film.hasChannel<AlbedoChannel>()) {
-                auto aovSampler = state.sampler;
-                auto const query = BSDFQuery{.surface = surface, .wo = wo};
-                auto const bsdfSample = bsdf.sample(query, aovSampler.get1D(), aovSampler.get2D());
-                if (bsdfSample.pdf > 0.0F) {
-                    auto const cosTheta = std::abs(bsdfSample.wi.dot(surface.shadingNormal));
-                    albedoSum = albedoSum + bsdfSample.f * (cosTheta / bsdfSample.pdf);
+                auto const writesAlbedo = isPrimary && params.film.hasChannel<AlbedoChannel>();
+                auto const query = BSDFQuery{.wo = wo};
+
+                if (!continues) {
+                    if (writesAlbedo) {
+                        auto const sample = bsdf.sample(bsdfState, query, u1, u2);
+                        albedoSum = albedoSum + sample.weight;
+                    }
+                    params.integrator.onSurfaceHit(state);
+                    return;
                 }
+
+                auto const evaluation = directLight.pdf > 0.0F
+                                            ? bsdf.evaluateAndPdf(bsdfState, query, directLight.wi)
+                                            : BSDFEvaluation{};
+                auto const sample = bsdf.sample(bsdfState, query, u1, u2);
+                if (writesAlbedo)
+                    albedoSum = albedoSum + sample.weight;
+                auto pendingShadow = DirectLightCandidate{};
+                if (directLight.pdf > 0.0F && evaluation.value.norm2() > 0.0F) {
+                    auto const mis =
+                        directLight.delta
+                            ? 1.0F
+                            : params.integrator.misWeight(directLight.pdf, evaluation.pdf);
+                    pendingShadow = {
+                        .visibilityRay = isect.spawnRayTo(directLight.position),
+                        .contribution = state.throughput * evaluation.value * directLight.radiance *
+                                        (mis / directLight.pdf),
+                        .valid = true,
+                    };
+                }
+                params.integrator.onSurfaceHit(state, isect, sample);
+                if (pendingShadow.valid && params.scene.isVisible(pendingShadow.visibilityRay))
+                    state.radiance = state.radiance + pendingShadow.contribution;
             }
-
-            if (!writesColor) {
-                params.integrator.onSurfaceHit(state, surface);
-                break;
-            }
-
-            params.integrator.onEmitterHit(state, params.scene, primitive, surface, wo);
-
-            auto const directLight =
-                params.integrator.onSurfaceHit(state, params.scene, bsdf, surface, wo);
-            if (directLight.valid && params.scene.isVisible(directLight.visibilityRay))
-                state.radiance = state.radiance + directLight.contribution;
+            );
         }
 
         colorSum = colorSum + state.radiance;

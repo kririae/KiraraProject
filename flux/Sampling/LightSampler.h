@@ -122,7 +122,6 @@ public:
                             }),
             .position = position,
             .wi = wi,
-            .distance = distance,
             .pdf = geometrySample.pdf / areaScale * dist2 / cosLight,
         };
     }

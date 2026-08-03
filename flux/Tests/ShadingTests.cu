@@ -21,15 +21,15 @@ struct EvaluateDiffuse {
     flux::BSDFSample *sample;
 
     KIRA_DEVICE void operator()(std::size_t) const noexcept {
-        auto const surface = flux::SurfaceInteraction{
+        auto const isect = flux::SurfaceInteraction{
             .shadingNormal = {0.0F, 0.0F, 1.0F},
         };
-        auto const query = flux::BSDFQuery{
-            .surface = surface,
-            .wo = {0.0F, 0.0F, 1.0F},
-        };
-        *evaluation = bsdf.evaluateAndPdf(query, {0.0F, 0.0F, 1.0F});
-        *sample = bsdf.sample(query, 0.5F, {0.5F, 0.5F});
+        auto const wo = flux::Vec3f{0.0F, 0.0F, 1.0F};
+        auto const query = flux::BSDFQuery{.wo = wo};
+        bsdf.init(isect, wo, [&](auto const &bsdf, auto const &bsdfState) {
+            *evaluation = bsdf.evaluateAndPdf(bsdfState, query, flux::Vec3f{0.0F, 0.0F, 1.0F});
+            *sample = bsdf.sample(bsdfState, query, 0.5F, {0.5F, 0.5F});
+        });
     }
 };
 } // namespace
@@ -62,29 +62,35 @@ TEST(ShadingTests, KeepsShortVisibilityRaysPointedAtTheirTarget) {
 }
 
 TEST(ShadingTests, EvaluatesDiffuseOnHost) {
-    auto surface = flux::SurfaceInteraction{
+    auto const isect = flux::SurfaceInteraction{
         .shadingNormal = {0.0F, 0.0F, 1.0F},
     };
     auto const bsdf = flux::BSDF::Impl{flux::DiffuseBSDF::Impl{
         .reflectance = {0.25F, 0.5F, 1.0F},
     }};
     auto const wo = flux::Vec3f{0.0F, 0.0F, 1.0F};
-    bsdf.init(surface, wo);
-    auto const query = flux::BSDFQuery{
-        .surface = surface,
-        .wo = wo,
-    };
-    auto const evaluation = bsdf.evaluateAndPdf(query, {0.0F, 0.0F, 1.0F});
-    auto const sample = bsdf.sample(query, 0.5F, {0.5F, 0.5F});
+    auto const query = flux::BSDFQuery{.wo = wo};
+    flux::BSDFEvaluation evaluation;
+    flux::BSDFEvaluation angledEvaluation;
+    flux::BSDFSample sample;
+    auto const callbackResult = bsdf.init(isect, wo, [&](auto const &bsdf, auto const &bsdfState) {
+        evaluation = bsdf.evaluateAndPdf(bsdfState, query, flux::Vec3f{0.0F, 0.0F, 1.0F});
+        angledEvaluation = bsdf.evaluateAndPdf(bsdfState, query, flux::Vec3f{0.6F, 0.0F, 0.8F});
+        sample = bsdf.sample(bsdfState, query, 0.5F, {0.5F, 0.5F});
+        return 42;
+    });
 
-    EXPECT_NEAR(evaluation.f.x(), 0.25F / std::numbers::pi_v<float>, 1.0e-6F);
-    EXPECT_NEAR(evaluation.f.y(), 0.5F / std::numbers::pi_v<float>, 1.0e-6F);
-    EXPECT_NEAR(evaluation.f.z(), 1.0F / std::numbers::pi_v<float>, 1.0e-6F);
+    EXPECT_EQ(callbackResult, 42);
+    EXPECT_NEAR(evaluation.value.x(), 0.25F / std::numbers::pi_v<float>, 1.0e-6F);
+    EXPECT_NEAR(evaluation.value.y(), 0.5F / std::numbers::pi_v<float>, 1.0e-6F);
+    EXPECT_NEAR(evaluation.value.z(), 1.0F / std::numbers::pi_v<float>, 1.0e-6F);
     EXPECT_NEAR(evaluation.pdf, 1.0F / std::numbers::pi_v<float>, 1.0e-6F);
-    EXPECT_EQ(bsdf.evaluate(query, {0.0F, 0.0F, 1.0F}), evaluation.f);
-    EXPECT_EQ(bsdf.pdf(query, {0.0F, 0.0F, 1.0F}), evaluation.pdf);
+    EXPECT_NEAR(angledEvaluation.value.x(), 0.2F / std::numbers::pi_v<float>, 1.0e-6F);
+    EXPECT_NEAR(angledEvaluation.value.y(), 0.4F / std::numbers::pi_v<float>, 1.0e-6F);
+    EXPECT_NEAR(angledEvaluation.value.z(), 0.8F / std::numbers::pi_v<float>, 1.0e-6F);
+    EXPECT_NEAR(angledEvaluation.pdf, 0.8F / std::numbers::pi_v<float>, 1.0e-6F);
     EXPECT_EQ(sample.wi, (flux::Vec3f{0.0F, 0.0F, 1.0F}));
-    EXPECT_EQ(sample.f, evaluation.f);
+    EXPECT_EQ(sample.weight, (flux::Spectrum{0.25F, 0.5F, 1.0F}));
     EXPECT_EQ(sample.pdf, evaluation.pdf);
 }
 
@@ -112,16 +118,15 @@ TEST(ShadingTests, EvaluatesAndSamplesDiffuseOnDevice) {
     sample.copyToHost(sampleResult);
     flux::cudaCheck(cudaStreamSynchronize(cudaStreamPerThread));
 
-    EXPECT_NEAR(evaluationResult[0].f.x(), 0.25F / std::numbers::pi_v<float>, 1.0e-6F);
-    EXPECT_NEAR(evaluationResult[0].f.y(), 0.5F / std::numbers::pi_v<float>, 1.0e-6F);
-    EXPECT_NEAR(evaluationResult[0].f.z(), 1.0F / std::numbers::pi_v<float>, 1.0e-6F);
+    EXPECT_NEAR(evaluationResult[0].value.x(), 0.25F / std::numbers::pi_v<float>, 1.0e-6F);
+    EXPECT_NEAR(evaluationResult[0].value.y(), 0.5F / std::numbers::pi_v<float>, 1.0e-6F);
+    EXPECT_NEAR(evaluationResult[0].value.z(), 1.0F / std::numbers::pi_v<float>, 1.0e-6F);
     EXPECT_NEAR(evaluationResult[0].pdf, 1.0F / std::numbers::pi_v<float>, 1.0e-6F);
     EXPECT_NEAR(sampleResult[0].wi.z(), 1.0F, 1.0e-6F);
     EXPECT_NEAR(sampleResult[0].pdf, 1.0F / std::numbers::pi_v<float>, 1.0e-6F);
-    auto const albedo = sampleResult[0].f * (sampleResult[0].wi.z() / sampleResult[0].pdf);
-    EXPECT_NEAR(albedo.x(), 0.25F, 1.0e-6F);
-    EXPECT_NEAR(albedo.y(), 0.5F, 1.0e-6F);
-    EXPECT_NEAR(albedo.z(), 1.0F, 1.0e-6F);
+    EXPECT_NEAR(sampleResult[0].weight.x(), 0.25F, 1.0e-6F);
+    EXPECT_NEAR(sampleResult[0].weight.y(), 0.5F, 1.0e-6F);
+    EXPECT_NEAR(sampleResult[0].weight.z(), 1.0F, 1.0e-6F);
 }
 
 TEST(ShadingTests, ValidatesDiffuseReflectance) {

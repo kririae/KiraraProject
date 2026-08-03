@@ -1,7 +1,6 @@
 #pragma once
 
 #include <algorithm>
-#include <cmath>
 #include <cstdint>
 #include <type_traits>
 
@@ -97,29 +96,23 @@ public:
         /// \brief Terminates a path that escaped the scene.
         KIRA_HOST_DEVICE void onMiss(PathState &state) const noexcept { state.active = false; }
 
+        [[nodiscard]] KIRA_HOST_DEVICE bool canContinue(PathState const &state) const noexcept {
+            return state.depth + 1 < maxDepth;
+        }
+
         /// \brief Terminates a surface path that has no scattering model.
-        KIRA_HOST_DEVICE void
-        onSurfaceHit(PathState &state, SurfaceInteraction const &surface) const noexcept {
-            (void)surface;
+        KIRA_HOST_DEVICE void onSurfaceHit(PathState &state) const noexcept {
             state.active = false;
         }
 
-        /// \brief Samples one direct-light candidate.
+        /// \brief Samples one light for next-event estimation.
         ///
         /// Light selection and light sampling consume one 1D and one 2D sample
-        /// in that order. A valid result contains its visibility ray and candidate contribution.
-        template <typename BackendContext, typename BSDFImpl>
-        [[nodiscard]] KIRA_HOST_DEVICE DirectLightCandidate sampleDirectLighting(
-            PathState &state, BackendContext const &backend, BSDFImpl const &bsdf,
-            SurfaceInteraction const &surface, Vec3f const &wo
+        /// in that order. The returned PDF includes light selection.
+        template <typename BackendContext>
+        [[nodiscard]] KIRA_HOST_DEVICE DirectLightSample sampleDirectLight(
+            PathState &state, BackendContext const &backend, LightSamplingContext const &ctx
         ) const noexcept {
-            if (state.depth + 1 >= maxDepth)
-                return {};
-
-            auto const ctx = LightSamplingContext{
-                .position = surface.position,
-                .normal = surface.shadingNormal,
-            };
             auto const &lightSampler = backend.getLightSampler();
             auto const uSelect = state.sampler.get1D();
             auto const uLight = state.sampler.get2D();
@@ -127,32 +120,18 @@ public:
             if (selected.pmf <= 0.0F)
                 return {};
 
-            auto const lightSample =
-                lightSampler.sampleDirect(backend, selected.lightIndex, ctx, uLight);
+            auto lightSample = lightSampler.sampleDirect(backend, selected.lightIndex, ctx, uLight);
             if (lightSample.pdf <= 0.0F)
                 return {};
-
-            auto const query = BSDFQuery{.surface = surface, .wo = wo};
-            auto const eval = bsdf.evaluateAndPdf(query, lightSample.wi);
-            auto const cosTheta = std::abs(lightSample.wi.dot(surface.shadingNormal));
-            if (cosTheta == 0.0F || eval.f.norm2() == 0.0F)
-                return {};
-
-            auto const lightPdf = selected.pmf * lightSample.pdf;
-            auto const mis = lightSample.delta ? 1.0F : misWeight(lightPdf, eval.pdf);
-            return {
-                .visibilityRay = surface.spawnRayTo(lightSample.position),
-                .contribution =
-                    state.throughput * eval.f * lightSample.radiance * (cosTheta * mis / lightPdf),
-                .valid = true,
-            };
+            lightSample.pdf *= selected.pmf;
+            return lightSample;
         }
 
         /// \brief Adds emission at the current surface with the BSDF-sampling MIS weight.
         template <typename BackendContext>
         KIRA_HOST_DEVICE void onEmitterHit(
             PathState &state, BackendContext const &backend, Primitive::Impl const &primitive,
-            SurfaceInteraction const &surface, Vec3f const &wo
+            SurfaceInteraction const &isect, Vec3f const &wo
         ) const noexcept {
             if (!primitive.hasEDF())
                 return;
@@ -163,52 +142,41 @@ public:
                 auto const lightPdf =
                     lightSampler.pmf(state.previousLightContext, primitive.getLightIndex()) *
                     lightSampler.pdfDirect(
-                        backend, primitive.getLightIndex(), state.previousLightContext, surface
+                        backend, primitive.getLightIndex(), state.previousLightContext, isect
                     );
                 weight = misWeight(state.previousBSDFPdf, lightPdf);
             }
             auto const emission = backend.getEDF(primitive.getEDFIndex())
                                       .evaluate({
-                                          .geometricNormal = surface.geometricNormal,
+                                          .geometricNormal = isect.geometricNormal,
                                           .wo = wo,
                                       });
             state.radiance = state.radiance + state.throughput * emission * weight;
         }
 
-        /// \brief Samples direct lighting and prepares the next radiance ray.
-        template <typename BackendContext, typename BSDFImpl>
-        [[nodiscard]] KIRA_HOST_DEVICE DirectLightCandidate onSurfaceHit(
-            PathState &state, BackendContext const &backend, BSDFImpl const &bsdf,
-            SurfaceInteraction const &surface, Vec3f const &wo
+        /// \brief Applies a BSDF sample at the current surface.
+        KIRA_HOST_DEVICE void onSurfaceHit(
+            PathState &state, SurfaceInteraction const &isect, BSDFSample const &sample
         ) const noexcept {
-            if (state.depth + 1 >= maxDepth) {
+            if (sample.pdf <= 0.0F || sample.weight.norm2() == 0.0F) {
                 state.active = false;
-                return {};
-            }
-
-            auto const directLight = sampleDirectLighting(state, backend, bsdf, surface, wo);
-            auto const query = BSDFQuery{.surface = surface, .wo = wo};
-            auto const sample = bsdf.sample(query, state.sampler.get1D(), state.sampler.get2D());
-            auto const cosTheta = std::abs(sample.wi.dot(surface.shadingNormal));
-            if (sample.pdf <= 0.0F || cosTheta == 0.0F || sample.f.norm2() == 0.0F) {
-                state.active = false;
-                return directLight;
+                return;
             }
 
             state.previousLightContext = {
-                .position = surface.position,
-                .normal = surface.shadingNormal,
+                .position = isect.position,
+                .normal = isect.geometricNormal,
             };
             state.previousBSDFPdf = sample.pdf;
             state.previousDelta = sample.isDelta();
-            state.ray = surface.spawnRay(sample.wi);
-            state.throughput = state.throughput * sample.f * (cosTheta / sample.pdf);
+            state.ray = isect.spawnRay(sample.wi);
+            state.throughput = state.throughput * sample.weight;
             state.eta *= sample.eta;
             ++state.depth;
 
             if (state.throughput.hmax() == 0.0F) {
                 state.active = false;
-                return directLight;
+                return;
             }
 
             if (state.depth >= rrDepth) {
@@ -216,11 +184,10 @@ public:
                 auto const q = std::min(state.throughput.hmax() * state.eta * state.eta, rrProb);
                 if (q <= 0.0F || state.sampler.get1D() >= q) {
                     state.active = false;
-                    return directLight;
+                    return;
                 }
                 state.throughput = state.throughput / q;
             }
-            return directLight;
         }
     };
 
