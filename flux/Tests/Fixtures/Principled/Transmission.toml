@@ -1,0 +1,47 @@
+[camera]
+position = [0.0, 0.6, 5.0]
+look_at = [0.0, 0.0, 0.0]
+ref_up = [0.0, 1.0, 0.0]
+fov = 35.0
+focal_length = 1.0
+
+[film]
+resolution = [512, 512]
+num_samples = 256
+
+[integrator]
+type = "path"
+max_depth = 12
+rr_depth = 4
+rr_prob = 0.95
+
+[[bsdf]]
+name = "ground"
+type = "diffuse"
+R = [0.35, 0.35, 0.35]
+
+[[bsdf]]
+name = "glass"
+type = "principled"
+base_color = [0.95, 0.98, 1.0]
+roughness = 0.08
+spec_trans = 1.0
+eta = 1.5
+
+[[primitive]]
+type = "trimesh"
+path = "Ground.ply"
+face_normals = true
+bsdf = "ground"
+
+[[primitive]]
+type = "trimesh"
+path = "Octahedron.ply"
+face_normals = true
+bsdf = "glass"
+
+[[primitive]]
+type = "trimesh"
+path = "Light.ply"
+face_normals = true
+light = { type = "area", emission = [12.0, 10.0, 8.0] }
