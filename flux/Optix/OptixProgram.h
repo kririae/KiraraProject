@@ -8,6 +8,7 @@
 #include "flux/Core/Object.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Geometry.h"
+#include "flux/Shading/BSDF.h"
 
 namespace flux {
 class Context;
@@ -15,6 +16,7 @@ class Context;
 /// \brief Values specialized while compiling an OptiX program.
 struct OptixProgramSpec {
     SamplerType samplerType; // (1)
+    BSDFTypeMask bsdfTypes;  // (2)
 
     [[nodiscard]] bool operator==(OptixProgramSpec const &) const = default;
 };
@@ -34,8 +36,8 @@ public:
 
     /// \brief Returns the specialization required by \p context.
     ///
-    /// The specialization uses the active integrator and sampler. Both must be
-    /// present.
+    /// The active integrator and sampler must be present. Only BSDFs referenced
+    /// by visible primitives contribute to the specialization.
     [[nodiscard]] static OptixProgramSpec makeSpec(Context const &context);
 
     ~OptixProgram();

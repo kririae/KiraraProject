@@ -17,7 +17,6 @@
 namespace flux {
 /// \brief Candidate contribution awaiting a visibility test.
 struct DirectLightCandidate {
-    Ray visibilityRay;
     Spectrum contribution{};
     bool valid{};
 };
@@ -45,15 +44,15 @@ struct PathState {
 
 public:
     /// Previous vertex used to evaluate the light-sampling PDF at an emitter.
-    LightSamplingContext previousLightContext{};
+    LightSamplingContext prevLightCtx{};
     /// BSDF PDF that produced \c ray.
-    float previousBSDFPdf{};
+    float prevBSDFPdf{};
     /// Number of surface interactions that produced a continuation ray.
     std::uint32_t depth{};
     /// Whether another radiance vertex should be processed.
     bool active{true};
     /// Whether the BSDF sample that produced \c ray was discrete.
-    bool previousDelta{};
+    bool prevDelta{};
 };
 
 /// \brief Selects path tracing as a context's transport algorithm.
@@ -127,6 +126,27 @@ public:
             return lightSample;
         }
 
+        /// \brief Builds a direct-light contribution awaiting a visibility test.
+        ///
+        /// A valid candidate has a positive light PDF and a nonzero BSDF value.
+        [[nodiscard]] KIRA_HOST_DEVICE KIRA_FORCEINLINE DirectLightCandidate
+        makeDirectLightCandidate(
+            Spectrum const &throughput, DirectLightSample const &lightSample,
+            BSDFEvaluation const &evaluation
+        ) const noexcept {
+            if (lightSample.pdf <= 0.0F || evaluation.value.norm2() == 0.0F)
+                return {};
+
+            auto mis = 1.0F;
+            if (!lightSample.delta)
+                mis = misWeight(lightSample.pdf, evaluation.pdf);
+            return {
+                .contribution =
+                    throughput * evaluation.value * lightSample.radiance * (mis / lightSample.pdf),
+                .valid = true,
+            };
+        }
+
         /// \brief Adds emission at the current surface with the BSDF-sampling MIS weight.
         template <typename BackendContext>
         KIRA_HOST_DEVICE void onEmitterHit(
@@ -137,14 +157,14 @@ public:
                 return;
 
             auto weight = 1.0F;
-            if (state.depth > 0 && !state.previousDelta) {
+            if (state.depth > 0 && !state.prevDelta) {
                 auto const &lightSampler = backend.getLightSampler();
                 auto const lightPdf =
-                    lightSampler.pmf(state.previousLightContext, primitive.getLightIndex()) *
+                    lightSampler.pmf(state.prevLightCtx, primitive.getLightIndex()) *
                     lightSampler.pdfDirect(
-                        backend, primitive.getLightIndex(), state.previousLightContext, isect
+                        backend, primitive.getLightIndex(), state.prevLightCtx, isect
                     );
-                weight = misWeight(state.previousBSDFPdf, lightPdf);
+                weight = misWeight(state.prevBSDFPdf, lightPdf);
             }
             auto const emission = backend.getEDF(primitive.getEDFIndex())
                                       .evaluate({
@@ -155,21 +175,24 @@ public:
         }
 
         /// \brief Applies a BSDF sample at the current surface.
+        ///
+        /// \param wi World-space direction toward the next path vertex.
         KIRA_HOST_DEVICE void onSurfaceHit(
-            PathState &state, SurfaceInteraction const &isect, BSDFSample const &sample
+            PathState &state, SurfaceInteraction const &isect, Vec3f const &wi,
+            BSDFSample const &sample
         ) const noexcept {
             if (sample.pdf <= 0.0F || sample.weight.norm2() == 0.0F) {
                 state.active = false;
                 return;
             }
 
-            state.previousLightContext = {
+            state.prevLightCtx = {
                 .position = isect.position,
                 .normal = isect.geometricNormal,
             };
-            state.previousBSDFPdf = sample.pdf;
-            state.previousDelta = sample.isDelta();
-            state.ray = isect.spawnRay(sample.wi);
+            state.prevBSDFPdf = sample.pdf;
+            state.prevDelta = sample.isDelta();
+            state.ray = isect.spawnRay(wi);
             state.throughput = state.throughput * sample.weight;
             state.eta *= sample.eta;
             ++state.depth;

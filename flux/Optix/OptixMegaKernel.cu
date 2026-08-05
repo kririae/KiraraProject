@@ -8,7 +8,8 @@
 #include "flux/Scene/FilmImpl.h"
 #include "flux/Scene/PrimitiveImpl.h"
 #include "flux/Scene/TriangleMeshImpl.h"
-#include "flux/Shading/DiffuseBSDFImpl.h"
+#include "flux/Shading/BSDFImpl.h"
+#include "flux/Shading/Frame.h"
 
 extern "C" {
 __constant__ flux::OptixLaunchParams optixLaunchParams{};
@@ -50,79 +51,68 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
             optixLaunchParams.integrator.onEmitterHit(
                 state, optixLaunchParams.scene, primitive, isect, wo
             );
+        if (isPrimary) {
+            optixLaunchParams.film.accumulate<flux::NormalChannel>(
+                launchSample.pixel, isect.shadingNormal * sampleWeight
+            );
+        }
         if (!primitive.hasBSDF()) {
-            if (isPrimary) {
-                optixLaunchParams.film.accumulate<flux::NormalChannel>(
-                    launchSample.pixel, isect.shadingNormal * sampleWeight
-                );
-            }
             optixLaunchParams.integrator.onSurfaceHit(state);
             break;
         }
 
-        auto const &bsdf = optixLaunchParams.scene.getBSDF(primitive.getBSDFIndex());
+        auto const writesAlbedo =
+            isPrimary && optixLaunchParams.film.hasChannel<flux::AlbedoChannel>();
         auto const continues = writesColor && optixLaunchParams.integrator.canContinue(state);
-        auto const directLight = continues ? optixLaunchParams.integrator.sampleDirectLight(
-                                                 state, optixLaunchParams.scene,
-                                                 {
-                                                     .position = isect.position,
-                                                     .normal = isect.geometricNormal,
-                                                 }
-                                             )
-                                           : flux::DirectLightSample{};
-        bsdf.init(
-            isect, wo,
-            [&, u1 = state.sampler.get1D(),
-             u2 = state.sampler.get2D()](auto const &bsdf, auto const &bsdfState) {
-            if (isPrimary) {
-                optixLaunchParams.film.accumulate<flux::NormalChannel>(
-                    launchSample.pixel, isect.shadingNormal * sampleWeight
-                );
-            }
+        if (!continues && !writesAlbedo) {
+            optixLaunchParams.integrator.onSurfaceHit(state);
+            break;
+        }
 
-            auto const writesAlbedo =
-                isPrimary && optixLaunchParams.film.hasChannel<flux::AlbedoChannel>();
-            auto const query = flux::BSDFQuery{.wo = wo};
-
-            if (!continues) {
-                if (writesAlbedo) {
-                    auto const sample = bsdf.sample(bsdfState, query, u1, u2);
-                    optixLaunchParams.film.accumulate<flux::AlbedoChannel>(
-                        launchSample.pixel, sample.weight * sampleWeight
-                    );
+        auto directLight = flux::DirectLightSample{};
+        if (continues) {
+            directLight = optixLaunchParams.integrator.sampleDirectLight(
+                state, optixLaunchParams.scene,
+                {
+                    .position = isect.position,
+                    .normal = isect.geometricNormal,
                 }
-                optixLaunchParams.integrator.onSurfaceHit(state);
-                return;
-            }
+            );
+        }
 
-            auto const evaluation = directLight.pdf > 0.0F
-                                        ? bsdf.evaluateAndPdf(bsdfState, query, directLight.wi)
-                                        : flux::BSDFEvaluation{};
-            auto const sample = bsdf.sample(bsdfState, query, u1, u2);
+        auto candidate = flux::DirectLightCandidate{};
+        {
+            auto const frame = flux::Frame{isect.shadingNormal};
+            auto const localWo = frame.toLocal(wo);
+            auto const localLightWi = frame.toLocal(directLight.wi);
+            auto const u1 = state.sampler.get1D();
+            auto const u2 = state.sampler.get2D();
+            auto const &bsdf = optixLaunchParams.scene.getBSDF(primitive.getBSDFIndex());
+            auto const result = optixLaunchParams.bsdfDispatcher.execute(
+                bsdf, isect, localWo, localLightWi, directLight.pdf > 0.0F, u1, u2
+            );
+
             if (writesAlbedo) {
                 optixLaunchParams.film.accumulate<flux::AlbedoChannel>(
-                    launchSample.pixel, sample.weight * sampleWeight
+                    launchSample.pixel, result.sample.weight * sampleWeight
                 );
             }
-            auto pendingShadow = flux::DirectLightCandidate{};
-            if (directLight.pdf > 0.0F && evaluation.value.norm2() > 0.0F) {
-                auto const mis =
-                    directLight.delta
-                        ? 1.0F
-                        : optixLaunchParams.integrator.misWeight(directLight.pdf, evaluation.pdf);
-                pendingShadow = {
-                    .visibilityRay = isect.spawnRayTo(directLight.position),
-                    .contribution = state.throughput * evaluation.value * directLight.radiance *
-                                    (mis / directLight.pdf),
-                    .valid = true,
-                };
+            if (!continues) {
+                optixLaunchParams.integrator.onSurfaceHit(state);
+                break;
             }
-            optixLaunchParams.integrator.onSurfaceHit(state, isect, sample);
-            if (pendingShadow.valid &&
-                optixLaunchParams.scene.isVisible(pendingShadow.visibilityRay))
-                state.radiance = state.radiance + pendingShadow.contribution;
+
+            candidate = optixLaunchParams.integrator.makeDirectLightCandidate(
+                state.throughput, directLight, result.evaluation
+            );
+            optixLaunchParams.integrator.onSurfaceHit(
+                state, isect, frame.toWorld(result.sample.wi), result.sample
+            );
         }
-        );
+
+        if (candidate.valid &&
+            optixLaunchParams.scene.isVisible(isect.spawnRayTo(directLight.position)))
+            state.radiance = state.radiance + candidate.contribution;
     }
 
     optixLaunchParams.film.accumulate<flux::ColorChannel>(

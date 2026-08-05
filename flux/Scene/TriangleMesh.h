@@ -131,13 +131,6 @@ struct TriangleMesh::Impl {
     float surfaceArea{};
 
 public:
-    /// \brief Returns one vertex of \p triangle.
-    ///
-    /// \pre \p triangle is less than \c numTriangles and \p corner is less
-    /// than three.
-    [[nodiscard]] KIRA_HOST_DEVICE inline Vec3f
-    getVertex(std::uint32_t triangle, std::uint32_t corner) const noexcept;
-
     [[nodiscard]] KIRA_HOST_DEVICE inline float
     getTriangleArea(std::uint32_t triangle) const noexcept;
 

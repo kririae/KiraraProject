@@ -30,7 +30,19 @@ TEST(OptixPipelineTests, UsesAStableProgramTypeSbtLayout) {
         ),
         0
     );
-    EXPECT_EQ(flux::OptixSbt::getNumHitgroupRecords(), 1);
+    EXPECT_EQ(
+        flux::OptixSbt::getHitgroupRecordIndex(
+            flux::BSDFType::Principled, flux::GeometryType::TriangleMesh
+        ),
+        1
+    );
+    EXPECT_EQ(
+        flux::OptixSbt::getInstanceOffset(
+            flux::BSDFType::Principled, flux::GeometryType::TriangleMesh
+        ),
+        1
+    );
+    EXPECT_EQ(flux::OptixSbt::getNumHitgroupRecords(), 2);
 }
 
 TEST(OptixPipelineTests, RendersAndDownloadsFilmChannels) {

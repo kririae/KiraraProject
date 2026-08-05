@@ -8,11 +8,12 @@
 #include "flux/Scene/CameraImpl.h"
 #include "flux/Scene/FilmImpl.h"
 #include "flux/Scene/PrimitiveImpl.h"
-#include "flux/Shading/BSDF.h"
-#include "flux/Shading/DiffuseBSDFImpl.h"
+#include "flux/Shading/BSDFImpl.h"
+#include "flux/Shading/Frame.h"
 
 namespace flux::embree {
 void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) noexcept {
+    constexpr auto bsdfDispatcher = BSDF::Dispatcher{.types = allBSDFTypes};
     auto const resolution = Vec2u{params.film.width, params.film.height};
     auto const pixel = Vec2u{
         static_cast<std::uint32_t>(linearIndex % params.film.width),
@@ -50,66 +51,60 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
             auto const wo = -state.ray.direction;
             if (writesColor)
                 params.integrator.onEmitterHit(state, params.scene, primitive, isect, wo);
+            if (isPrimary)
+                normalSum = normalSum + isect.shadingNormal;
             if (!primitive.hasBSDF()) {
-                if (isPrimary)
-                    normalSum = normalSum + isect.shadingNormal;
                 params.integrator.onSurfaceHit(state);
                 break;
             }
 
-            auto const &bsdf = params.scene.getBSDF(primitive.getBSDFIndex());
+            auto const writesAlbedo = isPrimary && params.film.hasChannel<AlbedoChannel>();
             auto const continues = writesColor && params.integrator.canContinue(state);
-            auto const directLight = continues ? params.integrator.sampleDirectLight(
-                                                     state, params.scene,
-                                                     {
-                                                         .position = isect.position,
-                                                         .normal = isect.geometricNormal,
-                                                     }
-                                                 )
-                                               : DirectLightSample{};
-            bsdf.init(
-                isect, wo,
-                [&, u1 = state.sampler.get1D(),
-                 u2 = state.sampler.get2D()](auto const &bsdf, auto const &bsdfState) {
-                if (isPrimary)
-                    normalSum = normalSum + isect.shadingNormal;
-
-                auto const writesAlbedo = isPrimary && params.film.hasChannel<AlbedoChannel>();
-                auto const query = BSDFQuery{.wo = wo};
-
-                if (!continues) {
-                    if (writesAlbedo) {
-                        auto const sample = bsdf.sample(bsdfState, query, u1, u2);
-                        albedoSum = albedoSum + sample.weight;
-                    }
-                    params.integrator.onSurfaceHit(state);
-                    return;
-                }
-
-                auto const evaluation = directLight.pdf > 0.0F
-                                            ? bsdf.evaluateAndPdf(bsdfState, query, directLight.wi)
-                                            : BSDFEvaluation{};
-                auto const sample = bsdf.sample(bsdfState, query, u1, u2);
-                if (writesAlbedo)
-                    albedoSum = albedoSum + sample.weight;
-                auto pendingShadow = DirectLightCandidate{};
-                if (directLight.pdf > 0.0F && evaluation.value.norm2() > 0.0F) {
-                    auto const mis =
-                        directLight.delta
-                            ? 1.0F
-                            : params.integrator.misWeight(directLight.pdf, evaluation.pdf);
-                    pendingShadow = {
-                        .visibilityRay = isect.spawnRayTo(directLight.position),
-                        .contribution = state.throughput * evaluation.value * directLight.radiance *
-                                        (mis / directLight.pdf),
-                        .valid = true,
-                    };
-                }
-                params.integrator.onSurfaceHit(state, isect, sample);
-                if (pendingShadow.valid && params.scene.isVisible(pendingShadow.visibilityRay))
-                    state.radiance = state.radiance + pendingShadow.contribution;
+            if (!continues && !writesAlbedo) {
+                params.integrator.onSurfaceHit(state);
+                break;
             }
-            );
+
+            auto directLight = DirectLightSample{};
+            if (continues) {
+                directLight = params.integrator.sampleDirectLight(
+                    state, params.scene,
+                    {
+                        .position = isect.position,
+                        .normal = isect.geometricNormal,
+                    }
+                );
+            }
+
+            auto candidate = DirectLightCandidate{};
+            {
+                auto const frame = Frame{isect.shadingNormal};
+                auto const localWo = frame.toLocal(wo);
+                auto const localLightWi = frame.toLocal(directLight.wi);
+                auto const u1 = state.sampler.get1D();
+                auto const u2 = state.sampler.get2D();
+                auto const &bsdf = params.scene.getBSDF(primitive.getBSDFIndex());
+                auto const result = bsdfDispatcher.execute(
+                    bsdf, isect, localWo, localLightWi, directLight.pdf > 0.0F, u1, u2
+                );
+
+                if (writesAlbedo)
+                    albedoSum = albedoSum + result.sample.weight;
+                if (!continues) {
+                    params.integrator.onSurfaceHit(state);
+                    break;
+                }
+
+                candidate = params.integrator.makeDirectLightCandidate(
+                    state.throughput, directLight, result.evaluation
+                );
+                params.integrator.onSurfaceHit(
+                    state, isect, frame.toWorld(result.sample.wi), result.sample
+                );
+            }
+
+            if (candidate.valid && params.scene.isVisible(isect.spawnRayTo(directLight.position)))
+                state.radiance = state.radiance + candidate.contribution;
         }
 
         colorSum = colorSum + state.radiance;

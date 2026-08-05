@@ -10,8 +10,8 @@
 namespace flux::optix {
 /// \brief Reconstructs a world-space interaction for the current OptiX hit.
 ///
-/// Geometry computes geometry-space fields. OptiX transforms normals and reads
-/// the instance transform from the outgoing hit object.
+/// Geometry reconstructs the hit in geometry space. OptiX transforms its
+/// normals using the outgoing hit object.
 template <typename GeometryImpl>
 [[nodiscard]] KIRA_DEVICE inline SurfaceInteraction makeSurfaceInteraction(
     GeometryImpl const &geometry, PreliminaryIntersection const &preliminary,
@@ -38,7 +38,6 @@ template <typename GeometryImpl>
         .uv = geometryInteraction.uv,
         .primitiveIndex = primitiveIndex,
         .elementIndex = geometryInteraction.elementIndex,
-        .distance = preliminary.distance,
     };
 }
 } // namespace flux::optix

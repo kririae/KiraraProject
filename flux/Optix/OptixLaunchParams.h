@@ -27,6 +27,7 @@ struct OptixLaunchParams {
     Camera::Impl camera;
     Sampler::Impl sampler;
     PathIntegrator::Impl integrator;
+    BSDF::Dispatcher bsdfDispatcher;
 
     /// Samples accumulated before this batch.
     std::uint64_t accumulatedSamples;

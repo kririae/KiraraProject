@@ -18,14 +18,9 @@ struct SurfaceInteraction {
     Vec3f position{};
 
     /// World-space normal defined by Geometry.
-    ///
-    /// BSDF::init() preserves this normal.
     Vec3f geometricNormal{};
 
     /// World-space normal used for shading.
-    ///
-    /// Geometry initializes this normal. BSDF::init() uses it to initialize
-    /// hit-local shading state.
     Vec3f shadingNormal{};
 
     /// Surface parameterization, or zero when the geometry has no texture coordinates.
@@ -36,9 +31,6 @@ struct SurfaceInteraction {
 
     /// Element index within the primitive's geometry.
     std::uint32_t elementIndex{};
-
-    /// Ray distance at the intersection.
-    float distance{};
 
 public:
     /// \brief Spawns a semi-infinite ray along \p direction.

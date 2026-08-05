@@ -220,11 +220,16 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
 
         // The stream orders normalization, parameter upload, and OptiX work.
         // Synchronization below also closes the host lifetime of launch data.
+        auto const &programSpec = impl_->optixContext.getProgramSpec();
         auto const params = OptixLaunchParams{
             .scene = impl_->optixContext.getImpl(),
             .camera = camera,
             .sampler = sampler->getImpl(resolution),
             .integrator = integrator->getImpl(),
+            .bsdfDispatcher =
+                {
+                    .types = programSpec.bsdfTypes, // (2)
+                },
             .accumulatedSamples = accumulatedSamples,
             .sampleOffset = impl_->sampleOffset,
             .film = entry.film,

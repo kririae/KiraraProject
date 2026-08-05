@@ -328,7 +328,6 @@ EmbreeContext::Impl::makeSurfaceInteraction(Ray const &ray, Hit const &hit) cons
         .uv = geometry.interpolateTexCoord(hit.preliminary),
         .primitiveIndex = hit.primitiveIndex,
         .elementIndex = hit.preliminary.elementIndex,
-        .distance = hit.preliminary.distance,
     };
 }
 

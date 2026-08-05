@@ -17,6 +17,7 @@
 #include "flux/Optix/OptixLaunchParams.h"
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Scene/Context.h"
+#include "flux/Scene/Primitive.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
@@ -105,8 +106,21 @@ OptixProgramSpec OptixProgram::makeSpec(Context const &context) {
     // The active integrator selects this path-tracing program. PathIntegrator
     // has no specialization values.
     (void)context.getActiveIntegrator();
+    auto bsdfTypes = BSDFTypeMask{};
+    for (auto const &primitive : context.getObjects<Primitive>()) {
+        if (!primitive->isVisible())
+            continue;
+
+        auto const bsdf = primitive->getBSDF();
+        if (!bsdf)
+            continue;
+
+        bsdfTypes |= bsdfTypeBit(bsdf->getType());
+    }
+
     return {
         .samplerType = context.getActiveSampler()->getType(), // (1)
+        .bsdfTypes = bsdfTypes,                               // (2)
     };
 }
 
@@ -127,6 +141,14 @@ void OptixProgram::buildModule(std::filesystem::path const &modulePath) {
             .sizeInBytes = sizeof(spec_.samplerType),
             .boundValuePtr = &spec_.samplerType,
             .annotation = "Flux sampler implementation",
+        },
+        OptixModuleCompileBoundValueEntry{
+            // (2)
+            .pipelineParamOffsetInBytes =
+                offsetof(OptixLaunchParams, bsdfDispatcher) + offsetof(BSDF::Dispatcher, types),
+            .sizeInBytes = sizeof(spec_.bsdfTypes),
+            .boundValuePtr = &spec_.bsdfTypes,
+            .annotation = "Flux BSDF implementations",
         },
     };
     moduleOptions.boundValues = boundValues.data();
@@ -196,7 +218,7 @@ void OptixProgram::buildPipeline() {
     optixCheck(result);
 
     OptixStackSizes stackSizes{};
-    for (auto const program : programs)
+    for (auto *const program : programs)
         optixCheck(optixUtilAccumulateStackSizes(program, &stackSizes, pipeline_));
     LogDebug(
         "OptiX stack sizes (bytes): raygen={}, miss={}, closest-hit={}, any-hit={}, "

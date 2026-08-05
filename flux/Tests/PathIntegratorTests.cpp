@@ -97,8 +97,8 @@ TEST(PathIntegratorTests, WeightsBsdfSampledEmitterHits) {
         },
     };
     auto state = flux::PathState{
-        .previousLightContext = {.position = {0.0F, 0.0F, 0.0F}},
-        .previousBSDFPdf = 0.5F,
+        .prevLightCtx = {.position = {0.0F, 0.0F, 0.0F}},
+        .prevBSDFPdf = 0.5F,
         .depth = 1,
     };
     auto const surface = flux::SurfaceInteraction{
