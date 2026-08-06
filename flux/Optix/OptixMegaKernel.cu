@@ -38,7 +38,7 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
 
     while (state.active) {
         flux::OptixContext::Impl::Hit hit;
-        if (!optixLaunchParams.scene.intersect(state.ray, hit)) {
+        if (!optixLaunchParams.scene.intersect(state.ray, hit, optixLaunchParams.shaderReorder)) {
             optixLaunchParams.integrator.onMiss(state);
             break;
         }

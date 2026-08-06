@@ -103,9 +103,7 @@ OptixProgram::OptixProgram(
 OptixProgram::~OptixProgram() { reset(); }
 
 OptixProgramSpec OptixProgram::makeSpec(Context const &context) {
-    // The active integrator selects this path-tracing program. PathIntegrator
-    // has no specialization values.
-    (void)context.getActiveIntegrator();
+    auto const integrator = context.getActiveIntegrator();
     auto bsdfTypes = BSDFTypeMask{};
     for (auto const &primitive : context.getObjects<Primitive>()) {
         if (!primitive->isVisible())
@@ -121,6 +119,7 @@ OptixProgramSpec OptixProgram::makeSpec(Context const &context) {
     return {
         .samplerType = context.getActiveSampler()->getType(), // (1)
         .bsdfTypes = bsdfTypes,                               // (2)
+        .shaderReorder = integrator->usesShaderReorder(),     // (3)
     };
 }
 
@@ -149,6 +148,13 @@ void OptixProgram::buildModule(std::filesystem::path const &modulePath) {
             .sizeInBytes = sizeof(spec_.bsdfTypes),
             .boundValuePtr = &spec_.bsdfTypes,
             .annotation = "Flux BSDF implementations",
+        },
+        OptixModuleCompileBoundValueEntry{
+            // (3)
+            .pipelineParamOffsetInBytes = offsetof(OptixLaunchParams, shaderReorder),
+            .sizeInBytes = sizeof(spec_.shaderReorder),
+            .boundValuePtr = &spec_.shaderReorder,
+            .annotation = "Flux shader execution reordering",
         },
     };
     moduleOptions.boundValues = boundValues.data();

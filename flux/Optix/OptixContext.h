@@ -99,8 +99,10 @@ struct OptixContext::Impl {
 public:
     /// \brief Finds the closest surface hit for \p ray.
     ///
-    /// Returns false when the scene is empty or the ray misses.
-    [[nodiscard]] KIRA_DEVICE bool intersect(Ray const &ray, Hit &hit) const noexcept;
+    /// Reordering groups hits before their surface data is materialized. Returns
+    /// false when the scene is empty or the ray misses.
+    [[nodiscard]] KIRA_DEVICE bool
+    intersect(Ray const &ray, Hit &hit, bool shaderReorder) const noexcept;
 
     /// \brief Returns whether \p ray reaches its endpoint without obstruction.
     [[nodiscard]] KIRA_DEVICE bool isVisible(Ray const &ray) const noexcept;

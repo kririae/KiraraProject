@@ -2,6 +2,7 @@
 
 #include <optix_device.h>
 
+#include <bit>
 #include <cstdint>
 
 #include "flux/Core/MathUtils.h"
@@ -12,7 +13,8 @@
 #include "flux/Shading/EDF.h"
 
 namespace flux {
-KIRA_DEVICE inline bool OptixContext::Impl::intersect(Ray const &ray, Hit &hit) const noexcept {
+KIRA_DEVICE inline bool
+OptixContext::Impl::intersect(Ray const &ray, Hit &hit, bool shaderReorder) const noexcept {
     if (!traversable)
         return false;
     // clang-format off
@@ -30,6 +32,15 @@ KIRA_DEVICE inline bool OptixContext::Impl::intersect(Ray const &ray, Hit &hit) 
         /* sbtStride =       */ 1,
         /* missSbtIndex =    */ 0);
     // clang-format on
+    if (shaderReorder) {
+        constexpr auto numHitgroupRecords = static_cast<unsigned int>(BSDFType::Count) *
+                                            static_cast<unsigned int>(GeometryType::Count);
+        constexpr auto numHintBits = std::bit_width(numHitgroupRecords - 1);
+        static_assert(numHintBits <= 16);
+
+        // Reorder before materializing the hit to keep surface state out of the continuation.
+        optixReorder(optixHitObjectGetSbtRecordIndex(), numHintBits);
+    }
     if (!optixHitObjectIsHit())
         return false;
 

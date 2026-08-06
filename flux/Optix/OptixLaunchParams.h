@@ -40,6 +40,9 @@ struct OptixLaunchParams {
     /// Number of samples assigned to each pixel in this batch.
     std::uint32_t batchSize;
 
+    /// Whether radiance traversal uses shader execution reordering.
+    bool shaderReorder;
+
 public:
     /// \brief Decodes a linear OptiX launch index.
     ///

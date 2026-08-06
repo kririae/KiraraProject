@@ -234,6 +234,7 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
             .sampleOffset = impl_->sampleOffset,
             .film = entry.film,
             .batchSize = samples,
+            .shaderReorder = programSpec.shaderReorder, // (3)
         };
         impl_->launch(params, launchSize);
         auto const elapsed = impl_->timer.stop();

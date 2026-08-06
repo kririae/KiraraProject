@@ -49,9 +49,20 @@ TEST(PathIntegratorTests, KeepsFirstSuccessfulIntegratorActive) {
 
     auto first = context->create<flux::PathIntegrator>();
     EXPECT_EQ(context->getActiveIntegrator().get(), first.get());
+    EXPECT_TRUE(first->usesShaderReorder());
 
     (void)context->create<flux::PathIntegrator>();
     EXPECT_EQ(context->getActiveIntegrator().get(), first.get());
+}
+
+TEST(PathIntegratorTests, DisablesShaderReorderingFromProperties) {
+    auto context = flux::Context::create();
+    kira::Properties props;
+    props.set("shader_reorder", false);
+
+    auto integrator = context->create<flux::PathIntegrator>(props);
+
+    EXPECT_FALSE(integrator->usesShaderReorder());
 }
 
 TEST(PathIntegratorTests, WeightsBsdfSampledEmitterHits) {
