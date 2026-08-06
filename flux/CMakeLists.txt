@@ -8,6 +8,13 @@ find_package(OpenImageIO CONFIG REQUIRED)
 find_package(TBB CONFIG REQUIRED)
 
 add_compile_options($<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+add_compile_definitions(
+    # CUDA 12.9 does not propagate CCCL's public int128 switch to this libcudacxx path.
+    $<$<COMPILE_LANGUAGE:CUDA>:_CCCL_DISABLE_INT128>
+    $<$<COMPILE_LANGUAGE:CUDA>:_LIBCUDACXX_HAS_NO_INT128>
+    # NVCC needs toml++'s fallback for compilers that cannot parse bool-returning for_each visitors.
+    $<$<COMPILE_LANGUAGE:CUDA>:TOML_RETURN_BOOL_FROM_FOR_EACH_BROKEN=1>
+    $<$<COMPILE_LANGUAGE:CUDA>:TOML_RETURN_BOOL_FROM_FOR_EACH_BROKEN_ACKNOWLEDGED>)
 
 CPMAddPackage(
     NAME rapidobj

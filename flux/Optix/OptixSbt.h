@@ -49,7 +49,8 @@ private:
     static constexpr std::size_t numGeometryTypes = static_cast<std::size_t>(GeometryType::Count);
     static constexpr std::size_t numHitgroupRecords = numBSDFTypes * numGeometryTypes;
     static constexpr std::size_t raygenRecord = 0;
-    static constexpr std::size_t hitgroupRecords = raygenRecord + 1;
+    static constexpr std::size_t missRecord = raygenRecord + 1;
+    static constexpr std::size_t hitgroupRecords = missRecord + 1;
     static constexpr std::size_t numRecords = hitgroupRecords + numHitgroupRecords;
 
     struct alignas(OPTIX_SBT_RECORD_ALIGNMENT) Record {

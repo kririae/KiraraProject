@@ -3,7 +3,6 @@
 #include <optix_stack_size.h>
 #include <optix_stubs.h>
 
-#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <fstream>
@@ -139,7 +138,7 @@ void OptixProgram::buildModule(std::filesystem::path const &modulePath) {
                 offsetof(OptixLaunchParams, sampler) + offsetof(Sampler::Impl, type),
             .sizeInBytes = sizeof(spec_.samplerType),
             .boundValuePtr = &spec_.samplerType,
-            .annotation = "Flux sampler implementation",
+            .annotation = "Active sampler implementation",
         },
         OptixModuleCompileBoundValueEntry{
             // (2)
@@ -147,14 +146,14 @@ void OptixProgram::buildModule(std::filesystem::path const &modulePath) {
                 offsetof(OptixLaunchParams, bsdfDispatcher) + offsetof(BSDF::Dispatcher, types),
             .sizeInBytes = sizeof(spec_.bsdfTypes),
             .boundValuePtr = &spec_.bsdfTypes,
-            .annotation = "Flux BSDF implementations",
+            .annotation = "Visible BSDF implementation mask",
         },
         OptixModuleCompileBoundValueEntry{
             // (3)
             .pipelineParamOffsetInBytes = offsetof(OptixLaunchParams, shaderReorder),
             .sizeInBytes = sizeof(spec_.shaderReorder),
             .boundValuePtr = &spec_.shaderReorder,
-            .annotation = "Flux shader execution reordering",
+            .annotation = "Enable SER for secondary surface hits",
         },
     };
     moduleOptions.boundValues = boundValues.data();
@@ -189,6 +188,16 @@ void OptixProgram::buildProgramGroups() {
     };
     raygenProgram_ = createProgramGroup(deviceContext_, raygen);
 
+    auto const miss = OptixProgramGroupDesc{
+        .kind = OPTIX_PROGRAM_GROUP_KIND_MISS,
+        .flags = OPTIX_PROGRAM_GROUP_FLAGS_NONE,
+        .miss = {
+            .module = module_,
+            .entryFunctionName = "__miss__megakernel",
+        },
+    };
+    missProgram_ = createProgramGroup(deviceContext_, miss);
+
     auto const triangle = OptixProgramGroupDesc{
         .kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP,
         .flags = OPTIX_PROGRAM_GROUP_FLAGS_NONE,
@@ -204,9 +213,11 @@ void OptixProgram::buildPipeline() {
     linkOptions.maxTraceDepth = 1;
     linkOptions.maxTraversableGraphDepth = 2;
 
-    std::array<OptixProgramGroup, 1 + static_cast<std::size_t>(GeometryType::Count)> programs{};
+    std::array<OptixProgramGroup, 2 + static_cast<std::size_t>(GeometryType::Count)> programs{};
     programs.front() = raygenProgram_;
-    std::ranges::copy(hitgroupPrograms_, programs.begin() + 1);
+    programs[1] = missProgram_;
+    for (std::size_t index = 0; index < hitgroupPrograms_.size(); ++index)
+        programs[index + 2] = hitgroupPrograms_[index];
     std::array<char, 4096> log{};
     std::size_t logSize = log.size();
     // clang-format off
@@ -250,6 +261,8 @@ void OptixProgram::reset() noexcept {
     for (auto &program : hitgroupPrograms_)
         if (program)
             optixCheck<false>(optixProgramGroupDestroy(program));
+    if (missProgram_)
+        optixCheck<false>(optixProgramGroupDestroy(missProgram_));
     if (raygenProgram_)
         optixCheck<false>(optixProgramGroupDestroy(raygenProgram_));
     if (module_)
@@ -257,6 +270,7 @@ void OptixProgram::reset() noexcept {
 
     pipeline_ = nullptr;
     hitgroupPrograms_.fill(nullptr);
+    missProgram_ = nullptr;
     raygenProgram_ = nullptr;
     module_ = nullptr;
     deviceContext_ = nullptr;

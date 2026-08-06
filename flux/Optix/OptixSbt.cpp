@@ -8,6 +8,7 @@
 namespace flux {
 void OptixSbt::build(OptixProgram const &program) {
     optixCheck(optixSbtRecordPackHeader(program.getRaygenProgram(), &staging_[raygenRecord]));
+    optixCheck(optixSbtRecordPackHeader(program.getMissProgram(), &staging_[missRecord]));
 
     for (std::size_t bsdf = 0; bsdf < numBSDFTypes; ++bsdf) {
         auto const bsdfType = static_cast<BSDFType>(bsdf);
@@ -24,9 +25,9 @@ void OptixSbt::build(OptixProgram const &program) {
     table_ = {
         .raygenRecord = devicePointer(records_.data() + raygenRecord),
         .exceptionRecord = 0,
-        .missRecordBase = 0,
-        .missRecordStrideInBytes = 0,
-        .missRecordCount = 0,
+        .missRecordBase = devicePointer(records_.data() + missRecord),
+        .missRecordStrideInBytes = sizeof(Record),
+        .missRecordCount = 1,
         .hitgroupRecordBase = devicePointer(records_.data() + hitgroupRecords),
         .hitgroupRecordStrideInBytes = sizeof(Record),
         .hitgroupRecordCount = static_cast<unsigned int>(numHitgroupRecords),

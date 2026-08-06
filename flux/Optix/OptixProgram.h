@@ -29,7 +29,7 @@ class OptixProgram final : private Noncopyable {
 public:
     /// \brief Builds a triangle-intersection pipeline from \p modulePath.
     ///
-    /// The module must provide \c __raygen__megakernel.
+    /// The module must provide \c __raygen__megakernel and \c __miss__megakernel.
     OptixProgram(
         OptixDeviceContext deviceContext, std::filesystem::path const &modulePath,
         OptixProgramSpec spec
@@ -46,6 +46,7 @@ public:
     [[nodiscard]] OptixPipeline getPipeline() const noexcept { return pipeline_; }
     [[nodiscard]] OptixProgramSpec const &getSpec() const noexcept { return spec_; }
     [[nodiscard]] OptixProgramGroup getRaygenProgram() const noexcept { return raygenProgram_; }
+    [[nodiscard]] OptixProgramGroup getMissProgram() const noexcept { return missProgram_; }
 
     [[nodiscard]] OptixProgramGroup getHitgroupProgram(GeometryType geometry) const noexcept {
         return hitgroupPrograms_[static_cast<std::size_t>(geometry)];
@@ -61,6 +62,7 @@ private:
     OptixProgramSpec spec_;
     OptixModule module_{};
     OptixProgramGroup raygenProgram_{};
+    OptixProgramGroup missProgram_{};
     std::array<OptixProgramGroup, static_cast<std::size_t>(GeometryType::Count)>
         hitgroupPrograms_{};
     OptixPipeline pipeline_{};

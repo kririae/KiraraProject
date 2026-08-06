@@ -20,6 +20,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "CMAKE_CUDA_ARCHITECTURES": "native",
+        "KRR_BUILD_FLUX": "ON",
         "KRR_BUILD_KIRARA_DANCE": "ON",
         "KRR_BUILD_FOR_NATIVE": "ON",
         "KRR_BUILD_TESTS": "ON",

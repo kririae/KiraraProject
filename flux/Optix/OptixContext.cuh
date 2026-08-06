@@ -32,17 +32,16 @@ OptixContext::Impl::intersect(Ray const &ray, Hit &hit, bool shaderReorder) cons
         /* sbtStride =       */ 1,
         /* missSbtIndex =    */ 0);
     // clang-format on
-    if (shaderReorder) {
-        constexpr auto numHitgroupRecords = static_cast<unsigned int>(BSDFType::Count) *
-                                            static_cast<unsigned int>(GeometryType::Count);
-        constexpr auto numHintBits = std::bit_width(numHitgroupRecords - 1);
-        static_assert(numHintBits <= 16);
-
-        // Reorder before materializing the hit to keep surface state out of the continuation.
-        optixReorder(optixHitObjectGetSbtRecordIndex(), numHintBits);
-    }
     if (!optixHitObjectIsHit())
         return false;
+    if (shaderReorder) {
+        // The SBT offset is a backend-assigned coherence key; material dispatch stays in raygen.
+        constexpr auto numShadingPrograms = static_cast<unsigned int>(BSDFType::Count) *
+                                            static_cast<unsigned int>(GeometryType::Count);
+        constexpr auto hintBits = std::bit_width(numShadingPrograms - 1);
+        static_assert(hintBits <= 16);
+        optixReorder(optixHitObjectGetSbtRecordIndex(), hintBits);
+    }
 
     // Capture the world-space interaction while the outgoing hit object provides its transform.
     auto const primitiveIndex = optixHitObjectGetInstanceId();

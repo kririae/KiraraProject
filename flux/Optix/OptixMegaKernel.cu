@@ -15,6 +15,8 @@ extern "C" {
 __constant__ flux::OptixLaunchParams optixLaunchParams{};
 }
 
+extern "C" __global__ void __miss__megakernel() {} // NOLINT
+
 extern "C" __global__ void __raygen__megakernel() { // NOLINT
     auto const launchSample = optixLaunchParams.getLaunchSample(optixGetLaunchIndex().x);
     auto const resolution =
@@ -38,7 +40,8 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
 
     while (state.active) {
         flux::OptixContext::Impl::Hit hit;
-        if (!optixLaunchParams.scene.intersect(state.ray, hit, optixLaunchParams.shaderReorder)) {
+        auto const reorder = optixLaunchParams.shaderReorder && state.depth > 0;
+        if (!optixLaunchParams.scene.intersect(state.ray, hit, reorder)) {
             optixLaunchParams.integrator.onMiss(state);
             break;
         }
