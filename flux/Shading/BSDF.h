@@ -76,7 +76,7 @@ public:
 
 /// \brief Results produced by one BSDF execution.
 struct BSDFResult {
-    /// Empty when execution does not request evaluation.
+    /// Evaluation for \c wi when requested.
     BSDFEvaluation evaluation{};
 
     /// Sample produced by every execution.
@@ -97,7 +97,7 @@ public:
     /// \brief Samples the BSDF and optionally evaluates \p wi.
     ///
     /// Directions point away from the surface and use shading-local space.
-    /// When \p eval is false, \p wi is ignored and the returned evaluation is empty.
+    /// Set \p eval to evaluate \p wi together with sampling.
     ///
     /// \pre \p wo is normalized; \p wi is normalized when \p eval is true.
     /// \pre Samples are in \f$[0,1)\f$.
@@ -251,7 +251,7 @@ public:
     /// \brief Samples \p bsdf and optionally evaluates \p wi.
     ///
     /// Directions point away from the surface and use shading-local space.
-    /// When \p eval is false, \p wi is ignored and the returned evaluation is empty.
+    /// Set \p eval to evaluate \p wi together with sampling.
     ///
     /// \pre \p wo is normalized; \p wi is normalized when \p eval is true.
     /// \pre Samples are in \f$[0,1)\f$.

@@ -23,7 +23,7 @@ struct SurfaceInteraction {
     /// World-space normal used for shading.
     Vec3f shadingNormal{};
 
-    /// Surface parameterization, or zero when the geometry has no texture coordinates.
+    /// Surface parameterization; zero is the fallback value.
     Vec2f uv{};
 
     /// Dense primitive index in the current backend scene.

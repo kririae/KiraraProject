@@ -10,7 +10,7 @@ Ref<Texture> Texture::create(TXContext &tx, kira::Properties const &props) {
     auto const type = props.use_or<std::string>("type", "constant");
     if (type == "constant")
         return tx.create<ConstantTexture>(props);
-    throw kira::Anyhow("Texture: unsupported type '{}'", type);
+    throw kira::Anyhow("Texture: type must be 'constant', got '{}'", type);
 }
 
 Ref<Texture const>
@@ -22,12 +22,10 @@ Texture::resolve(TXContext &tx, kira::Properties const &parent, std::string_view
         props.set("value", parent.use<Spectrum>(name));
     else if (parent.is_type_of<kira::Properties>(name))
         return tx.create<Texture>(parent.use_view(name));
-    else if (parent.is_type_of<std::string>(name))
-        throw kira::Anyhow("Texture: named references are not supported for '{}'", name);
     else if (parent.contains(name))
         throw kira::Anyhow("Texture: '{}' must be a scalar, color, or inline table", name);
     else
-        throw kira::Anyhow("Texture: '{}' is missing", name);
+        throw kira::Anyhow("Texture: expected property '{}'", name);
     return tx.create<ConstantTexture>(props);
 }
 

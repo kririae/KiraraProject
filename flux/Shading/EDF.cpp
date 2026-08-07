@@ -20,7 +20,7 @@ Ref<EDF> EDF::create(TXContext &tx, kira::Properties const &props) {
     auto const type = props.use_or<std::string>("type", "constant");
     if (type == "constant")
         return tx.create<ConstantEDF>(props);
-    throw kira::Anyhow("EDF: unsupported type '{}'", type);
+    throw kira::Anyhow("EDF: type must be 'constant', got '{}'", type);
 }
 
 ConstantEDF::ConstantEDF(TXContext &tx, kira::Properties const &props) : EDF(tx) {

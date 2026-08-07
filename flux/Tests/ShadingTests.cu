@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <limits>
 #include <numbers>
-#include <string>
 
 #include "TestUtils.h"
 #include "flux/Optix/DeviceBuffer.h"
@@ -23,6 +22,34 @@ namespace {
         .storage = {.constant = flux::ConstantTexture::Impl{value}},
     };
 }
+
+struct SpecializedTexture : flux::TextureMixin<SpecializedTexture> {
+    [[nodiscard]] KIRA_HOST_DEVICE float eval1f_(flux::SurfaceInteraction const &) const noexcept {
+        return 1.0F;
+    }
+
+    [[nodiscard]] KIRA_HOST_DEVICE flux::Vec3f
+    eval3f_(flux::SurfaceInteraction const &) const noexcept {
+        return {2.0F, 3.0F, 4.0F};
+    }
+
+    [[nodiscard]] KIRA_HOST_DEVICE flux::Vec4f
+    eval4f_(flux::SurfaceInteraction const &) const noexcept {
+        return {5.0F, 6.0F, 7.0F, 8.0F};
+    }
+};
+
+struct RGBTexture : flux::TextureMixin<RGBTexture> {
+    [[nodiscard]] KIRA_HOST_DEVICE flux::Vec3f
+    eval3f_(flux::SurfaceInteraction const &) const noexcept {
+        return {2.0F, 3.0F, 4.0F};
+    }
+
+    [[nodiscard]] KIRA_HOST_DEVICE flux::Vec4f
+    eval4f_(flux::SurfaceInteraction const &) const noexcept {
+        return {5.0F, 6.0F, 7.0F, 8.0F};
+    }
+};
 
 struct EvaluateDiffuse {
     flux::DiffuseBSDF::Impl bsdf;
@@ -68,6 +95,23 @@ struct EvaluatePrincipled {
     };
 }
 } // namespace
+
+TEST(ShadingTests, BuildsTextureEvaluationInterface) {
+    auto const constant = flux::ConstantTexture::Impl{flux::Spectrum{0.25F, 0.5F, 1.0F}};
+    EXPECT_EQ(constant.eval1f({}), 0.25F);
+    EXPECT_EQ(constant.eval3f({}), (flux::Vec3f{0.25F, 0.5F, 1.0F}));
+    EXPECT_EQ(constant.eval4f({}), (flux::Vec4f{0.25F, 0.5F, 1.0F, 1.0F}));
+
+    auto const specialized = SpecializedTexture{};
+    EXPECT_EQ(specialized.eval1f({}), 1.0F);
+    EXPECT_EQ(specialized.eval3f({}), (flux::Vec3f{2.0F, 3.0F, 4.0F}));
+    EXPECT_EQ(specialized.eval4f({}), (flux::Vec4f{5.0F, 6.0F, 7.0F, 8.0F}));
+
+    auto const rgb = RGBTexture{};
+    EXPECT_EQ(rgb.eval1f({}), 2.0F);
+    EXPECT_EQ(rgb.eval3f({}), (flux::Vec3f{2.0F, 3.0F, 4.0F}));
+    EXPECT_EQ(rgb.eval4f({}), (flux::Vec4f{5.0F, 6.0F, 7.0F, 8.0F}));
+}
 
 TEST(ShadingTests, BuildsAnOrthonormalFrame) {
     auto const normal = flux::Vec3f{0.2F, -0.3F, 0.9327379F}.normalize();
@@ -265,9 +309,9 @@ TEST(ShadingTests, ResolvesDiffuseTextures) {
                          .execute({}, {0.0F, 0.0F, 1.0F}, {}, false, 0.5F, {0.5F, 0.5F});
     EXPECT_EQ(unbounded.sample.weight, (flux::Spectrum{0.0F, 0.5F, 1.1F}));
 
-    kira::Properties named;
-    named.set("R", std::string{"albedo"});
-    EXPECT_THROW((void)context->create<flux::DiffuseBSDF>(named), kira::Anyhow);
+    kira::Properties invalidType;
+    invalidType.set("R", true);
+    EXPECT_THROW((void)context->create<flux::DiffuseBSDF>(invalidType), kira::Anyhow);
 }
 
 TEST(ShadingTests, CreatesPrincipledWithConstantParameters) {

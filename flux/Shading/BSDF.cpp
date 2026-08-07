@@ -20,7 +20,7 @@ Ref<BSDF> BSDF::create(TXContext &tx, kira::Properties const &props) {
         return tx.create<DiffuseBSDF>(props);
     if (type == "principled")
         return tx.create<PrincipledBSDF>(props);
-    throw kira::Anyhow("BSDF: unsupported type '{}'", type);
+    throw kira::Anyhow("BSDF: type must be 'diffuse' or 'principled', got '{}'", type);
 }
 
 BSDF::BSDF(TXContext &tx, BSDFType type) : RenderObject(tx), type_(type) {}
