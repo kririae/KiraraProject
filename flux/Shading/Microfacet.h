@@ -15,8 +15,8 @@ namespace flux {
 class GGXDistribution {
 public:
     /// \param alpha Microfacet slope roughness.
-    /// \pre \p alpha is positive.
-    KIRA_HOST_DEVICE explicit GGXDistribution(float alpha) noexcept : alpha_(alpha) {}
+    KIRA_HOST_DEVICE explicit GGXDistribution(float alpha) noexcept
+        : alpha_(std::max(alpha, 0.001F)) {}
 
     /// \brief Returns the GGX normal distribution for \p m.
     [[nodiscard]] KIRA_HOST_DEVICE float eval(Vec3f const &m) const noexcept {

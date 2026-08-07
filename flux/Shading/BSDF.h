@@ -7,6 +7,7 @@
 #include "flux/Core/Math.h"
 #include "flux/Scene/RenderObject.h"
 #include "flux/Shading/Interaction.h"
+#include "flux/Shading/Texture.h"
 #include "kira/Compiler.h"
 
 namespace flux {
@@ -58,7 +59,7 @@ struct BSDFSample {
     /// Shading-local direction toward the next path vertex.
     Vec3f wi{};
 
-    /// Solid-angle PDF of \c wi.
+    /// Solid-angle PDF for continuous samples or probability mass for delta samples.
     float pdf{};
 
     /// Index of refraction on the next side divided by that on the current side.
@@ -139,10 +140,10 @@ private:
     BSDFType type_;
 };
 
-/// \brief Lambertian reflection with constant reflectance.
+/// \brief Lambertian reflection with textured reflectance.
 ///
 /// \par Properties
-/// - \c R: optional RGB reflectance in \f$[0,1]^3\f$; defaults to 0.5.
+/// - \c R: optional RGB reflectance; defaults to 0.5.
 class DiffuseBSDF final : public BSDF {
     friend class TXContext;
 
@@ -150,22 +151,21 @@ public:
     /// \brief Lambertian scattering implementation.
     struct Impl;
 
-    /// \brief Returns the constant surface reflectance.
-    [[nodiscard]] Spectrum const &getReflectance() const noexcept { return reflectance_; }
+    [[nodiscard]] Ref<Texture const> getR() const noexcept { return R_; }
 
-    /// \brief Builds the constant scattering implementation.
+    /// \brief Builds the scattering implementation.
     [[nodiscard]] Impl getImpl() const noexcept;
 
 private:
     DiffuseBSDF(TXContext &tx, kira::Properties const &props);
 
-    Spectrum reflectance_{0.5F, 0.5F, 0.5F};
+    Ref<Texture const> R_;
 };
 
-/// \brief Disney Principled BSDF with constant parameters.
+/// \brief Disney Principled BSDF with textured parameters.
 ///
 /// \par Properties
-/// - \c base_color: optional RGB base color in \f$[0,1]^3\f$; defaults to 0.5.
+/// - \c base_color: optional RGB base color; defaults to 0.5.
 /// - \c roughness: optional surface roughness in \f$[0,1]\f$; defaults to 0.5.
 /// - \c metallic: optional metallic weight in \f$[0,1]\f$; defaults to zero.
 /// - \c spec_trans: optional transmission weight in \f$[0,1]\f$; defaults to zero.
@@ -180,53 +180,48 @@ class PrincipledBSDF final : public BSDF {
 public:
     struct Impl;
 
-    /// \brief Builds the constant scattering implementation.
+    /// \brief Builds the scattering implementation.
     [[nodiscard]] Impl getImpl() const noexcept;
 
 private:
     PrincipledBSDF(TXContext &tx, kira::Properties const &props);
 
-    Spectrum baseColor_{0.5F, 0.5F, 0.5F};
-    float roughness_{0.5F};
-    float metallic_{};
-    float specTrans_{};
-    float specTint_{};
-    float sheen_{};
-    float sheenTint_{};
-    float flatness_{};
-    float clearcoat_{};
-    float clearcoatRoughness_{1.0F};
+    Ref<Texture const> baseColor_;
+    Ref<Texture const> roughness_;
+    Ref<Texture const> metallic_;
+    Ref<Texture const> specTrans_;
+    Ref<Texture const> specTint_;
+    Ref<Texture const> sheen_;
+    Ref<Texture const> sheenTint_;
+    Ref<Texture const> flatness_;
+    Ref<Texture const> clearcoat_;
+    Ref<Texture const> clearcoatRoughness_;
     float eta_;
 };
 
 /// \brief Lambertian reflection implementation.
-struct DiffuseBSDF::Impl : BSDFMixin<Impl> {
-    /// Constant RGB reflectance.
-    Spectrum reflectance;
+struct DiffuseBSDF::Impl {
+    Texture::Impl R;
 
 public:
-    /// \brief Samples a cosine-weighted reflection direction.
-    [[nodiscard]] KIRA_HOST_DEVICE BSDFSample sample(
-        SurfaceInteraction const &isect, Vec3f const &wo, float u1, Vec2f const &u2
+    [[nodiscard]] KIRA_HOST_DEVICE BSDFResult execute(
+        SurfaceInteraction const &isect, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
+        Vec2f const &u2
     ) const noexcept;
-
-    /// \brief Evaluates the BSDF and sampling PDF for \p wi.
-    [[nodiscard]] KIRA_HOST_DEVICE BSDFEvaluation
-    evalAndPdf(SurfaceInteraction const &isect, Vec3f const &wo, Vec3f const &wi) const noexcept;
 };
 
-/// \brief Constant Disney Principled scattering implementation.
+/// \brief Disney Principled scattering implementation.
 struct PrincipledBSDF::Impl {
-    Spectrum baseColor;
-    float roughness;
-    float metallic;
-    float specTrans;
-    float specTint;
-    float sheen;
-    float sheenTint;
-    float flatness;
-    float clearcoat;
-    float clearcoatRoughness;
+    Texture::Impl baseColor;
+    Texture::Impl roughness;
+    Texture::Impl metallic;
+    Texture::Impl specTrans;
+    Texture::Impl specTint;
+    Texture::Impl sheen;
+    Texture::Impl sheenTint;
+    Texture::Impl flatness;
+    Texture::Impl clearcoat;
+    Texture::Impl clearcoatRoughness;
     float eta;
 
 public:

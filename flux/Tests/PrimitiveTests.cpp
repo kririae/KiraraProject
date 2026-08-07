@@ -135,7 +135,7 @@ TEST(PrimitiveTests, CreatesInlineGeometryAndBsdf) {
 
     EXPECT_EQ(primitive->getGeometry()->getType(), flux::GeometryType::TriangleMesh);
     ASSERT_NE(primitive->getBSDF(), nullptr);
-    EXPECT_EQ(context->getNumContextObjects(), 3);
+    EXPECT_EQ(context->getNumContextObjects(), 4);
 }
 
 TEST(PrimitiveTests, SettersKeepRelationshipsInsideTheContext) {

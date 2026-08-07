@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <limits>
 #include <numbers>
+#include <string>
 
 #include "TestUtils.h"
 #include "flux/Optix/DeviceBuffer.h"
@@ -16,6 +17,13 @@
 #include "kira/Anyhow.h"
 
 namespace {
+[[nodiscard]] flux::Texture::Impl constantTexture(flux::Spectrum const &value) {
+    return {
+        .type = flux::TextureType::Constant,
+        .storage = {.constant = flux::ConstantTexture::Impl{value}},
+    };
+}
+
 struct EvaluateDiffuse {
     flux::DiffuseBSDF::Impl bsdf;
     flux::BSDFEvaluation *evaluation;
@@ -46,16 +54,16 @@ struct EvaluatePrincipled {
 
 [[nodiscard]] flux::PrincipledBSDF::Impl referencePrincipled() {
     return {
-        .baseColor = {0.7F, 0.2F, 0.1F},
-        .roughness = 0.35F,
-        .metallic = 0.2F,
-        .specTrans = 0.3F,
-        .specTint = 0.4F,
-        .sheen = 0.25F,
-        .sheenTint = 0.6F,
-        .flatness = 0.2F,
-        .clearcoat = 0.5F,
-        .clearcoatRoughness = 0.3F,
+        .baseColor = constantTexture(flux::Spectrum{0.7F, 0.2F, 0.1F}),
+        .roughness = constantTexture(flux::Spectrum{0.35F}),
+        .metallic = constantTexture(flux::Spectrum{0.2F}),
+        .specTrans = constantTexture(flux::Spectrum{0.3F}),
+        .specTint = constantTexture(flux::Spectrum{0.4F}),
+        .sheen = constantTexture(flux::Spectrum{0.25F}),
+        .sheenTint = constantTexture(flux::Spectrum{0.6F}),
+        .flatness = constantTexture(flux::Spectrum{0.2F}),
+        .clearcoat = constantTexture(flux::Spectrum{0.5F}),
+        .clearcoatRoughness = constantTexture(flux::Spectrum{0.3F}),
         .eta = 1.45F,
     };
 }
@@ -96,7 +104,9 @@ TEST(ShadingTests, EvaluatesDiffuseOnHost) {
     };
     auto const bsdf = flux::BSDF::Impl{
         .type = flux::BSDFType::Diffuse,
-        .storage = {.diffuse = {.reflectance = {0.25F, 0.5F, 1.0F}}},
+        .storage = {
+            .diffuse = {.R = constantTexture(flux::Spectrum{0.25F, 0.5F, 1.0F})},
+        },
     };
     auto const result = dispatcher.execute(
         bsdf, isect, {0.0F, 0.0F, 1.0F}, {0.0F, 0.0F, 1.0F}, true, 0.5F, {0.5F, 0.5F}
@@ -136,7 +146,7 @@ TEST(ShadingTests, EvaluatesAndSamplesDiffuseOnDevice) {
     flux::launchLinearKernel(
         1,
         EvaluateDiffuse{
-            .bsdf = {.reflectance = {0.25F, 0.5F, 1.0F}},
+            .bsdf = {.R = constantTexture(flux::Spectrum{0.25F, 0.5F, 1.0F})},
             .evaluation = evaluation.data(),
             .sample = sample.data(),
         },
@@ -205,7 +215,7 @@ TEST(ShadingTests, MatchesPrincipledExecutionOnDevice) {
     EXPECT_EQ(actual[0].sample.lobe, expected.sample.lobe);
 }
 
-TEST(ShadingTests, ValidatesDiffuseReflectance) {
+TEST(ShadingTests, PreservesDiffuseReflectance) {
     auto context = flux::Context::create();
     kira::Properties properties;
     properties.set("R", flux::Spectrum{0.25F, 0.5F, 1.0F});
@@ -213,11 +223,51 @@ TEST(ShadingTests, ValidatesDiffuseReflectance) {
 
     EXPECT_TRUE(properties.is_all_used());
     EXPECT_EQ(bsdf->getType(), flux::BSDFType::Diffuse);
-    EXPECT_EQ(bsdf->getReflectance(), (flux::Spectrum{0.25F, 0.5F, 1.0F}));
+    auto const R = bsdf->getR().dynamicCast<flux::ConstantTexture const>();
+    ASSERT_NE(R, nullptr);
+    EXPECT_EQ(R->getValue(), (flux::Spectrum{0.25F, 0.5F, 1.0F}));
 
-    kira::Properties invalid;
-    invalid.set("R", flux::Spectrum{0.0F, 0.5F, 1.1F});
-    EXPECT_THROW((void)context->create<flux::DiffuseBSDF>(invalid), kira::Anyhow);
+    kira::Properties unbounded;
+    unbounded.set("R", flux::Spectrum{0.0F, 1.1F, std::numeric_limits<float>::infinity()});
+    auto unboundedBSDF = context->create<flux::DiffuseBSDF>(unbounded);
+    auto unboundedR = unboundedBSDF->getR().dynamicCast<flux::ConstantTexture const>();
+    ASSERT_NE(unboundedR, nullptr);
+    EXPECT_EQ(
+        unboundedR->getValue(), (flux::Spectrum{0.0F, 1.1F, std::numeric_limits<float>::infinity()})
+    );
+}
+
+TEST(ShadingTests, ResolvesDiffuseTextures) {
+    auto context = flux::Context::create();
+
+    kira::Properties defaults;
+    auto defaultBSDF = context->create<flux::DiffuseBSDF>(defaults);
+    auto defaultR = defaultBSDF->getR().dynamicCast<flux::ConstantTexture const>();
+    ASSERT_NE(defaultR, nullptr);
+    EXPECT_EQ(defaultR->getValue(), flux::Spectrum{0.5F});
+
+    kira::Properties texture;
+    texture.set("value", flux::Spectrum{0.25F, 0.5F, 1.0F});
+    kira::Properties inlineProps;
+    inlineProps.set("R", texture);
+    auto inlineBSDF = context->create<flux::DiffuseBSDF>(inlineProps);
+    auto inlineR = inlineBSDF->getR().dynamicCast<flux::ConstantTexture const>();
+    ASSERT_NE(inlineR, nullptr);
+    EXPECT_EQ(inlineR->getValue(), (flux::Spectrum{0.25F, 0.5F, 1.0F}));
+    EXPECT_TRUE(inlineProps.is_all_used());
+
+    kira::Properties invalidTexture;
+    invalidTexture.set("value", flux::Spectrum{0.0F, 0.5F, 1.1F});
+    kira::Properties invalidInline;
+    invalidInline.set("R", invalidTexture);
+    auto unbounded = context->create<flux::DiffuseBSDF>(invalidInline)
+                         ->getImpl()
+                         .execute({}, {0.0F, 0.0F, 1.0F}, {}, false, 0.5F, {0.5F, 0.5F});
+    EXPECT_EQ(unbounded.sample.weight, (flux::Spectrum{0.0F, 0.5F, 1.1F}));
+
+    kira::Properties named;
+    named.set("R", std::string{"albedo"});
+    EXPECT_THROW((void)context->create<flux::DiffuseBSDF>(named), kira::Anyhow);
 }
 
 TEST(ShadingTests, CreatesPrincipledWithConstantParameters) {
@@ -242,35 +292,51 @@ TEST(ShadingTests, CreatesPrincipledWithConstantParameters) {
     EXPECT_TRUE(props.is_all_used());
     EXPECT_EQ(bsdf->getType(), flux::BSDFType::Principled);
     auto const impl = bsdf->getImpl();
-    EXPECT_EQ(impl.baseColor, (flux::Spectrum{0.7F, 0.2F, 0.1F}));
-    EXPECT_EQ(impl.roughness, 0.35F);
+    EXPECT_EQ(impl.baseColor.eval3f({}), (flux::Spectrum{0.7F, 0.2F, 0.1F}));
+    EXPECT_EQ(impl.roughness.eval1f({}), 0.35F);
     EXPECT_EQ(impl.eta, 1.45F);
 }
 
-TEST(ShadingTests, ValidatesPrincipledParameters) {
+TEST(ShadingTests, ResolvesPrincipledEta) {
     auto context = flux::Context::create();
     kira::Properties conflicting;
     conflicting.set("eta", 1.5F);
     conflicting.set("specular", 0.5F);
     EXPECT_THROW((void)context->create<flux::PrincipledBSDF>(conflicting), kira::Anyhow);
 
-    kira::Properties invalidRoughness;
-    invalidRoughness.set("roughness", -0.1F);
-    EXPECT_THROW((void)context->create<flux::PrincipledBSDF>(invalidRoughness), kira::Anyhow);
-
-    kira::Properties infiniteRoughness;
-    infiniteRoughness.set("roughness", std::numeric_limits<float>::infinity());
-    EXPECT_THROW((void)context->create<flux::PrincipledBSDF>(infiniteRoughness), kira::Anyhow);
-
-    kira::Properties nanEta;
-    nanEta.set("eta", std::numeric_limits<float>::quiet_NaN());
-    EXPECT_THROW((void)context->create<flux::PrincipledBSDF>(nanEta), kira::Anyhow);
-
     kira::Properties transmission;
+    transmission.set("base_color", flux::Spectrum{1.0F});
     transmission.set("spec_trans", 1.0F);
     transmission.set("eta", 1.0F);
     auto const bsdf = context->create<flux::PrincipledBSDF>(transmission);
-    EXPECT_EQ(bsdf->getImpl().eta, 1.001F);
+    EXPECT_EQ(bsdf->getImpl().eta, 1.0F);
+
+    auto const sample =
+        bsdf->getImpl().execute({}, {0.0F, 0.0F, 1.0F}, {}, false, 0.5F, {0.25F, 0.75F}).sample;
+    EXPECT_EQ(sample.weight, flux::Spectrum{1.0F});
+    EXPECT_EQ(sample.wi, (flux::Vec3f{0.0F, 0.0F, -1.0F}));
+    EXPECT_EQ(sample.pdf, 1.0F);
+    EXPECT_EQ(sample.eta, 1.0F);
+    EXPECT_EQ(sample.lobe, flux::BSDFLobe::DeltaTransmission);
+
+    kira::Properties mixedTransmission;
+    mixedTransmission.set("base_color", flux::Spectrum{1.0F});
+    mixedTransmission.set("spec_trans", 0.5F);
+    mixedTransmission.set("eta", 1.0F);
+    auto const mixedBSDF = context->create<flux::PrincipledBSDF>(mixedTransmission)->getImpl();
+
+    auto const frontSample =
+        mixedBSDF.execute({}, {0.0F, 0.0F, 1.0F}, {}, false, 0.5F, {0.25F, 0.75F}).sample;
+    EXPECT_NEAR(frontSample.weight.x(), 1.5F, 1.0e-6F);
+    EXPECT_NEAR(frontSample.pdf, 1.0F / 3.0F, 1.0e-6F);
+    EXPECT_EQ(frontSample.lobe, flux::BSDFLobe::DeltaTransmission);
+
+    auto const backSample =
+        mixedBSDF.execute({}, {0.0F, 0.0F, -1.0F}, {}, false, 0.5F, {0.25F, 0.75F}).sample;
+    EXPECT_EQ(backSample.weight, flux::Spectrum{0.5F});
+    EXPECT_EQ(backSample.wi, (flux::Vec3f{0.0F, 0.0F, 1.0F}));
+    EXPECT_EQ(backSample.pdf, 1.0F);
+    EXPECT_EQ(backSample.lobe, flux::BSDFLobe::DeltaTransmission);
 }
 
 TEST(ShadingTests, CreatesTheSelectedBsdfThroughTheBaseType) {
@@ -284,10 +350,11 @@ TEST(ShadingTests, CreatesTheSelectedBsdfThroughTheBaseType) {
     EXPECT_TRUE(properties.is_all_used());
     EXPECT_NE(bsdf.dynamicCast<flux::DiffuseBSDF>(), nullptr);
 
+    auto const numObjects = context->getNumContextObjects();
     kira::Properties invalid;
     invalid.set("type", "unknown");
     EXPECT_THROW((void)context->create<flux::BSDF>(invalid), kira::Anyhow);
-    EXPECT_EQ(context->getNumContextObjects(), 1);
+    EXPECT_EQ(context->getNumContextObjects(), numObjects);
 }
 
 TEST(ShadingTests, EvaluatesOneSidedConstantEmission) {

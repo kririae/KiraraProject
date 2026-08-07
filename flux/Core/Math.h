@@ -14,6 +14,7 @@ using Vec2u = kira::Vecteur<std::uint32_t, 2, kira::defaultBackend>;
 using Vec3f = kira::Vec3f;
 using Spectrum = Vec3f;
 using Vec3u = kira::Vecteur<std::uint32_t, 3, kira::defaultBackend>;
+using Vec4f = kira::Vec4f;
 } // namespace flux
 
 namespace kira {

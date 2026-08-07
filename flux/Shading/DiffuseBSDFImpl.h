@@ -6,33 +6,31 @@
 #include "flux/Shading/BSDF.h"
 
 namespace flux {
-KIRA_HOST_DEVICE inline BSDFEvaluation DiffuseBSDF::Impl::evalAndPdf(
-    [[maybe_unused]] SurfaceInteraction const &isect, Vec3f const &wo, Vec3f const &wi
-) const noexcept {
-    if (wo.z() <= 0.0F || wi.z() <= 0.0F)
-        return {};
-
-    constexpr auto inversePi = std::numbers::inv_pi_v<float>;
-    return {
-        .value = reflectance * (wi.z() * inversePi),
-        .pdf = cosineHemispherePdf(wi),
-    };
-}
-
-KIRA_HOST_DEVICE inline BSDFSample DiffuseBSDF::Impl::sample(
-    [[maybe_unused]] SurfaceInteraction const &isect, Vec3f const &wo, [[maybe_unused]] float u1,
-    Vec2f const &u2
+KIRA_HOST_DEVICE inline BSDFResult DiffuseBSDF::Impl::execute(
+    SurfaceInteraction const &isect, Vec3f const &wo, Vec3f const &wi, bool eval,
+    [[maybe_unused]] float u1, Vec2f const &u2
 ) const noexcept {
     if (wo.z() <= 0.0F)
         return {};
 
-    auto const wi = cosineSampleHemisphere(u2);
-    return {
-        .weight = reflectance,
-        .wi = wi,
-        .pdf = cosineHemispherePdf(wi),
+    auto const value = R.eval3f(isect);
+    auto result = BSDFResult{};
+    if (eval && wi.z() > 0.0F) {
+        constexpr auto inversePi = std::numbers::inv_pi_v<float>;
+        result.evaluation = {
+            .value = value * (wi.z() * inversePi),
+            .pdf = cosineHemispherePdf(wi),
+        };
+    }
+
+    auto const sampledWi = cosineSampleHemisphere(u2);
+    result.sample = {
+        .weight = value,
+        .wi = sampledWi,
+        .pdf = cosineHemispherePdf(sampledWi),
         .eta = 1.0F,
         .lobe = BSDFLobe::DiffuseReflection,
     };
+    return result;
 }
 } // namespace flux

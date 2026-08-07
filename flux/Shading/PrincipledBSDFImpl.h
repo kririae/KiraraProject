@@ -1,7 +1,7 @@
 #pragma once
 
 /// \file flux/Shading/PrincipledBSDFImpl.h
-/// \brief Constant Disney/Burley Principled BSDF implementation.
+/// \brief Disney/Burley Principled BSDF implementation.
 ///
 /// Directions point away from the surface and use a shading-local frame whose
 /// normal is the positive z axis. The implementation follows Burley 2012/2015,
@@ -18,6 +18,20 @@
 #include "flux/Shading/Microfacet.h"
 
 namespace flux::principled {
+struct Parameters {
+    Spectrum baseColor;       // (1)
+    float roughness;          // (2)
+    float metallic;           // (3)
+    float specTrans;          // (4)
+    float specTint;           // (5)
+    float sheen;              // (6)
+    float sheenTint;          // (7)
+    float flatness;           // (8)
+    float clearcoat;          // (9)
+    float clearcoatRoughness; // (10)
+    float eta;                // (11)
+};
+
 struct LobeWeights {
     float diffuse{};
     float clearcoat{};
@@ -98,29 +112,29 @@ specularWeights(bool frontSide, float bsdfWeight, float F) noexcept {
 }
 
 [[nodiscard]] KIRA_HOST_DEVICE inline Spectrum principledFresnel(
-    PrincipledBSDF::Impl const &bsdf, bool frontSide, float F, float cosTheta, float bsdfWeight
+    Parameters const &params, bool frontSide, float F, float cosTheta, float bsdfWeight
 ) noexcept {
     if (!frontSide)
         return Spectrum{bsdfWeight * F};
 
     auto result = Spectrum{};
-    if (bsdf.metallic > 0.0F)
-        result = result + schlick(bsdf.baseColor, cosTheta) * bsdf.metallic;
+    if (params.metallic > 0.0F)
+        result = result + schlick(params.baseColor, cosTheta) * params.metallic;
 
-    if (bsdf.specTint > 0.0F) {
-        auto const lum = luminance(bsdf.baseColor);
-        auto const tint = lum > 0.0F ? bsdf.baseColor / lum : Spectrum{1.0F};
-        auto const r0 = (bsdf.eta - 1.0F) / (bsdf.eta + 1.0F);
-        result =
-            result + schlick(tint * (r0 * r0), cosTheta) * ((1.0F - bsdf.metallic) * bsdf.specTint);
+    if (params.specTint > 0.0F) {
+        auto const lum = luminance(params.baseColor);
+        auto const tint = lum > 0.0F ? params.baseColor / lum : Spectrum{1.0F};
+        auto const r0 = (params.eta - 1.0F) / (params.eta + 1.0F);
+        result = result +
+                 schlick(tint * (r0 * r0), cosTheta) * ((1.0F - params.metallic) * params.specTint);
     }
 
-    return result + Spectrum{(1.0F - bsdf.metallic) * (1.0F - bsdf.specTint) * F};
+    return result + Spectrum{(1.0F - params.metallic) * (1.0F - params.specTint) * F};
 }
 
 [[nodiscard]] KIRA_HOST_DEVICE inline BSDFEvaluation evalAndPdf(
-    PrincipledBSDF::Impl const &bsdf, Vec3f const &wo, Vec3f const &wi, float etaNext,
-    float brdfWeight, float bsdfWeight, LobeWeights const &lobes, GGXDistribution const &ggx
+    Parameters const &params, Vec3f const &wo, Vec3f const &wi, float etaNext, float brdfWeight,
+    float bsdfWeight, LobeWeights const &lobes, GGXDistribution const &ggx
 ) noexcept {
     auto const cosWo = wo.z();
     auto const cosWi = wi.z();
@@ -143,7 +157,7 @@ specularWeights(bool frontSide, float bsdfWeight, float F) noexcept {
 
     if (geometry.reflection) {
         auto const Fr =
-            principledFresnel(bsdf, frontSide, F, std::abs(geometry.woDotM), bsdfWeight);
+            principledFresnel(params, frontSide, F, std::abs(geometry.woDotM), bsdfWeight);
         result.value = result.value + Fr * (D * G / (4.0F * std::abs(cosWo)));
         result.pdf += lobes.specular * specular.reflection * microfacetPdf;
     } else if (specular.transmission > 0.0F) {
@@ -151,7 +165,7 @@ specularWeights(bool frontSide, float bsdfWeight, float F) noexcept {
         auto const factor = (1.0F - F) * D * G *
                             std::abs(geometry.wiDotM * geometry.woDotM / (cosWo * denom * denom)) /
                             (etaNext * etaNext);
-        result.value = result.value + bsdf.baseColor.sqrt() * (bsdfWeight * factor);
+        result.value = result.value + params.baseColor.sqrt() * (bsdfWeight * factor);
         result.pdf += lobes.specular * specular.transmission * microfacetPdf;
     }
 
@@ -159,13 +173,13 @@ specularWeights(bool frontSide, float bsdfWeight, float F) noexcept {
         return result;
 
     // GTR1 clearcoat uses a fixed GGX masking roughness.
-    if (bsdf.clearcoat > 0.0F) {
-        auto const alpha = 0.001F + 0.099F * bsdf.clearcoatRoughness;
+    if (params.clearcoat > 0.0F) {
+        auto const alpha = 0.001F + 0.099F * params.clearcoatRoughness;
         auto const Dc = gtr1(geometry.m, alpha);
         auto const Fc = schlick(0.04F, std::abs(geometry.woDotM));
         auto const Gc = clearcoatG1(wo, geometry.m) * clearcoatG1(wi, geometry.m);
         result.value =
-            result.value + Spectrum{0.25F * bsdf.clearcoat * Fc * Dc * Gc * std::abs(cosWi)};
+            result.value + Spectrum{0.25F * params.clearcoat * Fc * Dc * Gc * std::abs(cosWi)};
         result.pdf += lobes.clearcoat * Dc * geometry.m.z() * geometry.dMdWi;
     }
 
@@ -176,34 +190,34 @@ specularWeights(bool frontSide, float bsdfWeight, float F) noexcept {
     auto const woWeight = schlickWeight(std::abs(cosWo));
     auto const wiWeight = schlickWeight(std::abs(cosWi));
     auto const wiDotM = geometry.m.dot(wi);
-    auto const retro = 2.0F * bsdf.roughness * wiDotM * wiDotM;
+    auto const retro = 2.0F * params.roughness * wiDotM * wiDotM;
     auto const diffuse = (1.0F - 0.5F * woWeight) * (1.0F - 0.5F * wiWeight);
     auto const retroReflection =
         retro * (woWeight + wiWeight + woWeight * wiWeight * (retro - 1.0F));
     auto diffuseShape = diffuse + retroReflection;
 
-    if (bsdf.flatness > 0.0F) {
+    if (params.flatness > 0.0F) {
         auto const fss90 = 0.5F * retro;
         auto const fssWo = 1.0F + (fss90 - 1.0F) * woWeight;
         auto const fssWi = 1.0F + (fss90 - 1.0F) * wiWeight;
         auto const subsurface =
             1.25F * (fssWo * fssWi * (1.0F / (std::abs(cosWo) + std::abs(cosWi)) - 0.5F) + 0.5F);
-        diffuseShape += (subsurface - diffuseShape) * bsdf.flatness;
+        diffuseShape += (subsurface - diffuseShape) * params.flatness;
     }
 
-    result.value = result.value + bsdf.baseColor * (brdfWeight * std::abs(cosWi) *
-                                                    std::numbers::inv_pi_v<float> * diffuseShape);
+    result.value = result.value + params.baseColor * (brdfWeight * std::abs(cosWi) *
+                                                      std::numbers::inv_pi_v<float> * diffuseShape);
     result.pdf += lobes.diffuse * cosineHemispherePdf(wi);
 
-    if (bsdf.sheen > 0.0F) {
+    if (params.sheen > 0.0F) {
         auto sheenColor = Spectrum{1.0F};
-        if (bsdf.sheenTint > 0.0F) {
-            auto const lum = luminance(bsdf.baseColor);
-            auto const tint = lum > 0.0F ? bsdf.baseColor / lum : Spectrum{1.0F};
-            sheenColor = Spectrum{1.0F} + (tint - Spectrum{1.0F}) * bsdf.sheenTint;
+        if (params.sheenTint > 0.0F) {
+            auto const lum = luminance(params.baseColor);
+            auto const tint = lum > 0.0F ? params.baseColor / lum : Spectrum{1.0F};
+            sheenColor = Spectrum{1.0F} + (tint - Spectrum{1.0F}) * params.sheenTint;
         }
         result.value =
-            result.value + sheenColor * (bsdf.sheen * (1.0F - bsdf.metallic) *
+            result.value + sheenColor * (params.sheen * (1.0F - params.metallic) *
                                          schlickWeight(std::abs(wiDotM)) * std::abs(cosWi));
     }
 
@@ -211,9 +225,8 @@ specularWeights(bool frontSide, float bsdfWeight, float F) noexcept {
 }
 
 [[nodiscard]] KIRA_HOST_DEVICE inline BSDFSample sample(
-    PrincipledBSDF::Impl const &bsdf, Vec3f const &wo, float etaNext, float brdfWeight,
-    float bsdfWeight, LobeWeights const &lobes, GGXDistribution const &ggx, float u1,
-    Vec2f const &u2
+    Parameters const &params, Vec3f const &wo, float etaNext, float brdfWeight, float bsdfWeight,
+    LobeWeights const &lobes, GGXDistribution const &ggx, float u1, Vec2f const &u2
 ) noexcept {
     auto wi = Vec3f{};
     auto lobe = BSDFLobe::None;
@@ -223,7 +236,7 @@ specularWeights(bool frontSide, float bsdfWeight, float F) noexcept {
         wi = cosineSampleHemisphere(u2);
         lobe = BSDFLobe::DiffuseReflection;
     } else if (u1 < lobes.diffuse + lobes.clearcoat) {
-        auto const alpha = 0.001F + 0.099F * bsdf.clearcoatRoughness;
+        auto const alpha = 0.001F + 0.099F * params.clearcoatRoughness;
         wi = reflect(wo, sampleGTR1(u2, alpha));
         lobe = BSDFLobe::GlossyReflection;
     } else {
@@ -237,6 +250,16 @@ specularWeights(bool frontSide, float bsdfWeight, float F) noexcept {
         auto const uSpecular = (u1 - lobes.diffuse - lobes.clearcoat) / lobes.specular;
 
         if (uSpecular < weights.transmission) {
+            if (etaNext == 1.0F) {
+                auto const probability = lobes.specular * weights.transmission;
+                return {
+                    .weight = params.baseColor.sqrt() * (bsdfWeight / probability),
+                    .wi = -wo,
+                    .pdf = probability,
+                    .eta = 1.0F,
+                    .lobe = BSDFLobe::DeltaTransmission,
+                };
+            }
             wi = refract(wo, m, cosThetaT, invEta);
             sampleEta = etaNext;
             lobe = BSDFLobe::GlossyTransmission;
@@ -246,7 +269,7 @@ specularWeights(bool frontSide, float bsdfWeight, float F) noexcept {
         }
     }
 
-    auto const evaluation = evalAndPdf(bsdf, wo, wi, etaNext, brdfWeight, bsdfWeight, lobes, ggx);
+    auto const evaluation = evalAndPdf(params, wo, wi, etaNext, brdfWeight, bsdfWeight, lobes, ggx);
     if (evaluation.pdf <= 0.0F)
         return {};
 
@@ -262,29 +285,42 @@ specularWeights(bool frontSide, float bsdfWeight, float F) noexcept {
 
 namespace flux {
 KIRA_HOST_DEVICE inline BSDFResult PrincipledBSDF::Impl::execute(
-    [[maybe_unused]] SurfaceInteraction const &isect, Vec3f const &wo, Vec3f const &wi, bool eval,
-    float u1, Vec2f const &u2
+    SurfaceInteraction const &isect, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
+    Vec2f const &u2
 ) const noexcept {
+    auto const params = principled::Parameters{
+        .baseColor = baseColor.eval3f(isect),                   // (1)
+        .roughness = roughness.eval1f(isect),                   // (2)
+        .metallic = metallic.eval1f(isect),                     // (3)
+        .specTrans = specTrans.eval1f(isect),                   // (4)
+        .specTint = specTint.eval1f(isect),                     // (5)
+        .sheen = sheen.eval1f(isect),                           // (6)
+        .sheenTint = sheenTint.eval1f(isect),                   // (7)
+        .flatness = flatness.eval1f(isect),                     // (8)
+        .clearcoat = clearcoat.eval1f(isect),                   // (9)
+        .clearcoatRoughness = clearcoatRoughness.eval1f(isect), // (10)
+        .eta = eta,                                             // (11)
+    };
     auto const frontSide = wo.z() > 0.0F;
     if (wo.z() == 0.0F)
         return {};
 
-    auto const etaNext = frontSide ? eta : 1.0F / eta;
-    auto const brdfWeight = (1.0F - metallic) * (1.0F - specTrans);
-    auto const bsdfWeight = (1.0F - metallic) * specTrans;
+    auto const etaNext = frontSide ? params.eta : 1.0F / params.eta;
+    auto const brdfWeight = (1.0F - params.metallic) * (1.0F - params.specTrans);
+    auto const bsdfWeight = (1.0F - params.metallic) * params.specTrans;
     if (!frontSide && bsdfWeight == 0.0F)
         return {};
 
-    auto const lobes = principled::lobeWeights(frontSide, brdfWeight, bsdfWeight, clearcoat);
-    auto const ggx = GGXDistribution{std::max(roughness * roughness, 0.001F)};
+    auto const lobes = principled::lobeWeights(frontSide, brdfWeight, bsdfWeight, params.clearcoat);
+    auto const ggx = GGXDistribution{params.roughness * params.roughness};
 
     auto result = BSDFResult{};
     if (eval)
         result.evaluation =
-            principled::evalAndPdf(*this, wo, wi, etaNext, brdfWeight, bsdfWeight, lobes, ggx);
+            principled::evalAndPdf(params, wo, wi, etaNext, brdfWeight, bsdfWeight, lobes, ggx);
 
     result.sample =
-        principled::sample(*this, wo, etaNext, brdfWeight, bsdfWeight, lobes, ggx, u1, u2);
+        principled::sample(params, wo, etaNext, brdfWeight, bsdfWeight, lobes, ggx, u1, u2);
     return result;
 }
 } // namespace flux

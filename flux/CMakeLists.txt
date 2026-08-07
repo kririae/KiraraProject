@@ -68,7 +68,8 @@ add_library(
     Scene/TriangleMesh.cpp
     Scene/TXContext.cpp
     Shading/BSDF.cpp
-    Shading/EDF.cpp)
+    Shading/EDF.cpp
+    Shading/Texture.cpp)
 
 target_include_directories(flux PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(
