@@ -16,6 +16,15 @@
 #include "kira/Anyhow.h"
 
 namespace {
+struct TestImageTextureEvaluator {
+    [[nodiscard]] KIRA_HOST_DEVICE static flux::Vec4f
+    eval4f(std::uint32_t index, flux::Vec2f uv) noexcept {
+        return {static_cast<float>(index) + uv.x(), uv.y(), 3.0F, 4.0F};
+    }
+};
+
+static_assert(flux::ImageTextureEvaluator<TestImageTextureEvaluator>);
+
 [[nodiscard]] flux::Texture::Impl constantTexture(flux::Spectrum const &value) {
     return {
         .type = flux::TextureType::Constant,
@@ -26,6 +35,11 @@ namespace {
 struct SpecializedTexture : flux::TextureMixin<SpecializedTexture> {
     [[nodiscard]] KIRA_HOST_DEVICE float eval1f_(flux::SurfaceInteraction const &) const noexcept {
         return 1.0F;
+    }
+
+    [[nodiscard]] KIRA_HOST_DEVICE flux::Vec2f
+    eval2f_(flux::SurfaceInteraction const &) const noexcept {
+        return {9.0F, 10.0F};
     }
 
     [[nodiscard]] KIRA_HOST_DEVICE flux::Vec3f
@@ -60,8 +74,9 @@ struct EvaluateDiffuse {
         auto const isect = flux::SurfaceInteraction{
             .shadingNormal = {1.0F, 0.0F, 0.0F},
         };
-        auto const result =
-            bsdf.execute(isect, {0.0F, 0.0F, 1.0F}, {0.0F, 0.0F, 1.0F}, true, 0.5F, {0.5F, 0.5F});
+        auto const result = bsdf.execute<TestImageTextureEvaluator>(
+            isect, {0.0F, 0.0F, 1.0F}, {0.0F, 0.0F, 1.0F}, true, 0.5F, {0.5F, 0.5F}
+        );
         *evaluation = result.evaluation;
         *sample = result.sample;
     }
@@ -72,7 +87,7 @@ struct EvaluatePrincipled {
     flux::BSDFResult *result;
 
     KIRA_DEVICE void operator()(std::size_t) const noexcept {
-        *result = bsdf.execute(
+        *result = bsdf.execute<TestImageTextureEvaluator>(
             {}, flux::Vec3f{0.3F, -0.2F, 1.0F}.normalize(),
             flux::Vec3f{0.4F, 0.1F, 0.911043F}.normalize(), true, 0.45F, {0.3F, 0.7F}
         );
@@ -99,16 +114,19 @@ struct EvaluatePrincipled {
 TEST(ShadingTests, BuildsTextureEvaluationInterface) {
     auto const constant = flux::ConstantTexture::Impl{flux::Spectrum{0.25F, 0.5F, 1.0F}};
     EXPECT_EQ(constant.eval1f({}), 0.25F);
+    EXPECT_EQ(constant.eval2f({}), (flux::Vec2f{0.25F, 0.5F}));
     EXPECT_EQ(constant.eval3f({}), (flux::Vec3f{0.25F, 0.5F, 1.0F}));
     EXPECT_EQ(constant.eval4f({}), (flux::Vec4f{0.25F, 0.5F, 1.0F, 1.0F}));
 
     auto const specialized = SpecializedTexture{};
     EXPECT_EQ(specialized.eval1f({}), 1.0F);
+    EXPECT_EQ(specialized.eval2f({}), (flux::Vec2f{9.0F, 10.0F}));
     EXPECT_EQ(specialized.eval3f({}), (flux::Vec3f{2.0F, 3.0F, 4.0F}));
     EXPECT_EQ(specialized.eval4f({}), (flux::Vec4f{5.0F, 6.0F, 7.0F, 8.0F}));
 
     auto const rgb = RGBTexture{};
     EXPECT_EQ(rgb.eval1f({}), 2.0F);
+    EXPECT_EQ(rgb.eval2f({}), (flux::Vec2f{2.0F, 3.0F}));
     EXPECT_EQ(rgb.eval3f({}), (flux::Vec3f{2.0F, 3.0F, 4.0F}));
     EXPECT_EQ(rgb.eval4f({}), (flux::Vec4f{5.0F, 6.0F, 7.0F, 8.0F}));
 }
@@ -152,14 +170,15 @@ TEST(ShadingTests, EvaluatesDiffuseOnHost) {
             .diffuse = {.R = constantTexture(flux::Spectrum{0.25F, 0.5F, 1.0F})},
         },
     };
-    auto const result = dispatcher.execute(
+    auto const result = dispatcher.execute<TestImageTextureEvaluator>(
         bsdf, isect, {0.0F, 0.0F, 1.0F}, {0.0F, 0.0F, 1.0F}, true, 0.5F, {0.5F, 0.5F}
     );
-    auto const angledResult = dispatcher.execute(
+    auto const angledResult = dispatcher.execute<TestImageTextureEvaluator>(
         bsdf, isect, {0.0F, 0.0F, 1.0F}, {0.6F, 0.0F, 0.8F}, true, 0.5F, {0.5F, 0.5F}
     );
-    auto const sampleOnly =
-        dispatcher.execute(bsdf, isect, {0.0F, 0.0F, 1.0F}, {}, false, 0.5F, {0.5F, 0.5F});
+    auto const sampleOnly = dispatcher.execute<TestImageTextureEvaluator>(
+        bsdf, isect, {0.0F, 0.0F, 1.0F}, {}, false, 0.5F, {0.5F, 0.5F}
+    );
     auto const &evaluation = result.evaluation;
     auto const &angledEvaluation = angledResult.evaluation;
     auto const &sample = result.sample;
@@ -219,11 +238,11 @@ TEST(ShadingTests, MatchesPrincipledExecutionOnDevice) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto const bsdf = referencePrincipled();
-    auto const expected = bsdf.execute(
+    auto const expected = bsdf.execute<TestImageTextureEvaluator>(
         {}, flux::Vec3f{0.3F, -0.2F, 1.0F}.normalize(),
         flux::Vec3f{0.4F, 0.1F, 0.911043F}.normalize(), true, 0.45F, {0.3F, 0.7F}
     );
-    auto const sampleOnly = bsdf.execute(
+    auto const sampleOnly = bsdf.execute<TestImageTextureEvaluator>(
         {}, flux::Vec3f{0.3F, -0.2F, 1.0F}.normalize(), {}, false, 0.45F, {0.3F, 0.7F}
     );
 
@@ -306,7 +325,9 @@ TEST(ShadingTests, ResolvesDiffuseTextures) {
     invalidInline.set("R", invalidTexture);
     auto unbounded = context->create<flux::DiffuseBSDF>(invalidInline)
                          ->getImpl()
-                         .execute({}, {0.0F, 0.0F, 1.0F}, {}, false, 0.5F, {0.5F, 0.5F});
+                         .execute<TestImageTextureEvaluator>(
+                             {}, {0.0F, 0.0F, 1.0F}, {}, false, 0.5F, {0.5F, 0.5F}
+                         );
     EXPECT_EQ(unbounded.sample.weight, (flux::Spectrum{0.0F, 0.5F, 1.1F}));
 
     kira::Properties invalidType;
@@ -336,8 +357,10 @@ TEST(ShadingTests, CreatesPrincipledWithConstantParameters) {
     EXPECT_TRUE(props.is_all_used());
     EXPECT_EQ(bsdf->getType(), flux::BSDFType::Principled);
     auto const impl = bsdf->getImpl();
-    EXPECT_EQ(impl.baseColor.eval3f({}), (flux::Spectrum{0.7F, 0.2F, 0.1F}));
-    EXPECT_EQ(impl.roughness.eval1f({}), 0.35F);
+    EXPECT_EQ(
+        impl.baseColor.eval3f<TestImageTextureEvaluator>({}), (flux::Spectrum{0.7F, 0.2F, 0.1F})
+    );
+    EXPECT_EQ(impl.roughness.eval1f<TestImageTextureEvaluator>({}), 0.35F);
     EXPECT_EQ(impl.eta, 1.45F);
 }
 
@@ -355,8 +378,11 @@ TEST(ShadingTests, ResolvesPrincipledEta) {
     auto const bsdf = context->create<flux::PrincipledBSDF>(transmission);
     EXPECT_EQ(bsdf->getImpl().eta, 1.0F);
 
-    auto const sample =
-        bsdf->getImpl().execute({}, {0.0F, 0.0F, 1.0F}, {}, false, 0.5F, {0.25F, 0.75F}).sample;
+    auto const sample = bsdf->getImpl()
+                            .execute<TestImageTextureEvaluator>(
+                                {}, {0.0F, 0.0F, 1.0F}, {}, false, 0.5F, {0.25F, 0.75F}
+                            )
+                            .sample;
     EXPECT_EQ(sample.weight, flux::Spectrum{1.0F});
     EXPECT_EQ(sample.wi, (flux::Vec3f{0.0F, 0.0F, -1.0F}));
     EXPECT_EQ(sample.pdf, 1.0F);
@@ -369,14 +395,20 @@ TEST(ShadingTests, ResolvesPrincipledEta) {
     mixedTransmission.set("eta", 1.0F);
     auto const mixedBSDF = context->create<flux::PrincipledBSDF>(mixedTransmission)->getImpl();
 
-    auto const frontSample =
-        mixedBSDF.execute({}, {0.0F, 0.0F, 1.0F}, {}, false, 0.5F, {0.25F, 0.75F}).sample;
+    auto const frontSample = mixedBSDF
+                                 .execute<TestImageTextureEvaluator>(
+                                     {}, {0.0F, 0.0F, 1.0F}, {}, false, 0.5F, {0.25F, 0.75F}
+                                 )
+                                 .sample;
     EXPECT_NEAR(frontSample.weight.x(), 1.5F, 1.0e-6F);
     EXPECT_NEAR(frontSample.pdf, 1.0F / 3.0F, 1.0e-6F);
     EXPECT_EQ(frontSample.lobe, flux::BSDFLobe::DeltaTransmission);
 
-    auto const backSample =
-        mixedBSDF.execute({}, {0.0F, 0.0F, -1.0F}, {}, false, 0.5F, {0.25F, 0.75F}).sample;
+    auto const backSample = mixedBSDF
+                                .execute<TestImageTextureEvaluator>(
+                                    {}, {0.0F, 0.0F, -1.0F}, {}, false, 0.5F, {0.25F, 0.75F}
+                                )
+                                .sample;
     EXPECT_EQ(backSample.weight, flux::Spectrum{0.5F});
     EXPECT_EQ(backSample.wi, (flux::Vec3f{0.0F, 0.0F, 1.0F}));
     EXPECT_EQ(backSample.pdf, 1.0F);

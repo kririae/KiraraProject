@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "flux/Scene/ImageAsset.h"
 #include "flux/Scene/TXContext.h"
 #include "kira/Anyhow.h"
 #include "kira/FileResolver.h"
@@ -82,6 +83,8 @@ public:
         return fileResolver_;
     }
 
+    [[nodiscard]] ImageAssetPool &getImageAssetPool() noexcept { return imageAssetPool_; }
+
     /// \brief Returns the first integrator successfully added to this context.
     ///
     /// \throw kira::Anyhow If the context has no integrator.
@@ -117,6 +120,7 @@ private:
     std::unordered_map<std::size_t, Ref<ContextObject>> objects_;
     std::optional<std::size_t> activeIntegratorId_;
     std::optional<std::size_t> activeSamplerId_;
+    ImageAssetPool imageAssetPool_;
     kira::FileResolver fileResolver_;
     std::size_t nextId_{0};
 };

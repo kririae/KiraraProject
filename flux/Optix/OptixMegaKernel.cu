@@ -2,6 +2,7 @@
 
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Optix/OptixContext.cuh"
+#include "flux/Optix/OptixImageTexturePool.cuh"
 #include "flux/Optix/OptixLaunchParams.h"
 #include "flux/Sampling/SamplerImpl.h"
 #include "flux/Scene/CameraImpl.h"
@@ -14,6 +15,16 @@
 extern "C" {
 __constant__ flux::OptixLaunchParams optixLaunchParams{};
 }
+
+namespace {
+struct OptixImageTextureEvaluator {
+    [[nodiscard]] KIRA_DEVICE static flux::Vec4f
+    eval4f(std::uint32_t index, flux::Vec2f uv) noexcept {
+        auto const &texture = optixLaunchParams.imageTexturePool.get(index);
+        return texture.componentMapping.apply(texture.sample(uv));
+    }
+};
+} // namespace
 
 extern "C" __global__ void __miss__megakernel() {} // NOLINT
 
@@ -91,9 +102,10 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
             auto const u1 = state.sampler.get1D();
             auto const u2 = state.sampler.get2D();
             auto const &bsdf = optixLaunchParams.scene.getBSDF(primitive.getBSDFIndex());
-            auto const result = optixLaunchParams.bsdfDispatcher.execute(
-                bsdf, isect, localWo, localLightWi, directLight.pdf > 0.0F, u1, u2
-            );
+            auto const result =
+                optixLaunchParams.bsdfDispatcher.execute<OptixImageTextureEvaluator>(
+                    bsdf, isect, localWo, localLightWi, directLight.pdf > 0.0F, u1, u2
+                );
 
             if (writesAlbedo) {
                 optixLaunchParams.film.accumulate<flux::AlbedoChannel>(

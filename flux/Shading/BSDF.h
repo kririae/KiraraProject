@@ -204,6 +204,7 @@ struct DiffuseBSDF::Impl {
     Texture::Impl R;
 
 public:
+    template <ImageTextureEvaluator Evaluator>
     [[nodiscard]] KIRA_HOST_DEVICE BSDFResult execute(
         SurfaceInteraction const &isect, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
         Vec2f const &u2
@@ -226,6 +227,7 @@ struct PrincipledBSDF::Impl {
 
 public:
     /// \brief Evaluates and samples the Principled model for one hit.
+    template <ImageTextureEvaluator Evaluator>
     [[nodiscard]] KIRA_HOST_DEVICE BSDFResult execute(
         SurfaceInteraction const &isect, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
         Vec2f const &u2
@@ -256,6 +258,7 @@ public:
     /// \pre \p wo is normalized; \p wi is normalized when \p eval is true.
     /// \pre Samples are in \f$[0,1)\f$.
     /// \pre \c types contains \p bsdf's implementation type.
+    template <ImageTextureEvaluator Evaluator>
     [[nodiscard]] KIRA_HOST_DEVICE BSDFResult execute(
         BSDF::Impl const &bsdf, SurfaceInteraction const &isect, Vec3f const &wo, Vec3f const &wi,
         bool eval, float u1, Vec2f const &u2

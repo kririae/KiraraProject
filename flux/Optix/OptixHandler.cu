@@ -251,6 +251,7 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
         auto const &programSpec = impl_->optixContext.getProgramSpec();
         auto const params = OptixLaunchParams{
             .scene = impl_->optixContext.getImpl(),
+            .imageTexturePool = impl_->optixContext.getImageTexturePool(),
             .camera = camera,
             .sampler = sampler->getImpl(resolution),
             .integrator = integrator->getImpl(),

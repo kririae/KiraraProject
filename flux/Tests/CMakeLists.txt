@@ -15,6 +15,27 @@ krr_add_test(
     HARD_DEPENDENCIES flux)
 
 krr_add_test(
+    flux Core ConcurrentPoolTests
+    SOURCES ConcurrentPoolTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
+    flux Scene ImageAssetTests
+    SOURCES ImageAssetTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(
+    flux.Scene.ImageAssetTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
+                                       FLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/ImageAssetTests")
+target_link_libraries(flux.Scene.ImageAssetTests PRIVATE OpenImageIO::OpenImageIO)
+krr_add_test(
+    flux Embree ImageTextureTests
+    SOURCES EmbreeImageTextureTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(
+    flux.Embree.ImageTextureTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
+                                          FLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/EmbreeImageTextureTests")
+
+krr_add_test(
     flux Scene PrimitiveTests
     SOURCES PrimitiveTests.cpp
     HARD_DEPENDENCIES flux)
@@ -84,10 +105,21 @@ krr_add_test(
     SOURCES OptixGeometryTests.cpp
     HARD_DEPENDENCIES flux)
 target_compile_definitions(
-    flux.Optix.GeometryTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
-                                     FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
+    flux.Optix.GeometryTests
+    PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
+            FLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/OptixGeometryTests"
+            FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
 target_link_libraries(flux.Optix.GeometryTests PRIVATE CUDA::cudart)
 add_dependencies(flux.Optix.GeometryTests flux_megakernel_ir)
+
+krr_add_test(
+    flux Optix ImageTextureTests
+    SOURCES OptixImageTexturePoolTests.cu
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(
+    flux.Optix.ImageTextureTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
+                                         FLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/OptixImageTextureTests")
+target_link_libraries(flux.Optix.ImageTextureTests PRIVATE CUDA::cudart)
 
 krr_add_test(
     flux Optix DeviceBufferTests

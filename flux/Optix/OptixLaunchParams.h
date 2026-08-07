@@ -24,6 +24,9 @@ struct OptixLaunchParams {
     /// Borrowed OptiX scene view used by this launch.
     OptixContext::Impl scene;
 
+    /// Image textures used by this launch.
+    OptixImageTexturePool::Impl imageTexturePool;
+
     Camera::Impl camera;
     Sampler::Impl sampler;
     PathIntegrator::Impl integrator;

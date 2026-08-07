@@ -1,10 +1,12 @@
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <stdexcept>
 
 #include "TestUtils.h"
+#include "flux/IO/ImageIO.h"
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Optix/OptixHandler.h"
 #include "flux/Sampling/Sampler.h"
@@ -22,6 +24,10 @@
 
 #ifndef FLUX_TEST_OPTIX_IR
 #error "FLUX_TEST_OPTIX_IR must name the test OptiX IR module"
+#endif
+
+#ifndef FLUX_TEST_OUTPUT_DIR
+#error "FLUX_TEST_OUTPUT_DIR must name the Flux test output directory"
 #endif
 
 namespace {
@@ -107,7 +113,38 @@ TEST(OptixGeometryTests, RendersDirectLightIntoColorChannel) {
     kira::Properties meshProperties;
     meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
     auto mesh = context->create<flux::TriangleMesh>(meshProperties);
-    auto bsdf = context->create<flux::DiffuseBSDF>();
+    auto const decoyImagePath = std::filesystem::path(FLUX_TEST_OUTPUT_DIR) / "diffuse.exr";
+    auto const image = std::array{0.2F, 0.4F};
+    auto const componentNames = std::array<std::string_view, 2>{"R", "G"};
+    flux::writeImage(
+        decoyImagePath,
+        {
+            .pixels = std::as_bytes(std::span{image}),
+            .extent = {1, 1},
+            .componentType = flux::ImageComponentType::Float32,
+            .componentCount = static_cast<std::uint8_t>(componentNames.size()),
+        },
+        {
+            .outputComponentType = flux::ImageComponentType::Float32,
+            .componentNames = componentNames,
+        }
+    );
+    kira::Properties decoyTextureProperties;
+    decoyTextureProperties.set("type", "image");
+    decoyTextureProperties.set("path", decoyImagePath);
+    decoyTextureProperties.set("color_space", "linear");
+    decoyTextureProperties.set("filter_mode", "linear");
+    decoyTextureProperties.set("component_mapping", "xxx1");
+    static_cast<void>(context->create<flux::Texture>(decoyTextureProperties));
+    kira::Properties textureProperties;
+    textureProperties.set("type", "image");
+    textureProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "SRGB.ppm");
+    textureProperties.set("color_space", "srgb");
+    textureProperties.set("filter_mode", "point");
+    textureProperties.set("component_mapping", "yyy1");
+    kira::Properties bsdfProperties;
+    bsdfProperties.set("R", textureProperties);
+    auto bsdf = context->create<flux::DiffuseBSDF>(bsdfProperties);
     (void)context->create<flux::Primitive>(primitiveProperties(*mesh, bsdf.get()));
 
     kira::Properties lightProperties;
@@ -123,8 +160,6 @@ TEST(OptixGeometryTests, RendersDirectLightIntoColorChannel) {
     kira::Properties productProperties;
     productProperties.set("resolution", flux::Vec2u{1, 1});
     auto product = flux::RenderProduct::create(camera, productProperties);
-    product->getFilm().setChannels(flux::FilmChannels::Color);
-
     flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
     handler.render(*product, 4);
     handler.download(*product);
@@ -134,6 +169,13 @@ TEST(OptixGeometryTests, RendersDirectLightIntoColorChannel) {
     EXPECT_GT(color[0].x(), 0.0F);
     EXPECT_GT(color[0].y(), 0.0F);
     EXPECT_GT(color[0].z(), 0.0F);
+    auto const albedo = product->getFilm().getChannel<flux::AlbedoChannel>();
+    ASSERT_EQ(albedo.size(), 1);
+    // CUDA approximates sRGB conversion.
+    constexpr auto expectedLinearGreen = 0.13286832F;
+    EXPECT_NEAR(albedo[0].x(), expectedLinearGreen, 1.0e-4F);
+    EXPECT_NEAR(albedo[0].y(), expectedLinearGreen, 1.0e-4F);
+    EXPECT_NEAR(albedo[0].z(), expectedLinearGreen, 1.0e-4F);
 
     auto blocker = context->create<flux::Primitive>(primitiveProperties(*mesh));
     blocker->setTransform({

@@ -33,10 +33,17 @@ add_library(flux_optix_headers INTERFACE)
 add_library(OptiX::OptiX ALIAS flux_optix_headers)
 target_include_directories(flux_optix_headers SYSTEM INTERFACE "${optix_SOURCE_DIR}/include")
 
-# Isolate OIIO compile definitions in the ImageIO implementation.
-add_library(flux_image_io STATIC IO/ImageIO.cpp)
-target_include_directories(flux_image_io PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
-target_link_libraries(flux_image_io PRIVATE kira::Core kira::Vecteur OpenImageIO::OpenImageIO)
+# Compile OIIO-backed image sources as host C++.
+add_library(flux_oiio STATIC Embree/EmbreeImageTexturePool.cpp IO/ImageIO.cpp Optix/OptixImageTexturePool.cpp
+                             Scene/ImageAsset.cpp)
+target_include_directories(flux_oiio PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_link_libraries(
+    flux_oiio
+    PRIVATE CUDA::cudart
+            kira::Core
+            kira::Vecteur
+            OpenImageIO::OpenImageIO
+            OptiX::OptiX)
 
 add_library(
     flux STATIC
@@ -82,7 +89,7 @@ target_link_libraries(
 target_link_libraries(
     flux
     PRIVATE Eigen3::Eigen
-            flux_image_io
+            flux_oiio
             rapidobj::rapidobj
             TBB::tbb
             unofficial::miniply::miniply)
@@ -102,11 +109,11 @@ add_dependencies(flux_cli flux_megakernel_ir)
 if(MSVC)
     target_compile_options(flux PRIVATE /W4 $<$<COMPILE_LANGUAGE:CXX>:/fp:fast>)
     target_compile_options(flux_cli PRIVATE /W4)
-    target_compile_options(flux_image_io PRIVATE /W4)
+    target_compile_options(flux_oiio PRIVATE /W4)
 else()
     target_compile_options(flux PRIVATE -Wall -Wextra $<$<COMPILE_LANGUAGE:CXX>:-ffast-math>)
     target_compile_options(flux_cli PRIVATE -Wall -Wextra)
-    target_compile_options(flux_image_io PRIVATE -Wall -Wextra)
+    target_compile_options(flux_oiio PRIVATE -Wall -Wextra)
 endif()
 target_compile_options(flux PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--use_fast_math>)
 

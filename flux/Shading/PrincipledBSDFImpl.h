@@ -284,22 +284,23 @@ specularWeights(bool frontSide, float bsdfWeight, float F) noexcept {
 } // namespace flux::principled
 
 namespace flux {
+template <ImageTextureEvaluator Evaluator>
 KIRA_HOST_DEVICE inline BSDFResult PrincipledBSDF::Impl::execute(
     SurfaceInteraction const &isect, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
     Vec2f const &u2
 ) const noexcept {
     auto const params = principled::Parameters{
-        .baseColor = baseColor.eval3f(isect),                   // (1)
-        .roughness = roughness.eval1f(isect),                   // (2)
-        .metallic = metallic.eval1f(isect),                     // (3)
-        .specTrans = specTrans.eval1f(isect),                   // (4)
-        .specTint = specTint.eval1f(isect),                     // (5)
-        .sheen = sheen.eval1f(isect),                           // (6)
-        .sheenTint = sheenTint.eval1f(isect),                   // (7)
-        .flatness = flatness.eval1f(isect),                     // (8)
-        .clearcoat = clearcoat.eval1f(isect),                   // (9)
-        .clearcoatRoughness = clearcoatRoughness.eval1f(isect), // (10)
-        .eta = eta,                                             // (11)
+        .baseColor = baseColor.template eval3f<Evaluator>(isect),                   // (1)
+        .roughness = roughness.template eval1f<Evaluator>(isect),                   // (2)
+        .metallic = metallic.template eval1f<Evaluator>(isect),                     // (3)
+        .specTrans = specTrans.template eval1f<Evaluator>(isect),                   // (4)
+        .specTint = specTint.template eval1f<Evaluator>(isect),                     // (5)
+        .sheen = sheen.template eval1f<Evaluator>(isect),                           // (6)
+        .sheenTint = sheenTint.template eval1f<Evaluator>(isect),                   // (7)
+        .flatness = flatness.template eval1f<Evaluator>(isect),                     // (8)
+        .clearcoat = clearcoat.template eval1f<Evaluator>(isect),                   // (9)
+        .clearcoatRoughness = clearcoatRoughness.template eval1f<Evaluator>(isect), // (10)
+        .eta = eta,                                                                 // (11)
     };
     auto const frontSide = wo.z() > 0.0F;
     if (wo.z() == 0.0F)

@@ -11,6 +11,7 @@
 
 #include "flux/Core/Object.h"
 #include "flux/Core/Ray.h"
+#include "flux/Optix/OptixImageTexturePool.h"
 #include "flux/Sampling/LightSampler.h"
 #include "flux/Scene/GeometryImpl.h"
 #include "flux/Scene/Primitive.h"
@@ -58,6 +59,7 @@ private:
     ) const;
 
     [[nodiscard]] Impl getImpl() const noexcept;
+    [[nodiscard]] OptixImageTexturePool::Impl getImageTexturePool() const noexcept;
     [[nodiscard]] OptixProgramSpec const &getProgramSpec() const noexcept;
 
     struct Storage;

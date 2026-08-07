@@ -9,6 +9,7 @@
 #include "flux/Core/MathUtils.h"
 #include "flux/Core/Object.h"
 #include "flux/Core/Ray.h"
+#include "flux/Embree/EmbreeImageTexturePool.h"
 #include "flux/Embree/EmbreeLightSampler.h"
 #include "flux/Scene/GeometryImpl.h"
 #include "flux/Scene/Primitive.h"
@@ -103,6 +104,9 @@ private:
     /// Dense EDF implementations referenced by \c primitives_.
     std::vector<EDF::Impl> edfs_;
 
+    /// Image textures used by BSDFs.
+    EmbreeImageTexturePool imageTexturePool_;
+
     /// Persistent light data referenced by scene views.
     EmbreeLightSampler lightSampler_;
 };
@@ -132,6 +136,8 @@ struct EmbreeContext::Impl {
 
     /// Dense EDF implementations.
     EDF::Impl const *edfs{};
+
+    EmbreeImageTexturePool::Impl imageTexturePool{};
 
     /// Borrowed light sampler.
     LightSampler lightSampler{};

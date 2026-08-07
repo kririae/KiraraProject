@@ -82,6 +82,7 @@ void EmbreeContext::reset() noexcept {
     normalTransforms_.clear();
     bsdfs_.clear();
     edfs_.clear();
+    imageTexturePool_.clear();
     lightSampler_.clear();
 }
 
@@ -92,6 +93,7 @@ void EmbreeContext::sync() try {
     auto const contextPrimitives = context_.getObjects<Primitive>();
     auto const contextBSDFs = context_.getObjects<BSDF>();
     auto const contextEDFs = context_.getObjects<EDF>();
+    auto const imageTextures = context_.getObjects<ImageTexture>();
     auto const contextLights = context_.getObjects<Light>();
     kira::SmallVector<Ref<Primitive const>> visiblePrimitives;
     std::unordered_map<std::size_t, std::uint32_t> geometryIndexByContextId;
@@ -126,6 +128,7 @@ void EmbreeContext::sync() try {
         edfIndexByContextId.emplace(edf->getContextId(), index);
         edfs_.push_back(edf->getImpl());
     }
+    imageTexturePool_.build(imageTextures);
 
     auto const getOrAddGeometryIndex = [&](Ref<Geometry const> const &geometry) {
         auto const contextId = geometry->getContextId();
@@ -271,6 +274,7 @@ EmbreeContext::Impl EmbreeContext::getImpl() const noexcept {
         .normalTransforms = normalTransforms_.data(),
         .bsdfs = bsdfs_.data(),
         .edfs = edfs_.data(),
+        .imageTexturePool = imageTexturePool_.getImpl(),
         .lightSampler = lightSampler_.getSampler(),
         .numGeometries = static_cast<std::uint32_t>(geometryImpls_.size()),
         .numPrimitives = static_cast<std::uint32_t>(primitives_.size()),

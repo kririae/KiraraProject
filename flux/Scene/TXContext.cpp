@@ -3,16 +3,18 @@
 #include "flux/Scene/Context.h"
 
 namespace flux {
-std::size_t TXContext::allocateId() { return context_->allocateId(); }
+TXContext::TXContext(Context &context) noexcept : context_(context) {}
+
+std::size_t TXContext::allocateId() { return context_.allocateId(); }
 
 Ref<ContextObject> TXContext::getObject(std::size_t contextId) const {
     if (auto const iterator = objects_.find(contextId); iterator != objects_.end())
         return iterator->second;
-    return context_->get<ContextObject>(contextId);
+    return context_.get<ContextObject>(contextId);
 }
 
 void TXContext::registerObject(Ref<ContextObject> object) {
-    if (object->getContext() != context_)
+    if (object->getContext() != &context_)
         throw kira::Anyhow("TXContext: object belongs to another context");
 
     auto const [unused, inserted] = objects_.emplace(object->getContextId(), std::move(object));

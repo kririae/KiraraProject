@@ -11,6 +11,7 @@
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/OptixAccel.h"
 #include "flux/Optix/OptixGeometryPool.h"
+#include "flux/Optix/OptixImageTexturePool.h"
 #include "flux/Optix/OptixLightSampler.h"
 #include "flux/Optix/OptixProgram.h"
 #include "flux/Optix/OptixSbt.h"
@@ -32,8 +33,9 @@ struct OptixContext::Storage : private CudaStreamMixin {
         std::filesystem::path modulePath
     )
         : CudaStreamMixin(stream), context(context), deviceContext(deviceContext),
-          modulePath(std::move(modulePath)), geometryPool(stream), lightSampler(stream),
-          accel(stream), sbt(stream), primitives(stream), bsdfs(stream), edfs(stream) {}
+          modulePath(std::move(modulePath)), geometryPool(stream), imageTexturePool(stream),
+          lightSampler(stream), accel(stream), sbt(stream), primitives(stream), bsdfs(stream),
+          edfs(stream) {}
 
     void sync() try {
         context.commit();
@@ -44,6 +46,7 @@ struct OptixContext::Storage : private CudaStreamMixin {
         program = std::make_unique<OptixProgram>(deviceContext, modulePath, spec);
 
         auto const contextPrimitives = context.getObjects<Primitive>();
+        auto const contextImageTextures = context.getObjects<ImageTexture>();
         auto const contextBSDFs = context.getObjects<BSDF>();
         auto const contextEDFs = context.getObjects<EDF>();
         auto const contextLights = context.getObjects<Light>();
@@ -156,6 +159,7 @@ struct OptixContext::Storage : private CudaStreamMixin {
         // Rebuild in dependency order. GAS consumes the geometry buffers; IAS
         // then consumes the GAS handles and the matching primitive layout.
         geometryPool.build(uniqueMeshes);
+        imageTexturePool.build(contextImageTextures);
         lightSampler.build(contextLights, visiblePrimitives, primitiveStaging);
         auto const buildInputs = geometryPool.getBuildInputs();
         accel.buildGas(deviceContext, buildInputs);
@@ -177,6 +181,7 @@ struct OptixContext::Storage : private CudaStreamMixin {
     std::filesystem::path modulePath;
     std::unique_ptr<OptixProgram> program;
     OptixGeometryPool geometryPool;
+    OptixImageTexturePool imageTexturePool;
     OptixLightSampler lightSampler;
     OptixAccel accel;
     OptixSbt sbt;
@@ -216,6 +221,10 @@ void OptixContext::launch(
 
 OptixProgramSpec const &OptixContext::getProgramSpec() const noexcept {
     return storage_->program->getSpec();
+}
+
+OptixImageTexturePool::Impl OptixContext::getImageTexturePool() const noexcept {
+    return storage_->imageTexturePool.getImpl();
 }
 
 OptixContext::Impl OptixContext::getImpl() const noexcept {

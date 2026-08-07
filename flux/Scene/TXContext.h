@@ -12,6 +12,7 @@
 namespace flux {
 class PathIntegrator;
 class Sampler;
+class ImageTexture;
 
 /// \brief Collects objects created by one \c Context::create call.
 ///
@@ -22,6 +23,7 @@ class TXContext {
     friend class ContextObject;
     friend class PathIntegrator;
     friend class Sampler;
+    friend class ImageTexture;
 
 public:
     /// \brief Creates and registers a configurable object in this transaction.
@@ -51,16 +53,16 @@ public:
     }
 
 private:
-    explicit TXContext(Context &context) noexcept : context_(&context) {}
+    explicit TXContext(Context &context) noexcept;
 
-    [[nodiscard]] Context &getContext() const noexcept { return *context_; }
+    [[nodiscard]] Context &getContext() const noexcept { return context_; }
     [[nodiscard]] Ref<ContextObject> getObject(std::size_t contextId) const;
     [[nodiscard]] std::size_t allocateId();
     void registerObject(Ref<ContextObject> object);
     void stageActiveIntegrator(std::size_t contextId) noexcept;
     void stageActiveSampler(std::size_t contextId) noexcept;
 
-    Context *context_;
+    Context &context_;
     std::unordered_map<std::size_t, Ref<ContextObject>> objects_;
     std::optional<std::size_t> activeIntegratorId_;
     std::optional<std::size_t> activeSamplerId_;

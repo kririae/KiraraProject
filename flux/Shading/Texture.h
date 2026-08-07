@@ -6,6 +6,7 @@
 #include <type_traits>
 
 #include "flux/Core/Math.h"
+#include "flux/Scene/ImageAsset.h"
 #include "flux/Scene/RenderObject.h"
 #include "flux/Shading/Interaction.h"
 #include "kira/Compiler.h"
@@ -13,15 +14,26 @@
 namespace flux {
 enum class TextureType : std::uint8_t {
     Constant,
+    Image,
     Count,
+};
+
+enum class ImageTextureAddressMode : std::uint8_t {
+    Wrap,
+    Clamp,
+    Mirror,
+    Border,
+};
+
+enum class ImageTextureFilterMode : std::uint8_t {
+    Linear,
+    Point,
 };
 
 /// \brief Defines all texture evaluation methods for \p Derived.
 ///
-/// \p Derived provides \c eval4f_. It may provide \c eval1f_ and \c eval3f_
-/// for direct evaluation. \c eval1f prefers \c eval1f_, \c eval3f_, and
-/// \c eval4f_ in that order. \c eval3f prefers \c eval3f_, then \c eval4f_.
-/// \c eval4f forwards to \c eval4f_.
+/// \p Derived implements \c eval4f_. It may also implement \c eval1f_,
+/// \c eval2f_, or \c eval3f_. Missing methods use a method with more components.
 template <typename Derived> class TextureMixin {
 private:
     [[nodiscard]] KIRA_HOST_DEVICE Derived const &derived_() const noexcept {
@@ -34,12 +46,19 @@ public:
                           { texture.eval1f_(isect) } -> std::same_as<float>;
                       })
             return derived_().eval1f_(isect);
-        else if constexpr (requires(Derived const &texture) {
-                               { texture.eval3f_(isect) } -> std::same_as<Vec3f>;
-                           })
-            return derived_().eval3f_(isect).x();
         else
-            return derived_().eval4f_(isect).x();
+            return eval2f(isect).x();
+    }
+
+    [[nodiscard]] KIRA_HOST_DEVICE Vec2f eval2f(SurfaceInteraction const &isect) const noexcept {
+        if constexpr (requires(Derived const &texture) {
+                          { texture.eval2f_(isect) } -> std::same_as<Vec2f>;
+                      })
+            return derived_().eval2f_(isect);
+        else {
+            auto const value = eval3f(isect);
+            return {value.x(), value.y()};
+        }
     }
 
     [[nodiscard]] KIRA_HOST_DEVICE Vec3f eval3f(SurfaceInteraction const &isect) const noexcept {
@@ -48,7 +67,7 @@ public:
                       })
             return derived_().eval3f_(isect);
         else {
-            auto const value = derived_().eval4f_(isect);
+            auto const value = eval4f(isect);
             return {value.x(), value.y(), value.z()};
         }
     }
@@ -116,6 +135,36 @@ private:
     Spectrum value_;
 };
 
+/// \brief Image-based texture.
+///
+/// Color conversion runs before component mapping and does not affect alpha.
+class ImageTexture final : public Texture {
+    friend class TXContext;
+
+public:
+    struct Impl;
+
+    ~ImageTexture() override;
+
+    [[nodiscard]] Ref<ImageAsset const> const &getImageAsset() const noexcept {
+        return imageAsset_;
+    }
+    [[nodiscard]] ImageTextureAddressMode getAddressMode() const noexcept { return addressMode_; }
+    [[nodiscard]] ImageTextureFilterMode getFilterMode() const noexcept { return filterMode_; }
+    [[nodiscard]] ImageComponentMapping getComponentMapping() const noexcept {
+        return componentMapping_;
+    }
+    [[nodiscard]] Texture::Impl getImpl() const override;
+
+private:
+    ImageTexture(TXContext &tx, kira::Properties const &props);
+
+    Ref<ImageAsset const> imageAsset_;
+    ImageTextureAddressMode addressMode_;
+    ImageTextureFilterMode filterMode_;
+    ImageComponentMapping componentMapping_;
+};
+
 struct ConstantTexture::Impl : TextureMixin<Impl> {
     KIRA_HOST_DEVICE explicit Impl(Spectrum const &value = {}) noexcept : value(value) {}
 
@@ -126,37 +175,60 @@ struct ConstantTexture::Impl : TextureMixin<Impl> {
     }
 };
 
+struct ImageTexture::Impl {
+    std::uint32_t imageTextureIndex;
+};
+
+/// \brief Provides image texture sampling to Texture::Impl.
+///
+/// \c eval4f applies the color transform and component mapping. UV coordinates
+/// are normalized.
+template <typename Evaluator>
+concept ImageTextureEvaluator = requires(std::uint32_t index, Vec2f uv) {
+    { Evaluator::eval4f(index, uv) } noexcept -> std::same_as<Vec4f>;
+};
+
 struct Texture::Impl {
     TextureType type;
 
     union Storage {
         ConstantTexture::Impl constant;
+        ImageTexture::Impl image;
     } storage;
 
-    template <typename Function>
-    [[nodiscard]] KIRA_HOST_DEVICE decltype(auto) dispatch(Function const &function) const {
+    template <ImageTextureEvaluator Evaluator>
+    [[nodiscard]] KIRA_HOST_DEVICE float eval1f(SurfaceInteraction const &isect) const noexcept {
+        return eval4f<Evaluator>(isect).x();
+    }
+
+    template <ImageTextureEvaluator Evaluator>
+    [[nodiscard]] KIRA_HOST_DEVICE Vec2f eval2f(SurfaceInteraction const &isect) const noexcept {
+        auto const value = eval4f<Evaluator>(isect);
+        return {value.x(), value.y()};
+    }
+
+    template <ImageTextureEvaluator Evaluator>
+    [[nodiscard]] KIRA_HOST_DEVICE Vec3f eval3f(SurfaceInteraction const &isect) const noexcept {
+        auto const value = eval4f<Evaluator>(isect);
+        return {value.x(), value.y(), value.z()};
+    }
+
+    template <ImageTextureEvaluator Evaluator>
+    [[nodiscard]] KIRA_HOST_DEVICE Vec4f eval4f(SurfaceInteraction const &isect) const noexcept {
         switch (type) {
-        case TextureType::Constant: return function(storage.constant);
+        case TextureType::Constant: return storage.constant.eval4f(isect);
+        case TextureType::Image:
+            return Evaluator::eval4f(storage.image.imageTextureIndex, isect.uv);
         case TextureType::Count: break;
         }
         KIRA_UNREACHABLE();
-    }
-
-    [[nodiscard]] KIRA_HOST_DEVICE float eval1f(SurfaceInteraction const &isect) const noexcept {
-        return dispatch([&](auto const &texture) { return texture.eval1f(isect); });
-    }
-
-    [[nodiscard]] KIRA_HOST_DEVICE Vec3f eval3f(SurfaceInteraction const &isect) const noexcept {
-        return dispatch([&](auto const &texture) { return texture.eval3f(isect); });
-    }
-
-    [[nodiscard]] KIRA_HOST_DEVICE Vec4f eval4f(SurfaceInteraction const &isect) const noexcept {
-        return dispatch([&](auto const &texture) { return texture.eval4f(isect); });
     }
 };
 
 static_assert(std::is_standard_layout_v<ConstantTexture::Impl>);
 static_assert(std::is_trivially_copyable_v<ConstantTexture::Impl>);
+static_assert(std::is_standard_layout_v<ImageTexture::Impl>);
+static_assert(std::is_trivially_copyable_v<ImageTexture::Impl>);
 static_assert(std::is_standard_layout_v<Texture::Impl>);
 static_assert(std::is_trivially_copyable_v<Texture::Impl>);
 } // namespace flux
