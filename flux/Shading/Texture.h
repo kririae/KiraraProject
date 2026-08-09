@@ -205,12 +205,10 @@ struct Texture::Impl {
 
     template <typename Evaluator>
     [[nodiscard]] KIRA_HOST_DEVICE Vec4f eval4f(SurfaceInteraction const &isect) const noexcept {
-        switch (type) {
-        case TextureType::Constant: return storage.constant.eval4f(isect);
-        case TextureType::Image:
+        if (type == TextureType::Constant)
+            return storage.constant.eval4f(isect);
+        if (type == TextureType::Image)
             return Evaluator::eval4f(storage.image.imageTextureIndex, isect.uv);
-        case TextureType::Count: break;
-        }
         KIRA_UNREACHABLE();
     }
 };
