@@ -101,14 +101,14 @@ ImageTexture::ImageTexture(TXContext &tx, kira::Properties const &props)
     auto const inputPath = props.use<std::filesystem::path>("path");
     auto const path = tx.getContext().getFileResolver().resolve(inputPath);
     auto const colorSpace = props.use_or<std::string>("color_space", "linear");
-    auto requestedTransform = ImageTransform::Identity;
+    auto imageColorSpace = ImageColorSpace::Linear;
     if (colorSpace == "srgb")
-        requestedTransform = ImageTransform::SRGB;
+        imageColorSpace = ImageColorSpace::SRGB;
     else if (colorSpace != "linear")
         throw kira::Anyhow("ImageTexture: unsupported color space '{}'", colorSpace);
     imageAsset_ = tx.getContext().getImageAssetPool().getOrCreate({
         .path = path,
-        .requestedTransform = requestedTransform,
+        .colorSpace = imageColorSpace,
     });
     componentMapping_ = imageAsset_->getDefaultComponentMapping();
     if (props.contains("component_mapping")) {
@@ -141,11 +141,9 @@ ImageTexture::ImageTexture(TXContext &tx, kira::Properties const &props)
     }
 }
 
-ImageTexture::~ImageTexture() = default;
-
 Texture::Impl ImageTexture::getImpl() const {
     auto const textures = getContext()->getObjects<ImageTexture>();
-    auto const iterator = std::ranges::find(textures, getContextId(), [](auto const &texture) {
+    auto const *iterator = std::ranges::find(textures, getContextId(), [](auto const &texture) {
         return texture->getContextId();
     });
     if (iterator == textures.end())

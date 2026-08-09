@@ -223,10 +223,6 @@ OptixProgramSpec const &OptixContext::getProgramSpec() const noexcept {
     return storage_->program->getSpec();
 }
 
-OptixImageTexturePool::Impl OptixContext::getImageTexturePool() const noexcept {
-    return storage_->imageTexturePool.getImpl();
-}
-
 OptixContext::Impl OptixContext::getImpl() const noexcept {
     return {
         .traversable = storage_->accel.getHandle(),
@@ -234,6 +230,7 @@ OptixContext::Impl OptixContext::getImpl() const noexcept {
         .primitives = storage_->primitives.data(),
         .bsdfs = storage_->bsdfs.data(),
         .edfs = storage_->edfs.data(),
+        .imageTexturePool = storage_->imageTexturePool.getImpl(),
         .lightSampler = storage_->lightSampler.getSampler(),
         .numGeometries = static_cast<std::uint32_t>(storage_->geometryPool.size()),
         .numPrimitives = static_cast<std::uint32_t>(storage_->primitives.size()),

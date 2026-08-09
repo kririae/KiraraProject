@@ -20,7 +20,7 @@ protected:
 };
 } // namespace
 
-TEST_F(ImageAssetTests, LoadsAndCachesImageMetadata) {
+TEST_F(ImageAssetTests, LoadsMetadataAndSharesCanonicalPaths) {
     auto const imagePath = path("image-asset.exr");
     auto const componentNames = std::array<std::string_view, 3>{"R", "G", "B"};
     auto const pixels = std::array{
@@ -50,16 +50,27 @@ TEST_F(ImageAssetTests, LoadsAndCachesImageMetadata) {
     EXPECT_EQ(asset->getComponentType(), flux::ImageComponentType::Float32);
 }
 
-TEST_F(ImageAssetTests, ExpandsRGBStorageForSRGB) {
+TEST_F(ImageAssetTests, ExposesRGBAsRGBA) {
     auto const imagePath = std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "SRGB.ppm";
     auto const asset = pool.getOrCreate({
         .path = imagePath,
-        .requestedTransform = flux::ImageTransform::SRGB,
+        .colorSpace = flux::ImageColorSpace::SRGB,
     });
 
     EXPECT_EQ(asset->getComponentCount(), 4);
     EXPECT_EQ(asset->getComponentType(), flux::ImageComponentType::UNorm8);
     EXPECT_EQ(asset->getDefaultComponentMapping(), flux::ImageComponentMapping{});
+}
+
+TEST_F(ImageAssetTests, UsesColorSpaceInPoolKey) {
+    auto const imagePath = std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "SRGB.ppm";
+    auto const linear = pool.getOrCreate({.path = imagePath});
+    auto const srgb = pool.getOrCreate({
+        .path = imagePath,
+        .colorSpace = flux::ImageColorSpace::SRGB,
+    });
+
+    EXPECT_NE(linear, srgb);
 }
 
 TEST_F(ImageAssetTests, RejectsSRGBForTwoComponents) {
@@ -85,13 +96,73 @@ TEST_F(ImageAssetTests, RejectsSRGBForTwoComponents) {
     EXPECT_THROW(
         static_cast<void>(pool.getOrCreate({
             .path = imagePath,
-            .requestedTransform = flux::ImageTransform::SRGB,
+            .colorSpace = flux::ImageColorSpace::SRGB,
         })),
         kira::Anyhow
     );
 }
 
-TEST_F(ImageAssetTests, DoesNotInferAlphaFromFourComponents) {
+TEST_F(ImageAssetTests, MapsOneAlphaComponent) {
+    auto const imagePath = path("alpha.exr");
+    auto const componentNames = std::array<std::string_view, 1>{"A"};
+    auto const pixels = std::array{0.25F};
+    flux::writeImage(
+        imagePath,
+        {
+            .pixels = std::as_bytes(std::span{pixels}),
+            .extent = {1, 1},
+            .componentType = flux::ImageComponentType::Float32,
+            .componentCount = static_cast<std::uint8_t>(componentNames.size()),
+        },
+        {
+            .outputComponentType = flux::ImageComponentType::Float32,
+            .componentNames = componentNames,
+        }
+    );
+
+    auto const asset = pool.getOrCreate({.path = imagePath});
+    EXPECT_EQ(asset->getComponentCount(), 1);
+    EXPECT_EQ(
+        asset->getDefaultComponentMapping(), (flux::ImageComponentMapping{
+                                                 .r = flux::ImageComponentSource::Zero,
+                                                 .g = flux::ImageComponentSource::Zero,
+                                                 .b = flux::ImageComponentSource::Zero,
+                                                 .a = flux::ImageComponentSource::X,
+                                             })
+    );
+}
+
+TEST_F(ImageAssetTests, MapsColorAndAlphaComponents) {
+    auto const imagePath = path("color-alpha.exr");
+    auto const componentNames = std::array<std::string_view, 2>{"Y", "A"};
+    auto const pixels = std::array{0.25F, 0.75F};
+    flux::writeImage(
+        imagePath,
+        {
+            .pixels = std::as_bytes(std::span{pixels}),
+            .extent = {1, 1},
+            .componentType = flux::ImageComponentType::Float32,
+            .componentCount = static_cast<std::uint8_t>(componentNames.size()),
+        },
+        {
+            .outputComponentType = flux::ImageComponentType::Float32,
+            .componentNames = componentNames,
+        }
+    );
+
+    auto const asset = pool.getOrCreate({.path = imagePath});
+    EXPECT_EQ(asset->getComponentCount(), 2);
+    EXPECT_EQ(
+        asset->getDefaultComponentMapping(), (flux::ImageComponentMapping{
+                                                 .r = flux::ImageComponentSource::X,
+                                                 .g = flux::ImageComponentSource::X,
+                                                 .b = flux::ImageComponentSource::X,
+                                                 .a = flux::ImageComponentSource::Y,
+                                             })
+    );
+}
+
+TEST_F(ImageAssetTests, RequiresAlphaForFourComponentSRGB) {
     auto const imagePath = path("four-components.exr");
     auto const componentNames = std::array<std::string_view, 4>{"X", "Y", "Z", "W"};
     auto const pixels = std::array{0.25F, 0.5F, 0.75F, 1.0F};
@@ -112,7 +183,7 @@ TEST_F(ImageAssetTests, DoesNotInferAlphaFromFourComponents) {
     EXPECT_THROW(
         static_cast<void>(pool.getOrCreate({
             .path = imagePath,
-            .requestedTransform = flux::ImageTransform::SRGB,
+            .colorSpace = flux::ImageColorSpace::SRGB,
         })),
         kira::Anyhow
     );

@@ -137,14 +137,13 @@ private:
 
 /// \brief Image-based texture.
 ///
-/// Color conversion runs before component mapping and does not affect alpha.
+/// Color components are converted before filtering and component mapping.
+/// Alpha keeps its stored value.
 class ImageTexture final : public Texture {
     friend class TXContext;
 
 public:
     struct Impl;
-
-    ~ImageTexture() override;
 
     [[nodiscard]] Ref<ImageAsset const> const &getImageAsset() const noexcept {
         return imageAsset_;
@@ -179,15 +178,6 @@ struct ImageTexture::Impl {
     std::uint32_t imageTextureIndex;
 };
 
-/// \brief Provides image texture sampling to Texture::Impl.
-///
-/// \c eval4f applies the color transform and component mapping. UV coordinates
-/// are normalized.
-template <typename Evaluator>
-concept ImageTextureEvaluator = requires(std::uint32_t index, Vec2f uv) {
-    { Evaluator::eval4f(index, uv) } noexcept -> std::same_as<Vec4f>;
-};
-
 struct Texture::Impl {
     TextureType type;
 
@@ -196,24 +186,24 @@ struct Texture::Impl {
         ImageTexture::Impl image;
     } storage;
 
-    template <ImageTextureEvaluator Evaluator>
+    template <typename Evaluator>
     [[nodiscard]] KIRA_HOST_DEVICE float eval1f(SurfaceInteraction const &isect) const noexcept {
         return eval4f<Evaluator>(isect).x();
     }
 
-    template <ImageTextureEvaluator Evaluator>
+    template <typename Evaluator>
     [[nodiscard]] KIRA_HOST_DEVICE Vec2f eval2f(SurfaceInteraction const &isect) const noexcept {
         auto const value = eval4f<Evaluator>(isect);
         return {value.x(), value.y()};
     }
 
-    template <ImageTextureEvaluator Evaluator>
+    template <typename Evaluator>
     [[nodiscard]] KIRA_HOST_DEVICE Vec3f eval3f(SurfaceInteraction const &isect) const noexcept {
         auto const value = eval4f<Evaluator>(isect);
         return {value.x(), value.y(), value.z()};
     }
 
-    template <ImageTextureEvaluator Evaluator>
+    template <typename Evaluator>
     [[nodiscard]] KIRA_HOST_DEVICE Vec4f eval4f(SurfaceInteraction const &isect) const noexcept {
         switch (type) {
         case TextureType::Constant: return storage.constant.eval4f(isect);

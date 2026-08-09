@@ -5,7 +5,7 @@
 #include "flux/Shading/PrincipledBSDFImpl.h"
 
 namespace flux {
-template <ImageTextureEvaluator Evaluator>
+template <typename Evaluator>
 KIRA_HOST_DEVICE inline BSDFResult BSDF::Dispatcher::execute(
     BSDF::Impl const &bsdf, SurfaceInteraction const &isect, Vec3f const &wo, Vec3f const &wi,
     bool eval, float u1, Vec2f const &u2

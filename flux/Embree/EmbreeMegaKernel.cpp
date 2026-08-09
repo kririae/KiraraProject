@@ -12,19 +12,13 @@
 #include "flux/Shading/Frame.h"
 
 namespace flux::embree {
-namespace {
-// Use the image textures for the current Embree launch.
-thread_local EmbreeImageTexturePool::Impl const *currentImageTexturePool{};
-} // namespace
-
 struct EmbreeImageTextureEvaluator {
     [[nodiscard]] static Vec4f eval4f(std::uint32_t index, Vec2f uv) noexcept {
-        return currentImageTexturePool->eval4f(index, uv);
+        return getLaunchParams().scene.imageTexturePool.eval4f(index, uv);
     }
 };
 
 void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) noexcept {
-    currentImageTexturePool = &params.scene.imageTexturePool;
     constexpr auto bsdfDispatcher = BSDF::Dispatcher{.types = allBSDFTypes};
     auto const resolution = Vec2u{params.film.width, params.film.height};
     auto const pixel = Vec2u{
@@ -127,6 +121,5 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
     params.film.accumulate<ColorChannel>(pixel, colorSum * sampleWeight);
     params.film.accumulate<NormalChannel>(pixel, normalSum * sampleWeight);
     params.film.accumulate<AlbedoChannel>(pixel, albedoSum * sampleWeight);
-    currentImageTexturePool = nullptr;
 }
 } // namespace flux::embree

@@ -20,7 +20,7 @@ namespace {
 struct OptixImageTextureEvaluator {
     [[nodiscard]] KIRA_DEVICE static flux::Vec4f
     eval4f(std::uint32_t index, flux::Vec2f uv) noexcept {
-        auto const &texture = optixLaunchParams.imageTexturePool.get(index);
+        auto const &texture = optixLaunchParams.scene.imageTexturePool.get(index);
         return texture.componentMapping.apply(texture.sample(uv));
     }
 };

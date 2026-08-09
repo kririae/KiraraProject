@@ -22,7 +22,7 @@ void OptixImageTexturePool::build(std::span<Ref<ImageTexture const> const> textu
     struct ArrayEntry {
         cudaArray_t array{};
         ImageComponentType componentType{};
-        ImageTransform pendingTransform{};
+        ImageColorSpace colorSpace{};
     };
 
     auto const createTextureObject = [](ArrayEntry const &image, cudaTextureAddressMode addressMode,
@@ -38,7 +38,8 @@ void OptixImageTexturePool::build(std::span<Ref<ImageTexture const> const> textu
         texture.readMode = image.componentType == ImageComponentType::UNorm8
                                ? cudaReadModeNormalizedFloat
                                : cudaReadModeElementType;
-        texture.sRGB = image.pendingTransform == ImageTransform::SRGB;
+        // CUDA applies sRGB decoding before texture filtering.
+        texture.sRGB = image.colorSpace == ImageColorSpace::SRGB;
         texture.normalizedCoords = 1;
 
         auto result = cudaTextureObject_t{};
@@ -48,18 +49,24 @@ void OptixImageTexturePool::build(std::span<Ref<ImageTexture const> const> textu
 
     clear();
     arrays_.reserve(textures.size());
-    textureObjects_.reserve(textures.size());
+    textureObjects_.reserve(textures.size() * 2);
     staging_.reserve(textures.size());
-    // Image textures share pixels but keep their own address and filter modes.
+    // Keep host pixels alive until the stream synchronization below.
+    std::vector<ImageAsset::ImageBuffer> imageBuffers;
+    imageBuffers.reserve(textures.size());
+
+    // Bindings for the same ImageAsset share one CUDA array.
     std::unordered_map<ImageAsset const *, ArrayEntry> arraysByAsset;
     arraysByAsset.reserve(textures.size());
 
-    for (auto const &texture : textures) {
-        auto const &asset = texture->getImageAsset();
-        auto [iterator, inserted] = arraysByAsset.try_emplace(asset.get());
-        if (inserted) {
+    try {
+        // TODO(krr): Reuse CUDA arrays for unchanged ImageAssets.
+        // ImageAsset::read uses the OIIO cache. Each build still creates a
+        // complete host buffer and uploads every active image.
+        auto const uploadImage = [&](ImageAsset const &asset) {
+            auto &image = imageBuffers.emplace_back(asset.read());
+
             // Keep one- and two-component arrays compact.
-            auto const image = asset->read();
             auto bits = 0;
             auto kind = cudaChannelFormatKindUnsigned;
             switch (image.componentType) {
@@ -81,42 +88,73 @@ void OptixImageTexturePool::build(std::span<Ref<ImageTexture const> const> textu
                 bits, image.componentCount >= 2 ? bits : 0, image.componentCount == 4 ? bits : 0,
                 image.componentCount == 4 ? bits : 0, kind
             );
-            cudaCheck(cudaMallocArray(
-                &iterator->second.array, &channelDesc, image.extent.x(), image.extent.y()
-            ));
-            arrays_.push_back(iterator->second.array);
-            iterator->second.componentType = image.componentType;
-            iterator->second.pendingTransform = image.pendingTransform;
+            auto result = ArrayEntry{
+                .componentType = image.componentType,
+                .colorSpace = image.colorSpace,
+            };
+            cudaCheck(
+                cudaMallocArray(&result.array, &channelDesc, image.extent.x(), image.extent.y())
+            );
+            arrays_.push_back(result.array);
 
             auto const pixels = image.getPixels();
             auto const rowBytes = pixels.size_bytes() / image.extent.y();
-            // TODO(krr): Keep image buffers until the final stream sync and use
-            // cudaMemcpy2DToArrayAsync. This blocking copy keeps host memory bounded to one
-            // image, but image reads and uploads cannot overlap.
-            cudaCheck(cudaMemcpy2DToArray(
-                iterator->second.array, 0, 0, pixels.data(), rowBytes, rowBytes, image.extent.y(),
-                cudaMemcpyHostToDevice
+            // clang-format off
+            cudaCheck(cudaMemcpy2DToArrayAsync(
+                /* dst =     */ result.array,
+                /* wOffset = */ 0,
+                /* hOffset = */ 0,
+                /* src =     */ pixels.data(),
+                /* spitch =  */ rowBytes,
+                /* width =   */ rowBytes,
+                /* height =  */ image.extent.y(),
+                /* kind =    */ cudaMemcpyHostToDevice,
+                /* stream =  */ getStream()
             ));
+            // clang-format on
+            return result;
+        };
+
+        for (auto const &texture : textures) {
+            auto const &asset = texture->getImageAsset();
+            auto [iterator, inserted] = arraysByAsset.try_emplace(asset.get());
+            if (inserted)
+                iterator->second = uploadImage(*asset);
+
+            auto const addressMode = toCudaAddressMode(texture->getAddressMode());
+            auto const filterMode = texture->getFilterMode() == ImageTextureFilterMode::Linear
+                                        ? cudaFilterModeLinear
+                                        : cudaFilterModePoint;
+            auto const textureObject =
+                createTextureObject(iterator->second, addressMode, filterMode);
+            textureObjects_.push_back(textureObject);
+
+            auto pointTexture = textureObject;
+            if (filterMode != cudaFilterModePoint) {
+                pointTexture =
+                    createTextureObject(iterator->second, addressMode, cudaFilterModePoint);
+                textureObjects_.push_back(pointTexture);
+            }
+
+            staging_.push_back({
+                .texture = textureObject,
+                .pointTexture = pointTexture,
+                .componentMapping = texture->getComponentMapping(),
+                .componentCount = asset->getComponentCount(),
+            });
         }
 
-        auto const addressMode = toCudaAddressMode(texture->getAddressMode());
-        auto const filterMode = texture->getFilterMode() == ImageTextureFilterMode::Linear
-                                    ? cudaFilterModeLinear
-                                    : cudaFilterModePoint;
-        auto const textureObject = createTextureObject(iterator->second, addressMode, filterMode);
-        textureObjects_.push_back(textureObject);
-        staging_.push_back({
-            .texture = textureObject,
-            .componentMapping = texture->getComponentMapping(),
-            .componentCount = asset->getComponentCount(),
-        });
+        deviceTextures_.copyFromHost(staging_);
+        cudaCheck(cudaStreamSynchronize(getStream()));
+    } catch (...) {
+        // Complete queued copies before destroying their host buffers.
+        cudaCheck<false>(cudaStreamSynchronize(getStream()));
+        throw;
     }
-
-    deviceTextures_.copyFromHost(staging_);
 }
 
 void OptixImageTexturePool::clear() noexcept {
-    // Texture objects borrow arrays, so destroy all views before storage.
+    // Destroy texture objects before their CUDA arrays.
     deviceTextures_.clear();
     for (auto const texture : textureObjects_)
         cudaCheck<false>(cudaDestroyTextureObject(texture));

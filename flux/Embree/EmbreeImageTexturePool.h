@@ -9,15 +9,13 @@
 #include "flux/Shading/Texture.h"
 
 namespace flux {
-/// \brief Stores image textures used by Embree.
+/// \brief Provides ImageTexture lookups for Embree.
 class EmbreeImageTexturePool final : private Noncopyable {
 private:
-    struct Image;
     struct Entry;
 
 public:
     struct Impl {
-        Image const *images{};
         Entry const *textures{};
 
         /// \brief Samples image texture \p index at normalized UV coordinates.
@@ -28,23 +26,21 @@ public:
     EmbreeImageTexturePool();
     ~EmbreeImageTexturePool();
 
-    /// \brief Rebuilds the image textures used by the next render.
+    /// \brief Rebuilds image textures for the next render.
     ///
     /// The input order defines ImageTexture::Impl::imageTextureIndex.
-    /// A failure leaves the pool valid for another build, but not for rendering.
+    /// After this function throws, call \c build again before rendering.
     void build(std::span<Ref<ImageTexture const> const> textures);
     void clear() noexcept;
 
     /// \brief Returns a view valid until the next \c build or \c clear.
     [[nodiscard]] Impl getImpl() const noexcept {
         return {
-            .images = images_.data(),
             .textures = textures_.data(),
         };
     }
 
 private:
-    std::vector<Image> images_;
     std::vector<Entry> textures_;
 };
 

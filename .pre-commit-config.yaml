@@ -5,6 +5,7 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: ^vcpkg/ports/openimageio/fix-scanline-color-transform\.patch$
       - id: check-toml
       - id: check-added-large-files
 

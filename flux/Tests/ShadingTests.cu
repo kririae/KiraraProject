@@ -23,8 +23,6 @@ struct TestImageTextureEvaluator {
     }
 };
 
-static_assert(flux::ImageTextureEvaluator<TestImageTextureEvaluator>);
-
 [[nodiscard]] flux::Texture::Impl constantTexture(flux::Spectrum const &value) {
     return {
         .type = flux::TextureType::Constant,

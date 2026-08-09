@@ -13,24 +13,40 @@
 #include "flux/Shading/Texture.h"
 
 namespace flux {
-/// \brief CUDA texture object for one ImageTexture.
+/// \brief CUDA texture views for one ImageTexture.
 struct OptixImageTexture {
+    /// View using the ImageTexture filter mode.
     cudaTextureObject_t texture;
+
+    /// View with point filtering.
+    cudaTextureObject_t pointTexture;
+
+    /// Mapping applied after sampling.
     ImageComponentMapping componentMapping;
+
+    /// Number of components stored in the CUDA array.
     std::uint8_t componentCount;
 
     /// \brief Samples stored components before component mapping.
     [[nodiscard]] KIRA_DEVICE Vec4f sample(Vec2f uv) const noexcept;
+
+    /// \brief Samples stored components with point filtering.
+    [[nodiscard]] KIRA_DEVICE Vec4f samplePoint(Vec2f uv) const noexcept;
+
+private:
+    [[nodiscard]] KIRA_DEVICE Vec4f
+    sample(cudaTextureObject_t textureObject, Vec2f uv) const noexcept;
 };
 
 /// \brief Owns CUDA arrays and texture objects used by OptiX.
 ///
-/// Image textures that share an ImageAsset also share one CUDA array.
+/// Image textures that share an ImageAsset also share one CUDA array. Each
+/// ImageTexture has its configured filter and a point-filtered view.
 class OptixImageTexturePool final : private Noncopyable, private CudaStreamMixin {
 public:
     /// \brief Device view valid until the next \c build or destruction.
     struct Impl {
-        OptixImageTexture const *textures;
+        OptixImageTexture const *textures{};
 
         /// \brief Returns texture \p index.
         /// \pre \p index refers to an entry in \c textures.
@@ -45,8 +61,8 @@ public:
 
     /// \brief Rebuilds entries in the order of \p textures.
     ///
-    /// The order must match ImageTexture::Impl::imageTextureIndex. A failure
-    /// leaves the pool valid for destruction or another build, but not launch.
+    /// The order must match ImageTexture::Impl::imageTextureIndex. After this
+    /// function throws, call \c build again before launch or destroy the pool.
     void build(std::span<Ref<ImageTexture const> const> textures);
 
     /// \brief Returns a device view valid until the next \c build.

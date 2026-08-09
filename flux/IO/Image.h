@@ -7,7 +7,7 @@
 #include "flux/Core/Math.h"
 
 namespace flux {
-/// \brief Storage type of one image component.
+/// \brief Type of one image component.
 enum class ImageComponentType : std::uint8_t {
     UNorm8,
     Float16,

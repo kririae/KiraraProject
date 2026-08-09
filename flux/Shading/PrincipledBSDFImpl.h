@@ -284,7 +284,7 @@ specularWeights(bool frontSide, float bsdfWeight, float F) noexcept {
 } // namespace flux::principled
 
 namespace flux {
-template <ImageTextureEvaluator Evaluator>
+template <typename Evaluator>
 KIRA_HOST_DEVICE inline BSDFResult PrincipledBSDF::Impl::execute(
     SurfaceInteraction const &isect, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
     Vec2f const &u2

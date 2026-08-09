@@ -1,10 +1,10 @@
 #pragma once
 
 /// \file
-/// \brief OIIO-backed image implementation.
+/// \brief OIIO implementation of ImageAsset and ImageAssetPool.
 
 #include <OpenImageIO/imagebuf.h>
-#include <OpenImageIO/imagecache.h>
+#include <OpenImageIO/texture.h>
 
 #include <memory>
 #include <optional>
@@ -13,48 +13,63 @@
 #include "flux/Scene/ImageAsset.h"
 
 namespace flux {
+/// \brief Complete image pixels in host memory.
 struct ImageAsset::ImageBuffer {
-    OIIO::ImageBuf storage;
+    OIIO::ImageBuf image;
     Vec2u extent;
     std::uint8_t componentCount;
     ImageComponentType componentType;
 
-    /// Color transform left for the backend.
-    ImageTransform pendingTransform;
+    /// Color space of the pixel color components.
+    ImageColorSpace colorSpace;
 
     [[nodiscard]] std::span<std::byte const> getPixels() const noexcept {
-        auto const size = static_cast<std::size_t>(storage.spec().image_bytes());
-        return {static_cast<std::byte const *>(storage.localpixels()), size};
+        auto const size = static_cast<std::size_t>(image.spec().image_bytes());
+        return {static_cast<std::byte const *>(image.localpixels()), size};
     }
 };
 
+/// \brief OIIO texture handle and image layout for one ImageAsset.
 struct ImageAsset::pImpl {
     pImpl(
-        std::shared_ptr<OIIO::ImageCache> imageCache, std::filesystem::path const &path,
-        ImageTransform transform
+        std::shared_ptr<OIIO::TextureSystem> textureSystem, std::filesystem::path const &path,
+        ImageColorSpace colorSpace
     );
 
-    std::shared_ptr<OIIO::ImageCache> imageCache;
-    OIIO::ImageSpec readConfig;
+    std::shared_ptr<OIIO::TextureSystem> textureSystem;
+
+    /// \c textureSystem owns this handle.
+    OIIO::TextureSystem::TextureHandle *textureHandle{};
     OIIO::ustring filename;
 
-    /// Metadata available before the pixels are read.
+    /// OIIO color transform used by texture lookups.
+    int colorTransformId{};
+
+    /// Color space assigned to the file color components.
+    ImageColorSpace fileColorSpace;
+
+    /// Image layout exposed by ImageAsset.
     Vec2u extent;
     std::uint8_t componentCount;
     ImageComponentType componentType;
     ImageComponentMapping defaultComponentMapping;
 
-    /// Source component mapping used when read() creates RGBA storage.
-    std::optional<ImageComponentMapping> sourceToRGBA;
+    /// File layout used by OIIO texture lookups.
+    std::uint8_t orientation;
+    std::uint8_t fileComponentCount;
 
-    /// Color transform requested by the asset. read() applies it or returns it
-    /// to the backend.
-    ImageTransform requestedTransform;
+    /// Maps file components to the four-component image layout.
+    std::optional<ImageComponentMapping> fileToRGBA;
 };
 
+/// \brief OIIO texture systems shared by one ImageAssetPool.
 struct ImageAssetPool::pImpl {
     pImpl();
 
-    std::shared_ptr<OIIO::ImageCache> imageCache;
+    /// OIIO applies one component type policy to every image in a cache. The
+    /// sRGB system uses Float32 to preserve converted values before filtering.
+    /// The linear system keeps UNorm8 and Float16 tiles compact.
+    std::shared_ptr<OIIO::TextureSystem> linearTextureSystem;
+    std::shared_ptr<OIIO::TextureSystem> srgbTextureSystem;
 };
 } // namespace flux

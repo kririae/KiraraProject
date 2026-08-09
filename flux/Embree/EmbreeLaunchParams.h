@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cstdint>
+#include <utility>
 
+#include "flux/Core/Object.h"
 #include "flux/Embree/EmbreeContext.h"
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Sampling/Sampler.h"
@@ -9,7 +11,7 @@
 #include "flux/Scene/Film.h"
 
 namespace flux {
-/// \brief Immutable state shared by one Embree render.
+/// \brief Parameters shared by one Embree render.
 struct EmbreeLaunchParams {
     /// Borrowed Embree scene view used by this render.
     EmbreeContext::Impl scene;
@@ -50,4 +52,31 @@ public:
                static_cast<float>(accumulatedSamples + batchSize);
     }
 };
+
+namespace embree {
+class LaunchParamsScope;
+
+/// \brief Returns the Embree launch parameters bound to this thread.
+/// \pre A LaunchParamsScope is active on this thread.
+[[nodiscard]] inline EmbreeLaunchParams const &getLaunchParams() noexcept;
+
+/// \brief Binds Embree launch parameters to the current thread.
+class LaunchParamsScope final : private Noncopyable {
+public:
+    explicit LaunchParamsScope(EmbreeLaunchParams const &params) noexcept
+        : previous_(std::exchange(current_, &params)) {}
+    ~LaunchParamsScope() { current_ = previous_; }
+
+private:
+    friend EmbreeLaunchParams const &getLaunchParams() noexcept;
+
+    inline static thread_local EmbreeLaunchParams const *current_{};
+    EmbreeLaunchParams const *previous_;
+};
+
+EmbreeLaunchParams const &getLaunchParams() noexcept {
+    KIRA_ASSERT(LaunchParamsScope::current_, "Embree launch parameters are not bound");
+    return *LaunchParamsScope::current_;
+}
+} // namespace embree
 } // namespace flux

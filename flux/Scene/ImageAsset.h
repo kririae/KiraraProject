@@ -15,11 +15,11 @@ namespace flux {
 class EmbreeImageTexturePool;
 class OptixImageTexturePool;
 
-/// \brief Color transform from image pixels to linear values.
+/// \brief Color space of the image color components.
 ///
-/// SRGB converts RGB components and leaves alpha unchanged.
-enum class ImageTransform : std::uint8_t {
-    Identity,
+/// Alpha keeps its stored value.
+enum class ImageColorSpace : std::uint8_t {
+    Linear,
     SRGB,
 };
 
@@ -70,12 +70,10 @@ struct ImageComponentMapping {
     operator==(ImageComponentMapping const &, ImageComponentMapping const &) = default;
 };
 
-/// \brief Image file and requested color transform.
+/// \brief Image file and its color space.
 struct ImageAssetRequest {
     std::filesystem::path path;
-
-    /// Color transform requested for the image. This is part of the pool key.
-    ImageTransform requestedTransform{ImageTransform::Identity};
+    ImageColorSpace colorSpace{ImageColorSpace::Linear};
 
     [[nodiscard]] friend bool
     operator==(ImageAssetRequest const &, ImageAssetRequest const &) = default;
@@ -94,9 +92,16 @@ class ImageAsset final : public RefCountedBase<ImageAsset> {
 public:
     ~ImageAsset();
 
+    /// Extent after applying the file orientation.
     [[nodiscard]] Vec2u getExtent() const noexcept;
+
+    /// Number of components exposed to image textures: one, two, or four.
     [[nodiscard]] std::uint8_t getComponentCount() const noexcept;
+
+    /// Component type used when the image is read into host memory.
     [[nodiscard]] ImageComponentType getComponentType() const noexcept;
+
+    /// Component mapping used when ImageTexture does not provide one.
     [[nodiscard]] ImageComponentMapping getDefaultComponentMapping() const noexcept;
 
 private:
@@ -105,25 +110,23 @@ private:
 
     explicit ImageAsset(std::unique_ptr<pImpl> pImpl) noexcept;
 
-    /// \brief Reads the complete image into a tightly packed bottom-up buffer.
+    /// \brief Reads the complete image into host memory.
     ///
     /// The buffer has one, two, or four components in bottom-up order.
-    /// Its pending transform is left for the backend.
     [[nodiscard]] ImageBuffer read() const;
 
     std::unique_ptr<pImpl> pImpl_;
 };
 
-/// \brief A pool of shared image assets.
+/// \brief Shares ImageAsset objects by canonical path and color space.
 ///
-/// Equal paths and color transforms share one ImageAsset. Metadata errors are
-/// reported before the asset enters the pool.
+/// The pool validates image metadata before adding an asset.
 class ImageAssetPool {
 public:
     ImageAssetPool();
     ~ImageAssetPool();
 
-    /// \brief The shared asset for \p request.
+    /// \brief Returns the shared asset for \p request.
     [[nodiscard]] Ref<ImageAsset const> getOrCreate(ImageAssetRequest const &request);
 
 private:
@@ -132,8 +135,8 @@ private:
     struct RequestHash {
         [[nodiscard]] std::size_t operator()(ImageAssetRequest const &request) const noexcept {
             auto const pathHash = std::filesystem::hash_value(request.path);
-            auto const transform = static_cast<std::size_t>(request.requestedTransform);
-            return pathHash * 31U + transform;
+            auto const colorSpace = static_cast<std::size_t>(request.colorSpace);
+            return pathHash * 31U + colorSpace;
         }
     };
 

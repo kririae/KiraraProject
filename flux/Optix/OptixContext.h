@@ -59,7 +59,6 @@ private:
     ) const;
 
     [[nodiscard]] Impl getImpl() const noexcept;
-    [[nodiscard]] OptixImageTexturePool::Impl getImageTexturePool() const noexcept;
     [[nodiscard]] OptixProgramSpec const &getProgramSpec() const noexcept;
 
     struct Storage;
@@ -89,6 +88,8 @@ struct OptixContext::Impl {
 
     /// Device array of EDFs registered in the host \c Context.
     EDF::Impl const *edfs{};
+
+    OptixImageTexturePool::Impl imageTexturePool{};
 
     /// Borrowed light sampler.
     LightSampler lightSampler{};

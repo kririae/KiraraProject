@@ -107,6 +107,7 @@ RenderStats EmbreeHandler::render(RenderProduct const &product, std::uint32_t sa
             tbb::parallel_for(
                 tbb::blocked_range<std::size_t>{0, pixelCount},
                 [&](tbb::blocked_range<std::size_t> const &range) {
+                auto const scope = embree::LaunchParamsScope{params};
                 for (auto index = range.begin(); index != range.end(); ++index)
                     embree::runMegaKernel(params, index);
             }
