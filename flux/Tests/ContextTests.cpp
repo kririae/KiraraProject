@@ -6,8 +6,11 @@
 #include <utility>
 
 #include "flux/Scene/Context.h"
+#include "flux/Scene/ContextIndexMap.h"
 #include "flux/Scene/RenderObject.h"
 #include "flux/Scene/TXContext.h"
+#include "flux/Shading/BSDF.h"
+#include "flux/Shading/EDF.h"
 
 namespace {
 class TestRenderObject final : public flux::RenderObject {
@@ -144,4 +147,52 @@ TEST(ContextTests, RejectsUnknownIdsAndWrongTypes) {
         (void)context->get<TestRenderObject>(object->getContextId() + 1), std::out_of_range
     );
     EXPECT_THROW((void)context->get<OtherRenderObject>(object->getContextId()), kira::Anyhow);
+}
+
+TEST(ContextIndexMapTests, KeepsAndReusesIndices) {
+    flux::ContextIndexMap indices;
+    flux::ContextIndexMap::Transaction first;
+    first.insert(10);
+    first.insert(20);
+    indices.merge(std::move(first));
+
+    auto const retainedIndex = indices.getIndex(20);
+    auto const releasedIndex = indices.erase(10);
+    flux::ContextIndexMap::Transaction second;
+    second.insert(30);
+    indices.merge(std::move(second));
+
+    EXPECT_EQ(indices.getIndex(20), retainedIndex);
+    EXPECT_EQ(indices.getIndex(30), releasedIndex);
+    EXPECT_EQ(indices.getIndexLimit(), 2);
+}
+
+TEST(ContextIndexMapTests, RejectsConflictingTransactionAtomically) {
+    flux::ContextIndexMap indices;
+    flux::ContextIndexMap::Transaction first;
+    first.insert(10);
+    indices.merge(std::move(first));
+
+    flux::ContextIndexMap::Transaction conflicting;
+    conflicting.insert(10);
+    conflicting.insert(20);
+
+    EXPECT_THROW(indices.merge(std::move(conflicting)), kira::Anyhow);
+    EXPECT_EQ(indices.size(), 1);
+    EXPECT_THROW((void)indices.getIndex(20), std::out_of_range);
+}
+
+TEST(ContextTests, TracksBSDFAndEDFIndices) {
+    auto context = flux::Context::create();
+    kira::Properties bsdfProps;
+    bsdfProps.set("type", "diffuse");
+
+    auto firstBSDF = context->create<flux::BSDF>(bsdfProps);
+    auto secondBSDF = context->create<flux::BSDF>(bsdfProps);
+    auto edf = context->create<flux::EDF>();
+
+    EXPECT_EQ(context->getBSDFIndex(firstBSDF->getContextId()), 0);
+    EXPECT_EQ(context->getBSDFIndex(secondBSDF->getContextId()), 1);
+    EXPECT_EQ(context->getEDFIndex(edf->getContextId()), 0);
+    EXPECT_THROW((void)context->getEDFIndex(firstBSDF->getContextId()), std::out_of_range);
 }

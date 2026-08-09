@@ -93,7 +93,7 @@ private:
     bool visible_{true};
 };
 
-/// \brief Stores a primitive's dense indices in a backend scene.
+/// \brief Data used to render one primitive.
 struct Primitive::Impl {
     /// Sentinel used when this primitive has no BSDF.
     static constexpr std::uint32_t invalidBSDFIndex = std::numeric_limits<std::uint32_t>::max();
@@ -103,10 +103,10 @@ struct Primitive::Impl {
     /// Dense index of the bound geometry.
     std::uint32_t geometryIndex{};
 
-    /// Dense index of the bound BSDF, or \c invalidBSDFIndex.
+    /// Context index of the bound BSDF, or \c invalidBSDFIndex.
     std::uint32_t bsdfIndex{invalidBSDFIndex};
 
-    /// Dense index of the bound EDF, or \c invalidEDFIndex.
+    /// Context index of the bound EDF, or \c invalidEDFIndex.
     std::uint32_t edfIndex{invalidEDFIndex};
 
     /// Dense light-table index, or \c invalidLightIndex.
@@ -119,7 +119,7 @@ public:
     /// \brief Returns whether this primitive has a BSDF.
     [[nodiscard]] KIRA_HOST_DEVICE inline bool hasBSDF() const noexcept;
 
-    /// \brief Returns the dense BSDF index in this backend scene.
+    /// \brief Returns the bound BSDF's Context index.
     ///
     /// \pre \c hasBSDF() is true.
     [[nodiscard]] KIRA_HOST_DEVICE inline std::uint32_t getBSDFIndex() const noexcept;

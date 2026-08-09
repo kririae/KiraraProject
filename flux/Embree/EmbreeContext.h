@@ -25,7 +25,7 @@ class Context;
 /// \brief Owns the Embree scene built from one host \c Context.
 ///
 /// The Embree scene shares immutable mesh arrays with retained meshes and owns
-/// its acceleration structures, dense tables, and instance normal transforms.
+/// its acceleration structures, scene tables, and instance normal transforms.
 /// Call \c sync from one thread. Traversal supports concurrent calls after sync.
 class EmbreeContext final : private Noncopyable {
 public:
@@ -98,10 +98,10 @@ private:
     /// World-space normal transforms indexed by top-level instance ID.
     std::vector<std::array<float, 9>> normalTransforms_;
 
-    /// Dense BSDF implementations referenced by \c primitives_.
+    /// BSDF implementations indexed by Context index.
     std::vector<BSDF::Impl> bsdfs_;
 
-    /// Dense EDF implementations referenced by \c primitives_.
+    /// EDF implementations indexed by Context index.
     std::vector<EDF::Impl> edfs_;
 
     /// Image textures used by BSDFs.
@@ -131,10 +131,10 @@ struct EmbreeContext::Impl {
     /// Inverse-transpose normal transforms indexed by primitive.
     std::array<float, 9> const *normalTransforms{};
 
-    /// Dense BSDF implementations.
+    /// BSDF implementations indexed by Context index.
     BSDF::Impl const *bsdfs{};
 
-    /// Dense EDF implementations.
+    /// EDF implementations indexed by Context index.
     EDF::Impl const *edfs{};
 
     EmbreeImageTexturePool::Impl imageTexturePool{};
@@ -142,10 +142,10 @@ struct EmbreeContext::Impl {
     /// Borrowed light sampler.
     LightSampler lightSampler{};
 
-    std::uint32_t numGeometries{}; // *geometries
-    std::uint32_t numPrimitives{}; // *primitives
-    std::uint32_t numBSDFs{};      // *bsdfs
-    std::uint32_t numEDFs{};       // *edfs
+    std::uint32_t numGeometries{};  // *geometries
+    std::uint32_t numPrimitives{};  // *primitives
+    std::uint32_t bsdfIndexLimit{}; // *bsdfs
+    std::uint32_t edfIndexLimit{};  // *edfs
 
 public:
     /// \brief Finds the closest intersection of \p ray.
@@ -184,9 +184,9 @@ public:
         return geometries[index];
     }
 
-    /// \brief Returns the BSDF at dense \p index.
+    /// \brief Returns the BSDF at Context \p index.
     ///
-    /// \pre \p index is less than \c numBSDFs.
+    /// \pre \p index is less than \c bsdfIndexLimit.
     [[nodiscard]] BSDF::Impl const &getBSDF(std::uint32_t index) const noexcept {
         return bsdfs[index];
     }

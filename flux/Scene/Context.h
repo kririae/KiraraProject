@@ -1,12 +1,14 @@
 #pragma once
 
 #include <algorithm>
+#include <concepts>
 #include <cstddef>
 #include <optional>
 #include <stdexcept>
 #include <unordered_map>
 #include <utility>
 
+#include "flux/Scene/ContextIndexMap.h"
 #include "flux/Scene/ImageAsset.h"
 #include "flux/Scene/TXContext.h"
 #include "kira/Anyhow.h"
@@ -16,6 +18,9 @@
 namespace flux {
 class PathIntegrator;
 class Sampler;
+class BSDF;
+class EDF;
+class ImageTexture;
 
 /// \brief Owns the host-side objects in a Flux scene.
 ///
@@ -85,6 +90,26 @@ public:
 
     [[nodiscard]] ImageAssetPool &getImageAssetPool() noexcept { return imageAssetPool_; }
 
+    [[nodiscard]] ContextIndexMap::Index getImageTextureIndex(std::size_t contextId) const {
+        return imageTextures_.getIndex(contextId);
+    }
+    [[nodiscard]] ContextIndexMap::Index getBSDFIndex(std::size_t contextId) const {
+        return bsdfs_.getIndex(contextId);
+    }
+    [[nodiscard]] ContextIndexMap::Index getEDFIndex(std::size_t contextId) const {
+        return edfs_.getIndex(contextId);
+    }
+
+    [[nodiscard]] ContextIndexMap::Index getImageTextureIndexLimit() const noexcept {
+        return imageTextures_.getIndexLimit();
+    }
+    [[nodiscard]] ContextIndexMap::Index getBSDFIndexLimit() const noexcept {
+        return bsdfs_.getIndexLimit();
+    }
+    [[nodiscard]] ContextIndexMap::Index getEDFIndexLimit() const noexcept {
+        return edfs_.getIndexLimit();
+    }
+
     /// \brief Returns the first integrator successfully added to this context.
     ///
     /// \throw kira::Anyhow If the context has no integrator.
@@ -99,6 +124,13 @@ public:
     ///
     /// Results are ordered by context ID.
     template <IsContextObject T> [[nodiscard]] kira::SmallVector<Ref<T const>> getObjects() const {
+        if constexpr (std::same_as<T, ImageTexture>)
+            return getIndexedObjects<T>(imageTextures_);
+        if constexpr (std::same_as<T, BSDF>)
+            return getIndexedObjects<T>(bsdfs_);
+        if constexpr (std::same_as<T, EDF>)
+            return getIndexedObjects<T>(edfs_);
+
         kira::SmallVector<Ref<T const>> result;
         for (auto const &entry : objects_)
             if (auto typed = entry.second.template dynamicCast<T const>())
@@ -117,7 +149,20 @@ private:
     [[nodiscard]] std::size_t allocateId() noexcept { return nextId_++; }
     void absorb(TXContext &&tx);
 
+    template <IsContextObject T>
+    [[nodiscard]] kira::SmallVector<Ref<T const>>
+    getIndexedObjects(ContextIndexMap const &indices) const {
+        kira::SmallVector<Ref<T const>> result;
+        result.reserve(indices.size());
+        for (auto const &[contextId, unused] : indices.entries_)
+            result.push_back(get<T>(contextId));
+        return result;
+    }
+
     std::unordered_map<std::size_t, Ref<ContextObject>> objects_;
+    ContextIndexMap imageTextures_;
+    ContextIndexMap bsdfs_;
+    ContextIndexMap edfs_;
     std::optional<std::size_t> activeIntegratorId_;
     std::optional<std::size_t> activeSamplerId_;
     ImageAssetPool imageAssetPool_;

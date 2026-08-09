@@ -94,10 +94,10 @@ struct OptixContext::Impl {
     /// Borrowed light sampler.
     LightSampler lightSampler{};
 
-    std::uint32_t numGeometries{}; // *geometries
-    std::uint32_t numPrimitives{}; // *primitives
-    std::uint32_t numBSDFs{};      // *bsdfs
-    std::uint32_t numEDFs{};       // *edfs
+    std::uint32_t numGeometries{};  // *geometries
+    std::uint32_t numPrimitives{};  // *primitives
+    std::uint32_t bsdfIndexLimit{}; // *bsdfs
+    std::uint32_t edfIndexLimit{};  // *edfs
 
 public:
     /// \brief Finds the closest surface hit for \p ray.
@@ -130,9 +130,9 @@ public:
     [[nodiscard]] KIRA_DEVICE inline Geometry::Impl const &
     getGeometry(std::uint32_t geometryIndex) const noexcept;
 
-    /// \brief Returns the BSDF at dense \p bsdfIndex.
+    /// \brief Returns the BSDF at Context \p bsdfIndex.
     ///
-    /// \pre \p bsdfIndex is less than \c numBSDFs.
+    /// \pre \p bsdfIndex is less than \c bsdfIndexLimit.
     [[nodiscard]] KIRA_DEVICE inline BSDF::Impl const &
     getBSDF(std::uint32_t bsdfIndex) const noexcept;
 

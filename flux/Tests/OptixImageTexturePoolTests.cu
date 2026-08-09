@@ -59,7 +59,7 @@ protected:
         if (!componentMapping.empty())
             props.set("component_mapping", std::string{componentMapping});
         (void)context->create<flux::Texture>(props);
-        pool.build(context->getObjects<flux::ImageTexture>());
+        pool.build(*context);
     }
 
     [[nodiscard]] std::vector<flux::Vec4f>

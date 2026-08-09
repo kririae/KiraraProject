@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <span>
 #include <vector>
 
 #include "flux/Core/Math.h"
@@ -9,6 +8,8 @@
 #include "flux/Shading/Texture.h"
 
 namespace flux {
+class Context;
+
 /// \brief Provides ImageTexture lookups for Embree.
 class EmbreeImageTexturePool final : private Noncopyable {
 private:
@@ -26,11 +27,10 @@ public:
     EmbreeImageTexturePool();
     ~EmbreeImageTexturePool();
 
-    /// \brief Rebuilds image textures for the next render.
+    /// \brief Rebuilds the image texture entries in \p context.
     ///
-    /// The input order defines ImageTexture::Impl::imageTextureIndex.
     /// After this function throws, call \c build again before rendering.
-    void build(std::span<Ref<ImageTexture const> const> textures);
+    void build(Context const &context);
     void clear() noexcept;
 
     /// \brief Returns a view valid until the next \c build or \c clear.

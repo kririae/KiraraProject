@@ -3,7 +3,6 @@
 #include <cuda_runtime_api.h>
 
 #include <cstdint>
-#include <span>
 #include <type_traits>
 #include <vector>
 
@@ -13,6 +12,8 @@
 #include "flux/Shading/Texture.h"
 
 namespace flux {
+class Context;
+
 /// \brief CUDA texture views for one ImageTexture.
 struct OptixImageTexture {
     /// View using the ImageTexture filter mode.
@@ -59,11 +60,11 @@ public:
         : CudaStreamMixin(stream), deviceTextures_(stream) {}
     ~OptixImageTexturePool() noexcept;
 
-    /// \brief Rebuilds entries in the order of \p textures.
+    /// \brief Rebuilds the image texture entries in \p context.
     ///
-    /// The order must match ImageTexture::Impl::imageTextureIndex. After this
-    /// function throws, call \c build again before launch or destroy the pool.
-    void build(std::span<Ref<ImageTexture const> const> textures);
+    /// After this function throws, call \c build again before launch or destroy
+    /// the pool.
+    void build(Context const &context);
 
     /// \brief Returns a device view valid until the next \c build.
     [[nodiscard]] Impl getImpl() const noexcept { return {.textures = deviceTextures_.data()}; }

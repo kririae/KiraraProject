@@ -46,15 +46,12 @@ struct OptixContext::Storage : private CudaStreamMixin {
         program = std::make_unique<OptixProgram>(deviceContext, modulePath, spec);
 
         auto const contextPrimitives = context.getObjects<Primitive>();
-        auto const contextImageTextures = context.getObjects<ImageTexture>();
         auto const contextBSDFs = context.getObjects<BSDF>();
         auto const contextEDFs = context.getObjects<EDF>();
         auto const contextLights = context.getObjects<Light>();
         kira::SmallVector<Ref<TriangleMesh const>> uniqueMeshes;
         kira::SmallVector<Ref<Primitive const>> visiblePrimitives;
         std::unordered_map<std::size_t, std::uint32_t> geometryIndexByContextId;
-        std::unordered_map<std::size_t, std::uint32_t> bsdfIndexByContextId;
-        std::unordered_map<std::size_t, std::uint32_t> edfIndexByContextId;
         std::vector<OptixAccel::InstanceDesc> instanceDescs;
         primitiveStaging.clear();
         bsdfStaging.clear();
@@ -62,28 +59,20 @@ struct OptixContext::Storage : private CudaStreamMixin {
         uniqueMeshes.reserve(contextPrimitives.size());
         visiblePrimitives.reserve(contextPrimitives.size());
         geometryIndexByContextId.reserve(contextPrimitives.size());
-        bsdfIndexByContextId.reserve(contextBSDFs.size());
-        edfIndexByContextId.reserve(contextEDFs.size());
         instanceDescs.reserve(contextPrimitives.size());
         primitiveStaging.reserve(contextPrimitives.size());
-        bsdfStaging.reserve(contextBSDFs.size());
-        edfStaging.reserve(contextEDFs.size());
 
-        if (contextBSDFs.size() > Primitive::Impl::invalidBSDFIndex)
-            throw kira::Anyhow("OptixContext: BSDF count exceeds device limits");
-        if (contextEDFs.size() > Primitive::Impl::invalidEDFIndex)
-            throw kira::Anyhow("OptixContext: EDF count exceeds device limits");
-
-        // Context IDs may contain gaps. Assign each BSDF a dense OptiX scene index.
-        for (auto const &bsdf : contextBSDFs) {
-            auto const index = static_cast<std::uint32_t>(bsdfStaging.size());
-            bsdfIndexByContextId.emplace(bsdf->getContextId(), index);
-            bsdfStaging.push_back(bsdf->getImpl());
+        // Use a live implementation for unused indices. Primitive indices
+        // select the live entries filled below.
+        if (!contextBSDFs.empty()) {
+            bsdfStaging.assign(context.getBSDFIndexLimit(), contextBSDFs.front()->getImpl());
+            for (auto const &bsdf : contextBSDFs)
+                bsdfStaging[context.getBSDFIndex(bsdf->getContextId())] = bsdf->getImpl();
         }
-        for (auto const &edf : contextEDFs) {
-            auto const index = static_cast<std::uint32_t>(edfStaging.size());
-            edfIndexByContextId.emplace(edf->getContextId(), index);
-            edfStaging.push_back(edf->getImpl());
+        if (!contextEDFs.empty()) {
+            edfStaging.assign(context.getEDFIndexLimit(), contextEDFs.front()->getImpl());
+            for (auto const &edf : contextEDFs)
+                edfStaging[context.getEDFIndex(edf->getContextId())] = edf->getImpl();
         }
 
         // Pack visible primitives into dense OptiX arrays. Shared meshes use one
@@ -124,24 +113,12 @@ struct OptixContext::Storage : private CudaStreamMixin {
             auto const geometryIndex = getOrAddGeometryIndex(geometry);
             auto const bsdf = primitive->getBSDF();
             auto bsdfIndex = Primitive::Impl::invalidBSDFIndex;
-            if (bsdf) {
-                auto const iterator = bsdfIndexByContextId.find(bsdf->getContextId());
-                KIRA_ASSERT(
-                    iterator != bsdfIndexByContextId.end(),
-                    "Linked BSDF is missing from the OptiX scene"
-                );
-                bsdfIndex = iterator->second;
-            }
+            if (bsdf)
+                bsdfIndex = context.getBSDFIndex(bsdf->getContextId());
             auto const edf = primitive->getEDF();
             auto edfIndex = Primitive::Impl::invalidEDFIndex;
-            if (edf) {
-                auto const iterator = edfIndexByContextId.find(edf->getContextId());
-                KIRA_ASSERT(
-                    iterator != edfIndexByContextId.end(),
-                    "Linked EDF is missing from the OptiX scene"
-                );
-                edfIndex = iterator->second;
-            }
+            if (edf)
+                edfIndex = context.getEDFIndex(edf->getContextId());
             primitiveStaging.push_back({
                 .geometryIndex = geometryIndex,
                 .bsdfIndex = bsdfIndex,
@@ -159,7 +136,7 @@ struct OptixContext::Storage : private CudaStreamMixin {
         // Rebuild in dependency order. GAS consumes the geometry buffers; IAS
         // then consumes the GAS handles and the matching primitive layout.
         geometryPool.build(uniqueMeshes);
-        imageTexturePool.build(contextImageTextures);
+        imageTexturePool.build(context);
         lightSampler.build(contextLights, visiblePrimitives, primitiveStaging);
         auto const buildInputs = geometryPool.getBuildInputs();
         accel.buildGas(deviceContext, buildInputs);
@@ -234,8 +211,8 @@ OptixContext::Impl OptixContext::getImpl() const noexcept {
         .lightSampler = storage_->lightSampler.getSampler(),
         .numGeometries = static_cast<std::uint32_t>(storage_->geometryPool.size()),
         .numPrimitives = static_cast<std::uint32_t>(storage_->primitives.size()),
-        .numBSDFs = static_cast<std::uint32_t>(storage_->bsdfs.size()),
-        .numEDFs = static_cast<std::uint32_t>(storage_->edfs.size()),
+        .bsdfIndexLimit = static_cast<std::uint32_t>(storage_->bsdfs.size()),
+        .edfIndexLimit = static_cast<std::uint32_t>(storage_->edfs.size()),
     };
 }
 } // namespace flux

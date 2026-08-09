@@ -66,6 +66,7 @@ add_library(
     Sampling/Sampler.cpp
     Scene/Camera.cpp
     Scene/Context.cpp
+    Scene/ContextIndexMap.cpp
     Scene/Film.cpp
     Scene/Geometry.cpp
     Scene/Light.cpp

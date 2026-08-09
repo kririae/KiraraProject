@@ -3,12 +3,14 @@
 #include <unordered_map>
 
 #include "flux/Optix/OptixUtils.h"
+#include "flux/Scene/Context.h"
 #include "flux/Scene/ImageAssetPImpl.h"
 
 namespace flux {
 OptixImageTexturePool::~OptixImageTexturePool() noexcept { clear(); }
 
-void OptixImageTexturePool::build(std::span<Ref<ImageTexture const> const> textures) {
+void OptixImageTexturePool::build(Context const &context) {
+    auto const textures = context.getObjects<ImageTexture>();
     auto const toCudaAddressMode = [](ImageTextureAddressMode mode) {
         switch (mode) {
         case ImageTextureAddressMode::Wrap: return cudaAddressModeWrap;
@@ -50,7 +52,7 @@ void OptixImageTexturePool::build(std::span<Ref<ImageTexture const> const> textu
     clear();
     arrays_.reserve(textures.size());
     textureObjects_.reserve(textures.size() * 2);
-    staging_.reserve(textures.size());
+    staging_.resize(context.getImageTextureIndexLimit());
     // Keep host pixels alive until the stream synchronization below.
     std::vector<ImageAsset::ImageBuffer> imageBuffers;
     imageBuffers.reserve(textures.size());
@@ -136,12 +138,12 @@ void OptixImageTexturePool::build(std::span<Ref<ImageTexture const> const> textu
                 textureObjects_.push_back(pointTexture);
             }
 
-            staging_.push_back({
+            staging_[context.getImageTextureIndex(texture->getContextId())] = {
                 .texture = textureObject,
                 .pointTexture = pointTexture,
                 .componentMapping = texture->getComponentMapping(),
                 .componentCount = asset->getComponentCount(),
-            });
+            };
         }
 
         deviceTextures_.copyFromHost(staging_);

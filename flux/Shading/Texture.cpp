@@ -1,8 +1,6 @@
 #include "flux/Shading/Texture.h"
 
 #include <filesystem>
-#include <limits>
-#include <ranges>
 #include <string>
 
 #include "flux/Scene/Context.h"
@@ -142,18 +140,11 @@ ImageTexture::ImageTexture(TXContext &tx, kira::Properties const &props)
 }
 
 Texture::Impl ImageTexture::getImpl() const {
-    auto const textures = getContext()->getObjects<ImageTexture>();
-    auto const *iterator = std::ranges::find(textures, getContextId(), [](auto const &texture) {
-        return texture->getContextId();
-    });
-    if (iterator == textures.end())
-        throw kira::Anyhow("ImageTexture: texture is missing from its Context");
-    auto const index = static_cast<std::size_t>(iterator - textures.begin());
-    if (index > std::numeric_limits<std::uint32_t>::max())
-        throw kira::Anyhow("ImageTexture: image texture count exceeds backend limits");
     return {
         .type = TextureType::Image,
-        .storage = {.image = {.imageTextureIndex = static_cast<std::uint32_t>(index)}},
+        .storage = {
+            .image = {.imageTextureIndex = getContext()->getImageTextureIndex(getContextId())}
+        },
     };
 }
 } // namespace flux

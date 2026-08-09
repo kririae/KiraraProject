@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "flux/Core/Object.h"
+#include "flux/Scene/ContextIndexMap.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
@@ -64,6 +65,9 @@ private:
 
     Context &context_;
     std::unordered_map<std::size_t, Ref<ContextObject>> objects_;
+    ContextIndexMap::Transaction imageTextures_;
+    ContextIndexMap::Transaction bsdfs_;
+    ContextIndexMap::Transaction edfs_;
     std::optional<std::size_t> activeIntegratorId_;
     std::optional<std::size_t> activeSamplerId_;
 };

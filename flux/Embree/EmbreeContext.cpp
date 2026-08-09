@@ -93,15 +93,10 @@ void EmbreeContext::sync() try {
     auto const contextPrimitives = context_.getObjects<Primitive>();
     auto const contextBSDFs = context_.getObjects<BSDF>();
     auto const contextEDFs = context_.getObjects<EDF>();
-    auto const imageTextures = context_.getObjects<ImageTexture>();
     auto const contextLights = context_.getObjects<Light>();
     kira::SmallVector<Ref<Primitive const>> visiblePrimitives;
     std::unordered_map<std::size_t, std::uint32_t> geometryIndexByContextId;
-    std::unordered_map<std::size_t, std::uint32_t> bsdfIndexByContextId;
-    std::unordered_map<std::size_t, std::uint32_t> edfIndexByContextId;
     geometryIndexByContextId.reserve(contextPrimitives.size());
-    bsdfIndexByContextId.reserve(contextBSDFs.size());
-    edfIndexByContextId.reserve(contextEDFs.size());
     retainedMeshes_.reserve(contextPrimitives.size());
     geometryImpls_.reserve(contextPrimitives.size());
     triangleSampling_.reserve(contextPrimitives.size());
@@ -109,26 +104,20 @@ void EmbreeContext::sync() try {
     visiblePrimitives.reserve(contextPrimitives.size());
     transforms_.reserve(contextPrimitives.size());
     normalTransforms_.reserve(contextPrimitives.size());
-    bsdfs_.reserve(contextBSDFs.size());
-    edfs_.reserve(contextEDFs.size());
 
-    if (contextBSDFs.size() > Primitive::Impl::invalidBSDFIndex)
-        throw kira::Anyhow("EmbreeContext: BSDF count exceeds Embree index limits");
-    if (contextEDFs.size() > Primitive::Impl::invalidEDFIndex)
-        throw kira::Anyhow("EmbreeContext: EDF count exceeds Embree index limits");
-
-    // Context IDs may contain gaps. Assign each BSDF a dense Embree scene index.
-    for (auto const &bsdf : contextBSDFs) {
-        auto const index = static_cast<std::uint32_t>(bsdfs_.size());
-        bsdfIndexByContextId.emplace(bsdf->getContextId(), index);
-        bsdfs_.push_back(bsdf->getImpl());
+    // Use a live implementation for unused indices. Primitive indices select
+    // the live entries filled below.
+    if (!contextBSDFs.empty()) {
+        bsdfs_.assign(context_.getBSDFIndexLimit(), contextBSDFs.front()->getImpl());
+        for (auto const &bsdf : contextBSDFs)
+            bsdfs_[context_.getBSDFIndex(bsdf->getContextId())] = bsdf->getImpl();
     }
-    for (auto const &edf : contextEDFs) {
-        auto const index = static_cast<std::uint32_t>(edfs_.size());
-        edfIndexByContextId.emplace(edf->getContextId(), index);
-        edfs_.push_back(edf->getImpl());
+    if (!contextEDFs.empty()) {
+        edfs_.assign(context_.getEDFIndexLimit(), contextEDFs.front()->getImpl());
+        for (auto const &edf : contextEDFs)
+            edfs_[context_.getEDFIndex(edf->getContextId())] = edf->getImpl();
     }
-    imageTexturePool_.build(imageTextures);
+    imageTexturePool_.build(context_);
 
     auto const getOrAddGeometryIndex = [&](Ref<Geometry const> const &geometry) {
         auto const contextId = geometry->getContextId();
@@ -174,23 +163,12 @@ void EmbreeContext::sync() try {
         auto const geometryIndex = getOrAddGeometryIndex(geometry);
         auto const bsdf = primitive->getBSDF();
         auto bsdfIndex = Primitive::Impl::invalidBSDFIndex;
-        if (bsdf) {
-            auto const iterator = bsdfIndexByContextId.find(bsdf->getContextId());
-            KIRA_ASSERT(
-                iterator != bsdfIndexByContextId.end(),
-                "Linked BSDF is missing from the Embree scene"
-            );
-            bsdfIndex = iterator->second;
-        }
+        if (bsdf)
+            bsdfIndex = context_.getBSDFIndex(bsdf->getContextId());
 
         auto edfIndex = Primitive::Impl::invalidEDFIndex;
-        if (edf) {
-            auto const iterator = edfIndexByContextId.find(edf->getContextId());
-            KIRA_ASSERT(
-                iterator != edfIndexByContextId.end(), "Linked EDF is missing from the Embree scene"
-            );
-            edfIndex = iterator->second;
-        }
+        if (edf)
+            edfIndex = context_.getEDFIndex(edf->getContextId());
 
         primitives_.push_back({
             .geometryIndex = geometryIndex,
@@ -278,8 +256,8 @@ EmbreeContext::Impl EmbreeContext::getImpl() const noexcept {
         .lightSampler = lightSampler_.getSampler(),
         .numGeometries = static_cast<std::uint32_t>(geometryImpls_.size()),
         .numPrimitives = static_cast<std::uint32_t>(primitives_.size()),
-        .numBSDFs = static_cast<std::uint32_t>(bsdfs_.size()),
-        .numEDFs = static_cast<std::uint32_t>(edfs_.size()),
+        .bsdfIndexLimit = static_cast<std::uint32_t>(bsdfs_.size()),
+        .edfIndexLimit = static_cast<std::uint32_t>(edfs_.size()),
     };
 }
 

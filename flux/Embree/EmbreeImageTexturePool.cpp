@@ -4,24 +4,26 @@
 
 #include <utility>
 
+#include "flux/Scene/Context.h"
 #include "flux/Scene/ImageAssetPImpl.h"
 
 namespace flux {
 struct EmbreeImageTexturePool::Entry {
     /// Keeps the OIIO texture system and handle alive.
     Ref<ImageAsset const> asset;
-    OIIO::TextureSystem *textureSystem;
-    OIIO::TextureSystem::TextureHandle *textureHandle;
+    OIIO::TextureSystem *textureSystem{};
+    OIIO::TextureSystem::TextureHandle *textureHandle{};
     OIIO::TextureOpt options;
-    std::uint8_t sampleComponentCount;
-    std::uint8_t orientation;
+    std::uint8_t sampleComponentCount{};
+    std::uint8_t orientation{};
     ImageComponentMapping componentMapping;
 };
 
 EmbreeImageTexturePool::EmbreeImageTexturePool() = default;
 EmbreeImageTexturePool::~EmbreeImageTexturePool() = default;
 
-void EmbreeImageTexturePool::build(std::span<Ref<ImageTexture const> const> textures) {
+void EmbreeImageTexturePool::build(Context const &context) {
+    auto const textures = context.getObjects<ImageTexture>();
     auto const addressMode = [](ImageTextureAddressMode mode) {
         switch (mode) {
         case ImageTextureAddressMode::Wrap: return OIIO::Tex::Wrap::Periodic;
@@ -33,7 +35,7 @@ void EmbreeImageTexturePool::build(std::span<Ref<ImageTexture const> const> text
     };
 
     textures_.clear();
-    textures_.reserve(textures.size());
+    textures_.resize(context.getImageTextureIndexLimit());
 
     for (auto const &texture : textures) {
         auto const &asset = texture->getImageAsset();
@@ -81,7 +83,7 @@ void EmbreeImageTexturePool::build(std::span<Ref<ImageTexture const> const> text
             };
         }
 
-        textures_.push_back({
+        textures_[context.getImageTextureIndex(texture->getContextId())] = {
             .asset = asset,
             .textureSystem = asset->pImpl_->textureSystem.get(),
             .textureHandle = asset->pImpl_->textureHandle,
@@ -89,7 +91,7 @@ void EmbreeImageTexturePool::build(std::span<Ref<ImageTexture const> const> text
             .sampleComponentCount = sampleComponentCount,
             .orientation = asset->pImpl_->orientation,
             .componentMapping = componentMapping,
-        });
+        };
     }
 }
 
