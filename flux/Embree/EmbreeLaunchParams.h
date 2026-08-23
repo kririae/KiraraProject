@@ -13,7 +13,7 @@
 namespace flux {
 /// \brief Parameters shared by one Embree render.
 struct EmbreeLaunchParams {
-    /// Borrowed Embree scene view used by this render.
+    /// Embree scene for this render.
     EmbreeContext::Impl scene;
 
     Camera::Impl camera;

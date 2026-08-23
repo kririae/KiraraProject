@@ -7,10 +7,9 @@
 #include "flux/Scene/Film.h"
 
 namespace flux {
-/// \brief Persistent render target selected for a launch.
+/// \brief Pairs a camera with its film and target sample count.
 ///
-/// The object owns its film description and retains the camera used to render
-/// it. Renderer backends keep device storage separately.
+/// Each renderer backend keeps its own film buffers.
 ///
 /// \par Properties
 /// - \c resolution: required nonzero uint32 image resolution.

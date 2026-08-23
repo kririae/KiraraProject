@@ -154,7 +154,6 @@ static_assert(std::is_same_v<
 /// channel values.
 class Film final : private Noncopyable {
 public:
-    /// \brief Non-owning film view used by renderer backends.
     struct Impl;
 
     /// \brief Creates a film with the given dimensions.
@@ -239,7 +238,7 @@ private:
     FilmChannelListOf<HostChannelStorage> hostStorage_;
 };
 
-/// \brief Non-owning view of the channels in a film.
+/// \brief Writes film channels during rendering.
 struct Film::Impl {
     FilmChannelListOf<FilmChannelView> channels{};
     std::uint32_t width{};

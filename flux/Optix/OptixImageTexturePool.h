@@ -14,12 +14,12 @@
 namespace flux {
 class Context;
 
-/// \brief CUDA texture views for one ImageTexture.
+/// \brief Samples one image texture with CUDA.
 struct OptixImageTexture {
-    /// View using the ImageTexture filter mode.
+    /// CUDA texture object using the ImageTexture filter mode.
     cudaTextureObject_t texture;
 
-    /// View with point filtering.
+    /// CUDA texture object using point filtering.
     cudaTextureObject_t pointTexture;
 
     /// Mapping applied after sampling.
@@ -42,10 +42,10 @@ private:
 /// \brief Owns CUDA arrays and texture objects used by OptiX.
 ///
 /// Image textures that share an ImageAsset also share one CUDA array. Each
-/// ImageTexture has its configured filter and a point-filtered view.
+/// ImageTexture has its configured filter and a point-filtered texture object.
 class OptixImageTexturePool final : private Noncopyable, private CudaStreamMixin {
 public:
-    /// \brief Device view valid until the next \c build or destruction.
+    /// \brief Image textures used by OptiX programs.
     struct Impl {
         OptixImageTexture const *textures{};
 
@@ -66,7 +66,9 @@ public:
     /// the pool.
     void build(Context const &context);
 
-    /// \brief Returns a device view valid until the next \c build.
+    /// \brief Returns the image textures used by OptiX programs.
+    ///
+    /// The result remains valid until the next \c build.
     [[nodiscard]] Impl getImpl() const noexcept { return {.textures = deviceTextures_.data()}; }
 
 private:

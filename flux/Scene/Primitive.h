@@ -15,7 +15,7 @@ class Geometry;
 struct PreliminaryIntersection;
 struct SurfaceInteraction;
 
-/// \brief Places Geometry and its shading state in a scene.
+/// \brief Places geometry and its shading models in a scene.
 ///
 /// \par Properties
 /// - \c geometry_ctx_id binds existing Geometry. Otherwise the properties
@@ -93,7 +93,7 @@ private:
     bool visible_{true};
 };
 
-/// \brief Data used to render one primitive.
+/// \brief Links a primitive to its geometry and shading models.
 struct Primitive::Impl {
     /// Sentinel used when this primitive has no BSDF.
     static constexpr std::uint32_t invalidBSDFIndex = std::numeric_limits<std::uint32_t>::max();

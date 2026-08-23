@@ -13,7 +13,7 @@ namespace flux {
 class EmbreeHandler;
 class RenderProduct;
 
-/// \brief Owns CPU runtime storage for render products.
+/// \brief Keeps CPU film buffers and accumulation state for render products.
 ///
 /// Each render product has at most one entry. Camera or Film changes invalidate
 /// the corresponding accumulation.
@@ -21,7 +21,7 @@ class EmbreeRenderProductPool final : private Noncopyable {
     friend class EmbreeHandler;
 
 public:
-    /// \brief Erases runtime storage for \p product.
+    /// \brief Erases the film buffers and accumulation state for \p product.
     ///
     /// Does nothing if \p product has no entry.
     void erase(RenderProduct const &product) noexcept;
@@ -35,7 +35,7 @@ private:
         std::vector<typename Channel::Value> values;
     };
 
-    /// Tracks the Camera snapshot and sample count of one accumulation.
+    /// Camera and sample count used by one accumulation.
     struct AccumulationState {
         /// Camera::Impl used to generate the samples.
         Camera::Impl camera;
@@ -57,7 +57,7 @@ private:
         std::optional<AccumulationState> accumulation;
     };
 
-    /// \brief Returns or creates runtime storage for \p product.
+    /// \brief Returns or creates an entry for \p product.
     ///
     /// The entry matches the current Film resolution and requested channels.
     /// Changing either resizes channel storage and clears accumulation.

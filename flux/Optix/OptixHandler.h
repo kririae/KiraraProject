@@ -17,6 +17,8 @@ class RenderProduct;
 /// CUDA stream, and launch-time state on CUDA device 0. Its \c OptixContext
 /// owns the persistent OptiX scene. Public operations select device 0. Call
 /// \c sync after changing the host \c Context.
+///
+/// \remark A handler is not thread-safe.
 class OptixHandler final : private Noncopyable {
 public:
     /// \brief Creates a handler and builds its initial OptiX scene.
@@ -38,6 +40,7 @@ public:
     /// \p samples is the nonzero number of samples assigned to each pixel. Call
     /// \c sync after changing the host \c Context.
     /// A product with no requested channels still advances its sample count.
+    /// If backend work fails, the product's accumulation is cleared.
     /// \return Executed camera paths and backend execution time.
     RenderStats render(RenderProduct const &product, std::uint32_t samples);
 
@@ -46,6 +49,8 @@ public:
     /// The handler stream orders the copies. This function waits for that
     /// stream before returning.
     /// \throw kira::Anyhow If \p product has no valid accumulation.
+    /// \warning An exception while allocating or copying channel data leaves
+    /// the Film in \p product valid only for destruction, swap, or move assignment.
     void download(RenderProduct &product);
 
 public:
@@ -66,7 +71,7 @@ public:
     /// target sample count keeps the accumulated samples.
     [[nodiscard]] bool isConverged(RenderProduct const &product) const;
 
-    /// \brief Releases runtime storage for \p product.
+    /// \brief Releases the film buffers and accumulation state for \p product.
     ///
     /// Does nothing if no storage exists. The render product remains valid, and
     /// a later render creates new storage.

@@ -9,7 +9,7 @@
 #include "flux/Scene/Primitive.h"
 
 namespace flux {
-/// \brief Owns the light data used by the Embree light sampler.
+/// \brief Builds the Embree light table and selection distribution.
 class EmbreeLightSampler final : private Noncopyable {
 public:
     /// \brief Rebuilds host light data in light table order.
@@ -22,7 +22,9 @@ public:
 
     void clear() noexcept;
 
-    /// \brief Returns a view valid until the next \c build or \c clear.
+    /// \brief Returns the current light sampler.
+    ///
+    /// The result remains valid until the next \c build or \c clear.
     [[nodiscard]] LightSampler getSampler() const noexcept;
 
 private:

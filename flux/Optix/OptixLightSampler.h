@@ -10,7 +10,7 @@
 #include "flux/Scene/Primitive.h"
 
 namespace flux {
-/// \brief Owns the light data used by the OptiX light sampler.
+/// \brief Builds the OptiX light table and selection distribution.
 class OptixLightSampler final : private Noncopyable, private CudaStreamMixin {
 public:
     explicit OptixLightSampler(cudaStream_t stream) noexcept
@@ -27,7 +27,9 @@ public:
         std::span<Primitive::Impl> primitiveImpls
     );
 
-    /// \brief Returns a device view valid until the next \c build.
+    /// \brief Returns the current light sampler.
+    ///
+    /// The result remains valid until the next \c build.
     [[nodiscard]] LightSampler getSampler() const noexcept;
 
 private:

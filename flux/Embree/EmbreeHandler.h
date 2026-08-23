@@ -13,8 +13,9 @@ class RenderProduct;
 /// \brief Schedules CPU rendering with an Embree scene.
 ///
 /// The handler retains its host \c Context. Call \c sync after changing that
-/// Context. Different handlers may render concurrently. Serialize mutation and
-/// rendering on one handler.
+/// Context.
+///
+/// \remark A handler is not thread-safe. Different handlers may render concurrently.
 class EmbreeHandler final : private Noncopyable {
 public:
     /// \brief Creates a handler and builds its initial Embree scene.
@@ -33,6 +34,7 @@ public:
     ///
     /// \p samples is the nonzero number of samples assigned to each pixel.
     /// A product with no requested channels still advances its sample count.
+    /// If backend work fails, the product's accumulation is cleared.
     /// \return Executed camera paths and backend execution time.
     RenderStats render(RenderProduct const &product, std::uint32_t samples);
 
@@ -40,6 +42,8 @@ public:
     ///
     /// The call completes synchronously.
     /// \throw kira::Anyhow If \p product has no valid accumulation.
+    /// \warning An exception while allocating or copying channel data leaves
+    /// the Film in \p product valid only for destruction, swap, or move assignment.
     void download(RenderProduct &product);
 
 public:
@@ -59,7 +63,7 @@ public:
     /// Changing the target keeps valid accumulated samples.
     [[nodiscard]] bool isConverged(RenderProduct const &product) const;
 
-    /// \brief Releases runtime storage for \p product.
+    /// \brief Releases the film buffers and accumulation state for \p product.
     ///
     /// Does nothing if no storage exists. The render product remains valid, and
     /// a later render creates new storage.

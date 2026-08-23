@@ -41,7 +41,7 @@ struct DirectLightSample {
     bool delta{};
 };
 
-/// \brief Host-side base for authored lights.
+/// \brief Host-side base for lights.
 class Light : public RenderObject {
 protected:
     Light(TXContext &tx, LightType type);
@@ -129,14 +129,14 @@ enum class LightRecordType : std::uint8_t {
     Primitive,
 };
 
-/// \brief Maps one selectable light to backend data.
+/// \brief Identifies one light in a light table.
 struct LightRecord {
     LightRecordType type{};
-    /// Index within the selected concrete array.
+    /// Index in the array selected by \c type.
     std::uint32_t typedIndex{};
 };
 
-/// \brief Non-owning view of selectable lights built by one renderer backend.
+/// \brief Maps light indices to lights.
 struct LightTable {
     /// Light records in selection order.
     LightRecord const *records{};

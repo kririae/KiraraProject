@@ -30,7 +30,6 @@ class OptixContext final : private Noncopyable {
     friend class OptixHandler;
 
 public:
-    /// \brief Device view of the current OptiX scene.
     struct Impl;
 
     ~OptixContext();
@@ -65,10 +64,10 @@ private:
     std::unique_ptr<Storage> storage_;
 };
 
-/// \brief Device view of an OptiX scene.
+/// \brief OptiX scene used by device programs.
 ///
-/// The owning OptixContext keeps every referenced device array and OptiX
-/// handle valid until its next sync or destruction.
+/// OptixContext keeps the referenced memory and handles valid until its next
+/// sync.
 struct OptixContext::Impl {
     struct Hit {
         SurfaceInteraction surface;
@@ -91,7 +90,7 @@ struct OptixContext::Impl {
 
     OptixImageTexturePool::Impl imageTexturePool{};
 
-    /// Borrowed light sampler.
+    /// Light sampler for this scene.
     LightSampler lightSampler{};
 
     std::uint32_t numGeometries{};  // *geometries
@@ -147,7 +146,7 @@ static_assert(std::is_standard_layout_v<OptixContext::Impl>);
 static_assert(std::is_trivially_copyable_v<OptixContext::Impl>);
 
 namespace optix {
-/// OptiX device scene view.
+/// OptiX scene used by device programs.
 using Scene = ::flux::OptixContext::Impl;
 } // namespace optix
 } // namespace flux

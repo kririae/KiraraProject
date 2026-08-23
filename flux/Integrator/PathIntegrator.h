@@ -55,7 +55,7 @@ public:
     bool prevDelta{};
 };
 
-/// \brief Selects path tracing as a context's transport algorithm.
+/// \brief Estimates radiance with path tracing.
 ///
 /// The first path integrator added to a context becomes active after its
 /// transaction succeeds.
@@ -69,10 +69,10 @@ class PathIntegrator final : public RenderObject {
     friend class TXContext;
 
 public:
-    /// \brief Operations that advance one path.
+    /// \brief Advances one path between traversal calls.
     ///
-    /// Renderer backends own traversal and scheduling. This implementation
-    /// owns the transport transitions shared by those schedulers.
+    /// Renderer backends own traversal and scheduling. This type handles the
+    /// transport steps shared by those backends.
     struct Impl {
         /// Maximum number of path vertices.
         ///

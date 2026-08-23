@@ -13,7 +13,7 @@ namespace flux {
 class OptixHandler;
 class RenderProduct;
 
-/// \brief Owns OptiX runtime storage for render products.
+/// \brief Keeps OptiX film buffers and accumulation state for render products.
 ///
 /// Each render product has at most one entry. Camera or Film changes invalidate
 /// the corresponding accumulation.
@@ -23,7 +23,7 @@ class OptixRenderProductPool final : private Noncopyable, private CudaStreamMixi
 public:
     explicit OptixRenderProductPool(cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
 
-    /// \brief Erases runtime storage for \p product.
+    /// \brief Erases the film buffers and accumulation state for \p product.
     ///
     /// Does nothing if \p product has no entry.
     void erase(RenderProduct const &product) noexcept;
@@ -37,7 +37,7 @@ private:
         DeviceBuffer<typename Channel::Value> buffer;
     };
 
-    /// Tracks the Camera snapshot and sample count of one accumulation.
+    /// Camera and sample count used by one accumulation.
     struct AccumulationState {
         /// Camera::Impl used to generate the samples.
         Camera::Impl camera;
@@ -61,7 +61,7 @@ private:
         std::optional<AccumulationState> accumulation;
     };
 
-    /// \brief Returns or creates runtime storage for \p product.
+    /// \brief Returns or creates an entry for \p product.
     ///
     /// The entry matches the current Film resolution and requested channels.
     /// Changing either resizes channel storage and clears accumulation.

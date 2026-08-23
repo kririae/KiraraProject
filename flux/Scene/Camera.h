@@ -78,7 +78,7 @@ private:
     float focalDistance_{};
 };
 
-/// \brief Compact implementation of a perspective camera.
+/// \brief Generates rays for a perspective camera.
 struct Camera::Impl {
     /// Lens position in world space.
     Vec3f position{};
@@ -112,7 +112,6 @@ public:
         Vec2f const &rasterPosition, Vec2f const &lensSample, Vec2u const &resolution
     ) const noexcept;
 
-    /// \brief Compares the complete ray-generation payload.
     [[nodiscard]] bool operator==(Impl const &) const = default;
 };
 

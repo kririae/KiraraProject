@@ -140,7 +140,7 @@ public:
         return result;
     }
 
-    /// \brief Commits Context-owned changes before backend synchronization.
+    /// \brief Commits changes owned by this context.
     void commit() noexcept;
 
 private:

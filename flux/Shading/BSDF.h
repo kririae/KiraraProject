@@ -83,10 +83,10 @@ struct BSDFResult {
     BSDFSample sample{};
 };
 
-/// \brief Builds the fused BSDF interface from separate evaluation and sampling operations.
+/// \brief Implements \c execute() with \c evalAndPdf() and \c sample().
 ///
-/// Simple implementations inherit this mixin and provide \c evalAndPdf and
-/// \c sample. Implementations that share more work may define \c execute directly.
+/// Derived provides \c evalAndPdf and \c sample. It may define \c execute
+/// directly when evaluation and sampling share work.
 template <typename Derived> class BSDFMixin { // NOLINT
 private:
     [[nodiscard]] KIRA_HOST_DEVICE Derived const &derived_() const noexcept {
@@ -122,10 +122,7 @@ protected:
     BSDF(TXContext &tx, BSDFType type);
 
 public:
-    /// \brief Heterogeneous scattering implementation.
     struct Impl;
-
-    /// \brief Selects and executes a scattering implementation.
     struct Dispatcher;
 
     /// \brief Returns the concrete implementation type.
@@ -234,7 +231,7 @@ public:
     ) const noexcept;
 };
 
-/// \brief Heterogeneous BSDF storage.
+/// \brief Stores one BSDF implementation.
 struct BSDF::Impl {
     BSDFType type;
 
@@ -244,7 +241,7 @@ struct BSDF::Impl {
     } storage;
 };
 
-/// \brief Dispatches BSDFs from one known implementation set.
+/// \brief Executes one BSDF.
 struct BSDF::Dispatcher {
     /// Complete set of implementations that may be passed to \c execute.
     BSDFTypeMask types;

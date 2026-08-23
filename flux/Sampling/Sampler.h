@@ -86,9 +86,9 @@ public:
     [[nodiscard]] KIRA_HOST_DEVICE inline Vec2f getPixel2D() noexcept;
 };
 
-/// \brief Sampler dispatcher.
+/// \brief Generates samples for one camera path.
 ///
-/// The explicit dispatch switch keeps the discriminator visible to OptiX bound-value
+/// The explicit dispatch keeps the sampler type visible to OptiX bound-value
 /// specialization.
 struct Sampler::Impl {
     /// Concrete implementation selected for this dispatcher.

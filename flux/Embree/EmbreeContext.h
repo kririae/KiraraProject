@@ -107,14 +107,14 @@ private:
     /// Image textures used by BSDFs.
     EmbreeImageTexturePool imageTexturePool_;
 
-    /// Persistent light data referenced by scene views.
+    /// Light data for the current scene.
     EmbreeLightSampler lightSampler_;
 };
 
-/// \brief Borrowed view of an Embree scene.
+/// \brief Embree scene used during rendering.
 ///
-/// The owning EmbreeContext keeps every referenced array and Embree handle
-/// valid until its next sync or destruction.
+/// EmbreeContext keeps the referenced memory and handles valid until its next
+/// sync.
 struct EmbreeContext::Impl {
     /// Current top-level Embree scene.
     RTCScene scene{};
@@ -139,7 +139,7 @@ struct EmbreeContext::Impl {
 
     EmbreeImageTexturePool::Impl imageTexturePool{};
 
-    /// Borrowed light sampler.
+    /// Light sampler for this scene.
     LightSampler lightSampler{};
 
     std::uint32_t numGeometries{};  // *geometries

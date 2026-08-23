@@ -69,7 +69,7 @@ KIRA_HOST_DEVICE inline Vec2f Sampler::Impl::getPixel2D() noexcept {
 }
 
 namespace optix {
-/// Device-side sampler dispatcher.
+/// Sampler used by OptiX device programs.
 using Sampler = ::flux::Sampler::Impl;
 } // namespace optix
 } // namespace flux

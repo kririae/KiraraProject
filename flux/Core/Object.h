@@ -61,10 +61,8 @@ public:
 
     template <typename U> friend class Ref;
 
-    /// \brief Constructs an empty reference.
     Ref() noexcept = default;
 
-    /// \brief Constructs an empty reference.
     Ref(std::nullptr_t) noexcept {}
 
     /// \brief Takes a reference to \p pointer.
@@ -78,18 +76,14 @@ public:
             pointer_->incrementRef();
     }
 
-    /// \brief Copies an owning reference.
     Ref(Ref const &other) noexcept : Ref(other.pointer_) {}
 
-    /// \brief Converts and copies a compatible owning reference.
     template <typename U>
         requires(std::is_convertible_v<U *, T *>)
     Ref(Ref<U> const &other) noexcept : Ref(other.pointer_) {}
 
-    /// \brief Moves an owning reference.
     Ref(Ref &&other) noexcept : pointer_(std::exchange(other.pointer_, nullptr)) {}
 
-    /// \brief Converts and moves a compatible owning reference.
     template <typename U>
         requires(std::is_convertible_v<U *, T *>)
     Ref(Ref<U> &&other) noexcept : pointer_(std::exchange(other.pointer_, nullptr)) {}
@@ -99,28 +93,22 @@ public:
             pointer_->decrementRef();
     }
 
-    /// \brief Replaces this reference with \p other.
     Ref &operator=(Ref other) noexcept {
         swap(*this, other);
         return *this;
     }
 
-    /// \brief Exchanges two references.
     friend void swap(Ref &lhs, Ref &rhs) noexcept {
         using std::swap;
         swap(lhs.pointer_, rhs.pointer_);
     }
 
-    /// \brief Returns the stored pointer.
     [[nodiscard]] T *get() const noexcept { return pointer_; }
 
-    /// \brief Returns the referenced object.
     [[nodiscard]] T &operator*() const noexcept { return *pointer_; }
 
-    /// \brief Returns the stored pointer for member access.
     [[nodiscard]] T *operator->() const noexcept { return pointer_; }
 
-    /// \brief Returns whether this reference owns an object.
     [[nodiscard]] explicit operator bool() const noexcept { return pointer_ != nullptr; }
 
     /// \brief Returns the object's current reference count.
@@ -154,11 +142,9 @@ private:
 /// \brief Base class for objects managed by \c Ref.
 class Object : public RefCountedBase<Object> {
 protected:
-    /// \brief Constructs an object with no owning references.
     Object() = default;
 
 public:
-    /// \brief Destroys the object after its final reference is released.
     virtual ~Object() = default;
 };
 

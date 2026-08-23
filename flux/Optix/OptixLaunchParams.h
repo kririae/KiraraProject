@@ -21,7 +21,7 @@ struct OptixLaunchSample {
 
 /// \brief Parameters shared by an OptiX render launch.
 struct OptixLaunchParams {
-    /// Borrowed OptiX scene view used by this launch.
+    /// OptiX scene for this launch.
     OptixContext::Impl scene;
 
     Camera::Impl camera;

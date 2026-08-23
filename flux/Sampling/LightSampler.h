@@ -13,10 +13,10 @@
 #include "kira/Compiler.h"
 
 namespace flux {
-/// \brief One light selected from a backend light table.
+/// \brief A selected light and its probability.
 ///
-/// A zero PMF marks an empty selection. Light indices are dense only within
-/// the backend sync that produced the sampler.
+/// A zero PMF marks no selection. The light index refers to the \c LightSampler
+/// that returned it.
 struct SampledLight {
     /// Sentinel used when no light can be selected.
     static constexpr std::uint32_t invalidIndex = std::numeric_limits<std::uint32_t>::max();
@@ -26,16 +26,12 @@ struct SampledLight {
     float pmf{};
 };
 
-/// \brief Light-selection view used by shared transport code.
-///
-/// Renderer backends own the light table and any persistent sampling data.
-/// This view remains valid until the owning backend rebuilds or destroys its
-/// light table.
+/// \brief Selects one light.
 struct LightSampler {
     /// Largest light table addressed without exceeding sampler precision.
     static constexpr std::uint32_t maxLightCount = 1U << 24U;
 
-    /// Light table borrowed from the owning renderer backend.
+    /// Lights available for selection.
     LightTable lights;
 
 public:

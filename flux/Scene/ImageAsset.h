@@ -112,7 +112,10 @@ private:
 
     /// \brief Reads the complete image into host memory.
     ///
-    /// The buffer has one, two, or four components in bottom-up order.
+    /// The buffer has one, two, or four components in bottom-up order. Float16
+    /// and Float32 sRGB pixels are converted to linear. UNorm8 sRGB pixels keep
+    /// their encoded values and report sRGB as their color space. Color
+    /// conversion does not change alpha.
     [[nodiscard]] ImageBuffer read() const;
 
     std::unique_ptr<pImpl> pImpl_;
@@ -120,7 +123,8 @@ private:
 
 /// \brief Shares ImageAsset objects by canonical path and color space.
 ///
-/// The pool validates image metadata before adding an asset.
+/// The pool validates image metadata before adding an asset. Concurrent calls
+/// share one creation for each canonical path and color space.
 class ImageAssetPool {
 public:
     ImageAssetPool();

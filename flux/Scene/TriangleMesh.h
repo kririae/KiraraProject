@@ -92,10 +92,9 @@ private:
     float surfaceArea_{};
 };
 
-/// \brief Stores indexed triangle mesh data for a backend scene.
+/// \brief Indexed triangle mesh used during rendering.
 ///
-/// The active backend keeps every referenced array alive while its scene uses
-/// this Impl.
+/// The backend keeps the referenced arrays valid until it rebuilds the scene.
 struct TriangleMesh::Impl {
     /// Array of geometry-space vertex positions.
     Vec3f const *vertices{};

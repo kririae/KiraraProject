@@ -10,12 +10,13 @@
 namespace flux {
 class Context;
 
-/// \brief Provides ImageTexture lookups for Embree.
+/// \brief Evaluates image textures for Embree.
 class EmbreeImageTexturePool final : private Noncopyable {
 private:
     struct Entry;
 
 public:
+    /// \brief Evaluates image textures during an Embree render.
     struct Impl {
         Entry const *textures{};
 
@@ -33,7 +34,9 @@ public:
     void build(Context const &context);
     void clear() noexcept;
 
-    /// \brief Returns a view valid until the next \c build or \c clear.
+    /// \brief Returns the image texture evaluator used during rendering.
+    ///
+    /// The result remains valid until the next \c build or \c clear.
     [[nodiscard]] Impl getImpl() const noexcept {
         return {
             .textures = textures_.data(),
