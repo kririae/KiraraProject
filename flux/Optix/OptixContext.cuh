@@ -9,6 +9,7 @@
 #include "flux/Optix/OptixContext.h"
 #include "flux/Optix/OptixInteraction.cuh"
 #include "flux/Scene/GeometryImpl.h"
+#include "flux/Scene/LightSamplingImpl.h"
 #include "flux/Scene/PrimitiveImpl.h"
 #include "flux/Shading/EDF.h"
 
@@ -116,6 +117,18 @@ OptixContext::Impl::getBSDF(std::uint32_t bsdfIndex) const noexcept {
 KIRA_DEVICE inline EDF::Impl const &
 OptixContext::Impl::getEDF(std::uint32_t edfIndex) const noexcept {
     return edfs[edfIndex];
+}
+
+KIRA_DEVICE inline DirectLightSample OptixContext::Impl::sampleDirectLight(
+    LightSamplingContext const &ctx, float uSelect, Vec2f const &uLight
+) const noexcept {
+    return flux::sampleDirectLight(*this, ctx, uSelect, uLight);
+}
+
+KIRA_DEVICE inline float OptixContext::Impl::pdfDirectLight(
+    LightSamplingContext const &ctx, Primitive::Impl const &prim, SurfaceInteraction const &isect
+) const noexcept {
+    return flux::pdfDirectLight(*this, ctx, prim, isect);
 }
 
 } // namespace flux

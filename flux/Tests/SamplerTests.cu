@@ -9,7 +9,7 @@
 #include "TestUtils.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/OptixUtils.h"
-#include "flux/Sampling/LightSampler.h"
+#include "flux/Sampling/LightPowerDistribution.h"
 #include "flux/Sampling/SamplerImpl.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/TXContext.h"
@@ -157,37 +157,28 @@ TEST(SamplerTests, DispatchesDeterministicPixelSequences) {
     flux::cudaCheck(cudaStreamSynchronize(cudaStreamPerThread));
 }
 
-TEST(SamplerTests, SelectsBackendLightsByPower) {
-    auto const records = std::array{
-        flux::LightRecord{.type = flux::LightRecordType::Point, .typedIndex = 1},
-        flux::LightRecord{.type = flux::LightRecordType::Point, .typedIndex = 0},
-    };
+TEST(SamplerTests, SelectsLightsByPower) {
     auto const powers = std::array{1.0F, 2.0F};
     auto const powerCDF = flux::buildLightPowerCDF(powers);
-    auto const sampler = flux::LightSampler{
-        .lights = {
-            .records = records.data(),
-            .powerCDF = powerCDF.data(),
-            .powerSum = powerCDF.back(),
-            .numLights = static_cast<std::uint32_t>(records.size()),
-        },
+    auto const sampler = flux::LightPowerDistribution{
+        .cdf = powerCDF.data(),
+        .sum = powerCDF.back(),
+        .numLights = static_cast<std::uint32_t>(powers.size()),
     };
-    auto const ctx = flux::LightSamplingContext{.position = {0.0F, 0.0F, 0.0F}};
-
-    auto const first = sampler.sample(ctx, 0.0F);
-    auto const last = sampler.sample(ctx, std::nextafter(1.0F, 0.0F));
+    auto const first = sampler.sample(0.0F);
+    auto const last = sampler.sample(std::nextafter(1.0F, 0.0F));
     EXPECT_EQ(first.lightIndex, 0);
     EXPECT_EQ(last.lightIndex, 1);
     EXPECT_FLOAT_EQ(first.pmf, 1.0F / 3.0F);
     EXPECT_FLOAT_EQ(last.pmf, 2.0F / 3.0F);
-    EXPECT_FLOAT_EQ(sampler.pmf(ctx, first.lightIndex), first.pmf);
-    EXPECT_FLOAT_EQ(sampler.pmf(ctx, records.size()), 0.0F);
+    EXPECT_FLOAT_EQ(sampler.pmf(first.lightIndex), first.pmf);
+    EXPECT_FLOAT_EQ(sampler.pmf(powers.size()), 0.0F);
 
-    auto const single = flux::LightSampler{.lights = {.numLights = 1}};
-    EXPECT_EQ(single.sample(ctx, 0.5F).lightIndex, 0);
-    EXPECT_FLOAT_EQ(single.pmf(ctx, 0), 1.0F);
+    auto const single = flux::LightPowerDistribution{.numLights = 1};
+    EXPECT_EQ(single.sample(0.5F).lightIndex, 0);
+    EXPECT_FLOAT_EQ(single.pmf(0), 1.0F);
 
-    auto const empty = flux::LightSampler{}.sample(ctx, 0.0F);
+    auto const empty = flux::LightPowerDistribution{}.sample(0.0F);
     EXPECT_EQ(empty.lightIndex, flux::SampledLight::invalidIndex);
     EXPECT_FLOAT_EQ(empty.pmf, 0.0F);
 }
@@ -202,16 +193,12 @@ TEST(SamplerTests, FallsBackToUniformSelectionWhenAllPowersAreZero) {
 TEST(SamplerTests, KeepsPositiveLightsSelectableAcrossLargePowerRatios) {
     auto const powers = std::array{std::numeric_limits<float>::max(), 1.0F};
     auto const powerCDF = flux::buildLightPowerCDF(powers);
-    auto const sampler = flux::LightSampler{
-        .lights = {
-            .powerCDF = powerCDF.data(),
-            .powerSum = powerCDF.back(),
-            .numLights = static_cast<std::uint32_t>(powers.size()),
-        },
+    auto const sampler = flux::LightPowerDistribution{
+        .cdf = powerCDF.data(),
+        .sum = powerCDF.back(),
+        .numLights = static_cast<std::uint32_t>(powers.size()),
     };
-    auto const ctx = flux::LightSamplingContext{};
-
-    auto const sample = sampler.sample(ctx, std::nextafter(1.0F, 0.0F));
+    auto const sample = sampler.sample(std::nextafter(1.0F, 0.0F));
     EXPECT_EQ(sample.lightIndex, 1);
     EXPECT_GT(sample.pmf, 0.0F);
 }

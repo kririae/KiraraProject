@@ -62,7 +62,7 @@ add_library(
     Optix/OptixProgram.cpp
     Optix/OptixRenderProductPool.cpp
     Optix/OptixSbt.cpp
-    Sampling/LightSampler.cpp
+    Sampling/LightPowerDistribution.cpp
     Sampling/Sampler.cpp
     Scene/Camera.cpp
     Scene/Context.cpp
@@ -70,6 +70,7 @@ add_library(
     Scene/Film.cpp
     Scene/Geometry.cpp
     Scene/Light.cpp
+    Scene/LightTableData.cpp
     Scene/Primitive.cpp
     Scene/RenderObject.cpp
     Scene/RenderProduct.cpp

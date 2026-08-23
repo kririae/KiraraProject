@@ -213,7 +213,7 @@ OptixContext::Impl OptixContext::getImpl() const noexcept {
         .bsdfs = storage_->bsdfs.data(),
         .edfs = storage_->edfs.data(),
         .imageTexturePool = storage_->imageTexturePool.getImpl(),
-        .lightSampler = storage_->lightSampler.getSampler(),
+        .lightSampler = storage_->lightSampler.getImpl(),
         .numGeometries = static_cast<std::uint32_t>(storage_->geometryPool.size()),
         .numPrimitives = static_cast<std::uint32_t>(storage_->primitives.size()),
         .bsdfIndexLimit = static_cast<std::uint32_t>(storage_->bsdfs.size()),

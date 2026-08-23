@@ -1,11 +1,11 @@
-#include "flux/Sampling/LightSampler.h"
+#include "flux/Sampling/LightPowerDistribution.h"
 
 #include "kira/Anyhow.h"
 
 namespace flux {
 std::vector<float> buildLightPowerCDF(std::span<float const> weights) {
-    if (weights.size() > LightSampler::maxLightCount)
-        throw kira::Anyhow("LightSampler: light count exceeds sampler resolution");
+    if (weights.size() > LightPowerDistribution::maxLightCount)
+        throw kira::Anyhow("LightPowerDistribution: light count exceeds sampler resolution");
 
     std::vector<float> cdf;
     cdf.reserve(weights.size());
@@ -13,7 +13,7 @@ std::vector<float> buildLightPowerCDF(std::span<float const> weights) {
     std::size_t nonzeroWeights = 0;
     for (auto const weight : weights) {
         if (weight < 0.0F)
-            throw kira::Anyhow("LightSampler: estimated light power must be nonnegative");
+            throw kira::Anyhow("LightPowerDistribution: estimated light power must be nonnegative");
         sum += weight;
         nonzeroWeights += weight != 0.0F;
     }
@@ -29,7 +29,7 @@ std::vector<float> buildLightPowerCDF(std::span<float const> weights) {
             cdf.push_back(static_cast<float>(cumulative));
         }
     } else {
-        constexpr double minimumProbability = 1.0 / LightSampler::maxLightCount;
+        constexpr double minimumProbability = 1.0 / LightPowerDistribution::maxLightCount;
         auto const remainingProbability =
             1.0 - minimumProbability * static_cast<double>(nonzeroWeights);
         for (auto const weight : weights) {

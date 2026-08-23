@@ -19,15 +19,14 @@ enum class LightType : std::uint8_t {
 struct LightSamplingContext {
     /// World-space receiving position.
     Vec3f position{};
-    /// World-space shading normal at a surface vertex.
+    /// World-space geometric normal at a surface vertex.
     Vec3f normal{};
 };
 
 /// \brief Result of sampling incident radiance from one selected light.
 ///
-/// \c wi points from the surface toward the light. For a non-delta light,
-/// \c pdf is the conditional solid-angle density after light selection. A
-/// delta light uses unit mass. A zero PDF marks an invalid sample.
+/// \c wi points from the surface toward the light. A zero PDF marks an invalid
+/// sample. Scene sampling includes light selection in \c pdf.
 struct DirectLightSample {
     /// Incident radiance along \c wi.
     Spectrum radiance{};
@@ -35,7 +34,7 @@ struct DirectLightSample {
     Vec3f position{};
     /// World-space direction from the surface toward the light.
     Vec3f wi{};
-    /// Conditional solid-angle density, or unit mass for a delta light.
+    /// Solid-angle density, or discrete mass for a delta light.
     float pdf{};
     /// Whether the sampled light has a discrete directional distribution.
     bool delta{};
@@ -98,18 +97,18 @@ struct PointLight::Impl {
     Spectrum intensity{};
 
 public:
-    /// \brief Samples incident radiance at \p context.
+    /// \brief Samples incident radiance at \p ctx.
     ///
     /// A point light has one discrete direction, so a valid sample has unit
     /// conditional mass and \c delta set. A coincident receiving position
     /// produces an invalid sample.
     [[nodiscard]] KIRA_HOST_DEVICE DirectLightSample
-    sampleDirect(LightSamplingContext const &context) const noexcept;
+    sampleDirect(LightSamplingContext const &ctx) const noexcept;
 };
 
 KIRA_HOST_DEVICE inline DirectLightSample
-PointLight::Impl::sampleDirect(LightSamplingContext const &context) const noexcept {
-    auto const d = position - context.position;
+PointLight::Impl::sampleDirect(LightSamplingContext const &ctx) const noexcept {
+    auto const d = position - ctx.position;
     auto const dist2 = d.norm2();
     if (!(dist2 > 0.0F))
         return {};
@@ -133,7 +132,7 @@ enum class LightRecordType : std::uint8_t {
 struct LightRecord {
     LightRecordType type{};
     /// Index in the array selected by \c type.
-    std::uint32_t typedIndex{};
+    std::uint32_t index{};
 };
 
 /// \brief Maps light indices to lights.
@@ -143,15 +142,9 @@ struct LightTable {
     /// Dense point-light implementations.
     PointLight::Impl const *pointLights{};
     /// Dense primitive indices for emissive primitive records.
-    std::uint32_t const *primitiveIndices{};
+    std::uint32_t const *primIndices{};
     /// Estimated object-to-world area scales for emissive primitives.
-    float const *primitiveAreaScales{};
-    /// Cumulative estimated light powers in record order.
-    float const *powerCDF{};
-    /// Final value of \c powerCDF.
-    float powerSum{};
-    /// Number of records in \c records.
-    std::uint32_t numLights{};
+    float const *primAreaScales{};
 };
 
 static_assert(std::is_standard_layout_v<DirectLightSample>);

@@ -4,34 +4,50 @@
 #include <vector>
 
 #include "flux/Core/Object.h"
-#include "flux/Sampling/LightSampler.h"
-#include "flux/Scene/Light.h"
-#include "flux/Scene/Primitive.h"
+#include "flux/Scene/LightTableData.h"
 
 namespace flux {
-/// \brief Builds the Embree light table and selection distribution.
+/// \brief Owns the light table and power distribution used by Embree.
 class EmbreeLightSampler final : private Noncopyable {
 public:
-    /// \brief Rebuilds host light data in light table order.
-    ///
-    /// An empty span clears the light table.
+    struct Impl;
+
+    /// \brief Rebuilds the sampler and assigns light indices in \p primImpls.
     void build(
-        std::span<Ref<Light const> const> lights, std::span<Ref<Primitive const> const> primitives,
-        std::span<Primitive::Impl> primitiveImpls
+        std::span<Ref<Light const> const> lights, std::span<Ref<Primitive const> const> prims,
+        std::span<Primitive::Impl> primImpls
     );
 
     void clear() noexcept;
 
-    /// \brief Returns the current light sampler.
+    /// \brief Returns the sampler used for rendering.
     ///
     /// The result remains valid until the next \c build or \c clear.
-    [[nodiscard]] LightSampler getSampler() const noexcept;
+    [[nodiscard]] Impl getImpl() const noexcept;
 
 private:
-    std::vector<LightRecord> records_;
-    std::vector<PointLight::Impl> pointLights_;
-    std::vector<std::uint32_t> primitiveIndices_;
-    std::vector<float> primitiveAreaScales_;
+    LightTableData tableData_;
     std::vector<float> powerCDF_;
 };
+
+/// \brief Embree light table and selection distribution used during rendering.
+struct EmbreeLightSampler::Impl {
+    LightTable table{};
+    LightPowerDistribution power{};
+
+public:
+    [[nodiscard]] SampledLight sample(LightSamplingContext const &ctx, float u) const noexcept {
+        (void)ctx;
+        return power.sample(u);
+    }
+
+    [[nodiscard]] float
+    pmf(LightSamplingContext const &ctx, std::uint32_t lightIndex) const noexcept {
+        (void)ctx;
+        return power.pmf(lightIndex);
+    }
+};
+
+static_assert(std::is_standard_layout_v<EmbreeLightSampler::Impl>);
+static_assert(std::is_trivially_copyable_v<EmbreeLightSampler::Impl>);
 } // namespace flux

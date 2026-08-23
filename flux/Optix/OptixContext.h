@@ -12,7 +12,7 @@
 #include "flux/Core/Object.h"
 #include "flux/Core/Ray.h"
 #include "flux/Optix/OptixImageTexturePool.h"
-#include "flux/Sampling/LightSampler.h"
+#include "flux/Optix/OptixLightSampler.h"
 #include "flux/Scene/GeometryImpl.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Shading/BSDF.h"
@@ -90,8 +90,7 @@ struct OptixContext::Impl {
 
     OptixImageTexturePool::Impl imageTexturePool{};
 
-    /// Light sampler for this scene.
-    LightSampler lightSampler{};
+    OptixLightSampler::Impl lightSampler{};
 
     std::uint32_t numGeometries{};  // *geometries
     std::uint32_t numPrimitives{};  // *primitives
@@ -137,9 +136,20 @@ public:
 
     [[nodiscard]] KIRA_DEVICE inline EDF::Impl const &getEDF(std::uint32_t edfIndex) const noexcept;
 
-    [[nodiscard]] KIRA_DEVICE inline LightSampler const &getLightSampler() const noexcept {
-        return lightSampler;
-    }
+    /// \brief Samples incident radiance from one light.
+    ///
+    /// The returned PDF includes light selection.
+    [[nodiscard]] KIRA_DEVICE DirectLightSample sampleDirectLight(
+        LightSamplingContext const &ctx, float uSelect, Vec2f const &uLight
+    ) const noexcept;
+
+    /// \brief Returns the PDF of sampling \p isect from \p ctx.
+    ///
+    /// The PDF includes light selection.
+    [[nodiscard]] KIRA_DEVICE float pdfDirectLight(
+        LightSamplingContext const &ctx, Primitive::Impl const &prim,
+        SurfaceInteraction const &isect
+    ) const noexcept;
 };
 
 static_assert(std::is_standard_layout_v<OptixContext::Impl>);

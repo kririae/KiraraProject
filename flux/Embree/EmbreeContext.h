@@ -107,7 +107,6 @@ private:
     /// Image textures used by BSDFs.
     EmbreeImageTexturePool imageTexturePool_;
 
-    /// Light data for the current scene.
     EmbreeLightSampler lightSampler_;
 };
 
@@ -139,8 +138,7 @@ struct EmbreeContext::Impl {
 
     EmbreeImageTexturePool::Impl imageTexturePool{};
 
-    /// Light sampler for this scene.
-    LightSampler lightSampler{};
+    EmbreeLightSampler::Impl lightSampler{};
 
     std::uint32_t numGeometries{};  // *geometries
     std::uint32_t numPrimitives{};  // *primitives
@@ -195,7 +193,20 @@ public:
         return edfs[index];
     }
 
-    [[nodiscard]] LightSampler const &getLightSampler() const noexcept { return lightSampler; }
+    /// \brief Samples incident radiance from one light.
+    ///
+    /// The returned PDF includes light selection.
+    [[nodiscard]] DirectLightSample sampleDirectLight(
+        LightSamplingContext const &ctx, float uSelect, Vec2f const &uLight
+    ) const noexcept;
+
+    /// \brief Returns the PDF of sampling \p isect from \p ctx.
+    ///
+    /// The PDF includes light selection.
+    [[nodiscard]] float pdfDirectLight(
+        LightSamplingContext const &ctx, Primitive::Impl const &prim,
+        SurfaceInteraction const &isect
+    ) const noexcept;
 };
 
 static_assert(std::is_standard_layout_v<EmbreeContext::Impl>);

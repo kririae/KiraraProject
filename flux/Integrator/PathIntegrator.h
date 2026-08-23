@@ -5,8 +5,8 @@
 #include <type_traits>
 
 #include "flux/Core/Ray.h"
-#include "flux/Sampling/LightSampler.h"
 #include "flux/Sampling/SamplerImpl.h"
+#include "flux/Scene/Light.h"
 #include "flux/Scene/PrimitiveImpl.h"
 #include "flux/Scene/RenderObject.h"
 #include "flux/Shading/BSDF.h"
@@ -118,18 +118,9 @@ public:
         [[nodiscard]] KIRA_HOST_DEVICE DirectLightSample sampleDirectLight(
             PathState &state, BackendContext const &backend, LightSamplingContext const &ctx
         ) const noexcept {
-            auto const &lightSampler = backend.getLightSampler();
             auto const uSelect = state.sampler.get1D();
             auto const uLight = state.sampler.get2D();
-            auto const selected = lightSampler.sample(ctx, uSelect);
-            if (selected.pmf <= 0.0F)
-                return {};
-
-            auto lightSample = lightSampler.sampleDirect(backend, selected.lightIndex, ctx, uLight);
-            if (lightSample.pdf <= 0.0F)
-                return {};
-            lightSample.pdf *= selected.pmf;
-            return lightSample;
+            return backend.sampleDirectLight(ctx, uSelect, uLight);
         }
 
         /// \brief Builds a direct-light contribution awaiting a visibility test.
@@ -156,23 +147,19 @@ public:
         /// \brief Adds emission at the current surface with the BSDF-sampling MIS weight.
         template <typename BackendContext>
         KIRA_HOST_DEVICE void onEmitterHit(
-            PathState &state, BackendContext const &backend, Primitive::Impl const &primitive,
+            PathState &state, BackendContext const &backend, Primitive::Impl const &prim,
             SurfaceInteraction const &isect, Vec3f const &wo
         ) const noexcept {
-            if (!primitive.hasEDF())
+            if (!prim.hasEDF())
                 return;
 
             auto weight = 1.0F;
             if (state.depth > 0 && !state.prevDelta) {
-                auto const &lightSampler = backend.getLightSampler();
-                auto const lightPdf =
-                    lightSampler.pmf(state.prevLightCtx, primitive.getLightIndex()) *
-                    lightSampler.pdfDirect(
-                        backend, primitive.getLightIndex(), state.prevLightCtx, isect
-                    );
+                auto const lightPdf = backend.pdfDirectLight(state.prevLightCtx, prim, isect);
                 weight = misWeight(state.prevBSDFPdf, lightPdf);
             }
-            auto const emission = backend.getEDF(primitive.getEDFIndex())
+
+            auto const emission = backend.getEDF(prim.getEDFIndex())
                                       .evaluate({
                                           .geometricNormal = isect.geometricNormal,
                                           .wo = wo,

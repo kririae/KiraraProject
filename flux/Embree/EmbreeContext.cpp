@@ -11,6 +11,7 @@
 #include "flux/Embree/EmbreeUtils.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/GeometryImpl.h"
+#include "flux/Scene/LightSamplingImpl.h"
 #include "flux/Scene/PrimitiveImpl.h"
 #include "flux/Scene/TriangleMeshImpl.h"
 #include "flux/Shading/EDF.h"
@@ -258,7 +259,7 @@ EmbreeContext::Impl EmbreeContext::getImpl() const noexcept {
         .bsdfs = bsdfs_.data(),
         .edfs = edfs_.data(),
         .imageTexturePool = imageTexturePool_.getImpl(),
-        .lightSampler = lightSampler_.getSampler(),
+        .lightSampler = lightSampler_.getImpl(),
         .numGeometries = static_cast<std::uint32_t>(geometryImpls_.size()),
         .numPrimitives = static_cast<std::uint32_t>(primitives_.size()),
         .bsdfIndexLimit = static_cast<std::uint32_t>(bsdfs_.size()),
@@ -316,6 +317,18 @@ EmbreeContext::Impl::makeSurfaceInteraction(Ray const &ray, Hit const &hit) cons
         .primitiveIndex = hit.primitiveIndex,
         .elementIndex = hit.preliminary.elementIndex,
     };
+}
+
+DirectLightSample EmbreeContext::Impl::sampleDirectLight(
+    LightSamplingContext const &ctx, float uSelect, Vec2f const &uLight
+) const noexcept {
+    return flux::sampleDirectLight(*this, ctx, uSelect, uLight);
+}
+
+float EmbreeContext::Impl::pdfDirectLight(
+    LightSamplingContext const &ctx, Primitive::Impl const &prim, SurfaceInteraction const &isect
+) const noexcept {
+    return flux::pdfDirectLight(*this, ctx, prim, isect);
 }
 
 } // namespace flux
