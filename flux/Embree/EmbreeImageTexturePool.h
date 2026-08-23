@@ -1,0 +1,52 @@
+#pragma once
+
+#include <cstdint>
+#include <vector>
+
+#include "flux/Core/Math.h"
+#include "flux/Core/Object.h"
+#include "flux/Shading/Texture.h"
+
+namespace flux {
+class Context;
+
+/// \brief Evaluates image textures for Embree.
+class EmbreeImageTexturePool final : private Noncopyable {
+private:
+    struct Entry;
+
+public:
+    /// \brief Evaluates image textures during an Embree render.
+    struct Impl {
+        Entry const *textures{};
+
+        /// \brief Samples image texture \p index at normalized UV coordinates.
+        /// \pre \p index refers to an entry built by \c EmbreeImageTexturePool.
+        [[nodiscard]] Vec4f eval4f(std::uint32_t index, Vec2f uv) const noexcept;
+    };
+
+    EmbreeImageTexturePool();
+    ~EmbreeImageTexturePool();
+
+    /// \brief Rebuilds the image texture entries in \p context.
+    ///
+    /// After this function throws, call \c build again before rendering.
+    void build(Context const &context);
+    void clear() noexcept;
+
+    /// \brief Returns the image texture evaluator used during rendering.
+    ///
+    /// The result remains valid until the next \c build or \c clear.
+    [[nodiscard]] Impl getImpl() const noexcept {
+        return {
+            .textures = textures_.data(),
+        };
+    }
+
+private:
+    std::vector<Entry> textures_;
+};
+
+static_assert(std::is_standard_layout_v<EmbreeImageTexturePool::Impl>);
+static_assert(std::is_trivially_copyable_v<EmbreeImageTexturePool::Impl>);
+} // namespace flux

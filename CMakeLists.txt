@@ -29,6 +29,7 @@ option(KRR_ENABLE_CLANG_TIDY "Enable clang-tidy for analysis" OFF)
 
 # Optional modules
 option(KRR_BUILD_KIRARA_DANCE "Build the KiraraDance application" OFF)
+option(KRR_BUILD_FLUX "Build the Flux renderer" OFF)
 
 # ----------------------------------------------------------
 # vcpkg setup
@@ -175,6 +176,10 @@ endif()
 # Setup projects
 # ----------------------------------------------------------
 add_subdirectory(kira)
+
+if(KRR_BUILD_FLUX)
+    add_subdirectory(flux)
+endif()
 
 if(KRR_BUILD_KIRARA_DANCE)
     add_subdirectory(kirara-dance2)

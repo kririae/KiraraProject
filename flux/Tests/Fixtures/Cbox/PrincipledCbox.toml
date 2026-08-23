@@ -1,0 +1,77 @@
+[camera]
+position = [0.0, 1.0, 6.8]
+look_at = [0.0, 1.0, 0.0]
+ref_up = [0.0, 1.0, 0.0]
+fov = 19.5
+focal_length = 1.0
+
+[film]
+resolution = [512, 512]
+num_samples = 256
+
+[integrator]
+type = "path"
+max_depth = 64
+rr_depth = 8
+rr_prob = 0.95
+shader_reorder = true
+
+[[bsdf]]
+name = "grey"
+type = "principled"
+base_color = [0.725, 0.71, 0.68]
+roughness = 0.5
+
+[[bsdf]]
+name = "green"
+type = "principled"
+base_color = [0.14, 0.45, 0.091]
+roughness = 0.5
+
+[[bsdf]]
+name = "red"
+type = "principled"
+base_color = [0.63, 0.065, 0.05]
+roughness = 0.5
+
+[[primitive]]
+type = "trimesh"
+path = "geometry/light.ply"
+face_normals = true
+light = { type = "area", emission = [17.0, 12.0, 5.0] }
+
+[[primitive]]
+type = "trimesh"
+path = "geometry/floor.ply"
+face_normals = true
+bsdf = "grey"
+
+[[primitive]]
+type = "trimesh"
+path = "geometry/left.ply"
+face_normals = true
+bsdf = "red"
+
+[[primitive]]
+type = "trimesh"
+path = "geometry/right.ply"
+face_normals = true
+bsdf = "green"
+
+[[primitive]]
+type = "trimesh"
+path = "geometry/ceiling.ply"
+face_normals = true
+bsdf = "grey"
+
+[[primitive]]
+type = "trimesh"
+path = "geometry/back.ply"
+face_normals = true
+bsdf = "grey"
+
+[[primitive]]
+type = "trimesh"
+path = "geometry/boxes.ply"
+face_normals = true
+bsdf = "grey"

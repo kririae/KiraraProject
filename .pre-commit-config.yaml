@@ -1,14 +1,19 @@
+default_install_hook_types: [pre-commit, commit-msg]
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v6.0.0
     hooks:
+      - id: trailing-whitespace
+        exclude: ^vcpkg/ports/openimageio/fix-scanline-color-transform\.patch$
       - id: check-toml
       - id: check-added-large-files
 
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v18.1.7
+    rev: v22.1.4
     hooks:
       - id: clang-format
+        files: ^flux/
         types_or: [c++, c, cuda]
 
   - repo: https://github.com/compilerla/conventional-pre-commit
