@@ -7,8 +7,9 @@
 #include <source_location>
 #include <utility>
 
-#include "flux/Core/KIRA.h"
+#include "flux/Core/Logging.h"
 #include "flux/Core/Object.h"
+#include "kira/Anyhow.h"
 
 namespace flux {
 /// \brief Converts a CUDA allocation pointer to an OptiX device address.

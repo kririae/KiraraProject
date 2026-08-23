@@ -1,10 +1,13 @@
+#include <fmt/format.h>
+#include <spdlog/spdlog.h>
+
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
 #include <exception>
 #include <filesystem>
-#include <iomanip>
-#include <iostream>
 
+#include "flux/Core/Logging.h"
 #include "flux/Embree/EmbreeHandler.h"
 #include "flux/FLux/FLuxCLI.h"
 #include "flux/FLux/TomlScene.h"
@@ -16,9 +19,18 @@
 #error "FLUX_OPTIX_IR must name the Flux OptiX IR module"
 #endif
 
-int main(int argc, char **argv) try {
+namespace {
+int run(int argc, char **argv) {
     auto const request = flux::parseFluxCLI(argc, argv);
+    flux::configureLogging(request);
     auto scene = flux::loadTomlScene(request);
+
+    auto const &film = scene.product->getFilm();
+    auto const *backend = request.backend == flux::RenderBackend::Optix ? "OptiX" : "Embree";
+    flux::LogInfo(
+        "rendering '{}' with {} at {}x{}, {} sample(s) per pixel", request.scenePath.string(),
+        backend, film.getWidth(), film.getHeight(), scene.product->getSamplesPerPixel()
+    );
 
     auto const stats = [&] {
         if (request.backend == flux::RenderBackend::Optix) {
@@ -51,10 +63,30 @@ int main(int argc, char **argv) try {
 
     using Milliseconds = std::chrono::duration<double, std::chrono::milliseconds::period>;
     auto const elapsed = std::chrono::duration_cast<Milliseconds>(stats.elapsed);
-    std::cout << std::fixed << std::setprecision(1) << "rendering: " << stats.paths
-              << " camera paths in " << elapsed.count() << " ms, "
-              << stats.getPathsPerSecond() / 1.0e6 << " Mpaths/s\n";
-} catch (std::exception const &exception) {
-    std::cerr << "flux: " << exception.what() << '\n';
-    return 1;
+    auto const pathsPerSecond = stats.getPathsPerSecond();
+    flux::LogInfo(
+        "rendered {} camera paths in {:.1f} ms at {:.1f} Mpaths/s; wrote '{}'", stats.paths,
+        elapsed.count(), pathsPerSecond / 1.0e6, outputPath.string()
+    );
+    fmt::print(
+        "rendering: {} camera paths in {:.1f} ms, {:.1f} Mpaths/s\n", stats.paths, elapsed.count(),
+        pathsPerSecond / 1.0e6
+    );
+    kira::LogFlush<"flux">();
+    return 0;
+}
+} // namespace
+
+int main(int argc, char **argv) {
+    try {
+        return run(argc, argv);
+    } catch (std::exception const &exception) {
+        if (spdlog::get("flux")) {
+            flux::LogError("{}", exception.what());
+            kira::LogFlush<"flux">();
+        } else {
+            fmt::print(stderr, "[flux] [E] {}\n", exception.what());
+        }
+        return 1;
+    }
 }

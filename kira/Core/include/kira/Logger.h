@@ -24,7 +24,7 @@ public:
     }
 
     /// Set the file path to log to.
-    [[nodiscard]] LoggerBuilder &to_file(std::filesystem::path const &inPath) noexcept {
+    [[nodiscard]] LoggerBuilder &to_file(std::filesystem::path const &inPath) {
         this->path = inPath;
         return *this;
     }

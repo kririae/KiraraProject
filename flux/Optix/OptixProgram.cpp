@@ -11,7 +11,7 @@
 #include <string_view>
 #include <vector>
 
-#include "flux/Core/KIRA.h"
+#include "flux/Core/Logging.h"
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Optix/OptixLaunchParams.h"
 #include "flux/Optix/OptixUtils.h"
@@ -39,15 +39,21 @@ namespace {
     return data;
 }
 
-void logCompilerOutput(OptixResult result, std::array<char, 4096> const &log, std::size_t logSize) {
-    if (logSize <= 1)
+void checkCompilerResult(
+    OptixResult result, std::array<char, 4096> const &log, std::size_t logSize
+) {
+    if (result == OPTIX_SUCCESS)
         return;
+    if (logSize <= 1) {
+        optixCheck(result);
+        return;
+    }
 
     auto const output = std::string_view(log.data(), std::min(logSize - 1, log.size()));
-    if (result == OPTIX_SUCCESS)
-        LogDebug("OptiX compiler output:\n{}", output);
-    else
-        LogError("OptiX compiler output:\n{}", output);
+    throw kira::Anyhow(
+        "OptiX program build failed with error {} ({}): \"{}\"\n{}", static_cast<int>(result),
+        optixGetErrorName(result), optixGetErrorString(result), output
+    );
 }
 
 [[nodiscard]] OptixPipelineCompileOptions pipelineCompileOptions() {
@@ -76,8 +82,7 @@ createProgramGroup(OptixDeviceContext deviceContext, OptixProgramGroupDesc const
         /* logStringSize =       */ &logSize,
         /* programGroups =       */ &program);
     // clang-format on
-    logCompilerOutput(result, log, logSize);
-    optixCheck(result);
+    checkCompilerResult(result, log, logSize);
     return program;
 }
 } // namespace
@@ -173,8 +178,7 @@ void OptixProgram::buildModule(std::filesystem::path const &modulePath) {
         /* logStringSize =          */ &logSize,
         /* module =                 */ &module_);
     // clang-format on
-    logCompilerOutput(result, log, logSize);
-    optixCheck(result);
+    checkCompilerResult(result, log, logSize);
 }
 
 void OptixProgram::buildProgramGroups() {
@@ -231,8 +235,7 @@ void OptixProgram::buildPipeline() {
         /* logStringSize =          */ &logSize,
         /* pipeline =               */ &pipeline_);
     // clang-format on
-    logCompilerOutput(result, log, logSize);
-    optixCheck(result);
+    checkCompilerResult(result, log, logSize);
 
     OptixStackSizes stackSizes{};
     for (auto *const program : programs)

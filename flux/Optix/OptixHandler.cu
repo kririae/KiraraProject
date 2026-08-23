@@ -10,7 +10,7 @@
 #include <type_traits>
 #include <utility>
 
-#include "flux/Core/KIRA.h"
+#include "flux/Core/Logging.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/KernelUtils.cuh"
 #include "flux/Optix/OptixContext.h"
@@ -44,6 +44,9 @@ public:
 
         // ponytail: use device 0 until the renderer exposes multi-GPU selection.
         selectDevice();
+        cudaDeviceProp deviceProperties{};
+        cudaCheck(cudaGetDeviceProperties(&deviceProperties, deviceId));
+        LogInfo("OptixHandler: using CUDA device {} ('{}')", deviceId, deviceProperties.name);
         cudaCheck(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
         optixCheck(optixInit());
 
@@ -54,24 +57,18 @@ public:
             auto text = std::string_view{message};
             while (text.ends_with('\n'))
                 text.remove_suffix(1);
+            if (text.empty())
+                return;
+
+            // OptiX build calls return compiler errors through their log buffer.
+            if (level <= 2 && std::string_view{tag} == "COMPILER")
+                return;
 
             switch (level) {
             case 1:
-            case 2:
-                LogError(
-                    "optixLogCallback(): level: {:d}, tag: {:s}, message: {:s}", level, tag, text
-                );
-                break;
-            case 3:
-                LogWarn(
-                    "optixLogCallback(): level: {:d}, tag: {:s}, message: {:s}", level, tag, text
-                );
-                break;
-            default:
-                LogDebug(
-                    "optixLogCallback(): level: {:d}, tag: {:s}, message: {:s}", level, tag, text
-                );
-                break;
+            case 2: LogError("OptiX [{}]: {}", tag, text); break;
+            case 3: LogWarn("OptiX [{}]: {}", tag, text); break;
+            default: LogDebug("OptiX [{}]: {}", tag, text); break;
             }
         }, nullptr, 4
         ));

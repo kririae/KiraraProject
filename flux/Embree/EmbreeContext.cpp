@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "flux/Core/Logging.h"
 #include "flux/Core/MathUtils.h"
 #include "flux/Embree/EmbreeUtils.h"
 #include "flux/Scene/Context.h"
@@ -238,6 +239,10 @@ void EmbreeContext::sync() try {
     }
     rtcCommitScene(scene_);
     embreeCheck(device_);
+    LogDebug(
+        "EmbreeContext: built {} geometries and {} visible primitives", retainedMeshes_.size(),
+        primitives_.size()
+    );
 } catch (...) {
     reset();
     throw;

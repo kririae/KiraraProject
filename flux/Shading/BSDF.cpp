@@ -3,7 +3,7 @@
 #include <cmath>
 #include <string>
 
-#include "flux/Core/KIRA.h"
+#include "flux/Core/Logging.h"
 #include "flux/Scene/TXContext.h"
 #include "kira/Anyhow.h"
 

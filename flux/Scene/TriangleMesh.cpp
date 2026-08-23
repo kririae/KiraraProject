@@ -18,7 +18,7 @@
 #include <type_traits>
 #include <vector>
 
-#include "flux/Core/KIRA.h"
+#include "flux/Core/Logging.h"
 #include "flux/Core/MathUtils.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/TriangleMeshImpl.h"

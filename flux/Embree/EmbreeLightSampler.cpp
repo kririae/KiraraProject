@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-#include "flux/Core/KIRA.h"
+#include "flux/Core/Logging.h"
 #include "flux/Shading/EDF.h"
 #include "kira/Anyhow.h"
 
@@ -52,7 +52,8 @@ void EmbreeLightSampler::build(
             throw kira::Anyhow("EmbreeLightSampler: light count exceeds sampler resolution");
         if (primitive->hasNonUniformScale())
             LogWarn(
-                "EmbreeLightSampler: emissive primitive {} uses approximate area scaling",
+                "EmbreeLightSampler: emissive primitive {} has non-uniform scale; using its "
+                "average scale for light sampling",
                 primitive->getContextId()
             );
 

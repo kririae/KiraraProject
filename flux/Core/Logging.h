@@ -1,23 +1,22 @@
 #pragma once
 
-#include "kira/Anyhow.h"
 #include "kira/Logger.h"
 
 namespace flux {
 // NOLINTBEGIN
-/// \brief Logs a message at the trace level.
+/// \brief Logs detailed execution data.
 inline kira::LoggerCustomizationPoint<"flux", spdlog::level::level_enum::trace> LogTrace;
 
-/// \brief Logs a message at the debug level.
+/// \brief Logs information useful while debugging the renderer.
 inline kira::LoggerCustomizationPoint<"flux", spdlog::level::level_enum::debug> LogDebug;
 
-/// \brief Logs a message at the info level.
+/// \brief Logs renderer configuration, progress, and results.
 inline kira::LoggerCustomizationPoint<"flux", spdlog::level::level_enum::info> LogInfo;
 
-/// \brief Logs a message at the warning level.
+/// \brief Reports a recoverable problem and any selected fallback.
 inline kira::LoggerCustomizationPoint<"flux", spdlog::level::level_enum::warn> LogWarn;
 
-/// \brief Logs a message at the error level.
+/// \brief Reports a problem that prevents the current operation from completing.
 inline kira::LoggerCustomizationPoint<"flux", spdlog::level::level_enum::err> LogError;
 // NOLINTEND
 } // namespace flux

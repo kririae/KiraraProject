@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "flux/Core/Logging.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/OptixAccel.h"
 #include "flux/Optix/OptixGeometryPool.h"
@@ -148,6 +149,10 @@ struct OptixContext::Storage : private CudaStreamMixin {
 
         // Wait for all queued uploads and builds before returning.
         cudaCheck(cudaStreamSynchronize(getStream()));
+        LogDebug(
+            "OptixContext: built {} geometries and {} visible primitives", uniqueMeshes.size(),
+            visiblePrimitives.size()
+        );
     } catch (...) {
         cudaCheck<false>(cudaStreamSynchronize(getStream()));
         throw;
