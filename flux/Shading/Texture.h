@@ -12,6 +12,13 @@
 #include "kira/Compiler.h"
 
 namespace flux {
+/// \brief Coordinates and gradients for one texture lookup.
+struct TextureEvalContext {
+    Vec2f uv{};
+    Vec2f duvdx{};
+    Vec2f duvdy{};
+};
+
 enum class TextureType : std::uint8_t {
     Constant,
     Image,
@@ -41,39 +48,39 @@ private:
     }
 
 public:
-    [[nodiscard]] KIRA_HOST_DEVICE float eval1f(SurfaceInteraction const &isect) const noexcept {
+    [[nodiscard]] KIRA_HOST_DEVICE float eval1f(TextureEvalContext const &ctx) const noexcept {
         if constexpr (requires(Derived const &texture) {
-                          { texture.eval1f_(isect) } -> std::same_as<float>;
+                          { texture.eval1f_(ctx) } -> std::same_as<float>;
                       })
-            return derived_().eval1f_(isect);
+            return derived_().eval1f_(ctx);
         else
-            return eval2f(isect).x();
+            return eval2f(ctx).x();
     }
 
-    [[nodiscard]] KIRA_HOST_DEVICE Vec2f eval2f(SurfaceInteraction const &isect) const noexcept {
+    [[nodiscard]] KIRA_HOST_DEVICE Vec2f eval2f(TextureEvalContext const &ctx) const noexcept {
         if constexpr (requires(Derived const &texture) {
-                          { texture.eval2f_(isect) } -> std::same_as<Vec2f>;
+                          { texture.eval2f_(ctx) } -> std::same_as<Vec2f>;
                       })
-            return derived_().eval2f_(isect);
+            return derived_().eval2f_(ctx);
         else {
-            auto const value = eval3f(isect);
+            auto const value = eval3f(ctx);
             return {value.x(), value.y()};
         }
     }
 
-    [[nodiscard]] KIRA_HOST_DEVICE Vec3f eval3f(SurfaceInteraction const &isect) const noexcept {
+    [[nodiscard]] KIRA_HOST_DEVICE Vec3f eval3f(TextureEvalContext const &ctx) const noexcept {
         if constexpr (requires(Derived const &texture) {
-                          { texture.eval3f_(isect) } -> std::same_as<Vec3f>;
+                          { texture.eval3f_(ctx) } -> std::same_as<Vec3f>;
                       })
-            return derived_().eval3f_(isect);
+            return derived_().eval3f_(ctx);
         else {
-            auto const value = eval4f(isect);
+            auto const value = eval4f(ctx);
             return {value.x(), value.y(), value.z()};
         }
     }
 
-    [[nodiscard]] KIRA_HOST_DEVICE Vec4f eval4f(SurfaceInteraction const &isect) const noexcept {
-        return derived_().eval4f_(isect);
+    [[nodiscard]] KIRA_HOST_DEVICE Vec4f eval4f(TextureEvalContext const &ctx) const noexcept {
+        return derived_().eval4f_(ctx);
     }
 };
 
@@ -169,7 +176,7 @@ struct ConstantTexture::Impl : TextureMixin<Impl> {
 
     Spectrum value;
 
-    [[nodiscard]] KIRA_HOST_DEVICE Vec4f eval4f_(SurfaceInteraction const &) const noexcept {
+    [[nodiscard]] KIRA_HOST_DEVICE Vec4f eval4f_(TextureEvalContext const &) const noexcept {
         return {value.x(), value.y(), value.z(), 1.0F};
     }
 };
@@ -187,32 +194,34 @@ struct Texture::Impl {
     } storage;
 
     template <typename Evaluator>
-    [[nodiscard]] KIRA_HOST_DEVICE float eval1f(SurfaceInteraction const &isect) const noexcept {
-        return eval4f<Evaluator>(isect).x();
+    [[nodiscard]] KIRA_HOST_DEVICE float eval1f(TextureEvalContext const &ctx) const noexcept {
+        return eval4f<Evaluator>(ctx).x();
     }
 
     template <typename Evaluator>
-    [[nodiscard]] KIRA_HOST_DEVICE Vec2f eval2f(SurfaceInteraction const &isect) const noexcept {
-        auto const value = eval4f<Evaluator>(isect);
+    [[nodiscard]] KIRA_HOST_DEVICE Vec2f eval2f(TextureEvalContext const &ctx) const noexcept {
+        auto const value = eval4f<Evaluator>(ctx);
         return {value.x(), value.y()};
     }
 
     template <typename Evaluator>
-    [[nodiscard]] KIRA_HOST_DEVICE Vec3f eval3f(SurfaceInteraction const &isect) const noexcept {
-        auto const value = eval4f<Evaluator>(isect);
+    [[nodiscard]] KIRA_HOST_DEVICE Vec3f eval3f(TextureEvalContext const &ctx) const noexcept {
+        auto const value = eval4f<Evaluator>(ctx);
         return {value.x(), value.y(), value.z()};
     }
 
     template <typename Evaluator>
-    [[nodiscard]] KIRA_HOST_DEVICE Vec4f eval4f(SurfaceInteraction const &isect) const noexcept {
+    [[nodiscard]] KIRA_HOST_DEVICE Vec4f eval4f(TextureEvalContext const &ctx) const noexcept {
         if (type == TextureType::Constant)
-            return storage.constant.eval4f(isect);
+            return storage.constant.eval4f(ctx);
         if (type == TextureType::Image)
-            return Evaluator::eval4f(storage.image.imageTextureIndex, isect.uv);
+            return Evaluator::eval4f(storage.image.imageTextureIndex, ctx.uv, ctx.duvdx, ctx.duvdy);
         KIRA_UNREACHABLE();
     }
 };
 
+static_assert(std::is_standard_layout_v<TextureEvalContext>);
+static_assert(std::is_trivially_copyable_v<TextureEvalContext>);
 static_assert(std::is_standard_layout_v<ConstantTexture::Impl>);
 static_assert(std::is_trivially_copyable_v<ConstantTexture::Impl>);
 static_assert(std::is_standard_layout_v<ImageTexture::Impl>);

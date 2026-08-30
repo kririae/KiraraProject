@@ -4,6 +4,7 @@
 #include <OpenImageIO/imagecache.h>
 #include <OpenImageIO/imageio.h>
 
+#include <algorithm>
 #include <array>
 #include <string>
 #include <string_view>
@@ -144,6 +145,8 @@ ImageAssetPool::pImpl::pImpl() {
             throw kira::Anyhow("ImageAssetPool: failed to create an OpenImageIO image cache");
         if (!imageCache->attribute("autotile", 64))
             throw kira::Anyhow("ImageAssetPool: failed to configure the OpenImageIO tile cache");
+        if (!imageCache->attribute("automip", 1))
+            throw kira::Anyhow("ImageAssetPool: failed to enable OpenImageIO mip generation");
         if (!imageCache->attribute("colorspace", linearRec709))
             throw kira::Anyhow("ImageAssetPool: failed to configure the working color space");
         if (!imageCache->attribute("unassociatedalpha", 1))
@@ -200,6 +203,7 @@ ImageAsset::pImpl::pImpl(
         std::swap(width, height);
     extent = Vec2u{static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)};
     fileComponentCount = static_cast<std::uint8_t>(spec.nchannels);
+    fileAlphaComponent = spec.alpha_channel;
     componentType = chooseComponentType(spec);
     auto const fileComponentMapping = makeFileComponentMapping(spec);
     if (fileComponentCount >= 3 && fileComponentMapping != ImageComponentMapping{})
@@ -233,10 +237,13 @@ ImageComponentMapping ImageAsset::getDefaultComponentMapping() const noexcept {
     return pImpl_->defaultComponentMapping;
 }
 
-ImageAsset::ImageBuffer ImageAsset::read() const {
-    auto source =
-        OIIO::ImageBuf{pImpl_->filename.string(), 0, 0, pImpl_->textureSystem->imagecache()};
-    auto const format = [this] {
+std::vector<ImageAsset::ImageBuffer> ImageAsset::readMipChain() const {
+    auto const encodeSRGB = pImpl_->fileColorSpace == ImageColorSpace::SRGB &&
+                            pImpl_->componentType == ImageComponentType::UNorm8;
+    auto const format = [this, encodeSRGB] {
+        if (encodeSRGB)
+            return OIIO::TypeDesc::FLOAT;
+
         switch (pImpl_->componentType) {
         case ImageComponentType::UNorm8: return OIIO::TypeDesc::UINT8;
         case ImageComponentType::Float16: return OIIO::TypeDesc::HALF;
@@ -244,63 +251,82 @@ ImageAsset::ImageBuffer ImageAsset::read() const {
         }
         KIRA_UNREACHABLE();
     }();
-    if (!source.read(0, 0, true, format))
-        throw kira::Anyhow(
-            "ImageAsset: failed to read '{}': {}", pImpl_->filename.string(), source.geterror()
-        );
+    auto result = std::vector<ImageBuffer>{};
+    auto width = pImpl_->extent.x();
+    auto height = pImpl_->extent.y();
+    if (pImpl_->orientation >= 5 && pImpl_->orientation <= 8)
+        std::swap(width, height);
+    auto options = OIIO::TextureOpt{};
+    options.colortransformid = pImpl_->colorTransformId;
 
-    if (pImpl_->fileToRGBA)
-        source = convertToRGBA(source, *pImpl_->fileToRGBA, pImpl_->filename.string());
-
-    // UNorm8 keeps its sRGB values. Float16 and Float32 pixels are converted
-    // to linear without changing their component type.
-    auto colorSpace = ImageColorSpace::Linear;
-    if (pImpl_->fileColorSpace == ImageColorSpace::SRGB &&
-        pImpl_->componentType == ImageComponentType::UNorm8) {
-        colorSpace = ImageColorSpace::SRGB;
-    } else if (pImpl_->fileColorSpace == ImageColorSpace::SRGB) {
-        if (!OIIO::ImageBufAlgo::colorconvert(
-                source, source, srgbRec709, linearRec709, /* unpremult = */ false
+    for (auto level = 0;; ++level) {
+        auto spec = OIIO::ImageSpec{
+            static_cast<int>(width), static_cast<int>(height), pImpl_->fileComponentCount, format
+        };
+        spec.alpha_channel = pImpl_->fileAlphaComponent;
+        spec.attribute("Orientation", pImpl_->orientation);
+        auto source = OIIO::ImageBuf{spec};
+        auto const roi =
+            OIIO::ROI{0, spec.width, 0, spec.height, 0, 1, 0, pImpl_->fileComponentCount};
+        if (!pImpl_->textureSystem->get_texels(
+                pImpl_->textureHandle, /* threadInfo = */ nullptr, options, level, roi, format,
+                source.localpixels_as_writable_byte_image_span()
             ))
             throw kira::Anyhow(
-                "ImageAsset: failed to convert '{}' from sRGB to linear: {}",
-                pImpl_->filename.string(), source.geterror()
+                "ImageAsset: failed to read mip level {} from '{}': {}", level,
+                pImpl_->filename.string(), pImpl_->textureSystem->geterror()
             );
-    }
 
-    if (source.orientation() != 1) {
-        auto oriented = OIIO::ImageBuf{};
-        if (!OIIO::ImageBufAlgo::reorient(oriented, source))
+        if (pImpl_->fileToRGBA)
+            source = convertToRGBA(source, *pImpl_->fileToRGBA, pImpl_->filename.string());
+
+        if (source.orientation() != 1) {
+            auto oriented = OIIO::ImageBuf{};
+            if (!OIIO::ImageBufAlgo::reorient(oriented, source))
+                throw kira::Anyhow(
+                    "ImageAsset: failed to orient '{}': {}", pImpl_->filename.string(),
+                    oriented.geterror()
+                );
+            source = std::move(oriented);
+        }
+
+        auto image = OIIO::ImageBuf{};
+        if (!OIIO::ImageBufAlgo::flip(image, source))
             throw kira::Anyhow(
-                "ImageAsset: failed to orient '{}': {}", pImpl_->filename.string(),
-                oriented.geterror()
+                "ImageAsset: failed to flip '{}': {}", pImpl_->filename.string(), image.geterror()
             );
-        source = std::move(oriented);
+
+        if (encodeSRGB) {
+            auto encodedSpec = image.spec();
+            encodedSpec.format = OIIO::TypeDesc::UINT8;
+            auto encoded = OIIO::ImageBuf{encodedSpec};
+            if (!OIIO::ImageBufAlgo::colorconvert(
+                    encoded, image, linearRec709, srgbRec709, /* unpremult = */ false
+                ))
+                throw kira::Anyhow(
+                    "ImageAsset: failed to encode mip level {} for '{}': {}", level,
+                    pImpl_->filename.string(), encoded.geterror()
+                );
+            image = std::move(encoded);
+        }
+
+        auto const extent = Vec2u{
+            static_cast<std::uint32_t>(image.spec().width),
+            static_cast<std::uint32_t>(image.spec().height),
+        };
+        result.push_back({
+            .image = std::move(image),
+            .extent = extent,
+            .componentCount = pImpl_->componentCount,
+            .componentType = pImpl_->componentType,
+            .colorSpace = encodeSRGB ? ImageColorSpace::SRGB : ImageColorSpace::Linear,
+        });
+        if (width == 1 && height == 1)
+            break;
+        width = std::max(width / 2, 1U);
+        height = std::max(height / 2, 1U);
     }
-
-    auto image = OIIO::ImageBuf{};
-    if (!OIIO::ImageBufAlgo::flip(image, source))
-        throw kira::Anyhow(
-            "ImageAsset: failed to flip '{}': {}", pImpl_->filename.string(), image.geterror()
-        );
-    if (std::cmp_not_equal(image.spec().width, pImpl_->extent.x()) ||
-        std::cmp_not_equal(image.spec().height, pImpl_->extent.y()) ||
-        std::cmp_not_equal(image.spec().nchannels, pImpl_->componentCount))
-        throw kira::Anyhow(
-            "ImageAsset: '{}' changed after the asset was created", pImpl_->filename.string()
-        );
-    if (!image.localpixels())
-        throw kira::Anyhow(
-            "ImageAsset: failed to store '{}' in host memory", pImpl_->filename.string()
-        );
-
-    return {
-        .image = std::move(image),
-        .extent = pImpl_->extent,
-        .componentCount = pImpl_->componentCount,
-        .componentType = pImpl_->componentType,
-        .colorSpace = colorSpace,
-    };
+    return result;
 }
 
 ImageAssetPool::ImageAssetPool() : pImpl_(std::make_unique<pImpl>()) {}

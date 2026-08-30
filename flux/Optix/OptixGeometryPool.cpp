@@ -4,12 +4,16 @@
 
 #include "flux/Optix/OptixUtils.h"
 #include "kira/Anyhow.h"
+#include "kira/Assertions.h"
 
 namespace flux {
 static_assert(sizeof(Vec3f) == 3 * sizeof(float));
 static_assert(sizeof(Vec3u) == 3 * sizeof(std::uint32_t));
 
-void OptixGeometryPool::build(std::span<Ref<TriangleMesh const> const> meshes) {
+void OptixGeometryPool::build(
+    std::span<Ref<TriangleMesh const> const> meshes, std::span<bool const> needsCurvature
+) {
+    KIRA_ASSERT(meshes.size() == needsCurvature.size());
     if (meshes.size() > std::numeric_limits<unsigned int>::max())
         throw kira::Anyhow("OptixGeometryPool: mesh count exceeds OptiX limits");
 
@@ -19,7 +23,8 @@ void OptixGeometryPool::build(std::span<Ref<TriangleMesh const> const> meshes) {
     entries_.reserve(meshes.size());
     staging_.reserve(meshes.size());
 
-    for (auto const &mesh : meshes) {
+    for (auto index = std::size_t{}; index < meshes.size(); ++index) {
+        auto const &mesh = meshes[index];
         auto const hostImpl = mesh->getImpl();
         auto const vertices = mesh->getVertices();
         auto const triangles = mesh->getTriangles();
@@ -55,6 +60,15 @@ void OptixGeometryPool::build(std::span<Ref<TriangleMesh const> const> meshes) {
         entry.triangleAreaPDF.copyFromHost(
             {entry.triangleAreaPDFStaging.data(), entry.triangleAreaPDFStaging.size()}
         );
+        if (needsCurvature[index]) {
+            entry.curvatureStaging.resize_for_overwrite(hostImpl.numTriangles);
+            TriangleMesh::computeCurvatures(
+                hostImpl, {entry.curvatureStaging.data(), entry.curvatureStaging.size()}
+            );
+            entry.curvatures.copyFromHost(
+                {entry.curvatureStaging.data(), entry.curvatureStaging.size()}
+            );
+        }
         entry.vertexBuffer = devicePointer(entry.vertices.data());
         auto const *deviceNormalIndices = hostImpl.normalIndices == hostImpl.triangles
                                               ? entry.triangles.data()
@@ -74,6 +88,7 @@ void OptixGeometryPool::build(std::span<Ref<TriangleMesh const> const> meshes) {
                 .numTriangles = hostImpl.numTriangles,
                 .triangleAreaCDF = entry.triangleAreaCDF.data(),
                 .triangleAreaPDF = entry.triangleAreaPDF.data(),
+                .curvatures = needsCurvature[index] ? entry.curvatures.data() : nullptr,
                 .surfaceArea = entry.triangleAreaCDFStaging.empty()
                                    ? hostImpl.surfaceArea
                                    : entry.triangleAreaCDFStaging.back(),
@@ -106,5 +121,14 @@ std::vector<OptixBuildInput> OptixGeometryPool::getBuildInputs() const {
         inputs.push_back(input);
     }
     return inputs;
+}
+
+void OptixGeometryPool::releaseHostStaging() noexcept {
+    std::vector<Geometry::Impl>{}.swap(staging_);
+    for (auto &entry : entries_) {
+        entry.triangleAreaCDFStaging = kira::SmallVector<float, 0>{};
+        entry.triangleAreaPDFStaging = kira::SmallVector<float, 0>{};
+        entry.curvatureStaging = kira::SmallVector<float, 0>{};
+    }
 }
 } // namespace flux

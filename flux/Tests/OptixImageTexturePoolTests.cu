@@ -25,11 +25,14 @@ struct SampleImageTexture {
     flux::OptixImageTexturePool::Impl pool;
     flux::Vec2f const *uvs;
     flux::Vec4f *samples;
+    flux::Vec2f duvdx;
+    flux::Vec2f duvdy;
     bool point;
 
     KIRA_DEVICE void operator()(std::size_t index) const noexcept {
         auto const &texture = pool.get(0);
-        auto const value = point ? texture.samplePoint(uvs[index]) : texture.sample(uvs[index]);
+        auto const value =
+            point ? texture.samplePoint(uvs[index]) : texture.sample(uvs[index], duvdx, duvdy);
         samples[index] = texture.componentMapping.apply(value);
     }
 };
@@ -62,8 +65,10 @@ protected:
         pool.build(*context);
     }
 
-    [[nodiscard]] std::vector<flux::Vec4f>
-    sample(std::span<flux::Vec2f const> uvs, bool point = false) const {
+    [[nodiscard]] std::vector<flux::Vec4f> sample(
+        std::span<flux::Vec2f const> uvs, bool point = false, flux::Vec2f duvdx = {},
+        flux::Vec2f duvdy = {}
+    ) const {
         flux::DeviceBuffer<flux::Vec2f> deviceUVs(cudaStreamPerThread);
         flux::DeviceBuffer<flux::Vec4f> deviceSamples(cudaStreamPerThread);
         deviceUVs.copyFromHost(uvs);
@@ -74,6 +79,8 @@ protected:
                 .pool = pool.getImpl(),
                 .uvs = deviceUVs.data(),
                 .samples = deviceSamples.data(),
+                .duvdx = duvdx,
+                .duvdy = duvdy,
                 .point = point,
             },
             cudaStreamPerThread
@@ -85,9 +92,11 @@ protected:
         return result;
     }
 
-    [[nodiscard]] flux::Vec4f sample(flux::Vec2f uv, bool point = false) const {
+    [[nodiscard]] flux::Vec4f sample(
+        flux::Vec2f uv, bool point = false, flux::Vec2f duvdx = {}, flux::Vec2f duvdy = {}
+    ) const {
         auto const uvs = std::array{uv};
-        return sample(uvs, point).front();
+        return sample(uvs, point, duvdx, duvdy).front();
     }
 
     flux::Ref<flux::Context> context = flux::Context::create();
@@ -250,6 +259,34 @@ TEST_F(OptixImageTextureTests, FiltersLinearSRGBValues) {
     EXPECT_FLOAT_EQ(value.w(), 1.0F);
 }
 
+TEST_F(OptixImageTextureTests, FiltersMipLevels) {
+    build(std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "Texture2x2.ppm", "linear", "linear");
+
+    auto const value = sample({0.1F, 0.1F}, false, {1.0F, 0.0F}, {0.0F, 1.0F});
+    constexpr auto expected = 128.0F / 255.0F;
+    EXPECT_NEAR(value.x(), expected, 1.0e-5F);
+    EXPECT_NEAR(value.y(), expected, 1.0e-5F);
+    EXPECT_NEAR(value.z(), expected, 1.0e-5F);
+}
+
+TEST_F(OptixImageTextureTests, UsesOIIOOddMipLevels) {
+    build(std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "Texture3x3.ppm", "linear", "linear");
+
+    auto const value = sample({0.5F, 0.5F}, false, {1.0F, 0.0F}, {0.0F, 1.0F});
+    EXPECT_FLOAT_EQ(value.x(), 1.0F);
+    EXPECT_FLOAT_EQ(value.y(), 1.0F);
+    EXPECT_FLOAT_EQ(value.z(), 1.0F);
+}
+
+TEST_F(OptixImageTextureTests, BuildsSRGBMipLevelsInLinearSpace) {
+    build(std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "SRGBFilter2x2.ppm", "srgb", "linear");
+
+    auto const value = sample({0.1F, 0.1F}, false, {1.0F, 0.0F}, {0.0F, 1.0F});
+    EXPECT_NEAR(value.x(), 0.28918776F, 2.5e-3F);
+    EXPECT_NEAR(value.y(), 0.28918776F, 2.5e-3F);
+    EXPECT_NEAR(value.z(), 0.28918776F, 2.5e-3F);
+}
+
 TEST_F(OptixImageTextureTests, KeepsPointFilteredView) {
     build(std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "Texture2x2.ppm", "srgb", "linear");
 
@@ -298,6 +335,32 @@ TEST_F(OptixImageTextureTests, DecodesUNorm8SRGB) {
     EXPECT_NEAR(value.y(), 0.13286832F, 2.5e-4F);
     EXPECT_NEAR(value.z(), 0.31854678F, 2.5e-4F);
     EXPECT_FLOAT_EQ(value.w(), 1.0F);
+}
+
+TEST_F(OptixImageTextureTests, PreservesStraightAlphaDuringSRGBConversion) {
+    auto const imagePath = path("optix-straight-alpha.tif");
+    auto const componentNames = std::array<std::string_view, 4>{"R", "G", "B", "A"};
+    auto const pixels = std::array{1.0F, 0.5F, 0.25F, 0.5F};
+    flux::writeImage(
+        imagePath,
+        {
+            .pixels = std::as_bytes(std::span{pixels}),
+            .extent = {1, 1},
+            .componentType = flux::ImageComponentType::Float32,
+            .componentCount = static_cast<std::uint8_t>(componentNames.size()),
+        },
+        {
+            .outputComponentType = flux::ImageComponentType::UNorm8,
+            .componentNames = componentNames,
+        }
+    );
+    build(imagePath, "srgb");
+
+    auto const value = sample({0.5F, 0.5F});
+    EXPECT_NEAR(value.x(), 1.0F, 2.0e-3F);
+    EXPECT_NEAR(value.y(), 0.21404114F, 2.0e-3F);
+    EXPECT_NEAR(value.z(), 0.05087609F, 2.0e-3F);
+    EXPECT_NEAR(value.w(), 128.0F / 255.0F, 2.0e-3F);
 }
 
 TEST_P(OptixSRGBStorageTests, ConvertsNamedComponentsBeforeUpload) {

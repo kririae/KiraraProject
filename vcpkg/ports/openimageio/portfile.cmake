@@ -11,6 +11,7 @@ set(PATCHES
     # OIIO 3.1.14 skips requested color transforms for scanline textures.
     # Remove this patch after the fix reaches the minimum supported OIIO version.
     fix-scanline-color-transform.patch
+    fix-automip-color-transform.patch
 )
 
 if(VCPKG_TARGET_IS_OSX)

@@ -57,6 +57,7 @@ struct ImageAsset::pImpl {
     /// File layout used by OIIO texture lookups.
     std::uint8_t orientation;
     std::uint8_t fileComponentCount;
+    int fileAlphaComponent;
 
     /// Maps file components to the four-component image layout.
     std::optional<ImageComponentMapping> fileToRGBA;

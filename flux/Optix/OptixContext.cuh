@@ -99,6 +99,33 @@ KIRA_DEVICE inline Vec3f OptixContext::Impl::transformNormalToWorld(
     return transformTransposeVec(transform, normal);
 }
 
+KIRA_DEVICE inline TextureEvalContext OptixContext::Impl::getTextureEvalContext(
+    SurfaceInteraction const &isect, Vec3f const &direction, RayFootprint const &footprint
+) const noexcept {
+    auto dpdx = Vec3f{};
+    auto dpdy = Vec3f{};
+    footprint.project(direction, isect.geometricNormal, dpdx, dpdy);
+
+    auto const instance = optixGetInstanceTraversableFromIAS(traversable, isect.primitiveIndex);
+    auto const *worldToObject = optixGetInstanceInverseTransformFromHandle(instance);
+    dpdx = transformVec(worldToObject, dpdx);
+    dpdy = transformVec(worldToObject, dpdy);
+
+    auto result = TextureEvalContext{.uv = isect.uv};
+    auto const &primitive = getPrimitive(isect.primitiveIndex);
+    getGeometry(primitive.getGeometryIndex())
+        .computeTexCoordPartials(isect.elementIndex, dpdx, dpdy, result.duvdx, result.duvdy);
+    return result;
+}
+
+KIRA_DEVICE inline float
+OptixContext::Impl::getCurvature(SurfaceInteraction const &isect, Vec3f const &wo) const noexcept {
+    auto const &prim = getPrimitive(isect.primitiveIndex);
+    auto const side = wo.dot(isect.shadingNormal) < 0.0F ? -1.0F : 1.0F;
+    return side * getGeometry(prim.getGeometryIndex()).getCurvature(isect.elementIndex) *
+           prim.curvatureScale;
+}
+
 KIRA_DEVICE inline Primitive::Impl const &
 OptixContext::Impl::getPrimitive(std::uint32_t instanceIndex) const noexcept {
     return primitives[instanceIndex];

@@ -173,6 +173,55 @@ TEST(GeometryTests, SamplesTriangleMeshesByGeometrySpaceArea) {
     EXPECT_NEAR(sample.geometricNormal.norm(), 1.0F, 1.0e-6F);
 }
 
+TEST(GeometryTests, ComputesUnitSphereTriangleCurvature) {
+    auto const vertices = std::array{
+        flux::Vec3f{1.0F, 0.0F, 0.0F},
+        flux::Vec3f{0.0F, 1.0F, 0.0F},
+        flux::Vec3f{0.0F, 0.0F, 1.0F},
+    };
+    auto const triangles = std::array{flux::Vec3u{0, 1, 2}};
+    auto const mesh = flux::TriangleMesh::Impl{
+        .vertices = vertices.data(),
+        .triangles = triangles.data(),
+        .normals = vertices.data(),
+        .normalIndices = triangles.data(),
+        .numVertices = static_cast<std::uint32_t>(vertices.size()),
+        .numTriangles = static_cast<std::uint32_t>(triangles.size()),
+    };
+    auto curvatures = std::array<float, 1>{};
+
+    flux::TriangleMesh::computeCurvatures(mesh, curvatures);
+
+    EXPECT_FLOAT_EQ(curvatures[0], 1.0F);
+}
+
+TEST(GeometryTests, ComputesZeroPlanarTriangleCurvature) {
+    auto const vertices = std::array{
+        flux::Vec3f{0.0F, 0.0F, 0.0F},
+        flux::Vec3f{1.0F, 0.0F, 0.0F},
+        flux::Vec3f{0.0F, 1.0F, 0.0F},
+    };
+    auto const triangles = std::array{flux::Vec3u{0, 1, 2}};
+    auto const normals = std::array{
+        flux::Vec3f{0.0F, 0.0F, 1.0F},
+        flux::Vec3f{0.0F, 0.0F, 1.0F},
+        flux::Vec3f{0.0F, 0.0F, 1.0F},
+    };
+    auto const mesh = flux::TriangleMesh::Impl{
+        .vertices = vertices.data(),
+        .triangles = triangles.data(),
+        .normals = normals.data(),
+        .normalIndices = triangles.data(),
+        .numVertices = static_cast<std::uint32_t>(vertices.size()),
+        .numTriangles = static_cast<std::uint32_t>(triangles.size()),
+    };
+    auto curvatures = std::array<float, 1>{};
+
+    flux::TriangleMesh::computeCurvatures(mesh, curvatures);
+
+    EXPECT_FLOAT_EQ(curvatures[0], 0.0F);
+}
+
 TEST(GeometryTests, ReportsZeroDensityForAnUnsampledTriangle) {
     auto const cdf = std::array{1.0F, 1.0F};
     auto const pdf = std::array{1.0F, 0.0F};

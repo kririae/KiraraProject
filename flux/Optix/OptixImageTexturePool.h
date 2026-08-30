@@ -29,7 +29,8 @@ struct OptixImageTexture {
     std::uint8_t componentCount;
 
     /// \brief Samples stored components before component mapping.
-    [[nodiscard]] KIRA_DEVICE Vec4f sample(Vec2f uv) const noexcept;
+    [[nodiscard]] KIRA_DEVICE Vec4f
+    sample(Vec2f uv, Vec2f const &duvdx, Vec2f const &duvdy) const noexcept;
 
     /// \brief Samples stored components with point filtering.
     [[nodiscard]] KIRA_DEVICE Vec4f samplePoint(Vec2f uv) const noexcept;
@@ -37,6 +38,10 @@ struct OptixImageTexture {
 private:
     [[nodiscard]] KIRA_DEVICE Vec4f
     sample(cudaTextureObject_t textureObject, Vec2f uv) const noexcept;
+
+    [[nodiscard]] KIRA_DEVICE Vec4f sample(
+        cudaTextureObject_t textureObject, Vec2f uv, Vec2f const &duvdx, Vec2f const &duvdy
+    ) const noexcept;
 };
 
 /// \brief Owns CUDA arrays and texture objects used by OptiX.
@@ -73,7 +78,7 @@ public:
 private:
     void clear() noexcept;
 
-    std::vector<cudaArray_t> arrays_;
+    std::vector<cudaMipmappedArray_t> arrays_;
     std::vector<cudaTextureObject_t> textureObjects_;
     std::vector<OptixImageTexture> staging_;
     DeviceBuffer<OptixImageTexture> deviceTextures_{getStream()};

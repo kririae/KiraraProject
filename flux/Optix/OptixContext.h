@@ -11,6 +11,7 @@
 
 #include "flux/Core/Object.h"
 #include "flux/Core/Ray.h"
+#include "flux/Core/RayFootprint.h"
 #include "flux/Optix/OptixImageTexturePool.h"
 #include "flux/Optix/OptixLightSampler.h"
 #include "flux/Scene/GeometryImpl.h"
@@ -59,6 +60,7 @@ private:
 
     [[nodiscard]] Impl getImpl() const noexcept;
     [[nodiscard]] OptixProgramSpec const &getProgramSpec() const noexcept;
+    [[nodiscard]] bool needsTextureFootprint() const noexcept;
 
     struct Storage;
     std::unique_ptr<Storage> storage_;
@@ -115,6 +117,14 @@ public:
     /// \brief Maps a geometry-space normal through primitive \p primitiveIndex.
     [[nodiscard]] KIRA_DEVICE Vec3f
     transformNormalToWorld(std::uint32_t primitiveIndex, Vec3f const &normal) const noexcept;
+
+    [[nodiscard]] KIRA_DEVICE TextureEvalContext getTextureEvalContext(
+        SurfaceInteraction const &isect, Vec3f const &direction, RayFootprint const &footprint
+    ) const noexcept;
+
+    /// \brief Returns world-space curvature oriented toward \p wo.
+    [[nodiscard]] KIRA_DEVICE float
+    getCurvature(SurfaceInteraction const &isect, Vec3f const &wo) const noexcept;
 
     /// \brief Returns the primitive at dense \p instanceIndex.
     ///

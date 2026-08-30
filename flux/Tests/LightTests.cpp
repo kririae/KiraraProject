@@ -10,8 +10,17 @@
 
 namespace {
 struct UVTextureEvaluator {
-    [[nodiscard]] static flux::Vec4f eval4f(std::uint32_t, flux::Vec2f uv) noexcept {
+    [[nodiscard]] static flux::Vec4f
+    eval4f(std::uint32_t, flux::Vec2f uv, flux::Vec2f const &, flux::Vec2f const &) noexcept {
         return {uv.x(), uv.y(), 0.0F, 1.0F};
+    }
+};
+
+struct GradientTextureEvaluator {
+    [[nodiscard]] static flux::Vec4f eval4f(
+        std::uint32_t, flux::Vec2f, flux::Vec2f const &duvdx, flux::Vec2f const &duvdy
+    ) noexcept {
+        return {duvdx.x(), duvdy.y(), 0.0F, 1.0F};
     }
 };
 } // namespace
@@ -56,6 +65,27 @@ TEST(LightTests, MapsEnvironmentCoordinatesToImageCoordinates) {
     EXPECT_EQ(
         light.eval<UVTextureEvaluator>({0.0F, 0.0F, 1.0F}), (flux::Spectrum{0.0F, 1.0F, 0.0F})
     );
+}
+
+TEST(LightTests, MapsEnvironmentFootprintsToImageGradients) {
+    auto const light = flux::EnvMapLight::Impl{
+        .texture =
+            {
+                .type = flux::TextureType::Image,
+                .storage = {.image = {.imageTextureIndex = 0}},
+            },
+        .scale = {1.0F, 1.0F, 1.0F},
+        .worldToEnv = {1.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 1.0F},
+    };
+    constexpr auto angle = 0.2F;
+
+    auto const value = light.eval<GradientTextureEvaluator>({1.0F, 0.0F, 0.0F}, angle);
+
+    EXPECT_NEAR(value.x(), angle / (2.0F * std::numbers::pi_v<float>), 1.0e-7F);
+    EXPECT_NEAR(value.y(), -angle * std::numbers::inv_pi_v<float>, 1.0e-7F);
+
+    auto const pole = light.eval<GradientTextureEvaluator>({0.0F, 0.0F, 1.0F}, angle);
+    EXPECT_FLOAT_EQ(pole.x(), 1.0F);
 }
 
 TEST(LightTests, UsesFluxWorldAxesForEnvironmentMaps) {

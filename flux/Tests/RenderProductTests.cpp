@@ -46,6 +46,18 @@ TEST(RenderProductTests, BuildsPinholeCameraFrame) {
     EXPECT_EQ(ray.direction, impl.forward);
 }
 
+TEST(RenderProductTests, FocusesThinLensFootprintsAtTheFocusPlane) {
+    kira::Properties props;
+    props.set("lens_radius", 0.25F);
+    props.set("focal_distance", 4.0F);
+    auto const camera = flux::Camera::create(props)->getImpl();
+
+    auto footprint = camera.getRayFootprint(camera.forward, {640U, 480U});
+    footprint.propagate(camera.focalDistance);
+
+    EXPECT_NEAR(footprint.cones[1].width, 0.0F, 1.0e-7F);
+}
+
 TEST(RenderProductTests, RejectsDegenerateCameraFrame) {
     auto camera = flux::Camera::create();
     EXPECT_THROW(camera->setVerticalFieldOfView(180.0F), kira::Anyhow);

@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <limits>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 #include "flux/Core/Logging.h"
@@ -78,7 +79,7 @@ void EmbreeContext::reset() noexcept {
     meshScenes_.clear();
     retainedMeshes_.clear();
     geometryImpls_.clear();
-    triangleSampling_.clear();
+    triangleData_.clear();
     primitives_.clear();
     transforms_.clear();
     normalTransforms_.clear();
@@ -86,6 +87,7 @@ void EmbreeContext::reset() noexcept {
     edfs_.clear();
     imageTexturePool_.clear();
     lightSampler_.clear();
+    needsTextureFootprint_ = false;
 }
 
 void EmbreeContext::sync() try {
@@ -99,7 +101,7 @@ void EmbreeContext::sync() try {
     geometryIndexByContextId.reserve(contextPrimitives.size());
     retainedMeshes_.reserve(contextPrimitives.size());
     geometryImpls_.reserve(contextPrimitives.size());
-    triangleSampling_.reserve(contextPrimitives.size());
+    triangleData_.reserve(contextPrimitives.size());
     primitives_.reserve(contextPrimitives.size());
     transforms_.reserve(contextPrimitives.size());
     normalTransforms_.reserve(contextPrimitives.size());
@@ -116,6 +118,21 @@ void EmbreeContext::sync() try {
         for (auto const &edf : contextEDFs)
             edfs_[context_.getEDFIndex(edf->getContextId())] = edf->getImpl();
     }
+    std::unordered_set<std::size_t> curvatureGeometryIds;
+    for (auto const &primitive : contextPrimitives) {
+        auto const bsdf = primitive->getBSDF();
+        if (!primitive->isVisible() || !bsdf)
+            continue;
+
+        auto const bsdfIndex = context_.getBSDFIndex(bsdf->getContextId());
+        needsTextureFootprint_ |= bsdfs_[bsdfIndex].needsTextureFootprint;
+        if (bsdf->needsCurvature())
+            curvatureGeometryIds.insert(primitive->getGeometry()->getContextId());
+    }
+    if (auto const envMap = context_.getActiveEnvMap())
+        needsTextureFootprint_ |= envMap->getTexture()->getImpl().type == TextureType::Image;
+    if (!needsTextureFootprint_)
+        curvatureGeometryIds.clear();
     imageTexturePool_.build(context_);
 
     auto const getOrAddGeometryIndex = [&](Ref<Geometry const> const &geometry) {
@@ -133,16 +150,21 @@ void EmbreeContext::sync() try {
 
         auto const index = static_cast<std::uint32_t>(retainedMeshes_.size());
         auto impl = mesh->getImpl();
-        auto &sampling = triangleSampling_.emplace_back();
-        sampling.areaCDF.resize_for_overwrite(impl.numTriangles);
-        sampling.areaPDF.resize_for_overwrite(impl.numTriangles);
+        auto &data = triangleData_.emplace_back();
+        data.areaCDF.resize_for_overwrite(impl.numTriangles);
+        data.areaPDF.resize_for_overwrite(impl.numTriangles);
         TriangleMesh::computeSamplingDistribution(
-            impl, {sampling.areaCDF.data(), sampling.areaCDF.size()},
-            {sampling.areaPDF.data(), sampling.areaPDF.size()}
+            impl, {data.areaCDF.data(), data.areaCDF.size()},
+            {data.areaPDF.data(), data.areaPDF.size()}
         );
-        impl.triangleAreaCDF = sampling.areaCDF.data();
-        impl.triangleAreaPDF = sampling.areaPDF.data();
-        impl.surfaceArea = sampling.areaCDF.empty() ? impl.surfaceArea : sampling.areaCDF.back();
+        impl.triangleAreaCDF = data.areaCDF.data();
+        impl.triangleAreaPDF = data.areaPDF.data();
+        if (curvatureGeometryIds.contains(contextId)) {
+            data.curvatures.resize_for_overwrite(impl.numTriangles);
+            TriangleMesh::computeCurvatures(impl, {data.curvatures.data(), data.curvatures.size()});
+            impl.curvatures = data.curvatures.data();
+        }
+        impl.surfaceArea = data.areaCDF.empty() ? impl.surfaceArea : data.areaCDF.back();
         geometryImpls_.emplace_back(impl);
         retainedMeshes_.push_back(std::move(mesh));
         geometryIndexByContextId.emplace(contextId, index);
@@ -173,6 +195,7 @@ void EmbreeContext::sync() try {
             .geometryIndex = geometryIndex,
             .bsdfIndex = bsdfIndex,
             .edfIndex = edfIndex,
+            .curvatureScale = primitive->estimateCurvatureScale(),
         });
         transforms_.push_back(primitive->getTransform());
         normalTransforms_.push_back(primitive->getNormalTransform());
@@ -277,6 +300,8 @@ EmbreeContext::Impl EmbreeContext::getImpl() const noexcept {
     };
 }
 
+bool EmbreeContext::needsTextureFootprint() const noexcept { return needsTextureFootprint_; }
+
 bool EmbreeContext::Impl::intersect(Ray const &ray, Hit &hit) const noexcept {
     if (!scene)
         return false;
@@ -327,6 +352,32 @@ EmbreeContext::Impl::makeSurfaceInteraction(Ray const &ray, Hit const &hit) cons
         .primitiveIndex = hit.primitiveIndex,
         .elementIndex = hit.preliminary.elementIndex,
     };
+}
+
+TextureEvalContext EmbreeContext::Impl::getTextureEvalContext(
+    SurfaceInteraction const &isect, Vec3f const &direction, RayFootprint const &footprint
+) const noexcept {
+    auto dpdx = Vec3f{};
+    auto dpdy = Vec3f{};
+    footprint.project(direction, isect.geometricNormal, dpdx, dpdy);
+    auto const &worldToObject = normalTransforms[isect.primitiveIndex];
+    dpdx = transformTransposeVec(worldToObject.data(), dpdx);
+    dpdy = transformTransposeVec(worldToObject.data(), dpdy);
+
+    auto result = TextureEvalContext{.uv = isect.uv};
+    auto const &primitive = getPrimitive(isect.primitiveIndex);
+    getGeometry(primitive.getGeometryIndex())
+        .computeTexCoordPartials(isect.elementIndex, dpdx, dpdy, result.duvdx, result.duvdy);
+    return result;
+}
+
+float EmbreeContext::Impl::getCurvature(
+    SurfaceInteraction const &isect, Vec3f const &wo
+) const noexcept {
+    auto const &prim = getPrimitive(isect.primitiveIndex);
+    auto const side = wo.dot(isect.shadingNormal) < 0.0F ? -1.0F : 1.0F;
+    return side * getGeometry(prim.getGeometryIndex()).getCurvature(isect.elementIndex) *
+           prim.curvatureScale;
 }
 
 float EmbreeContext::Impl::pdfDirectLight(

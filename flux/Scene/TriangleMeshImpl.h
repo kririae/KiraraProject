@@ -46,6 +46,40 @@ TriangleMesh::Impl::interpolateTexCoord(PreliminaryIntersection const &prelimina
     return texCoords[indices[0]] * w + texCoords[indices[1]] * u + texCoords[indices[2]] * v;
 }
 
+KIRA_HOST_DEVICE inline void TriangleMesh::Impl::computeTexCoordPartials(
+    std::uint32_t triangle, Vec3f const &dpdx, Vec3f const &dpdy, Vec2f &duvdx, Vec2f &duvdy
+) const noexcept {
+    if (!texCoords)
+        return;
+
+    auto const vertexIndices = triangles[triangle];
+    auto const a = vertices[vertexIndices[0]];
+    auto const b = vertices[vertexIndices[1]];
+    auto const c = vertices[vertexIndices[2]];
+    auto const textureIndices = texCoordIndices[triangle];
+    auto const ta = texCoords[textureIndices[0]];
+    auto const tb = texCoords[textureIndices[1]];
+    auto const tc = texCoords[textureIndices[2]];
+    auto const abc = cross(b - a, c - a);
+    auto const invArea2 = 1.0F / abc.norm2();
+
+    auto const getPartial = [&](Vec3f const &dp) {
+        auto const p = a + dp;
+        auto const pa = abc.dot(cross(b - p, c - p)) * invArea2;
+        auto const pb = abc.dot(cross(c - p, a - p)) * invArea2;
+        return (pa - 1.0F) * ta + pb * tb + (1.0F - pa - pb) * tc;
+    };
+    duvdx = getPartial(dpdx);
+    duvdy = getPartial(dpdy);
+}
+
+KIRA_HOST_DEVICE inline float
+TriangleMesh::Impl::getCurvature(std::uint32_t triangle) const noexcept {
+    if (!curvatures)
+        return 0.0F;
+    return curvatures[triangle];
+}
+
 KIRA_HOST_DEVICE inline GeometryInteraction
 TriangleMesh::Impl::computeInteraction(PreliminaryIntersection const &preliminary) const noexcept {
     auto const indices = triangles[preliminary.elementIndex];

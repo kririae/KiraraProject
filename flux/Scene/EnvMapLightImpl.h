@@ -62,36 +62,57 @@ KIRA_HOST_DEVICE inline Vec2f EnvMapLight::Impl::directionToUV(Vec3f const &w) n
 }
 
 template <typename Evaluator>
-KIRA_HOST_DEVICE inline Spectrum EnvMapLight::Impl::evalUV(Vec2f uv) const noexcept {
-    auto const value = texture.template eval3f<Evaluator>(SurfaceInteraction{
+KIRA_HOST_DEVICE inline Spectrum
+EnvMapLight::Impl::evalUV(Vec2f uv, float angle, float sinTheta) const noexcept {
+    auto du = 0.0F;
+    if (angle > 0.0F) {
+        // Every longitude meets at a pole.
+        du = 1.0F;
+        if (sinTheta > 0.0F)
+            du = std::min(angle / (2.0F * std::numbers::pi_v<float> * sinTheta), 1.0F);
+    }
+    auto const value = texture.template eval3f<Evaluator>(TextureEvalContext{
         .uv = {uv.x(), 1.0F - uv.y()},
+        .duvdx = {du, 0.0F},
+        .duvdy = {0.0F, -angle * std::numbers::inv_pi_v<float>},
     });
     return value * scale;
 }
 
-KIRA_HOST_DEVICE inline float EnvMapLight::Impl::pdfUV(Vec2f uv, float sinTheta2) const noexcept {
+KIRA_HOST_DEVICE inline float EnvMapLight::Impl::pdfUV(Vec2f uv, float sinTheta) const noexcept {
     if (!distribution)
         return 0.25F * std::numbers::inv_pi_v<float>;
 
-    if (!(sinTheta2 > 0.0F))
+    if (!(sinTheta > 0.0F))
         return 0.0F;
     return distribution.pdf(uv) /
-           (2.0F * std::numbers::pi_v<float> * std::numbers::pi_v<float> * std::sqrt(sinTheta2));
+           (2.0F * std::numbers::pi_v<float> * std::numbers::pi_v<float> * sinTheta);
 }
 
 template <typename Evaluator>
-KIRA_HOST_DEVICE inline Spectrum EnvMapLight::Impl::eval(Vec3f const &w) const noexcept {
-    return evalUV<Evaluator>(directionToUV(toLocal(w)));
+KIRA_HOST_DEVICE inline Spectrum
+EnvMapLight::Impl::eval(Vec3f const &w, float angle) const noexcept {
+    auto const localW = toLocal(w);
+    auto sinTheta = 0.0F;
+    if (angle > 0.0F)
+        sinTheta = std::sqrt(localW.x() * localW.x() + localW.y() * localW.y());
+    return evalUV<Evaluator>(directionToUV(localW), angle, sinTheta);
 }
 
 template <typename Evaluator>
 KIRA_HOST_DEVICE inline Spectrum
 EnvMapLight::Impl::evalAndPdf(Vec3f const &w, float &pdfValue) const noexcept {
+    return evalAndPdf<Evaluator>(w, 0.0F, pdfValue);
+}
+
+template <typename Evaluator>
+KIRA_HOST_DEVICE inline Spectrum
+EnvMapLight::Impl::evalAndPdf(Vec3f const &w, float angle, float &pdfValue) const noexcept {
     auto const localW = toLocal(w);
     auto const uv = directionToUV(localW);
-    auto const sinTheta2 = localW.x() * localW.x() + localW.y() * localW.y();
-    pdfValue = pdfUV(uv, sinTheta2);
-    return evalUV<Evaluator>(uv);
+    auto const sinTheta = std::sqrt(localW.x() * localW.x() + localW.y() * localW.y());
+    pdfValue = pdfUV(uv, sinTheta);
+    return evalUV<Evaluator>(uv, angle, sinTheta);
 }
 
 template <typename Evaluator>
@@ -129,7 +150,7 @@ EnvMapLight::Impl::sampleDirect(LightSamplingContext const &ctx, Vec2f u) const 
 
     auto const wi = toWorld(localWi);
     return {
-        .radiance = evalUV<Evaluator>(uv),
+        .radiance = evalUV<Evaluator>(uv, 0.0F, 0.0F),
         .wi = wi,
         .distance = std::numeric_limits<float>::max(),
         .pdf = pdfValue,
@@ -138,7 +159,7 @@ EnvMapLight::Impl::sampleDirect(LightSamplingContext const &ctx, Vec2f u) const 
 
 KIRA_HOST_DEVICE inline float EnvMapLight::Impl::pdf(Vec3f const &w) const noexcept {
     auto const localW = toLocal(w);
-    auto const sinTheta2 = localW.x() * localW.x() + localW.y() * localW.y();
-    return pdfUV(directionToUV(localW), sinTheta2);
+    auto const sinTheta = std::sqrt(localW.x() * localW.x() + localW.y() * localW.y());
+    return pdfUV(directionToUV(localW), sinTheta);
 }
 } // namespace flux

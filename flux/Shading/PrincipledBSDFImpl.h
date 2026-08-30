@@ -286,21 +286,21 @@ specularWeights(bool frontSide, float bsdfWeight, float F) noexcept {
 namespace flux {
 template <typename Evaluator>
 KIRA_HOST_DEVICE inline BSDFResult PrincipledBSDF::Impl::execute(
-    SurfaceInteraction const &isect, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
+    TextureEvalContext const &ctx, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
     Vec2f const &u2
 ) const noexcept {
     auto const params = principled::Parameters{
-        .baseColor = baseColor.template eval3f<Evaluator>(isect),                   // (1)
-        .roughness = roughness.template eval1f<Evaluator>(isect),                   // (2)
-        .metallic = metallic.template eval1f<Evaluator>(isect),                     // (3)
-        .specTrans = specTrans.template eval1f<Evaluator>(isect),                   // (4)
-        .specTint = specTint.template eval1f<Evaluator>(isect),                     // (5)
-        .sheen = sheen.template eval1f<Evaluator>(isect),                           // (6)
-        .sheenTint = sheenTint.template eval1f<Evaluator>(isect),                   // (7)
-        .flatness = flatness.template eval1f<Evaluator>(isect),                     // (8)
-        .clearcoat = clearcoat.template eval1f<Evaluator>(isect),                   // (9)
-        .clearcoatRoughness = clearcoatRoughness.template eval1f<Evaluator>(isect), // (10)
-        .eta = eta,                                                                 // (11)
+        .baseColor = baseColor.template eval3f<Evaluator>(ctx),                   // (1)
+        .roughness = roughness.template eval1f<Evaluator>(ctx),                   // (2)
+        .metallic = metallic.template eval1f<Evaluator>(ctx),                     // (3)
+        .specTrans = specTrans.template eval1f<Evaluator>(ctx),                   // (4)
+        .specTint = specTint.template eval1f<Evaluator>(ctx),                     // (5)
+        .sheen = sheen.template eval1f<Evaluator>(ctx),                           // (6)
+        .sheenTint = sheenTint.template eval1f<Evaluator>(ctx),                   // (7)
+        .flatness = flatness.template eval1f<Evaluator>(ctx),                     // (8)
+        .clearcoat = clearcoat.template eval1f<Evaluator>(ctx),                   // (9)
+        .clearcoatRoughness = clearcoatRoughness.template eval1f<Evaluator>(ctx), // (10)
+        .eta = eta,                                                               // (11)
     };
     auto const frontSide = wo.z() > 0.0F;
     if (wo.z() == 0.0F)

@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <vector>
 
 #include "flux/Core/ConcurrentPool.h"
 #include "flux/Core/Math.h"
@@ -110,13 +111,10 @@ private:
 
     explicit ImageAsset(std::unique_ptr<pImpl> pImpl) noexcept;
 
-    /// \brief Reads the complete image into host memory.
+    /// \brief Reads the mip chain into bottom-up host buffers.
     ///
-    /// The buffer has one, two, or four components in bottom-up order. Float16
-    /// and Float32 sRGB pixels are converted to linear. UNorm8 sRGB pixels keep
-    /// their encoded values and report sRGB as their color space. Color
-    /// conversion does not change alpha.
-    [[nodiscard]] ImageBuffer read() const;
+    /// OIIO converts sRGB color components before it generates the mip levels.
+    [[nodiscard]] std::vector<ImageBuffer> readMipChain() const;
 
     std::unique_ptr<pImpl> pImpl_;
 };

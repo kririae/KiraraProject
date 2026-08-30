@@ -4,6 +4,7 @@
 
 #include <utility>
 
+#include "flux/Core/RayFootprint.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/ImageAssetPImpl.h"
 
@@ -42,7 +43,8 @@ void EmbreeImageTexturePool::build(Context const &context) {
         auto options = OIIO::TextureOpt{};
         options.swrap = addressMode(texture->getAddressMode());
         options.twrap = options.swrap;
-        options.mipmode = OIIO::Tex::MipMode::NoMIP;
+        options.mipmode = OIIO::Tex::MipMode::Aniso;
+        options.anisotropic = RayFootprint::maxAnisotropy;
         options.interpmode = texture->getFilterMode() == ImageTextureFilterMode::Linear
                                  ? OIIO::Tex::InterpMode::Bilinear
                                  : OIIO::Tex::InterpMode::Closest;
@@ -97,20 +99,35 @@ void EmbreeImageTexturePool::build(Context const &context) {
 
 void EmbreeImageTexturePool::clear() noexcept { textures_.clear(); }
 
-Vec4f EmbreeImageTexturePool::Impl::eval4f(std::uint32_t index, Vec2f uv) const noexcept {
-    return eval4f(index, uv, false);
+Vec4f EmbreeImageTexturePool::Impl::eval4f(
+    std::uint32_t index, Vec2f uv, Vec2f duvdx, Vec2f duvdy
+) const noexcept {
+    return eval4f(index, uv, duvdx, duvdy, false);
 }
 
 Vec4f EmbreeImageTexturePool::Impl::evalPoint4f(std::uint32_t index, Vec2f uv) const noexcept {
-    return eval4f(index, uv, true);
+    return eval4f(index, uv, {}, {}, true);
 }
 
 Vec4f EmbreeImageTexturePool::Impl::eval4f(
-    std::uint32_t index, Vec2f uv, bool point
+    std::uint32_t index, Vec2f uv, Vec2f duvdx, Vec2f duvdy, bool point
 ) const noexcept {
     auto const &texture = textures[index];
 
     // Map oriented Flux UVs to the file coordinates used by OIIO.
+    auto const orientGradient = [&](Vec2f &gradient) {
+        switch (texture.orientation) {
+        case 1: break;
+        case 2: gradient.x() = -gradient.x(); break;
+        case 3: gradient = -gradient; break;
+        case 4: gradient.y() = -gradient.y(); break;
+        case 5: std::swap(gradient.x(), gradient.y()); break;
+        case 6: gradient = Vec2f{-gradient.y(), gradient.x()}; break;
+        case 7: gradient = Vec2f{-gradient.y(), -gradient.x()}; break;
+        case 8: gradient = Vec2f{gradient.y(), -gradient.x()}; break;
+        default: KIRA_UNREACHABLE();
+        }
+    };
     switch (texture.orientation) {
     case 1: break;
     case 2: uv.x() = 1.0F - uv.x(); break;
@@ -122,6 +139,8 @@ Vec4f EmbreeImageTexturePool::Impl::eval4f(
     case 8: uv = Vec2f{uv.y(), 1.0F - uv.x()}; break;
     default: KIRA_UNREACHABLE();
     }
+    orientGradient(duvdx);
+    orientGradient(duvdy);
 
     alignas(16) auto sampled = Vec4f{};
     static_assert(sizeof(Vec4f) == 4 * sizeof(float));
@@ -137,10 +156,10 @@ Vec4f EmbreeImageTexturePool::Impl::eval4f(
         /* options =       */ options,
         /* s =             */ uv.x(),
         /* t =             */ uv.y(),
-        /* dsdx =          */ 0.0F,
-        /* dtdx =          */ 0.0F,
-        /* dsdy =          */ 0.0F,
-        /* dtdy =          */ 0.0F,
+        /* dsdx =          */ duvdx.x(),
+        /* dtdx =          */ duvdx.y(),
+        /* dsdy =          */ duvdy.x(),
+        /* dtdy =          */ duvdy.y(),
         /* numChannels =   */ texture.sampleComponentCount,
         /* result =        */ sampled.data()
     );

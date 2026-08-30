@@ -54,10 +54,14 @@ struct EnvMapLight::Impl {
 
 public:
     template <typename Evaluator>
-    [[nodiscard]] KIRA_HOST_DEVICE Spectrum eval(Vec3f const &w) const noexcept;
+    [[nodiscard]] KIRA_HOST_DEVICE Spectrum eval(Vec3f const &w, float angle = 0.0F) const noexcept;
 
     template <typename Evaluator>
     [[nodiscard]] KIRA_HOST_DEVICE Spectrum evalAndPdf(Vec3f const &w, float &pdf) const noexcept;
+
+    template <typename Evaluator>
+    [[nodiscard]] KIRA_HOST_DEVICE Spectrum
+    evalAndPdf(Vec3f const &w, float angle, float &pdf) const noexcept;
 
     template <typename Evaluator>
     [[nodiscard]] KIRA_HOST_DEVICE DirectLightSample
@@ -67,9 +71,10 @@ public:
 
 private:
     template <typename Evaluator>
-    [[nodiscard]] KIRA_HOST_DEVICE Spectrum evalUV(Vec2f uv) const noexcept;
+    [[nodiscard]] KIRA_HOST_DEVICE Spectrum
+    evalUV(Vec2f uv, float angle, float sinTheta) const noexcept;
 
-    [[nodiscard]] KIRA_HOST_DEVICE float pdfUV(Vec2f uv, float sinTheta2) const noexcept;
+    [[nodiscard]] KIRA_HOST_DEVICE float pdfUV(Vec2f uv, float sinTheta) const noexcept;
     [[nodiscard]] KIRA_HOST_DEVICE Vec3f toLocal(Vec3f const &w) const noexcept;
     [[nodiscard]] KIRA_HOST_DEVICE Vec3f toWorld(Vec3f const &w) const noexcept;
     [[nodiscard]] KIRA_HOST_DEVICE static Vec2f directionToUV(Vec3f const &w) noexcept;

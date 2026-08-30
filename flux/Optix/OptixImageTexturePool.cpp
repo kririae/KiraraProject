@@ -2,6 +2,7 @@
 
 #include <unordered_map>
 
+#include "flux/Core/RayFootprint.h"
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/ImageAssetPImpl.h"
@@ -22,21 +23,25 @@ void OptixImageTexturePool::build(Context const &context) {
     };
 
     struct ArrayEntry {
-        cudaArray_t array{};
+        cudaMipmappedArray_t array{};
         ImageComponentType componentType{};
         ImageColorSpace colorSpace{};
+        std::uint32_t numLevels{};
     };
 
     auto const createTextureObject = [](ArrayEntry const &image, cudaTextureAddressMode addressMode,
                                         cudaTextureFilterMode filterMode) {
         auto resource = cudaResourceDesc{};
-        resource.resType = cudaResourceTypeArray;
-        resource.res.array.array = image.array;
+        resource.resType = cudaResourceTypeMipmappedArray;
+        resource.res.mipmap.mipmap = image.array;
 
         auto texture = cudaTextureDesc{};
         texture.addressMode[0] = addressMode;
         texture.addressMode[1] = addressMode;
         texture.filterMode = filterMode;
+        texture.mipmapFilterMode = cudaFilterModeLinear;
+        texture.maxAnisotropy = RayFootprint::maxAnisotropy;
+        texture.maxMipmapLevelClamp = static_cast<float>(image.numLevels - 1);
         texture.readMode = image.componentType == ImageComponentType::UNorm8
                                ? cudaReadModeNormalizedFloat
                                : cudaReadModeElementType;
@@ -54,7 +59,7 @@ void OptixImageTexturePool::build(Context const &context) {
     textureObjects_.reserve(textures.size() * 2);
     staging_.resize(context.getImageTextureIndexLimit());
     // Keep host pixels alive until the stream synchronization below.
-    std::vector<ImageAsset::ImageBuffer> imageBuffers;
+    std::vector<std::vector<ImageAsset::ImageBuffer>> imageBuffers;
     imageBuffers.reserve(textures.size());
 
     // Bindings for the same ImageAsset share one CUDA array.
@@ -66,7 +71,8 @@ void OptixImageTexturePool::build(Context const &context) {
         // ImageAsset::read uses the OIIO cache. Each build still creates a
         // complete host buffer and uploads every active image.
         auto const uploadImage = [&](ImageAsset const &asset) {
-            auto &image = imageBuffers.emplace_back(asset.read());
+            auto &images = imageBuffers.emplace_back(asset.readMipChain());
+            auto const &image = images.front();
 
             // Keep one- and two-component arrays compact.
             auto bits = 0;
@@ -93,27 +99,34 @@ void OptixImageTexturePool::build(Context const &context) {
             auto result = ArrayEntry{
                 .componentType = image.componentType,
                 .colorSpace = image.colorSpace,
+                .numLevels = static_cast<std::uint32_t>(images.size()),
             };
-            cudaCheck(
-                cudaMallocArray(&result.array, &channelDesc, image.extent.x(), image.extent.y())
-            );
+            cudaCheck(cudaMallocMipmappedArray(
+                &result.array, &channelDesc, cudaExtent{image.extent.x(), image.extent.y(), 0},
+                result.numLevels
+            ));
             arrays_.push_back(result.array);
 
-            auto const pixels = image.getPixels();
-            auto const rowBytes = pixels.size_bytes() / image.extent.y();
-            // clang-format off
-            cudaCheck(cudaMemcpy2DToArrayAsync(
-                /* dst =     */ result.array,
-                /* wOffset = */ 0,
-                /* hOffset = */ 0,
-                /* src =     */ pixels.data(),
-                /* spitch =  */ rowBytes,
-                /* width =   */ rowBytes,
-                /* height =  */ image.extent.y(),
-                /* kind =    */ cudaMemcpyHostToDevice,
-                /* stream =  */ getStream()
-            ));
-            // clang-format on
+            for (auto level = std::size_t{}; level < images.size(); ++level) {
+                auto levelArray = cudaArray_t{};
+                cudaCheck(cudaGetMipmappedArrayLevel(&levelArray, result.array, level));
+                auto const &levelImage = images[level];
+                auto const pixels = levelImage.getPixels();
+                auto const rowBytes = pixels.size_bytes() / levelImage.extent.y();
+                // clang-format off
+                cudaCheck(cudaMemcpy2DToArrayAsync(
+                    /* dst =     */ levelArray,
+                    /* wOffset = */ 0,
+                    /* hOffset = */ 0,
+                    /* src =     */ pixels.data(),
+                    /* spitch =  */ rowBytes,
+                    /* width =   */ rowBytes,
+                    /* height =  */ levelImage.extent.y(),
+                    /* kind =    */ cudaMemcpyHostToDevice,
+                    /* stream =  */ getStream()
+                ));
+                // clang-format on
+            }
             return result;
         };
 
@@ -161,7 +174,7 @@ void OptixImageTexturePool::clear() noexcept {
     for (auto const texture : textureObjects_)
         cudaCheck<false>(cudaDestroyTextureObject(texture));
     for (auto *const array : arrays_)
-        cudaCheck<false>(cudaFreeArray(array));
+        cudaCheck<false>(cudaFreeMipmappedArray(array));
     textureObjects_.clear();
     arrays_.clear();
     staging_.clear();

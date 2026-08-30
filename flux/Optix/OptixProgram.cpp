@@ -133,7 +133,7 @@ void OptixProgram::buildModule(std::filesystem::path const &modulePath) {
     auto const ir = readBinary(modulePath);
     OptixModuleCompileOptions moduleOptions{};
     // Keep the megakernel below the measured OptiX register-allocation cliff.
-    moduleOptions.maxRegisterCount = 96;
+    moduleOptions.maxRegisterCount = 128;
     moduleOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_3;
     moduleOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
 

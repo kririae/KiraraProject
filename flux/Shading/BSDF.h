@@ -72,6 +72,11 @@ public:
     [[nodiscard]] KIRA_HOST_DEVICE bool isDelta() const noexcept {
         return lobe == BSDFLobe::DeltaReflection || lobe == BSDFLobe::DeltaTransmission;
     }
+
+    [[nodiscard]] KIRA_HOST_DEVICE bool needsCurvature() const noexcept {
+        return lobe == BSDFLobe::GlossyReflection || lobe == BSDFLobe::GlossyTransmission ||
+               isDelta();
+    }
 };
 
 /// \brief Results produced by one BSDF execution.
@@ -102,13 +107,13 @@ public:
     /// \pre \p wo is normalized; \p wi is normalized when \p eval is true.
     /// \pre Samples are in \f$[0,1)\f$.
     [[nodiscard]] KIRA_HOST_DEVICE BSDFResult execute(
-        SurfaceInteraction const &isect, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
+        TextureEvalContext const &ctx, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
         Vec2f const &u2
     ) const noexcept {
         auto result = BSDFResult{};
         if (eval)
-            result.evaluation = derived_().evalAndPdf(isect, wo, wi);
-        result.sample = derived_().sample(isect, wo, u1, u2);
+            result.evaluation = derived_().evalAndPdf(ctx, wo, wi);
+        result.sample = derived_().sample(ctx, wo, u1, u2);
         return result;
     }
 };
@@ -127,6 +132,8 @@ public:
 
     /// \brief Returns the concrete implementation type.
     [[nodiscard]] BSDFType getType() const noexcept { return type_; }
+
+    [[nodiscard]] bool needsCurvature() const noexcept { return type_ == BSDFType::Principled; }
 
     /// \brief Builds this BSDF's scattering implementation.
     [[nodiscard]] Impl getImpl() const;
@@ -201,9 +208,13 @@ struct DiffuseBSDF::Impl {
     Texture::Impl R;
 
 public:
+    [[nodiscard]] bool needsTextureFootprint() const noexcept {
+        return R.type == TextureType::Image;
+    }
+
     template <typename Evaluator>
     [[nodiscard]] KIRA_HOST_DEVICE BSDFResult execute(
-        SurfaceInteraction const &isect, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
+        TextureEvalContext const &ctx, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
         Vec2f const &u2
     ) const noexcept;
 };
@@ -223,10 +234,19 @@ struct PrincipledBSDF::Impl {
     float eta;
 
 public:
+    [[nodiscard]] bool needsTextureFootprint() const noexcept {
+        return baseColor.type == TextureType::Image || roughness.type == TextureType::Image ||
+               metallic.type == TextureType::Image || specTrans.type == TextureType::Image ||
+               specTint.type == TextureType::Image || sheen.type == TextureType::Image ||
+               sheenTint.type == TextureType::Image || flatness.type == TextureType::Image ||
+               clearcoat.type == TextureType::Image ||
+               clearcoatRoughness.type == TextureType::Image;
+    }
+
     /// \brief Evaluates and samples the Principled model for one hit.
     template <typename Evaluator>
     [[nodiscard]] KIRA_HOST_DEVICE BSDFResult execute(
-        SurfaceInteraction const &isect, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
+        TextureEvalContext const &ctx, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
         Vec2f const &u2
     ) const noexcept;
 };
@@ -234,6 +254,8 @@ public:
 /// \brief Stores one BSDF implementation.
 struct BSDF::Impl {
     BSDFType type;
+
+    bool needsTextureFootprint;
 
     union Storage {
         DiffuseBSDF::Impl diffuse;
@@ -257,7 +279,7 @@ public:
     /// \pre \c types contains \p bsdf's implementation type.
     template <typename Evaluator>
     [[nodiscard]] KIRA_HOST_DEVICE BSDFResult execute(
-        BSDF::Impl const &bsdf, SurfaceInteraction const &isect, Vec3f const &wo, Vec3f const &wi,
+        BSDF::Impl const &bsdf, TextureEvalContext const &ctx, Vec3f const &wo, Vec3f const &wi,
         bool eval, float u1, Vec2f const &u2
     ) const noexcept;
 };

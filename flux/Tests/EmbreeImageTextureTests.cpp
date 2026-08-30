@@ -35,8 +35,9 @@ protected:
         pool.build(*context);
     }
 
-    [[nodiscard]] flux::Vec4f sample(flux::Vec2f uv) const noexcept {
-        return pool.getImpl().eval4f(0, uv);
+    [[nodiscard]] flux::Vec4f
+    sample(flux::Vec2f uv, flux::Vec2f duvdx = {}, flux::Vec2f duvdy = {}) const noexcept {
+        return pool.getImpl().eval4f(0, uv, duvdx, duvdy);
     }
 
     static void expectNear(flux::Vec4f const &actual, flux::Vec4f const &expected) {
@@ -189,6 +190,30 @@ TEST_F(EmbreeImageTextureTests, FiltersLinearSRGBValues) {
     EXPECT_NEAR(value.y(), 0.28918776F, 1.5e-3F);
     EXPECT_NEAR(value.z(), 0.28918776F, 1.5e-3F);
     EXPECT_FLOAT_EQ(value.w(), 1.0F);
+}
+
+TEST_F(EmbreeImageTextureTests, FiltersMipLevels) {
+    build(std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "Texture2x2.ppm", "linear", "linear");
+
+    constexpr auto expected = 128.0F / 255.0F;
+    expectNear(
+        sample({0.1F, 0.1F}, {1.0F, 0.0F}, {0.0F, 1.0F}), {expected, expected, expected, 1.0F}
+    );
+}
+
+TEST_F(EmbreeImageTextureTests, UsesOIIOOddMipLevels) {
+    build(std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "Texture3x3.ppm", "linear", "linear");
+
+    expectNear(sample({0.5F, 0.5F}, {1.0F, 0.0F}, {0.0F, 1.0F}), {1.0F, 1.0F, 1.0F, 1.0F});
+}
+
+TEST_F(EmbreeImageTextureTests, BuildsSRGBMipLevelsInLinearSpace) {
+    build(std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "SRGBFilter2x2.ppm", "srgb", "linear");
+
+    auto const value = sample({0.1F, 0.1F}, {1.0F, 0.0F}, {0.0F, 1.0F});
+    EXPECT_NEAR(value.x(), 0.28918776F, 1.5e-3F);
+    EXPECT_NEAR(value.y(), 0.28918776F, 1.5e-3F);
+    EXPECT_NEAR(value.z(), 0.28918776F, 1.5e-3F);
 }
 
 TEST_F(EmbreeImageTextureTests, DecodesUNorm8SRGB) {

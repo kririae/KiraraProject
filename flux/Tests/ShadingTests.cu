@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <limits>
 #include <numbers>
@@ -18,7 +20,7 @@
 namespace {
 struct TestImageTextureEvaluator {
     [[nodiscard]] KIRA_HOST_DEVICE static flux::Vec4f
-    eval4f(std::uint32_t index, flux::Vec2f uv) noexcept {
+    eval4f(std::uint32_t index, flux::Vec2f uv, flux::Vec2f const &, flux::Vec2f const &) noexcept {
         return {static_cast<float>(index) + uv.x(), uv.y(), 3.0F, 4.0F};
     }
 };
@@ -31,34 +33,34 @@ struct TestImageTextureEvaluator {
 }
 
 struct SpecializedTexture : flux::TextureMixin<SpecializedTexture> {
-    [[nodiscard]] KIRA_HOST_DEVICE float eval1f_(flux::SurfaceInteraction const &) const noexcept {
+    [[nodiscard]] KIRA_HOST_DEVICE float eval1f_(flux::TextureEvalContext const &) const noexcept {
         return 1.0F;
     }
 
     [[nodiscard]] KIRA_HOST_DEVICE flux::Vec2f
-    eval2f_(flux::SurfaceInteraction const &) const noexcept {
+    eval2f_(flux::TextureEvalContext const &) const noexcept {
         return {9.0F, 10.0F};
     }
 
     [[nodiscard]] KIRA_HOST_DEVICE flux::Vec3f
-    eval3f_(flux::SurfaceInteraction const &) const noexcept {
+    eval3f_(flux::TextureEvalContext const &) const noexcept {
         return {2.0F, 3.0F, 4.0F};
     }
 
     [[nodiscard]] KIRA_HOST_DEVICE flux::Vec4f
-    eval4f_(flux::SurfaceInteraction const &) const noexcept {
+    eval4f_(flux::TextureEvalContext const &) const noexcept {
         return {5.0F, 6.0F, 7.0F, 8.0F};
     }
 };
 
 struct RGBTexture : flux::TextureMixin<RGBTexture> {
     [[nodiscard]] KIRA_HOST_DEVICE flux::Vec3f
-    eval3f_(flux::SurfaceInteraction const &) const noexcept {
+    eval3f_(flux::TextureEvalContext const &) const noexcept {
         return {2.0F, 3.0F, 4.0F};
     }
 
     [[nodiscard]] KIRA_HOST_DEVICE flux::Vec4f
-    eval4f_(flux::SurfaceInteraction const &) const noexcept {
+    eval4f_(flux::TextureEvalContext const &) const noexcept {
         return {5.0F, 6.0F, 7.0F, 8.0F};
     }
 };
@@ -69,11 +71,8 @@ struct EvaluateDiffuse {
     flux::BSDFSample *sample;
 
     KIRA_DEVICE void operator()(std::size_t) const noexcept {
-        auto const isect = flux::SurfaceInteraction{
-            .shadingNormal = {1.0F, 0.0F, 0.0F},
-        };
         auto const result = bsdf.execute<TestImageTextureEvaluator>(
-            isect, {0.0F, 0.0F, 1.0F}, {0.0F, 0.0F, 1.0F}, true, 0.5F, {0.5F, 0.5F}
+            {}, {0.0F, 0.0F, 1.0F}, {0.0F, 0.0F, 1.0F}, true, 0.5F, {0.5F, 0.5F}
         );
         *evaluation = result.evaluation;
         *sample = result.sample;
@@ -159,9 +158,7 @@ TEST(ShadingTests, KeepsShortVisibilityRaysPointedAtTheirTarget) {
 TEST(ShadingTests, EvaluatesDiffuseOnHost) {
     constexpr auto dispatcher =
         flux::BSDF::Dispatcher{.types = flux::bsdfTypeBit(flux::BSDFType::Diffuse)};
-    auto const isect = flux::SurfaceInteraction{
-        .shadingNormal = {1.0F, 0.0F, 0.0F},
-    };
+    auto const texCtx = flux::TextureEvalContext{};
     auto const bsdf = flux::BSDF::Impl{
         .type = flux::BSDFType::Diffuse,
         .storage = {
@@ -169,13 +166,13 @@ TEST(ShadingTests, EvaluatesDiffuseOnHost) {
         },
     };
     auto const result = dispatcher.execute<TestImageTextureEvaluator>(
-        bsdf, isect, {0.0F, 0.0F, 1.0F}, {0.0F, 0.0F, 1.0F}, true, 0.5F, {0.5F, 0.5F}
+        bsdf, texCtx, {0.0F, 0.0F, 1.0F}, {0.0F, 0.0F, 1.0F}, true, 0.5F, {0.5F, 0.5F}
     );
     auto const angledResult = dispatcher.execute<TestImageTextureEvaluator>(
-        bsdf, isect, {0.0F, 0.0F, 1.0F}, {0.6F, 0.0F, 0.8F}, true, 0.5F, {0.5F, 0.5F}
+        bsdf, texCtx, {0.0F, 0.0F, 1.0F}, {0.6F, 0.0F, 0.8F}, true, 0.5F, {0.5F, 0.5F}
     );
     auto const sampleOnly = dispatcher.execute<TestImageTextureEvaluator>(
-        bsdf, isect, {0.0F, 0.0F, 1.0F}, {}, false, 0.5F, {0.5F, 0.5F}
+        bsdf, texCtx, {0.0F, 0.0F, 1.0F}, {}, false, 0.5F, {0.5F, 0.5F}
     );
     auto const &evaluation = result.evaluation;
     auto const &angledEvaluation = angledResult.evaluation;
@@ -264,14 +261,20 @@ TEST(ShadingTests, MatchesPrincipledExecutionOnDevice) {
     result.copyToHost(actual);
     flux::cudaCheck(cudaStreamSynchronize(cudaStreamPerThread));
 
+    auto const pdfTolerance = [](float expected) {
+        return 1.0e-6F * std::max(1.0F, std::abs(expected));
+    };
+
     EXPECT_NEAR(actual[0].evaluation.value.x(), expected.evaluation.value.x(), 1.0e-5F);
     EXPECT_NEAR(actual[0].evaluation.value.y(), expected.evaluation.value.y(), 1.0e-5F);
     EXPECT_NEAR(actual[0].evaluation.value.z(), expected.evaluation.value.z(), 1.0e-5F);
-    EXPECT_NEAR(actual[0].evaluation.pdf, expected.evaluation.pdf, 1.0e-5F);
+    EXPECT_NEAR(
+        actual[0].evaluation.pdf, expected.evaluation.pdf, pdfTolerance(expected.evaluation.pdf)
+    );
     EXPECT_NEAR(actual[0].sample.weight.x(), expected.sample.weight.x(), 1.0e-5F);
     EXPECT_NEAR(actual[0].sample.weight.y(), expected.sample.weight.y(), 1.0e-5F);
     EXPECT_NEAR(actual[0].sample.weight.z(), expected.sample.weight.z(), 1.0e-5F);
-    EXPECT_NEAR(actual[0].sample.pdf, expected.sample.pdf, 1.0e-5F);
+    EXPECT_NEAR(actual[0].sample.pdf, expected.sample.pdf, pdfTolerance(expected.sample.pdf));
     EXPECT_NEAR(actual[0].sample.eta, expected.sample.eta, 1.0e-5F);
     EXPECT_EQ(actual[0].sample.lobe, expected.sample.lobe);
 }
@@ -360,6 +363,17 @@ TEST(ShadingTests, CreatesPrincipledWithConstantParameters) {
     );
     EXPECT_EQ(impl.roughness.eval1f<TestImageTextureEvaluator>({}), 0.35F);
     EXPECT_EQ(impl.eta, 1.45F);
+}
+
+TEST(ShadingTests, FindsImageTexturesUsedByPrincipled) {
+    auto impl = referencePrincipled();
+    EXPECT_FALSE(impl.needsTextureFootprint());
+
+    impl.clearcoatRoughness = {
+        .type = flux::TextureType::Image,
+        .storage = {.image = {.imageTextureIndex = 0}},
+    };
+    EXPECT_TRUE(impl.needsTextureFootprint());
 }
 
 TEST(ShadingTests, ResolvesPrincipledEta) {

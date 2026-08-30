@@ -9,6 +9,7 @@
 #include "flux/Core/MathUtils.h"
 #include "flux/Core/Object.h"
 #include "flux/Core/Ray.h"
+#include "flux/Core/RayFootprint.h"
 #include "flux/Embree/EmbreeImageTexturePool.h"
 #include "flux/Embree/EmbreeLightSampler.h"
 #include "flux/Scene/GeometryImpl.h"
@@ -57,12 +58,15 @@ public:
 
     [[nodiscard]] Impl getImpl() const noexcept;
 
+    [[nodiscard]] bool needsTextureFootprint() const noexcept;
+
 private:
     struct EmptyState {};
 
-    struct TriangleSamplingStorage {
+    struct TriangleData {
         kira::SmallVector<float, 0> areaCDF;
         kira::SmallVector<float, 0> areaPDF;
+        kira::SmallVector<float, 0> curvatures;
     };
 
     EmbreeContext(EmptyState, Context &context) noexcept;
@@ -86,8 +90,8 @@ private:
     /// Geometry-space views of retained mesh arrays.
     std::vector<Geometry::Impl> geometryImpls_;
 
-    /// Triangle-sampling storage indexed by geometry.
-    std::vector<TriangleSamplingStorage> triangleSampling_;
+    /// Per-triangle data for each geometry.
+    std::vector<TriangleData> triangleData_;
 
     /// Visible primitives indexed by top-level Embree instance ID.
     std::vector<Primitive::Impl> primitives_;
@@ -108,6 +112,7 @@ private:
     EmbreeImageTexturePool imageTexturePool_;
 
     EmbreeLightSampler lightSampler_;
+    bool needsTextureFootprint_{};
 };
 
 /// \brief Embree scene used during rendering.
@@ -167,6 +172,14 @@ public:
     transformNormalToWorld(std::uint32_t primitiveIndex, Vec3f const &normal) const noexcept {
         return transformVec(normalTransforms[primitiveIndex].data(), normal);
     }
+
+    [[nodiscard]] TextureEvalContext getTextureEvalContext(
+        SurfaceInteraction const &isect, Vec3f const &direction, RayFootprint const &footprint
+    ) const noexcept;
+
+    /// \brief Returns world-space curvature oriented toward \p wo.
+    [[nodiscard]] float
+    getCurvature(SurfaceInteraction const &isect, Vec3f const &wo) const noexcept;
 
     /// \brief Returns the primitive at dense \p index.
     ///

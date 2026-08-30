@@ -5,6 +5,7 @@
 #include <type_traits>
 
 #include "flux/Core/Ray.h"
+#include "flux/Core/RayFootprint.h"
 #include "flux/Sampling/SamplerImpl.h"
 #include "flux/Scene/Light.h"
 #include "flux/Scene/LightSamplingImpl.h"
@@ -48,6 +49,7 @@ public:
     LightSamplingContext prevLightCtx{};
     /// BSDF PDF that produced \c ray.
     float prevBSDFPdf{};
+    PackedRayFootprint footprint{};
     /// Number of surface interactions that produced a continuation ray.
     std::uint32_t depth{};
     /// Whether another radiance vertex should be processed.
@@ -104,8 +106,9 @@ public:
 
         /// \brief Adds environment emission and terminates an escaped path.
         template <typename Evaluator, typename BackendContext>
-        KIRA_HOST_DEVICE void
-        onMiss(PathState &state, BackendContext const &backend) const noexcept {
+        KIRA_HOST_DEVICE void onMiss(
+            PathState &state, BackendContext const &backend, bool trackFootprint
+        ) const noexcept {
             auto const *envMap = backend.lightSampler.table.envMap;
             if (!envMap) {
                 state.active = false;
@@ -114,15 +117,20 @@ public:
 
             auto radiance = Spectrum{};
             auto weight = 1.0F;
+            auto coneAngle = 0.0F;
+            if (trackFootprint)
+                coneAngle = state.footprint.unpack().angle();
             if (state.depth > 0 && !state.prevDelta) {
                 float envMapPdf;
-                radiance = envMap->template evalAndPdf<Evaluator>(state.ray.direction, envMapPdf);
+                radiance = envMap->template evalAndPdf<Evaluator>(
+                    state.ray.direction, coneAngle, envMapPdf
+                );
                 auto const selectPmf = backend.lightSampler.pmf(
                     state.prevLightCtx, {.type = LightType::EnvMap, .index = 0}
                 );
                 weight = misWeight(state.prevBSDFPdf, selectPmf * envMapPdf);
             } else
-                radiance = envMap->template eval<Evaluator>(state.ray.direction);
+                radiance = envMap->template eval<Evaluator>(state.ray.direction, coneAngle);
 
             state.radiance = state.radiance + state.throughput * radiance * weight;
             state.active = false;
@@ -232,6 +240,29 @@ public:
                 }
                 state.throughput = state.throughput / q;
             }
+        }
+
+        KIRA_HOST_DEVICE void updateFootprint(
+            PathState &state, BSDFSample const &sample, RayFootprint footprint, float curvature
+        ) const noexcept {
+            if (sample.lobe == BSDFLobe::DiffuseReflection ||
+                sample.lobe == BSDFLobe::DiffuseTransmission) {
+                footprint.setDiffuse();
+                state.footprint = PackedRayFootprint::pack(footprint);
+                return;
+            }
+
+            if (sample.lobe == BSDFLobe::GlossyTransmission ||
+                sample.lobe == BSDFLobe::DeltaTransmission)
+                footprint.refract(curvature, sample.eta);
+            else
+                footprint.reflect(curvature);
+
+            // Continuous sample weight is f * abs(cos theta) / pdf.
+            if (!sample.isDelta())
+                footprint.scatter(sample.weight.hmax() * sample.pdf / std::abs(sample.wi.z()));
+
+            state.footprint = PackedRayFootprint::pack(footprint);
         }
     };
 

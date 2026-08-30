@@ -27,16 +27,22 @@ BSDF::BSDF(TXContext &tx, BSDFType type) : RenderObject(tx), type_(type) {}
 
 BSDF::Impl BSDF::getImpl() const {
     switch (type_) {
-    case BSDFType::Diffuse:
+    case BSDFType::Diffuse: {
+        auto const impl = static_cast<DiffuseBSDF const &>(*this).getImpl();
         return {
             .type = type_,
-            .storage = {.diffuse = static_cast<DiffuseBSDF const &>(*this).getImpl()},
+            .needsTextureFootprint = impl.needsTextureFootprint(),
+            .storage = {.diffuse = impl},
         };
-    case BSDFType::Principled:
+    }
+    case BSDFType::Principled: {
+        auto const impl = static_cast<PrincipledBSDF const &>(*this).getImpl();
         return {
             .type = type_,
-            .storage = {.principled = static_cast<PrincipledBSDF const &>(*this).getImpl()},
+            .needsTextureFootprint = impl.needsTextureFootprint(),
+            .storage = {.principled = impl},
         };
+    }
     case BSDFType::Count: break;
     }
     KIRA_UNREACHABLE();

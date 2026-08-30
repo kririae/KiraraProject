@@ -46,6 +46,8 @@ struct OptixLaunchParams {
     /// Whether the scene has an active environment map.
     bool hasEnvMap;
 
+    bool needsTextureFootprint;
+
 public:
     /// \brief Decodes a linear OptiX launch index.
     ///

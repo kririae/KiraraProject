@@ -147,6 +147,21 @@ transformVec(float const *transform, Vec3f const &vector) noexcept {
     };
 }
 
+template <typename Row>
+    requires requires(Row const &row) {
+        row.x;
+        row.y;
+        row.z;
+    }
+[[nodiscard]] KIRA_HOST_DEVICE inline Vec3f
+transformVec(Row const *transform, Vec3f const &vector) noexcept {
+    return {
+        transform[0].x * vector.x() + transform[0].y * vector.y() + transform[0].z * vector.z(),
+        transform[1].x * vector.x() + transform[1].y * vector.y() + transform[1].z * vector.z(),
+        transform[2].x * vector.x() + transform[2].y * vector.y() + transform[2].z * vector.z(),
+    };
+}
+
 /// \brief Multiplies a vector by the transpose of a row-major 3x3 transform.
 ///
 /// \pre \p transform addresses 9 floats.

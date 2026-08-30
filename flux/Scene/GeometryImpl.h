@@ -41,6 +41,18 @@ public:
         });
     }
 
+    KIRA_HOST_DEVICE void computeTexCoordPartials(
+        std::uint32_t elementIndex, Vec3f const &dpdx, Vec3f const &dpdy, Vec2f &duvdx, Vec2f &duvdy
+    ) const noexcept {
+        dispatch([&](auto const &geometry) {
+            geometry.computeTexCoordPartials(elementIndex, dpdx, dpdy, duvdx, duvdy);
+        });
+    }
+
+    [[nodiscard]] KIRA_HOST_DEVICE float getCurvature(std::uint32_t elementIndex) const noexcept {
+        return dispatch([&](auto const &geometry) { return geometry.getCurvature(elementIndex); });
+    }
+
     [[nodiscard]] KIRA_HOST_DEVICE GeometrySample sample(Vec2f const &value) const noexcept {
         return dispatch([&](auto const &geometry) { return geometry.sample(value); });
     }

@@ -8,13 +8,13 @@
 namespace flux {
 template <typename Evaluator>
 KIRA_HOST_DEVICE inline BSDFResult DiffuseBSDF::Impl::execute(
-    SurfaceInteraction const &isect, Vec3f const &wo, Vec3f const &wi, bool eval,
+    TextureEvalContext const &ctx, Vec3f const &wo, Vec3f const &wi, bool eval,
     [[maybe_unused]] float u1, Vec2f const &u2
 ) const noexcept {
     if (wo.z() <= 0.0F)
         return {};
 
-    auto const value = R.template eval3f<Evaluator>(isect);
+    auto const value = R.template eval3f<Evaluator>(ctx);
     auto result = BSDFResult{};
     if (eval && wi.z() > 0.0F) {
         constexpr auto inversePi = std::numbers::inv_pi_v<float>;

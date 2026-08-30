@@ -4,6 +4,23 @@
 #include "flux/Scene/Camera.h"
 
 namespace flux {
+KIRA_HOST_DEVICE inline RayFootprint
+Camera::Impl::getRayFootprint(Vec3f const &direction, Vec2u const &resolution) const noexcept {
+    auto const pixelWidth = halfHeight / static_cast<float>(resolution.y());
+    auto const pinhole = RayCone{
+        .angle = 2.0F * direction.dot(forward) * pixelWidth,
+        .width = 0.0F,
+    };
+    auto lens = RayCone{};
+    if (lensRadius > 0.0F) {
+        lens = {
+            .angle = -direction.dot(forward) * lensRadius / focalDistance,
+            .width = lensRadius,
+        };
+    }
+    return {.cones = {pinhole, lens}};
+}
+
 KIRA_HOST_DEVICE inline Ray Camera::Impl::generateRay(
     Vec2f const &rasterPosition, Vec2f const &lensSample, Vec2u const &resolution
 ) const noexcept {

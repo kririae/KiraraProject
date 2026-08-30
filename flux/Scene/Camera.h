@@ -5,6 +5,7 @@
 #include "flux/Core/Math.h"
 #include "flux/Core/Object.h"
 #include "flux/Core/Ray.h"
+#include "flux/Core/RayFootprint.h"
 #include "kira/Compiler.h"
 
 namespace flux {
@@ -111,6 +112,11 @@ public:
     [[nodiscard]] KIRA_HOST_DEVICE inline Ray generateRay(
         Vec2f const &rasterPosition, Vec2f const &lensSample, Vec2u const &resolution
     ) const noexcept;
+
+    /// \brief Returns the initial footprint for normalized world-space \p direction.
+    /// \pre \p resolution has a nonzero height.
+    [[nodiscard]] KIRA_HOST_DEVICE inline RayFootprint
+    getRayFootprint(Vec3f const &direction, Vec2u const &resolution) const noexcept;
 
     [[nodiscard]] bool operator==(Impl const &) const = default;
 };

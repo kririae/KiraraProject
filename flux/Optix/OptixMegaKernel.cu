@@ -18,10 +18,11 @@ __constant__ flux::OptixLaunchParams optixLaunchParams{};
 
 namespace {
 struct OptixImageTextureEvaluator {
-    [[nodiscard]] KIRA_DEVICE static flux::Vec4f
-    eval4f(std::uint32_t index, flux::Vec2f uv) noexcept {
+    [[nodiscard]] KIRA_DEVICE static flux::Vec4f eval4f(
+        std::uint32_t index, flux::Vec2f uv, flux::Vec2f const &duvdx, flux::Vec2f const &duvdy
+    ) noexcept {
         auto const &texture = optixLaunchParams.scene.imageTexturePool.get(index);
-        return texture.componentMapping.apply(texture.sample(uv));
+        return texture.componentMapping.apply(texture.sample(uv, duvdx, duvdy));
     }
 };
 } // namespace
@@ -43,10 +44,13 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
     auto const ray =
         optixLaunchParams.camera.generateRay(rasterPosition, sampler.get2D(), resolution);
 
-    flux::PathState state{
-        .ray = ray,
-        .sampler = sampler,
-    };
+    auto packedFootprint = flux::PackedRayFootprint{};
+    if (optixLaunchParams.needsTextureFootprint) {
+        packedFootprint = flux::PackedRayFootprint::pack(
+            optixLaunchParams.camera.getRayFootprint(ray.direction, resolution)
+        );
+    }
+    flux::PathState state{.ray = ray, .sampler = sampler, .footprint = packedFootprint};
     auto const writesColor = optixLaunchParams.film.hasChannel<flux::ColorChannel>();
 
     while (state.active) {
@@ -55,7 +59,7 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
         if (!optixLaunchParams.scene.intersect(state.ray, hit, reorder)) {
             if (writesColor && optixLaunchParams.hasEnvMap) {
                 optixLaunchParams.integrator.onMiss<OptixImageTextureEvaluator>(
-                    state, optixLaunchParams.scene
+                    state, optixLaunchParams.scene, optixLaunchParams.needsTextureFootprint
                 );
             } else {
                 optixLaunchParams.integrator.onMiss(state);
@@ -64,6 +68,12 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
         }
 
         auto const &isect = hit.surface;
+        // NVCC generates a faster path when the unpacked footprint stays in this scope.
+        auto footprint = flux::RayFootprint{};
+        if (optixLaunchParams.needsTextureFootprint) {
+            footprint = state.footprint.unpack();
+            footprint.propagate((isect.position - state.ray.origin).dot(state.ray.direction));
+        }
         auto const &primitive = optixLaunchParams.scene.getPrimitive(isect.primitiveIndex);
         auto const isPrimary = state.depth == 0;
         auto const wo = -state.ray.direction;
@@ -110,9 +120,15 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
             auto const u1 = state.sampler.get1D();
             auto const u2 = state.sampler.get2D();
             auto const &bsdf = optixLaunchParams.scene.getBSDF(primitive.getBSDFIndex());
+            auto texCtx = flux::TextureEvalContext{.uv = isect.uv};
+            if (bsdf.needsTextureFootprint) {
+                texCtx = optixLaunchParams.scene.getTextureEvalContext(
+                    isect, state.ray.direction, footprint
+                );
+            }
             auto const result =
                 optixLaunchParams.bsdfDispatcher.execute<OptixImageTextureEvaluator>(
-                    bsdf, isect, localWo, localLightWi, directLight.pdf > 0.0F, u1, u2
+                    bsdf, texCtx, localWo, localLightWi, directLight.pdf > 0.0F, u1, u2
                 );
 
             if (writesAlbedo) {
@@ -128,9 +144,16 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
             candidate = optixLaunchParams.integrator.makeDirectLightCandidate(
                 state.throughput, directLight, result.evaluation
             );
+            auto curvature = 0.0F;
+            if (optixLaunchParams.needsTextureFootprint && result.sample.needsCurvature())
+                curvature = optixLaunchParams.scene.getCurvature(isect, wo);
             optixLaunchParams.integrator.onSurfaceHit(
                 state, isect, frame.toWorld(result.sample.wi), result.sample
             );
+            if (optixLaunchParams.needsTextureFootprint && state.active)
+                optixLaunchParams.integrator.updateFootprint(
+                    state, result.sample, footprint, curvature
+                );
         }
 
         if (candidate.valid &&
