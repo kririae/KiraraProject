@@ -128,7 +128,7 @@ public:
     [[nodiscard]] KIRA_DEVICE inline Geometry::Impl const &
     getGeometry(std::uint32_t geometryIndex) const noexcept;
 
-    /// \brief Returns the BSDF at Context \p bsdfIndex.
+    /// \brief Returns the BSDF at \p bsdfIndex.
     ///
     /// \pre \p bsdfIndex is less than \c bsdfIndexLimit.
     [[nodiscard]] KIRA_DEVICE inline BSDF::Impl const &

@@ -31,6 +31,10 @@ public:
     [[nodiscard]] Impl getImpl() const noexcept;
 
 private:
+    [[nodiscard]] float buildEnvMap(
+        EnvMapLight const &envMap, EmbreeImageTexturePool::Impl imageTextures, float sceneRadius
+    );
+
     LightTableData tableData_;
     std::vector<float> powerCDF_;
     kira::SmallVector<float, 0> envMapCDF_;

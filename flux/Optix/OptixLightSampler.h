@@ -30,6 +30,10 @@ public:
     [[nodiscard]] Impl getImpl() const noexcept;
 
 private:
+    [[nodiscard]] float buildEnvMap(
+        EnvMapLight const &envMap, OptixImageTexturePool::Impl imageTextures, float sceneRadius
+    );
+
     LightTableData staging_;
     std::vector<float> powerCDFStaging_;
     DeviceBuffer<LightHandle> lights_{getStream()};

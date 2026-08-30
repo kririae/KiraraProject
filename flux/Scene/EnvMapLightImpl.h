@@ -61,38 +61,67 @@ KIRA_HOST_DEVICE inline Vec2f EnvMapLight::Impl::directionToUV(Vec3f const &w) n
     };
 }
 
-KIRA_HOST_DEVICE inline Vec3f EnvMapLight::Impl::uvToDirection(Vec2f uv) noexcept {
-    auto const theta = std::numbers::pi_v<float> * uv.y();
-    auto const phi = 2.0F * std::numbers::pi_v<float> * uv.x();
-    auto const sinTheta = std::sin(theta);
-    return {sinTheta * std::cos(phi), sinTheta * std::sin(phi), std::cos(theta)};
-}
-
 template <typename Evaluator>
-KIRA_HOST_DEVICE inline Spectrum EnvMapLight::Impl::eval(Vec3f const &w) const noexcept {
-    auto const uv = directionToUV(toLocal(w));
+KIRA_HOST_DEVICE inline Spectrum EnvMapLight::Impl::evalUV(Vec2f uv) const noexcept {
     auto const value = texture.template eval3f<Evaluator>(SurfaceInteraction{
         .uv = {uv.x(), 1.0F - uv.y()},
     });
     return value * scale;
 }
 
+KIRA_HOST_DEVICE inline float EnvMapLight::Impl::pdfUV(Vec2f uv, float sinTheta2) const noexcept {
+    if (!distribution)
+        return 0.25F * std::numbers::inv_pi_v<float>;
+
+    if (!(sinTheta2 > 0.0F))
+        return 0.0F;
+    return distribution.pdf(uv) /
+           (2.0F * std::numbers::pi_v<float> * std::numbers::pi_v<float> * std::sqrt(sinTheta2));
+}
+
+template <typename Evaluator>
+KIRA_HOST_DEVICE inline Spectrum EnvMapLight::Impl::eval(Vec3f const &w) const noexcept {
+    return evalUV<Evaluator>(directionToUV(toLocal(w)));
+}
+
+template <typename Evaluator>
+KIRA_HOST_DEVICE inline Spectrum
+EnvMapLight::Impl::evalAndPdf(Vec3f const &w, float &pdfValue) const noexcept {
+    auto const localW = toLocal(w);
+    auto const uv = directionToUV(localW);
+    auto const sinTheta2 = localW.x() * localW.x() + localW.y() * localW.y();
+    pdfValue = pdfUV(uv, sinTheta2);
+    return evalUV<Evaluator>(uv);
+}
+
 template <typename Evaluator>
 KIRA_HOST_DEVICE inline DirectLightSample
 EnvMapLight::Impl::sampleDirect(LightSamplingContext const &ctx, Vec2f u) const noexcept {
     (void)ctx;
+    auto uv = Vec2f{};
     auto localWi = Vec3f{};
     auto pdfValue = 0.0F;
     if (distribution) {
-        float uvPDF;
-        auto const uv = distribution.sample(u, uvPDF);
-        localWi = uvToDirection(uv);
-        auto const sinTheta = std::sin(std::numbers::pi_v<float> * uv.y());
+        float uvPdf;
+        uv = distribution.sample(u, uvPdf);
+        auto const theta = std::numbers::pi_v<float> * uv.y();
+        auto const phi = 2.0F * std::numbers::pi_v<float> * uv.x();
+        float sinTheta;
+        float cosTheta;
+        float sinPhi;
+        float cosPhi;
+        sinCos(theta, sinTheta, cosTheta);
+        sinCos(phi, sinPhi, cosPhi);
+        localWi = Vec3f{sinTheta * cosPhi, sinTheta * sinPhi, cosTheta};
         if (sinTheta > 0.0F)
             pdfValue =
-                uvPDF / (2.0F * std::numbers::pi_v<float> * std::numbers::pi_v<float> * sinTheta);
+                uvPdf / (2.0F * std::numbers::pi_v<float> * std::numbers::pi_v<float> * sinTheta);
     } else {
         localWi = uniformSampleSphere(u);
+        uv = Vec2f{
+            u.x(),
+            std::acos(std::clamp(localWi.z(), -1.0F, 1.0F)) * std::numbers::inv_pi_v<float>,
+        };
         pdfValue = 0.25F * std::numbers::inv_pi_v<float>;
     }
     if (!(pdfValue > 0.0F))
@@ -100,7 +129,7 @@ EnvMapLight::Impl::sampleDirect(LightSamplingContext const &ctx, Vec2f u) const 
 
     auto const wi = toWorld(localWi);
     return {
-        .radiance = eval<Evaluator>(wi),
+        .radiance = evalUV<Evaluator>(uv),
         .wi = wi,
         .distance = std::numeric_limits<float>::max(),
         .pdf = pdfValue,
@@ -108,14 +137,8 @@ EnvMapLight::Impl::sampleDirect(LightSamplingContext const &ctx, Vec2f u) const 
 }
 
 KIRA_HOST_DEVICE inline float EnvMapLight::Impl::pdf(Vec3f const &w) const noexcept {
-    if (!distribution)
-        return 0.25F * std::numbers::inv_pi_v<float>;
-
-    auto const uv = directionToUV(toLocal(w));
-    auto const sinTheta = std::sin(std::numbers::pi_v<float> * uv.y());
-    if (!(sinTheta > 0.0F))
-        return 0.0F;
-    return distribution.pdf(uv) /
-           (2.0F * std::numbers::pi_v<float> * std::numbers::pi_v<float> * sinTheta);
+    auto const localW = toLocal(w);
+    auto const sinTheta2 = localW.x() * localW.x() + localW.y() * localW.y();
+    return pdfUV(directionToUV(localW), sinTheta2);
 }
 } // namespace flux

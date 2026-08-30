@@ -12,8 +12,9 @@ class Context;
 
 /// \brief Maps Context object IDs to reusable array indices.
 ///
-/// An index remains unchanged while its context ID is present. Erased indices
-/// may be assigned to IDs from a later transaction.
+/// IDs are lookup keys and have no numeric relation to their indices. An index
+/// remains unchanged while its ID is present. A later transaction may reuse an
+/// erased index.
 class ContextIndexMap final : private Noncopyable {
     friend class Context;
 

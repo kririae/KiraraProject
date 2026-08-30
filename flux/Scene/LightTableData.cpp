@@ -8,7 +8,9 @@
 #include "kira/Anyhow.h"
 
 namespace flux {
-void LightTableData::buildFinite(Context const &context, std::span<Primitive::Impl> primImpls) {
+void LightTableData::build(
+    Context const &context, std::span<Primitive::Impl> primImpls, std::optional<float> envMapPower
+) {
     clear();
     auto const lights = context.getObjects<Light>();
     auto const prims = context.getObjects<Primitive>();
@@ -75,14 +77,12 @@ void LightTableData::buildFinite(Context const &context, std::span<Primitive::Im
     }
     if (primIndex != primImpls.size())
         throw kira::Anyhow("LightTableData: primitive tables do not match");
-}
 
-void LightTableData::addEnvMap(float power) {
-    if (handles.size() >= LightPowerDistribution::maxLightCount)
-        return;
-    envMapSlot = static_cast<std::uint32_t>(handles.size());
-    handles.push_back({.type = LightType::EnvMap, .index = 0});
-    powers.push_back(power);
+    if (envMapPower && handles.size() < LightPowerDistribution::maxLightCount) {
+        envMapSlot = static_cast<std::uint32_t>(handles.size());
+        handles.push_back({.type = LightType::EnvMap, .index = 0});
+        powers.push_back(*envMapPower);
+    }
 }
 
 void LightTableData::clear() noexcept {

@@ -61,7 +61,7 @@ EnvMapLight::Impl EnvMapLight::getImpl(Distribution2D distribution) const {
     Matrix const rotateY{{cy, 0.0F, -sy}, {0.0F, 1.0F, 0.0F}, {sy, 0.0F, cy}};
     Matrix const rotateZ{{cz, sz, 0.0F}, {-sz, cz, 0.0F}, {0.0F, 0.0F, 1.0F}};
     Matrix const worldToEnv{{0.0F, 0.0F, 1.0F}, {-1.0F, 0.0F, 0.0F}, {0.0F, 1.0F, 0.0F}};
-    Matrix const transform = worldToEnv * rotateZ * rotateY * rotateX;
+    Matrix const transform = worldToEnv * rotateX * rotateY * rotateZ;
 
     auto result = Impl{
         .texture = texture_->getImpl(),

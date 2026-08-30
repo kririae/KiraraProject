@@ -1,5 +1,9 @@
 #include <gtest/gtest.h>
 
+#include <array>
+#include <cmath>
+#include <numbers>
+
 #include "flux/Scene/Context.h"
 #include "flux/Scene/EnvMapLight.h"
 #include "flux/Scene/EnvMapLightImpl.h"
@@ -85,11 +89,44 @@ TEST(LightTests, AppliesEnvironmentMapRotationInDegrees) {
 TEST(LightTests, AppliesEnvironmentMapRotationInXYZOrder) {
     auto context = flux::Context::create();
     kira::Properties props;
-    props.set("rotation", flux::Vec3f{90.0F, 90.0F, 0.0F});
+    props.set("rotation", flux::Vec3f{90.0F, 90.0F, 90.0F});
     auto light = context->create<flux::EnvMapLight>(props)->getImpl({});
 
-    auto const sample = light.sampleDirect<UVTextureEvaluator>({}, {0.0F, 0.5F});
-    EXPECT_NEAR(sample.wi.x(), 1.0F, 1.0e-6F);
+    auto const sample = light.sampleDirect<UVTextureEvaluator>({}, {0.25F, 0.5F});
+    EXPECT_NEAR(sample.wi.x(), 0.0F, 1.0e-6F);
     EXPECT_NEAR(sample.wi.y(), 0.0F, 1.0e-6F);
-    EXPECT_NEAR(sample.wi.z(), 0.0F, 1.0e-6F);
+    EXPECT_NEAR(sample.wi.z(), 1.0F, 1.0e-6F);
+}
+
+TEST(LightTests, KeepsImageEnvironmentPDFConsistent) {
+    auto const condCDF = std::array{0.25F, 1.0F, 1.0F / 3.0F, 1.0F};
+    auto const rowCDF = std::array{0.4F, 1.0F};
+    auto const light = flux::EnvMapLight::Impl{
+        .texture =
+            {
+                .type = flux::TextureType::Image,
+                .storage = {.image = {.imageTextureIndex = 0}},
+            },
+        .distribution =
+            {
+                .condCDF = condCDF.data(),
+                .rowCDF = rowCDF.data(),
+                .extent = {2, 2},
+            },
+        .scale = {1.0F, 1.0F, 1.0F},
+        .worldToEnv = {1.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 1.0F},
+    };
+
+    auto const sample = light.sampleDirect<UVTextureEvaluator>({}, {0.2F, 0.7F});
+    auto const expectedPdf =
+        0.8F / (2.0F * std::numbers::pi_v<float> * std::numbers::pi_v<float> * std::sqrt(0.5F));
+    EXPECT_NEAR(sample.pdf, expectedPdf, 1.0e-6F);
+    EXPECT_NEAR(light.pdf(sample.wi), expectedPdf, 1.0e-6F);
+
+    float fusedPdf;
+    auto const value = light.evalAndPdf<UVTextureEvaluator>(sample.wi, fusedPdf);
+    EXPECT_NEAR(fusedPdf, expectedPdf, 1.0e-6F);
+    EXPECT_NEAR(value.x(), 0.3F, 1.0e-6F);
+    EXPECT_NEAR(value.y(), 0.25F, 1.0e-6F);
+    EXPECT_EQ(value.z(), 0.0F);
 }

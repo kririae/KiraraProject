@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstddef>
 #include <numbers>
+#include <optional>
 
 #include "flux/Core/MathUtils.h"
 #include "flux/Optix/KernelUtils.cuh"
@@ -56,62 +57,11 @@ void OptixLightSampler::build(
     powerCDF_.clear();
 
     auto const envMap = context.getActiveEnvMap();
-    staging_.buildFinite(context, primImpls);
-    if (envMap) {
-        auto const texture = envMap->getTexture()->getImpl();
-        auto luminanceIntegral = 0.0F;
-        auto distribution = Distribution2D{};
-        if (texture.type == TextureType::Constant) {
-            luminanceIntegral =
-                4.0F * std::numbers::pi_v<float> *
-                std::max(luminance(texture.storage.constant.value * envMap->getScale()), 0.0F);
-        } else if (texture.type == TextureType::Image) {
-            auto image = envMap->getTexture().dynamicCast<ImageTexture const>();
-            if (!image)
-                throw kira::Anyhow("OptixLightSampler: image texture implementation mismatch");
-            auto const extent = image->getImageAsset()->getExtent();
-            auto const numPixels = static_cast<std::size_t>(extent.x()) * extent.y();
-            DeviceBuffer<float> weights(getStream());
-            weights.resize(numPixels);
-            launchLinearKernel(
-                numPixels,
-                SampleEnvMapWeights{
-                    .imageTextures = imageTextures,
-                    .textureIndex = texture.storage.image.imageTextureIndex,
-                    .scale = envMap->getScale(),
-                    .weights = weights.data(),
-                    .extent = extent,
-                },
-                getStream()
-            );
+    std::optional<float> envMapPower;
+    if (envMap)
+        envMapPower = buildEnvMap(*envMap, imageTextures, sceneRadius);
 
-            kira::SmallVector<float, 0> hostWeights;
-            kira::SmallVector<float, 0> hostRows;
-            hostWeights.resize_for_overwrite(numPixels);
-            hostRows.resize_for_overwrite(extent.y());
-            weights.copyToHost({hostWeights.data(), hostWeights.size()});
-            cudaCheck(cudaStreamSynchronize(getStream()));
-            auto const weightSum = buildCDF2D(
-                extent, {hostWeights.data(), hostWeights.size()}, {hostRows.data(), hostRows.size()}
-            );
-            luminanceIntegral = weightSum * 2.0F * std::numbers::pi_v<float> *
-                                std::numbers::pi_v<float> / static_cast<float>(numPixels);
-            if (weightSum > 0.0F) {
-                envMapCDF_.copyFromHost({hostWeights.data(), hostWeights.size()});
-                envMapRows_.copyFromHost({hostRows.data(), hostRows.size()});
-                distribution = {
-                    .condCDF = envMapCDF_.data(),
-                    .rowCDF = envMapRows_.data(),
-                    .extent = extent,
-                };
-            }
-        }
-
-        auto const impl = envMap->getImpl(distribution);
-        envMap_.copyFromHost({&impl, 1});
-        staging_.addEnvMap(envMap->estimatePower(sceneRadius, luminanceIntegral));
-    }
-
+    staging_.build(context, primImpls, envMapPower);
     powerCDFStaging_ = buildLightPowerCDF(staging_.powers);
     lights_.copyFromHost(staging_.handles);
     pointLights_.copyFromHost(staging_.pointLights);
@@ -120,6 +70,63 @@ void OptixLightSampler::build(
     primAreaScales_.copyFromHost(staging_.primAreaScales);
     primSlots_.copyFromHost(staging_.primSlots);
     powerCDF_.copyFromHost(powerCDFStaging_);
+}
+
+float OptixLightSampler::buildEnvMap(
+    EnvMapLight const &envMap, OptixImageTexturePool::Impl imageTextures, float sceneRadius
+) {
+    auto const texture = envMap.getTexture()->getImpl();
+    auto luminanceIntegral = 0.0F;
+    auto distribution = Distribution2D{};
+    if (texture.type == TextureType::Constant) {
+        luminanceIntegral =
+            4.0F * std::numbers::pi_v<float> *
+            std::max(luminance(texture.storage.constant.value * envMap.getScale()), 0.0F);
+    } else if (texture.type == TextureType::Image) {
+        auto image = envMap.getTexture().dynamicCast<ImageTexture const>();
+        if (!image)
+            throw kira::Anyhow("OptixLightSampler: image texture implementation mismatch");
+        auto const extent = image->getImageAsset()->getExtent();
+        auto const numPixels = static_cast<std::size_t>(extent.x()) * extent.y();
+        DeviceBuffer<float> weights(getStream());
+        weights.resize(numPixels);
+        launchLinearKernel(
+            numPixels,
+            SampleEnvMapWeights{
+                .imageTextures = imageTextures,
+                .textureIndex = texture.storage.image.imageTextureIndex,
+                .scale = envMap.getScale(),
+                .weights = weights.data(),
+                .extent = extent,
+            },
+            getStream()
+        );
+
+        kira::SmallVector<float, 0> hostWeights;
+        kira::SmallVector<float, 0> hostRows;
+        hostWeights.resize_for_overwrite(numPixels);
+        hostRows.resize_for_overwrite(extent.y());
+        weights.copyToHost({hostWeights.data(), hostWeights.size()});
+        cudaCheck(cudaStreamSynchronize(getStream()));
+        auto const weightSum = buildCDF2D(
+            extent, {hostWeights.data(), hostWeights.size()}, {hostRows.data(), hostRows.size()}
+        );
+        luminanceIntegral = weightSum * 2.0F * std::numbers::pi_v<float> *
+                            std::numbers::pi_v<float> / static_cast<float>(numPixels);
+        if (weightSum > 0.0F) {
+            envMapCDF_.copyFromHost({hostWeights.data(), hostWeights.size()});
+            envMapRows_.copyFromHost({hostRows.data(), hostRows.size()});
+            distribution = {
+                .condCDF = envMapCDF_.data(),
+                .rowCDF = envMapRows_.data(),
+                .extent = extent,
+            };
+        }
+    }
+
+    auto const impl = envMap.getImpl(distribution);
+    envMap_.copyFromHost({&impl, 1});
+    return envMap.estimatePower(sceneRadius, luminanceIntegral);
 }
 
 OptixLightSampler::Impl OptixLightSampler::getImpl() const noexcept {

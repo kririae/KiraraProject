@@ -57,16 +57,22 @@ public:
     [[nodiscard]] KIRA_HOST_DEVICE Spectrum eval(Vec3f const &w) const noexcept;
 
     template <typename Evaluator>
+    [[nodiscard]] KIRA_HOST_DEVICE Spectrum evalAndPdf(Vec3f const &w, float &pdf) const noexcept;
+
+    template <typename Evaluator>
     [[nodiscard]] KIRA_HOST_DEVICE DirectLightSample
     sampleDirect(LightSamplingContext const &ctx, Vec2f u) const noexcept;
 
     [[nodiscard]] KIRA_HOST_DEVICE float pdf(Vec3f const &w) const noexcept;
 
 private:
+    template <typename Evaluator>
+    [[nodiscard]] KIRA_HOST_DEVICE Spectrum evalUV(Vec2f uv) const noexcept;
+
+    [[nodiscard]] KIRA_HOST_DEVICE float pdfUV(Vec2f uv, float sinTheta2) const noexcept;
     [[nodiscard]] KIRA_HOST_DEVICE Vec3f toLocal(Vec3f const &w) const noexcept;
     [[nodiscard]] KIRA_HOST_DEVICE Vec3f toWorld(Vec3f const &w) const noexcept;
     [[nodiscard]] KIRA_HOST_DEVICE static Vec2f directionToUV(Vec3f const &w) noexcept;
-    [[nodiscard]] KIRA_HOST_DEVICE static Vec3f uvToDirection(Vec2f uv) noexcept;
 };
 
 static_assert(std::is_standard_layout_v<EnvMapLight::Impl>);

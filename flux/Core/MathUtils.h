@@ -82,6 +82,15 @@ upperBoundIndex(T const *values, std::size_t size, U const &value) noexcept {
     return 0.2126F * value.x() + 0.7152F * value.y() + 0.0722F * value.z();
 }
 
+KIRA_HOST_DEVICE inline void sinCos(float angle, float &sinValue, float &cosValue) noexcept {
+#if defined(__CUDA_ARCH__)
+    __sincosf(angle, &sinValue, &cosValue);
+#else
+    sinValue = std::sin(angle);
+    cosValue = std::cos(angle);
+#endif
+}
+
 /// \brief Returns the cross product of two three-dimensional vectors.
 [[nodiscard]] KIRA_HOST_DEVICE constexpr Vec3f cross(Vec3f const &lhs, Vec3f const &rhs) noexcept {
     return {
@@ -204,7 +213,10 @@ transformTransposeVec(Row const *transform, Vec3f const &vector) noexcept {
     auto const z = 1.0F - 2.0F * sample.y();
     auto const radius = std::sqrt(std::max(0.0F, 1.0F - z * z));
     auto const phi = 2.0F * std::numbers::pi_v<float> * sample.x();
-    return {radius * std::cos(phi), radius * std::sin(phi), z};
+    float sinPhi;
+    float cosPhi;
+    sinCos(phi, sinPhi, cosPhi);
+    return {radius * cosPhi, radius * sinPhi, z};
 }
 
 /// \brief Returns the solid-angle PDF of cosine-weighted hemisphere sampling.

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <cstdint>
 
 #include "flux/Scene/EnvMapLightImpl.h"
 #include "flux/Scene/GeometryImpl.h"
@@ -8,38 +9,18 @@
 #include "flux/Shading/EDF.h"
 
 namespace flux {
-template <typename Evaluator, typename Scene>
-[[nodiscard]] KIRA_HOST_DEVICE KIRA_FORCEINLINE DirectLightSample sampleDirectLight(
-    Scene const &scene, LightSamplingContext const &ctx, float uSelect, Vec2f const &uLight,
-    bool hasEnvMap
+namespace detail {
+template <typename Scene>
+[[nodiscard]] KIRA_HOST_DEVICE KIRA_FORCEINLINE DirectLightSample samplePrimLight(
+    Scene const &scene, LightSamplingContext const &ctx, std::uint32_t index, Vec2f const &u
 ) noexcept {
-    auto const selected = scene.lightSampler.sample(ctx, uSelect);
-    if (selected.pmf <= 0.0F)
-        return {};
-
-    auto const light = selected.light;
-    if (light.type == LightType::Point) {
-        auto result = scene.lightSampler.table.pointLights[light.index].sampleDirect(ctx);
-        result.pdf *= selected.pmf;
-        return result;
-    }
-
-    if (light.type == LightType::EnvMap) {
-        if (!hasEnvMap)
-            return {};
-        auto result =
-            scene.lightSampler.table.envMap->template sampleDirect<Evaluator>(ctx, uLight);
-        result.pdf *= selected.pmf;
-        return result;
-    }
-
-    auto const primIndex = scene.lightSampler.table.primIndices[light.index];
+    auto const primIndex = scene.lightSampler.table.primIndices[index];
     auto const &prim = scene.getPrimitive(primIndex);
-    auto const areaScale = scene.lightSampler.table.primAreaScales[light.index];
+    auto const areaScale = scene.lightSampler.table.primAreaScales[index];
     if (!(areaScale > 0.0F))
         return {};
 
-    auto const geomSample = scene.getGeometry(prim.getGeometryIndex()).sample(uLight);
+    auto const geomSample = scene.getGeometry(prim.getGeometryIndex()).sample(u);
     if (geomSample.pdf <= 0.0F)
         return {};
 
@@ -65,8 +46,39 @@ template <typename Evaluator, typename Scene>
                         }),
         .wi = wi,
         .distance = dist,
-        .pdf = selected.pmf * geomSample.pdf / areaScale * dist2 / cosLight,
+        .pdf = geomSample.pdf / areaScale * dist2 / cosLight,
     };
+}
+} // namespace detail
+
+template <typename Evaluator, typename Scene>
+[[nodiscard]] KIRA_HOST_DEVICE KIRA_FORCEINLINE DirectLightSample sampleDirectLight(
+    Scene const &scene, LightSamplingContext const &ctx, float uSelect, Vec2f const &uLight,
+    bool hasEnvMap
+) noexcept {
+    auto const selected = scene.lightSampler.sample(ctx, uSelect);
+    if (selected.pmf <= 0.0F)
+        return {};
+
+    auto const light = selected.light;
+    if (light.type == LightType::Point) {
+        auto sample = scene.lightSampler.table.pointLights[light.index].sampleDirect(ctx);
+        sample.pdf *= selected.pmf;
+        return sample;
+    }
+    if (light.type == LightType::Primitive) {
+        auto sample = detail::samplePrimLight(scene, ctx, light.index, uLight);
+        sample.pdf *= selected.pmf;
+        return sample;
+    }
+    if (light.type == LightType::EnvMap && hasEnvMap) {
+        auto sample =
+            scene.lightSampler.table.envMap->template sampleDirect<Evaluator>(ctx, uLight);
+        sample.pdf *= selected.pmf;
+        return sample;
+    }
+
+    return {};
 }
 
 template <typename Scene>
@@ -99,19 +111,4 @@ template <typename Scene>
            condPdf;
 }
 
-template <typename Evaluator, typename Scene>
-[[nodiscard]] KIRA_HOST_DEVICE KIRA_FORCEINLINE Spectrum
-evalEnvMap(Scene const &scene, Vec3f const &w) noexcept {
-    auto const *envMap = scene.lightSampler.table.envMap;
-    return envMap ? envMap->template eval<Evaluator>(w) : Spectrum{};
-}
-
-template <typename Scene>
-[[nodiscard]] KIRA_HOST_DEVICE KIRA_FORCEINLINE float
-pdfEnvMap(Scene const &scene, LightSamplingContext const &ctx, Vec3f const &w) noexcept {
-    auto const *envMap = scene.lightSampler.table.envMap;
-    if (!envMap)
-        return 0.0F;
-    return scene.lightSampler.pmf(ctx, {.type = LightType::EnvMap, .index = 0}) * envMap->pdf(w);
-}
 } // namespace flux

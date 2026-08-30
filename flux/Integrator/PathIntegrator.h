@@ -112,14 +112,19 @@ public:
                 return;
             }
 
+            auto radiance = Spectrum{};
             auto weight = 1.0F;
             if (state.depth > 0 && !state.prevDelta) {
-                auto const lightPdf = pdfEnvMap(backend, state.prevLightCtx, state.ray.direction);
-                weight = misWeight(state.prevBSDFPdf, lightPdf);
-            }
-            state.radiance =
-                state.radiance +
-                state.throughput * evalEnvMap<Evaluator>(backend, state.ray.direction) * weight;
+                float envMapPdf;
+                radiance = envMap->template evalAndPdf<Evaluator>(state.ray.direction, envMapPdf);
+                auto const selectPmf = backend.lightSampler.pmf(
+                    state.prevLightCtx, {.type = LightType::EnvMap, .index = 0}
+                );
+                weight = misWeight(state.prevBSDFPdf, selectPmf * envMapPdf);
+            } else
+                radiance = envMap->template eval<Evaluator>(state.ray.direction);
+
+            state.radiance = state.radiance + state.throughput * radiance * weight;
             state.active = false;
         }
 

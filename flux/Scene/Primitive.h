@@ -104,10 +104,10 @@ struct Primitive::Impl {
     /// Dense index of the bound geometry.
     std::uint32_t geometryIndex{};
 
-    /// Context index of the bound BSDF, or \c invalidBSDFIndex.
+    /// BSDF index assigned by Context, or \c invalidBSDFIndex.
     std::uint32_t bsdfIndex{invalidBSDFIndex};
 
-    /// Context index of the bound EDF, or \c invalidEDFIndex.
+    /// EDF index assigned by Context, or \c invalidEDFIndex.
     std::uint32_t edfIndex{invalidEDFIndex};
 
     /// Dense primitive-light index, or \c invalidPrimLightIndex.
@@ -120,7 +120,7 @@ public:
     /// \brief Returns whether this primitive has a BSDF.
     [[nodiscard]] KIRA_HOST_DEVICE inline bool hasBSDF() const noexcept;
 
-    /// \brief Returns the bound BSDF's Context index.
+    /// \brief Returns the bound BSDF index assigned by Context.
     ///
     /// \pre \c hasBSDF() is true.
     [[nodiscard]] KIRA_HOST_DEVICE inline std::uint32_t getBSDFIndex() const noexcept;

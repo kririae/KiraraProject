@@ -98,10 +98,10 @@ private:
     /// World-space normal transforms indexed by top-level instance ID.
     std::vector<std::array<float, 9>> normalTransforms_;
 
-    /// BSDF implementations indexed by Context index.
+    /// BSDF implementations indexed by the indices assigned by Context.
     std::vector<BSDF::Impl> bsdfs_;
 
-    /// EDF implementations indexed by Context index.
+    /// EDF implementations indexed by the indices assigned by Context.
     std::vector<EDF::Impl> edfs_;
 
     /// Image textures used by BSDFs.
@@ -130,10 +130,10 @@ struct EmbreeContext::Impl {
     /// Inverse-transpose normal transforms indexed by primitive.
     std::array<float, 9> const *normalTransforms{};
 
-    /// BSDF implementations indexed by Context index.
+    /// BSDF implementations indexed by the indices assigned by Context.
     BSDF::Impl const *bsdfs{};
 
-    /// EDF implementations indexed by Context index.
+    /// EDF implementations indexed by the indices assigned by Context.
     EDF::Impl const *edfs{};
 
     EmbreeImageTexturePool::Impl imageTexturePool{};
@@ -182,7 +182,7 @@ public:
         return geometries[index];
     }
 
-    /// \brief Returns the BSDF at Context \p index.
+    /// \brief Returns the BSDF at \p index.
     ///
     /// \pre \p index is less than \c bsdfIndexLimit.
     [[nodiscard]] BSDF::Impl const &getBSDF(std::uint32_t index) const noexcept {

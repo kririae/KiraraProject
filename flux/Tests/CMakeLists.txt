@@ -10,6 +10,16 @@ add_test(NAME flux.CLI.CboxSmoke
                  --output ${CMAKE_CURRENT_BINARY_DIR}/FluxCLISmoke/cbox.exr)
 
 krr_add_test(
+    flux Render IntegrationTests
+    SOURCES RenderTests.cpp ../FLux/TomlScene.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(
+    flux.Render.IntegrationTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
+                                         FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
+add_dependencies(flux.Render.IntegrationTests flux_megakernel_ir)
+set_tests_properties(flux.Render.IntegrationTests PROPERTIES LABELS integration)
+
+krr_add_test(
     flux Scene ContextTests
     SOURCES ContextTests.cpp
     HARD_DEPENDENCIES flux)
