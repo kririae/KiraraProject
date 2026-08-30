@@ -43,6 +43,9 @@ struct OptixLaunchParams {
     /// Whether radiance traversal uses shader execution reordering.
     bool shaderReorder;
 
+    /// Whether the scene has an active environment map.
+    bool hasEnvMap;
+
 public:
     /// \brief Decodes a linear OptiX launch index.
     ///

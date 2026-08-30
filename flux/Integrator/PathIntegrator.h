@@ -7,6 +7,7 @@
 #include "flux/Core/Ray.h"
 #include "flux/Sampling/SamplerImpl.h"
 #include "flux/Scene/Light.h"
+#include "flux/Scene/LightSamplingImpl.h"
 #include "flux/Scene/PrimitiveImpl.h"
 #include "flux/Scene/RenderObject.h"
 #include "flux/Shading/BSDF.h"
@@ -101,6 +102,27 @@ public:
         /// \brief Terminates a path that escaped the scene.
         KIRA_HOST_DEVICE void onMiss(PathState &state) const noexcept { state.active = false; }
 
+        /// \brief Adds environment emission and terminates an escaped path.
+        template <typename Evaluator, typename BackendContext>
+        KIRA_HOST_DEVICE void
+        onMiss(PathState &state, BackendContext const &backend) const noexcept {
+            auto const *envMap = backend.lightSampler.table.envMap;
+            if (!envMap) {
+                state.active = false;
+                return;
+            }
+
+            auto weight = 1.0F;
+            if (state.depth > 0 && !state.prevDelta) {
+                auto const lightPdf = pdfEnvMap(backend, state.prevLightCtx, state.ray.direction);
+                weight = misWeight(state.prevBSDFPdf, lightPdf);
+            }
+            state.radiance =
+                state.radiance +
+                state.throughput * evalEnvMap<Evaluator>(backend, state.ray.direction) * weight;
+            state.active = false;
+        }
+
         [[nodiscard]] KIRA_HOST_DEVICE bool canContinue(PathState const &state) const noexcept {
             return state.depth + 1 < maxDepth;
         }
@@ -114,13 +136,14 @@ public:
         ///
         /// Light selection and light sampling consume one 1D and one 2D sample
         /// in that order. The returned PDF includes light selection.
-        template <typename BackendContext>
+        template <typename Evaluator, typename BackendContext>
         [[nodiscard]] KIRA_HOST_DEVICE DirectLightSample sampleDirectLight(
-            PathState &state, BackendContext const &backend, LightSamplingContext const &ctx
+            PathState &state, BackendContext const &backend, LightSamplingContext const &ctx,
+            bool hasEnvMap
         ) const noexcept {
             auto const uSelect = state.sampler.get1D();
             auto const uLight = state.sampler.get2D();
-            return backend.sampleDirectLight(ctx, uSelect, uLight);
+            return flux::sampleDirectLight<Evaluator>(backend, ctx, uSelect, uLight, hasEnvMap);
         }
 
         /// \brief Builds a direct-light contribution awaiting a visibility test.

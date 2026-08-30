@@ -23,6 +23,12 @@ public:
         /// \brief Samples image texture \p index at normalized UV coordinates.
         /// \pre \p index refers to an entry built by \c EmbreeImageTexturePool.
         [[nodiscard]] Vec4f eval4f(std::uint32_t index, Vec2f uv) const noexcept;
+
+        /// \brief Samples image texture \p index with point filtering.
+        [[nodiscard]] Vec4f evalPoint4f(std::uint32_t index, Vec2f uv) const noexcept;
+
+    private:
+        [[nodiscard]] Vec4f eval4f(std::uint32_t index, Vec2f uv, bool point) const noexcept;
     };
 
     EmbreeImageTexturePool();

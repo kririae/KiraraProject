@@ -14,6 +14,7 @@
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
+#include "flux/Scene/EnvMapLight.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/RenderProduct.h"
 #include "flux/Shading/BSDF.h"
@@ -42,6 +43,8 @@ LoadedScene loadTomlScene(FluxCLIRequest const &request) {
     (void)context->create<Sampler>(
         scene.contains("sampler") ? scene.use_view("sampler") : kira::Properties{}
     );
+    if (scene.contains("envmap"))
+        (void)context->create<EnvMapLight>(scene.use_view("envmap"));
 
     auto camera = Camera::create(scene.use_view("camera"));
     auto filmProps = scene.use_view("film");

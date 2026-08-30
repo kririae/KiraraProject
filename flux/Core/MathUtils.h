@@ -138,6 +138,18 @@ transformVec(float const *transform, Vec3f const &vector) noexcept {
     };
 }
 
+/// \brief Multiplies a vector by the transpose of a row-major 3x3 transform.
+///
+/// \pre \p transform addresses 9 floats.
+[[nodiscard]] KIRA_HOST_DEVICE inline Vec3f
+transformTransposeVec(float const *transform, Vec3f const &vector) noexcept {
+    return {
+        transform[0] * vector.x() + transform[3] * vector.y() + transform[6] * vector.z(),
+        transform[1] * vector.x() + transform[4] * vector.y() + transform[7] * vector.z(),
+        transform[2] * vector.x() + transform[5] * vector.y() + transform[8] * vector.z(),
+    };
+}
+
 /// \brief Multiplies a vector by the transpose of three transform rows.
 template <typename Row>
     requires requires(Row const &row) {
@@ -185,6 +197,14 @@ transformTransposeVec(Row const *transform, Vec3f const &vector) noexcept {
     auto const disk = uniformSampleDisk(sample);
     auto const z = std::sqrt(std::max(0.0F, 1.0F - disk.norm2()));
     return {disk.x(), disk.y(), z};
+}
+
+/// \brief Maps a uniform square sample to the unit sphere.
+[[nodiscard]] KIRA_HOST_DEVICE inline Vec3f uniformSampleSphere(Vec2f const &sample) noexcept {
+    auto const z = 1.0F - 2.0F * sample.y();
+    auto const radius = std::sqrt(std::max(0.0F, 1.0F - z * z));
+    auto const phi = 2.0F * std::numbers::pi_v<float> * sample.x();
+    return {radius * std::cos(phi), radius * std::sin(phi), z};
 }
 
 /// \brief Returns the solid-angle PDF of cosine-weighted hemisphere sampling.

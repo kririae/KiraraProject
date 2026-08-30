@@ -95,15 +95,12 @@ void EmbreeContext::sync() try {
     auto const contextPrimitives = context_.getObjects<Primitive>();
     auto const contextBSDFs = context_.getObjects<BSDF>();
     auto const contextEDFs = context_.getObjects<EDF>();
-    auto const contextLights = context_.getObjects<Light>();
-    kira::SmallVector<Ref<Primitive const>> visiblePrimitives;
     std::unordered_map<std::size_t, std::uint32_t> geometryIndexByContextId;
     geometryIndexByContextId.reserve(contextPrimitives.size());
     retainedMeshes_.reserve(contextPrimitives.size());
     geometryImpls_.reserve(contextPrimitives.size());
     triangleSampling_.reserve(contextPrimitives.size());
     primitives_.reserve(contextPrimitives.size());
-    visiblePrimitives.reserve(contextPrimitives.size());
     transforms_.reserve(contextPrimitives.size());
     normalTransforms_.reserve(contextPrimitives.size());
 
@@ -177,12 +174,9 @@ void EmbreeContext::sync() try {
             .bsdfIndex = bsdfIndex,
             .edfIndex = edfIndex,
         });
-        visiblePrimitives.push_back(primitive);
         transforms_.push_back(primitive->getTransform());
         normalTransforms_.push_back(primitive->getNormalTransform());
     }
-    lightSampler_.build(contextLights, visiblePrimitives, primitives_);
-
     // Embree borrows retained mesh arrays until the next sync. A sync builds
     // immutable final-frame scenes, so favor traversal over build time.
     meshScenes_.reserve(retainedMeshes_.size());
@@ -240,6 +234,22 @@ void EmbreeContext::sync() try {
     }
     rtcCommitScene(scene_);
     embreeCheck(device_);
+
+    auto sceneRadius = 1.0F;
+    if (!primitives_.empty()) {
+        RTCBounds bounds{};
+        rtcGetSceneBounds(scene_, &bounds);
+        embreeCheck(device_);
+        sceneRadius =
+            Vec3f{
+                bounds.upper_x - bounds.lower_x,
+                bounds.upper_y - bounds.lower_y,
+                bounds.upper_z - bounds.lower_z,
+            }
+                .norm() *
+            0.5F;
+    }
+    lightSampler_.build(context_, primitives_, imageTexturePool_.getImpl(), sceneRadius);
     LogDebug(
         "EmbreeContext: built {} geometries and {} visible primitives", retainedMeshes_.size(),
         primitives_.size()
@@ -317,12 +327,6 @@ EmbreeContext::Impl::makeSurfaceInteraction(Ray const &ray, Hit const &hit) cons
         .primitiveIndex = hit.primitiveIndex,
         .elementIndex = hit.preliminary.elementIndex,
     };
-}
-
-DirectLightSample EmbreeContext::Impl::sampleDirectLight(
-    LightSamplingContext const &ctx, float uSelect, Vec2f const &uLight
-) const noexcept {
-    return flux::sampleDirectLight(*this, ctx, uSelect, uLight);
 }
 
 float EmbreeContext::Impl::pdfDirectLight(

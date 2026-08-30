@@ -58,15 +58,17 @@ add_library(
     Optix/OptixContext.cpp
     Optix/OptixGeometryPool.cpp
     Optix/OptixHandler.cu
-    Optix/OptixLightSampler.cpp
+    Optix/OptixLightSampler.cu
     Optix/OptixProgram.cpp
     Optix/OptixRenderProductPool.cpp
     Optix/OptixSbt.cpp
+    Sampling/Distribution2D.cpp
     Sampling/LightPowerDistribution.cpp
     Sampling/Sampler.cpp
     Scene/Camera.cpp
     Scene/Context.cpp
     Scene/ContextIndexMap.cpp
+    Scene/EnvMapLight.cpp
     Scene/Film.cpp
     Scene/Geometry.cpp
     Scene/Light.cpp

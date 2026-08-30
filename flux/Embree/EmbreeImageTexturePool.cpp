@@ -98,6 +98,16 @@ void EmbreeImageTexturePool::build(Context const &context) {
 void EmbreeImageTexturePool::clear() noexcept { textures_.clear(); }
 
 Vec4f EmbreeImageTexturePool::Impl::eval4f(std::uint32_t index, Vec2f uv) const noexcept {
+    return eval4f(index, uv, false);
+}
+
+Vec4f EmbreeImageTexturePool::Impl::evalPoint4f(std::uint32_t index, Vec2f uv) const noexcept {
+    return eval4f(index, uv, true);
+}
+
+Vec4f EmbreeImageTexturePool::Impl::eval4f(
+    std::uint32_t index, Vec2f uv, bool point
+) const noexcept {
     auto const &texture = textures[index];
 
     // Map oriented Flux UVs to the file coordinates used by OIIO.
@@ -117,6 +127,8 @@ Vec4f EmbreeImageTexturePool::Impl::eval4f(std::uint32_t index, Vec2f uv) const 
     static_assert(sizeof(Vec4f) == 4 * sizeof(float));
     // TextureSystem may update the options during a lookup.
     auto options = texture.options;
+    if (point)
+        options.interpmode = OIIO::Tex::InterpMode::Closest;
     // A null threadInfo lets OIIO manage per-thread data.
     // clang-format off
     auto const found = texture.textureSystem->texture(

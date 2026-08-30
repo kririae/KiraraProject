@@ -2,6 +2,7 @@
 
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Sampling/Sampler.h"
+#include "flux/Scene/EnvMapLight.h"
 namespace flux {
 Ref<Context> Context::create() { return Ref<Context>{new Context}; }
 
@@ -28,6 +29,8 @@ void Context::absorb(TXContext &&tx) {
         activeIntegratorId_ = tx.activeIntegratorId_;
     if (!activeSamplerId_ && tx.activeSamplerId_)
         activeSamplerId_ = tx.activeSamplerId_;
+    if (!activeEnvMapId_ && tx.activeEnvMapId_)
+        activeEnvMapId_ = tx.activeEnvMapId_;
 }
 
 Ref<PathIntegrator const> Context::getActiveIntegrator() const {
@@ -40,6 +43,12 @@ Ref<Sampler const> Context::getActiveSampler() const {
     if (!activeSamplerId_)
         throw kira::Anyhow("Context: no active sampler is set");
     return get<Sampler>(*activeSamplerId_);
+}
+
+Ref<EnvMapLight const> Context::getActiveEnvMap() const {
+    if (!activeEnvMapId_)
+        return {};
+    return get<EnvMapLight>(*activeEnvMapId_);
 }
 
 void Context::commit() noexcept {}

@@ -16,6 +16,7 @@
 #include "flux/Optix/OptixLaunchParams.h"
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Scene/Context.h"
+#include "flux/Scene/EnvMapLight.h"
 #include "flux/Scene/Primitive.h"
 #include "kira/Anyhow.h"
 
@@ -121,9 +122,10 @@ OptixProgramSpec OptixProgram::makeSpec(Context const &context) {
     }
 
     return {
-        .samplerType = context.getActiveSampler()->getType(), // (1)
-        .bsdfTypes = bsdfTypes,                               // (2)
-        .shaderReorder = integrator->usesShaderReorder(),     // (3)
+        .samplerType = context.getActiveSampler()->getType(),      // (1)
+        .bsdfTypes = bsdfTypes,                                    // (2)
+        .shaderReorder = integrator->usesShaderReorder(),          // (3)
+        .hasEnvMap = static_cast<bool>(context.getActiveEnvMap()), // (4)
     };
 }
 
@@ -159,6 +161,13 @@ void OptixProgram::buildModule(std::filesystem::path const &modulePath) {
             .sizeInBytes = sizeof(spec_.shaderReorder),
             .boundValuePtr = &spec_.shaderReorder,
             .annotation = "Enable SER for secondary surface hits",
+        },
+        OptixModuleCompileBoundValueEntry{
+            // (4)
+            .pipelineParamOffsetInBytes = offsetof(OptixLaunchParams, hasEnvMap),
+            .sizeInBytes = sizeof(spec_.hasEnvMap),
+            .boundValuePtr = &spec_.hasEnvMap,
+            .annotation = "Active environment map presence",
         },
     };
     moduleOptions.boundValues = boundValues.data();

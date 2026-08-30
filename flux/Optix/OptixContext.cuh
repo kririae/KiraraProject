@@ -119,12 +119,6 @@ OptixContext::Impl::getEDF(std::uint32_t edfIndex) const noexcept {
     return edfs[edfIndex];
 }
 
-KIRA_DEVICE inline DirectLightSample OptixContext::Impl::sampleDirectLight(
-    LightSamplingContext const &ctx, float uSelect, Vec2f const &uLight
-) const noexcept {
-    return flux::sampleDirectLight(*this, ctx, uSelect, uLight);
-}
-
 KIRA_DEVICE inline float OptixContext::Impl::pdfDirectLight(
     LightSamplingContext const &ctx, Primitive::Impl const &prim, SurfaceInteraction const &isect
 ) const noexcept {

@@ -260,6 +260,7 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
             .film = entry.film,
             .batchSize = samples,
             .shaderReorder = programSpec.shaderReorder, // (3)
+            .hasEnvMap = programSpec.hasEnvMap,         // (4)
         };
         impl_->launch(params, launchSize);
         auto const elapsed = impl_->timer.stop();

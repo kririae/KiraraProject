@@ -20,8 +20,7 @@ namespace flux {
 /// callers provide external synchronization.
 class OptixGeometryPool final : private Noncopyable, private CudaStreamMixin {
 public:
-    explicit OptixGeometryPool(cudaStream_t stream) noexcept
-        : CudaStreamMixin(stream), deviceImpls_(stream) {}
+    explicit OptixGeometryPool(cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
 
     /// \brief Builds the resident triangle meshes.
     ///
@@ -66,6 +65,6 @@ private:
 
     std::vector<Entry> entries_;
     std::vector<Geometry::Impl> staging_;
-    DeviceBuffer<Geometry::Impl> deviceImpls_;
+    DeviceBuffer<Geometry::Impl> deviceImpls_{getStream()};
 };
 } // namespace flux

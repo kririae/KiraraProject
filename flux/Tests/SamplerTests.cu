@@ -4,11 +4,13 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 
 #include "TestUtils.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/OptixUtils.h"
+#include "flux/Sampling/Distribution2D.h"
 #include "flux/Sampling/LightPowerDistribution.h"
 #include "flux/Sampling/SamplerImpl.h"
 #include "flux/Scene/Context.h"
@@ -165,22 +167,27 @@ TEST(SamplerTests, SelectsLightsByPower) {
         .sum = powerCDF.back(),
         .numLights = static_cast<std::uint32_t>(powers.size()),
     };
-    auto const first = sampler.sample(0.0F);
-    auto const last = sampler.sample(std::nextafter(1.0F, 0.0F));
-    EXPECT_EQ(first.lightIndex, 0);
-    EXPECT_EQ(last.lightIndex, 1);
-    EXPECT_FLOAT_EQ(first.pmf, 1.0F / 3.0F);
-    EXPECT_FLOAT_EQ(last.pmf, 2.0F / 3.0F);
-    EXPECT_FLOAT_EQ(sampler.pmf(first.lightIndex), first.pmf);
+    float firstPMF;
+    float lastPMF;
+    auto const first = sampler.sample(0.0F, firstPMF);
+    auto const last = sampler.sample(std::nextafter(1.0F, 0.0F), lastPMF);
+    EXPECT_EQ(first, 0);
+    EXPECT_EQ(last, 1);
+    EXPECT_FLOAT_EQ(firstPMF, 1.0F / 3.0F);
+    EXPECT_FLOAT_EQ(lastPMF, 2.0F / 3.0F);
+    EXPECT_FLOAT_EQ(sampler.pmf(first), firstPMF);
     EXPECT_FLOAT_EQ(sampler.pmf(powers.size()), 0.0F);
 
     auto const single = flux::LightPowerDistribution{.numLights = 1};
-    EXPECT_EQ(single.sample(0.5F).lightIndex, 0);
+    float singlePMF;
+    EXPECT_EQ(single.sample(0.5F, singlePMF), 0);
+    EXPECT_FLOAT_EQ(singlePMF, 1.0F);
     EXPECT_FLOAT_EQ(single.pmf(0), 1.0F);
 
-    auto const empty = flux::LightPowerDistribution{}.sample(0.0F);
-    EXPECT_EQ(empty.lightIndex, flux::SampledLight::invalidIndex);
-    EXPECT_FLOAT_EQ(empty.pmf, 0.0F);
+    float emptyPMF;
+    auto const empty = flux::LightPowerDistribution{}.sample(0.0F, emptyPMF);
+    EXPECT_EQ(empty, std::numeric_limits<std::uint32_t>::max());
+    EXPECT_FLOAT_EQ(emptyPMF, 0.0F);
 }
 
 TEST(SamplerTests, FallsBackToUniformSelectionWhenAllPowersAreZero) {
@@ -188,6 +195,13 @@ TEST(SamplerTests, FallsBackToUniformSelectionWhenAllPowersAreZero) {
     auto const powerCDF = flux::buildLightPowerCDF(powers);
 
     EXPECT_EQ(powerCDF, (std::vector<float>{1.0F / 3.0F, 2.0F / 3.0F, 1.0F}));
+}
+
+TEST(SamplerTests, BoundsNegativeLightPowers) {
+    auto const powers = std::array{-1.0F, 0.0F, 1.0F};
+    auto const powerCDF = flux::buildLightPowerCDF(powers);
+
+    EXPECT_EQ(powerCDF, (std::vector<float>{0.0F, 0.0F, 1.0F}));
 }
 
 TEST(SamplerTests, KeepsPositiveLightsSelectableAcrossLargePowerRatios) {
@@ -198,7 +212,56 @@ TEST(SamplerTests, KeepsPositiveLightsSelectableAcrossLargePowerRatios) {
         .sum = powerCDF.back(),
         .numLights = static_cast<std::uint32_t>(powers.size()),
     };
-    auto const sample = sampler.sample(std::nextafter(1.0F, 0.0F));
-    EXPECT_EQ(sample.lightIndex, 1);
-    EXPECT_GT(sample.pmf, 0.0F);
+    float pmf;
+    auto const sample = sampler.sample(std::nextafter(1.0F, 0.0F), pmf);
+    EXPECT_EQ(sample, 1);
+    EXPECT_GT(pmf, 0.0F);
+}
+
+TEST(SamplerTests, BuildsAndSamplesTwoDimensionalDistributions) {
+    auto weights = std::array{1.0F, 3.0F, 0.0F, 0.0F};
+    auto rows = std::array<float, 2>{};
+
+    EXPECT_FLOAT_EQ(flux::buildCDF2D({2, 2}, weights, rows), 4.0F);
+    auto const dist = flux::Distribution2D{
+        .condCDF = weights.data(),
+        .rowCDF = rows.data(),
+        .extent = {2, 2},
+    };
+
+    EXPECT_FLOAT_EQ(dist.pdf({0.25F, 0.25F}), 1.0F);
+    EXPECT_FLOAT_EQ(dist.pdf({0.75F, 0.25F}), 3.0F);
+    EXPECT_FLOAT_EQ(dist.pdf({0.25F, 0.75F}), 0.0F);
+
+    float pdf;
+    auto const sample = dist.sample({0.5F, 0.5F}, pdf);
+    EXPECT_GE(sample.x(), 0.5F);
+    EXPECT_LT(sample.x(), 1.0F);
+    EXPECT_GE(sample.y(), 0.0F);
+    EXPECT_LT(sample.y(), 0.5F);
+    EXPECT_FLOAT_EQ(pdf, 3.0F);
+}
+
+TEST(SamplerTests, BuildsTwoDimensionalDistributionsFromLargeWeights) {
+    auto weights = std::array{
+        std::numeric_limits<float>::max(),
+        std::numeric_limits<float>::max(),
+        std::numeric_limits<float>::max(),
+    };
+    auto rows = std::array<float, 1>{};
+
+    EXPECT_FLOAT_EQ(flux::buildCDF2D({3, 1}, weights, rows), std::numeric_limits<float>::max());
+    EXPECT_NEAR(weights[0], 1.0F / 3.0F, 1.0e-6F);
+    EXPECT_NEAR(weights[1], 2.0F / 3.0F, 1.0e-6F);
+    EXPECT_FLOAT_EQ(weights[2], 1.0F);
+    EXPECT_FLOAT_EQ(rows[0], 1.0F);
+}
+
+TEST(SamplerTests, BoundsNegativeTwoDimensionalWeights) {
+    auto weights = std::array{-1.0F, 0.0F, 1.0F};
+    auto rows = std::array<float, 1>{};
+
+    EXPECT_FLOAT_EQ(flux::buildCDF2D({3, 1}, weights, rows), 1.0F);
+    EXPECT_EQ(weights, (std::array{0.0F, 0.0F, 1.0F}));
+    EXPECT_FLOAT_EQ(rows[0], 1.0F);
 }

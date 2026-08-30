@@ -43,6 +43,11 @@ target_compile_definitions(flux.Scene.PrimitiveTests
                            PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures")
 
 krr_add_test(
+    flux Scene LightTests
+    SOURCES LightTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
     flux Scene RenderProductTests
     SOURCES RenderProductTests.cpp
     HARD_DEPENDENCIES flux)
@@ -91,7 +96,9 @@ krr_add_test(
     flux Optix PipelineTests
     SOURCES OptixPipelineTests.cpp
     HARD_DEPENDENCIES flux)
-target_compile_definitions(flux.Optix.PipelineTests PRIVATE FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
+target_compile_definitions(
+    flux.Optix.PipelineTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
+                                     FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
 target_link_libraries(flux.Optix.PipelineTests PRIVATE CUDA::cudart)
 add_dependencies(flux.Optix.PipelineTests flux_megakernel_ir)
 

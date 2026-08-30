@@ -98,7 +98,8 @@ struct Primitive::Impl {
     /// Sentinel used when this primitive has no BSDF.
     static constexpr std::uint32_t invalidBSDFIndex = std::numeric_limits<std::uint32_t>::max();
     static constexpr std::uint32_t invalidEDFIndex = std::numeric_limits<std::uint32_t>::max();
-    static constexpr std::uint32_t invalidLightIndex = std::numeric_limits<std::uint32_t>::max();
+    static constexpr std::uint32_t invalidPrimLightIndex =
+        std::numeric_limits<std::uint32_t>::max();
 
     /// Dense index of the bound geometry.
     std::uint32_t geometryIndex{};
@@ -109,8 +110,8 @@ struct Primitive::Impl {
     /// Context index of the bound EDF, or \c invalidEDFIndex.
     std::uint32_t edfIndex{invalidEDFIndex};
 
-    /// Dense light-table index, or \c invalidLightIndex.
-    std::uint32_t lightIndex{invalidLightIndex};
+    /// Dense primitive-light index, or \c invalidPrimLightIndex.
+    std::uint32_t primLightIndex{invalidPrimLightIndex};
 
 public:
     /// \brief Returns the dense geometry index in this backend scene.
@@ -127,7 +128,7 @@ public:
     [[nodiscard]] KIRA_HOST_DEVICE inline bool hasEDF() const noexcept;
     [[nodiscard]] KIRA_HOST_DEVICE inline std::uint32_t getEDFIndex() const noexcept;
     [[nodiscard]] KIRA_HOST_DEVICE inline bool isLight() const noexcept;
-    [[nodiscard]] KIRA_HOST_DEVICE inline std::uint32_t getLightIndex() const noexcept;
+    [[nodiscard]] KIRA_HOST_DEVICE inline std::uint32_t getPrimLightIndex() const noexcept;
 };
 
 static_assert(std::is_standard_layout_v<Primitive::Impl>);

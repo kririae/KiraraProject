@@ -14,6 +14,7 @@ namespace flux {
 class PathIntegrator;
 class Sampler;
 class ImageTexture;
+class EnvMapLight;
 
 /// \brief Collects objects created by one \c Context::create call.
 ///
@@ -25,6 +26,7 @@ class TXContext {
     friend class PathIntegrator;
     friend class Sampler;
     friend class ImageTexture;
+    friend class EnvMapLight;
 
 public:
     /// \brief Creates and registers a configurable object in this transaction.
@@ -62,6 +64,7 @@ private:
     void registerObject(Ref<ContextObject> object);
     void stageActiveIntegrator(std::size_t contextId) noexcept;
     void stageActiveSampler(std::size_t contextId) noexcept;
+    void stageActiveEnvMap(std::size_t contextId) noexcept;
 
     Context &context_;
     std::unordered_map<std::size_t, Ref<ContextObject>> objects_;
@@ -70,5 +73,6 @@ private:
     ContextIndexMap::Transaction edfs_;
     std::optional<std::size_t> activeIntegratorId_;
     std::optional<std::size_t> activeSamplerId_;
+    std::optional<std::size_t> activeEnvMapId_;
 };
 } // namespace flux

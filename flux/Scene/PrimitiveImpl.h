@@ -24,10 +24,10 @@ KIRA_HOST_DEVICE inline std::uint32_t Primitive::Impl::getEDFIndex() const noexc
 }
 
 KIRA_HOST_DEVICE inline bool Primitive::Impl::isLight() const noexcept {
-    return lightIndex != invalidLightIndex;
+    return primLightIndex != invalidPrimLightIndex;
 }
 
-KIRA_HOST_DEVICE inline std::uint32_t Primitive::Impl::getLightIndex() const noexcept {
-    return lightIndex;
+KIRA_HOST_DEVICE inline std::uint32_t Primitive::Impl::getPrimLightIndex() const noexcept {
+    return primLightIndex;
 }
 } // namespace flux

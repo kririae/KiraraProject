@@ -12,7 +12,25 @@ namespace flux {
 /// \brief Identifies a concrete light implementation.
 enum class LightType : std::uint8_t {
     Point,
+    Primitive,
+    EnvMap,
     Count,
+};
+
+/// \brief Identifies one concrete light in a backend scene.
+struct LightHandle {
+    LightType type{};
+    /// Index in the array selected by \c type.
+    std::uint32_t index{};
+
+    [[nodiscard]] friend bool operator==(LightHandle const &, LightHandle const &) = default;
+};
+
+/// \brief Result of selecting one light.
+struct SampledLight {
+    LightHandle light{};
+    /// A zero PMF marks an invalid selection.
+    float pmf{};
 };
 
 /// \brief Path vertex data used to select and sample lights.
@@ -30,10 +48,10 @@ struct LightSamplingContext {
 struct DirectLightSample {
     /// Incident radiance along \c wi.
     Spectrum radiance{};
-    /// World-space sampled position.
-    Vec3f position{};
     /// World-space direction from the surface toward the light.
     Vec3f wi{};
+    /// Distance to the sampled light.
+    float distance{};
     /// Solid-angle density, or discrete mass for a delta light.
     float pdf{};
     /// Whether the sampled light has a discrete directional distribution.
@@ -47,7 +65,6 @@ protected:
 
 public:
     [[nodiscard]] LightType getType() const noexcept { return type_; }
-    [[nodiscard]] virtual float estimatePower() const noexcept = 0;
 
 private:
     LightType type_;
@@ -81,7 +98,7 @@ public:
     void setIntensity(Spectrum const &intensity);
 
     [[nodiscard]] Impl getImpl() const noexcept;
-    [[nodiscard]] float estimatePower() const noexcept override;
+    [[nodiscard]] float estimatePower() const noexcept;
 
 private:
     PointLight(TXContext &tx, kira::Properties const &props);
@@ -116,45 +133,21 @@ PointLight::Impl::sampleDirect(LightSamplingContext const &ctx) const noexcept {
     auto const dist = std::sqrt(dist2);
     return {
         .radiance = intensity / dist2,
-        .position = position,
         .wi = d / dist,
+        .distance = dist,
         .pdf = 1.0F,
         .delta = true,
     };
 }
 
-enum class LightRecordType : std::uint8_t {
-    Point,
-    Primitive,
-};
-
-/// \brief Identifies one light in a light table.
-struct LightRecord {
-    LightRecordType type{};
-    /// Index in the array selected by \c type.
-    std::uint32_t index{};
-};
-
-/// \brief Maps light indices to lights.
-struct LightTable {
-    /// Light records in selection order.
-    LightRecord const *records{};
-    /// Dense point-light implementations.
-    PointLight::Impl const *pointLights{};
-    /// Dense primitive indices for emissive primitive records.
-    std::uint32_t const *primIndices{};
-    /// Estimated object-to-world area scales for emissive primitives.
-    float const *primAreaScales{};
-};
-
 static_assert(std::is_standard_layout_v<DirectLightSample>);
 static_assert(std::is_trivially_copyable_v<DirectLightSample>);
+static_assert(std::is_standard_layout_v<LightHandle>);
+static_assert(std::is_trivially_copyable_v<LightHandle>);
+static_assert(std::is_standard_layout_v<SampledLight>);
+static_assert(std::is_trivially_copyable_v<SampledLight>);
 static_assert(std::is_standard_layout_v<LightSamplingContext>);
 static_assert(std::is_trivially_copyable_v<LightSamplingContext>);
 static_assert(std::is_standard_layout_v<PointLight::Impl>);
 static_assert(std::is_trivially_copyable_v<PointLight::Impl>);
-static_assert(std::is_standard_layout_v<LightRecord>);
-static_assert(std::is_trivially_copyable_v<LightRecord>);
-static_assert(std::is_standard_layout_v<LightTable>);
-static_assert(std::is_trivially_copyable_v<LightTable>);
 } // namespace flux

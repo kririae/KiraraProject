@@ -62,7 +62,7 @@ TEST(PathIntegratorTests, WeightsBsdfSampledEmitterHits) {
     auto const context = EmitterHitContext{
         .edf = flux::ConstantEDF::Impl{.radiance = {2.0F, 2.0F, 2.0F}},
     };
-    auto const prim = flux::Primitive::Impl{.edfIndex = 0, .lightIndex = 0};
+    auto const prim = flux::Primitive::Impl{.edfIndex = 0, .primLightIndex = 0};
     auto state = flux::PathState{
         .prevLightCtx = {.position = {0.0F, 0.0F, 0.0F}},
         .prevBSDFPdf = 0.5F,

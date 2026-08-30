@@ -53,7 +53,13 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
         flux::OptixContext::Impl::Hit hit;
         auto const reorder = optixLaunchParams.shaderReorder && state.depth > 0;
         if (!optixLaunchParams.scene.intersect(state.ray, hit, reorder)) {
-            optixLaunchParams.integrator.onMiss(state);
+            if (writesColor && optixLaunchParams.hasEnvMap) {
+                optixLaunchParams.integrator.onMiss<OptixImageTextureEvaluator>(
+                    state, optixLaunchParams.scene
+                );
+            } else {
+                optixLaunchParams.integrator.onMiss(state);
+            }
             break;
         }
 
@@ -85,13 +91,15 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
 
         auto directLight = flux::DirectLightSample{};
         if (continues) {
-            directLight = optixLaunchParams.integrator.sampleDirectLight(
-                state, optixLaunchParams.scene,
-                {
-                    .position = isect.position,
-                    .normal = isect.geometricNormal,
-                }
-            );
+            directLight =
+                optixLaunchParams.integrator.sampleDirectLight<OptixImageTextureEvaluator>(
+                    state, optixLaunchParams.scene,
+                    {
+                        .position = isect.position,
+                        .normal = isect.geometricNormal,
+                    },
+                    optixLaunchParams.hasEnvMap
+                );
         }
 
         auto candidate = flux::DirectLightCandidate{};
@@ -126,7 +134,7 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
         }
 
         if (candidate.valid &&
-            optixLaunchParams.scene.isVisible(isect.spawnRayTo(directLight.position)))
+            optixLaunchParams.scene.isVisible(isect.spawnRay(directLight.wi, directLight.distance)))
             state.radiance = state.radiance + candidate.contribution;
     }
 

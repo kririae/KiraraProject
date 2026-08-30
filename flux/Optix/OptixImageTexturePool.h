@@ -56,8 +56,7 @@ public:
         }
     };
 
-    explicit OptixImageTexturePool(cudaStream_t stream) noexcept
-        : CudaStreamMixin(stream), deviceTextures_(stream) {}
+    explicit OptixImageTexturePool(cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
     ~OptixImageTexturePool() noexcept;
 
     /// \brief Rebuilds the image texture entries in \p context.
@@ -77,7 +76,7 @@ private:
     std::vector<cudaArray_t> arrays_;
     std::vector<cudaTextureObject_t> textureObjects_;
     std::vector<OptixImageTexture> staging_;
-    DeviceBuffer<OptixImageTexture> deviceTextures_;
+    DeviceBuffer<OptixImageTexture> deviceTextures_{getStream()};
 };
 
 static_assert(std::is_standard_layout_v<OptixImageTexture>);

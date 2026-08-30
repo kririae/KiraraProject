@@ -34,9 +34,7 @@ struct OptixContext::Storage : private CudaStreamMixin {
         std::filesystem::path modulePath
     )
         : CudaStreamMixin(stream), context(context), deviceContext(deviceContext),
-          modulePath(std::move(modulePath)), geometryPool(stream), imageTexturePool(stream),
-          lightSampler(stream), accel(stream), sbt(stream), primitives(stream), bsdfs(stream),
-          edfs(stream) {}
+          modulePath(std::move(modulePath)) {}
 
     void sync() try {
         context.commit();
@@ -49,16 +47,13 @@ struct OptixContext::Storage : private CudaStreamMixin {
         auto const contextPrimitives = context.getObjects<Primitive>();
         auto const contextBSDFs = context.getObjects<BSDF>();
         auto const contextEDFs = context.getObjects<EDF>();
-        auto const contextLights = context.getObjects<Light>();
         kira::SmallVector<Ref<TriangleMesh const>> uniqueMeshes;
-        kira::SmallVector<Ref<Primitive const>> visiblePrimitives;
         std::unordered_map<std::size_t, std::uint32_t> geometryIndexByContextId;
         std::vector<OptixAccel::InstanceDesc> instanceDescs;
         primitiveStaging.clear();
         bsdfStaging.clear();
         edfStaging.clear();
         uniqueMeshes.reserve(contextPrimitives.size());
-        visiblePrimitives.reserve(contextPrimitives.size());
         geometryIndexByContextId.reserve(contextPrimitives.size());
         instanceDescs.reserve(contextPrimitives.size());
         primitiveStaging.reserve(contextPrimitives.size());
@@ -125,7 +120,6 @@ struct OptixContext::Storage : private CudaStreamMixin {
                 .bsdfIndex = bsdfIndex,
                 .edfIndex = edfIndex,
             });
-            visiblePrimitives.push_back(primitive);
             auto const bsdfType = bsdf ? bsdf->getType() : BSDFType::Diffuse;
             instanceDescs.push_back({
                 .geometryIndex = geometryIndex,
@@ -138,20 +132,22 @@ struct OptixContext::Storage : private CudaStreamMixin {
         // then consumes the GAS handles and the matching primitive layout.
         geometryPool.build(uniqueMeshes);
         imageTexturePool.build(context);
-        lightSampler.build(contextLights, visiblePrimitives, primitiveStaging);
         auto const buildInputs = geometryPool.getBuildInputs();
         accel.buildGas(deviceContext, buildInputs);
+        accel.buildIas(deviceContext, instanceDescs);
+        lightSampler.build(
+            context, primitiveStaging, imageTexturePool.getImpl(), accel.getSceneRadius()
+        );
         primitives.copyFromHost({primitiveStaging.data(), primitiveStaging.size()});
         bsdfs.copyFromHost({bsdfStaging.data(), bsdfStaging.size()});
         edfs.copyFromHost({edfStaging.data(), edfStaging.size()});
-        accel.buildIas(deviceContext, instanceDescs);
         sbt.build(*program);
 
         // Wait for all queued uploads and builds before returning.
         cudaCheck(cudaStreamSynchronize(getStream()));
         LogDebug(
             "OptixContext: built {} geometries and {} visible primitives", uniqueMeshes.size(),
-            visiblePrimitives.size()
+            primitiveStaging.size()
         );
     } catch (...) {
         cudaCheck<false>(cudaStreamSynchronize(getStream()));
@@ -162,17 +158,17 @@ struct OptixContext::Storage : private CudaStreamMixin {
     OptixDeviceContext deviceContext;
     std::filesystem::path modulePath;
     std::unique_ptr<OptixProgram> program;
-    OptixGeometryPool geometryPool;
-    OptixImageTexturePool imageTexturePool;
-    OptixLightSampler lightSampler;
-    OptixAccel accel;
-    OptixSbt sbt;
+    OptixGeometryPool geometryPool{getStream()};
+    OptixImageTexturePool imageTexturePool{getStream()};
+    OptixLightSampler lightSampler{getStream()};
+    OptixAccel accel{getStream()};
+    OptixSbt sbt{getStream()};
     std::vector<Primitive::Impl> primitiveStaging;
-    DeviceBuffer<Primitive::Impl> primitives;
+    DeviceBuffer<Primitive::Impl> primitives{getStream()};
     std::vector<BSDF::Impl> bsdfStaging;
-    DeviceBuffer<BSDF::Impl> bsdfs;
+    DeviceBuffer<BSDF::Impl> bsdfs{getStream()};
     std::vector<EDF::Impl> edfStaging;
-    DeviceBuffer<EDF::Impl> edfs;
+    DeviceBuffer<EDF::Impl> edfs{getStream()};
 };
 
 OptixContext::OptixContext(

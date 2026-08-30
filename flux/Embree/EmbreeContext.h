@@ -193,13 +193,6 @@ public:
         return edfs[index];
     }
 
-    /// \brief Samples incident radiance from one light.
-    ///
-    /// The returned PDF includes light selection.
-    [[nodiscard]] DirectLightSample sampleDirectLight(
-        LightSamplingContext const &ctx, float uSelect, Vec2f const &uLight
-    ) const noexcept;
-
     /// \brief Returns the PDF of sampling \p isect from \p ctx.
     ///
     /// The PDF includes light selection.

@@ -18,6 +18,7 @@ struct OptixProgramSpec {
     SamplerType samplerType; // (1)
     BSDFTypeMask bsdfTypes;  // (2)
     bool shaderReorder;      // (3)
+    bool hasEnvMap;          // (4)
 
     [[nodiscard]] bool operator==(OptixProgramSpec const &) const = default;
 };

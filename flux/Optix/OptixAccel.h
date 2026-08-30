@@ -8,6 +8,7 @@
 #include <span>
 #include <vector>
 
+#include "flux/Core/Math.h"
 #include "flux/Core/Object.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/OptixUtils.h"
@@ -33,8 +34,7 @@ public:
         };
     };
 
-    explicit OptixAccel(cudaStream_t stream) noexcept
-        : CudaStreamMixin(stream), instances_(stream), ias_(stream) {}
+    explicit OptixAccel(cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
 
     /// \brief Rebuilds and compacts one GAS for every element of \p inputs.
     ///
@@ -54,6 +54,11 @@ public:
     /// \brief Returns the current IAS handle, or zero when empty.
     [[nodiscard]] OptixTraversableHandle getHandle() const noexcept { return handle_; }
 
+    /// \brief Returns the radius of the current IAS bounds.
+    ///
+    /// An empty IAS uses radius one.
+    [[nodiscard]] float getSceneRadius() const noexcept;
+
 private:
     struct GasEntry {
         explicit GasEntry(cudaStream_t stream) noexcept : storage(stream) {}
@@ -64,8 +69,10 @@ private:
 
     std::vector<GasEntry> gasEntries_;
     std::vector<OptixInstance> instanceStaging_;
-    DeviceBuffer<OptixInstance> instances_;
-    DeviceBuffer<std::byte> ias_;
+    DeviceBuffer<OptixInstance> instances_{getStream()};
+    DeviceBuffer<std::byte> ias_{getStream()};
+    DeviceBuffer<OptixAabb> iasBounds_{getStream()};
+    OptixAabb iasBoundsStaging_{};
     OptixTraversableHandle handle_{};
 };
 } // namespace flux

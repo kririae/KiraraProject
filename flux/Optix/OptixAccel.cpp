@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <limits>
 
+#include "flux/Core/Math.h"
 #include "flux/Optix/OptixUtils.h"
 #include "kira/Anyhow.h"
 
@@ -24,6 +25,8 @@ void OptixAccel::buildGas(
 ) {
     instances_.clear();
     ias_.clear();
+    iasBounds_.clear();
+    iasBoundsStaging_ = {};
     handle_ = {};
     gasEntries_.clear();
 
@@ -109,6 +112,8 @@ void OptixAccel::buildIas(
 ) {
     instances_.clear();
     ias_.clear();
+    iasBounds_.clear();
+    iasBoundsStaging_ = {};
     handle_ = {};
     instanceStaging_.clear();
 
@@ -163,6 +168,11 @@ void OptixAccel::buildIas(
     DeviceBuffer<std::byte> temporary(getStream());
     temporary.resize(sizes.tempSizeInBytes);
     ias_.resize(sizes.outputSizeInBytes);
+    iasBounds_.resize(1);
+    OptixAccelEmitDesc const bounds{
+        .result = devicePointer(iasBounds_.data()),
+        .type = OPTIX_PROPERTY_TYPE_AABBS,
+    };
 
     // clang-format off
     optixCheck(optixAccelBuild(
@@ -176,8 +186,23 @@ void OptixAccel::buildIas(
         /* outputBuffer =            */ devicePointer(ias_.data()),
         /* outputBufferSizeInBytes = */ ias_.size(),
         /* outputHandle =            */ &handle_,
-        /* emittedProperties =       */ nullptr,
-        /* numEmittedProperties =    */ 0));
+        /* emittedProperties =       */ &bounds,
+        /* numEmittedProperties =    */ 1));
     // clang-format on
+
+    iasBounds_.copyToHost({&iasBoundsStaging_, 1});
+    cudaCheck(cudaStreamSynchronize(getStream()));
+}
+
+float OptixAccel::getSceneRadius() const noexcept {
+    if (!handle_)
+        return 1.0F;
+    return Vec3f{
+               iasBoundsStaging_.maxX - iasBoundsStaging_.minX,
+               iasBoundsStaging_.maxY - iasBoundsStaging_.minY,
+               iasBoundsStaging_.maxZ - iasBoundsStaging_.minZ,
+           }
+               .norm() *
+           0.5F;
 }
 } // namespace flux

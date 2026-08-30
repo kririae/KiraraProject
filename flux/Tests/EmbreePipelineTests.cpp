@@ -12,6 +12,7 @@
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
+#include "flux/Scene/EnvMapLight.h"
 #include "flux/Scene/Light.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/RenderProduct.h"
@@ -213,6 +214,54 @@ TEST(EmbreePipelineTests, RendersDirectLightIntoColorChannel) {
     handler.download(*product);
     auto const blockedColor = product->getFilm().getChannel<flux::ColorChannel>();
     EXPECT_EQ(blockedColor[0], flux::Spectrum{});
+}
+
+TEST(EmbreePipelineTests, RendersConstantEnvironmentMapOnMiss) {
+    auto context = flux::Context::create();
+    (void)context->create<flux::PathIntegrator>();
+    (void)context->create<flux::IndependentSampler>();
+    kira::Properties lightProps;
+    lightProps.set("scale", flux::Spectrum{0.25F, 0.5F, 0.75F});
+    (void)context->create<flux::EnvMapLight>(lightProps);
+
+    auto product =
+        flux::RenderProduct::create(flux::Camera::create(), renderProductProperties(1, 1, 1));
+    product->getFilm().setChannels(flux::FilmChannels::Color);
+    flux::EmbreeHandler handler(context);
+    handler.render(*product, 1);
+    handler.download(*product);
+
+    auto const color = product->getFilm().getChannel<flux::ColorChannel>();
+    ASSERT_EQ(color.size(), 1);
+    EXPECT_EQ(color.front(), (flux::Spectrum{0.25F, 0.5F, 0.75F}));
+}
+
+TEST(EmbreePipelineTests, RendersImageEnvironmentMapOnMiss) {
+    auto context = flux::Context::create();
+    (void)context->create<flux::PathIntegrator>();
+    (void)context->create<flux::IndependentSampler>();
+    kira::Properties textureProps;
+    textureProps.set("type", "image");
+    textureProps.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Texture2x2.ppm");
+    kira::Properties lightProps;
+    lightProps.set("texture", textureProps);
+    (void)context->create<flux::EnvMapLight>(lightProps);
+
+    kira::Properties cameraProps;
+    cameraProps.set("fov", 1.0e-4F);
+    auto product = flux::RenderProduct::create(
+        flux::Camera::create(cameraProps), renderProductProperties(1, 1, 1)
+    );
+    product->getFilm().setChannels(flux::FilmChannels::Color);
+    flux::EmbreeHandler handler(context);
+    handler.render(*product, 1);
+    handler.download(*product);
+
+    auto const color = product->getFilm().getChannel<flux::ColorChannel>();
+    ASSERT_EQ(color.size(), 1);
+    EXPECT_NEAR(color.front().x(), 0.5F, 1.0e-5F);
+    EXPECT_NEAR(color.front().y(), 0.5F, 1.0e-5F);
+    EXPECT_NEAR(color.front().z(), 0.5F, 1.0e-5F);
 }
 
 TEST(EmbreePipelineTests, InvalidatesAccumulationForCameraFilmAndSync) {

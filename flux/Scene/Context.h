@@ -21,6 +21,7 @@ class Sampler;
 class BSDF;
 class EDF;
 class ImageTexture;
+class EnvMapLight;
 
 /// \brief Owns the host-side objects in a Flux scene.
 ///
@@ -120,6 +121,11 @@ public:
     /// \throw kira::Anyhow If the context has no sampler.
     [[nodiscard]] Ref<Sampler const> getActiveSampler() const;
 
+    /// \brief Returns the first environment map successfully added to this context.
+    ///
+    /// Returns an empty reference when the context has no environment map.
+    [[nodiscard]] Ref<EnvMapLight const> getActiveEnvMap() const;
+
     /// \brief Returns every context object that is a \c T or derives from it.
     ///
     /// Results are ordered by context ID.
@@ -165,6 +171,7 @@ private:
     ContextIndexMap edfs_;
     std::optional<std::size_t> activeIntegratorId_;
     std::optional<std::size_t> activeSamplerId_;
+    std::optional<std::size_t> activeEnvMapId_;
     ImageAssetPool imageAssetPool_;
     kira::FileResolver fileResolver_;
     std::size_t nextId_{0};

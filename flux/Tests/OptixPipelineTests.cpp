@@ -10,6 +10,7 @@
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
+#include "flux/Scene/EnvMapLight.h"
 #include "flux/Scene/RenderProduct.h"
 #include "kira/Anyhow.h"
 
@@ -97,6 +98,63 @@ TEST(OptixPipelineTests, ReleasesContextAfterConstructionFails) {
     auto product = flux::RenderProduct::create(camera, properties);
     flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
     EXPECT_NO_THROW(handler.render(*product, 1));
+}
+
+TEST(OptixPipelineTests, RendersConstantEnvironmentMapOnMiss) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    auto context = flux::Context::create();
+    (void)context->create<flux::PathIntegrator>();
+    (void)context->create<flux::IndependentSampler>();
+    kira::Properties lightProps;
+    lightProps.set("scale", flux::Spectrum{0.25F, 0.5F, 0.75F});
+    (void)context->create<flux::EnvMapLight>(lightProps);
+
+    auto camera = flux::Camera::create();
+    kira::Properties productProps;
+    productProps.set("resolution", flux::Vec2u{1, 1});
+    auto product = flux::RenderProduct::create(camera, productProps);
+    product->getFilm().setChannels(flux::FilmChannels::Color);
+    flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
+    handler.render(*product, 1);
+    handler.download(*product);
+
+    auto const color = product->getFilm().getChannel<flux::ColorChannel>();
+    ASSERT_EQ(color.size(), 1);
+    EXPECT_EQ(color.front(), (flux::Spectrum{0.25F, 0.5F, 0.75F}));
+}
+
+TEST(OptixPipelineTests, RendersImageEnvironmentMapOnMiss) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    auto context = flux::Context::create();
+    (void)context->create<flux::PathIntegrator>();
+    (void)context->create<flux::IndependentSampler>();
+    kira::Properties textureProps;
+    textureProps.set("type", "image");
+    textureProps.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Texture2x2.ppm");
+    kira::Properties lightProps;
+    lightProps.set("texture", textureProps);
+    (void)context->create<flux::EnvMapLight>(lightProps);
+
+    kira::Properties cameraProps;
+    cameraProps.set("fov", 1.0e-4F);
+    auto camera = flux::Camera::create(cameraProps);
+    kira::Properties productProps;
+    productProps.set("resolution", flux::Vec2u{1, 1});
+    auto product = flux::RenderProduct::create(camera, productProps);
+    product->getFilm().setChannels(flux::FilmChannels::Color);
+    flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
+    handler.render(*product, 1);
+    handler.download(*product);
+
+    auto const color = product->getFilm().getChannel<flux::ColorChannel>();
+    ASSERT_EQ(color.size(), 1);
+    EXPECT_NEAR(color.front().x(), 0.5F, 1.0e-5F);
+    EXPECT_NEAR(color.front().y(), 0.5F, 1.0e-5F);
+    EXPECT_NEAR(color.front().z(), 0.5F, 1.0e-5F);
 }
 
 TEST(OptixPipelineTests, InvalidatesAccumulationAfterCameraChangeAndSync) {

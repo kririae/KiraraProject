@@ -47,7 +47,10 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
         while (state.active) {
             EmbreeContext::Hit hit;
             if (!params.scene.intersect(state.ray, hit)) {
-                params.integrator.onMiss(state);
+                if (writesColor)
+                    params.integrator.onMiss<EmbreeImageTextureEvaluator>(state, params.scene);
+                else
+                    params.integrator.onMiss(state);
                 break;
             }
 
@@ -73,12 +76,13 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
 
             auto directLight = DirectLightSample{};
             if (continues) {
-                directLight = params.integrator.sampleDirectLight(
+                directLight = params.integrator.sampleDirectLight<EmbreeImageTextureEvaluator>(
                     state, params.scene,
                     {
                         .position = isect.position,
                         .normal = isect.geometricNormal,
-                    }
+                    },
+                    params.scene.lightSampler.table.envMap != nullptr
                 );
             }
 
@@ -109,7 +113,8 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
                 );
             }
 
-            if (candidate.valid && params.scene.isVisible(isect.spawnRayTo(directLight.position)))
+            if (candidate.valid &&
+                params.scene.isVisible(isect.spawnRay(directLight.wi, directLight.distance)))
                 state.radiance = state.radiance + candidate.contribution;
         }
 
