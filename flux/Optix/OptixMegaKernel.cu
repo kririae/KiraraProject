@@ -72,7 +72,7 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
         auto footprint = flux::RayFootprint{};
         if (optixLaunchParams.needsTextureFootprint) {
             footprint = state.footprint.unpack();
-            footprint.propagate((isect.position - state.ray.origin).dot(state.ray.direction));
+            footprint.propagate(optixHitObjectGetRayTmax());
         }
         auto const &primitive = optixLaunchParams.scene.getPrimitive(isect.primitiveIndex);
         auto const isPrimary = state.depth == 0;

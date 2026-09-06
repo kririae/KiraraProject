@@ -106,10 +106,15 @@ KIRA_DEVICE inline TextureEvalContext OptixContext::Impl::getTextureEvalContext(
     auto dpdy = Vec3f{};
     footprint.project(direction, isect.geometricNormal, dpdx, dpdy);
 
-    auto const instance = optixGetInstanceTraversableFromIAS(traversable, isect.primitiveIndex);
-    auto const *worldToObject = optixGetInstanceInverseTransformFromHandle(instance);
-    dpdx = transformVec(worldToObject, dpdx);
-    dpdy = transformVec(worldToObject, dpdy);
+    // The radiance hit is still current; shadow traversal must happen after this lookup.
+    auto const dx = optixHitObjectTransformVectorFromWorldToObjectSpace(
+        make_float3(dpdx.x(), dpdx.y(), dpdx.z())
+    );
+    auto const dy = optixHitObjectTransformVectorFromWorldToObjectSpace(
+        make_float3(dpdy.x(), dpdy.y(), dpdy.z())
+    );
+    dpdx = Vec3f{dx.x, dx.y, dx.z};
+    dpdy = Vec3f{dy.x, dy.y, dy.z};
 
     auto result = TextureEvalContext{.uv = isect.uv};
     auto const &primitive = getPrimitive(isect.primitiveIndex);

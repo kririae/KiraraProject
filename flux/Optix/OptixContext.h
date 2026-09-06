@@ -118,6 +118,8 @@ public:
     [[nodiscard]] KIRA_DEVICE Vec3f
     transformNormalToWorld(std::uint32_t primitiveIndex, Vec3f const &normal) const noexcept;
 
+    /// \pre The current outgoing OptiX hit object is the hit that produced \p isect.
+    /// Call before any subsequent traversal, including a shadow query.
     [[nodiscard]] KIRA_DEVICE TextureEvalContext getTextureEvalContext(
         SurfaceInteraction const &isect, Vec3f const &direction, RayFootprint const &footprint
     ) const noexcept;

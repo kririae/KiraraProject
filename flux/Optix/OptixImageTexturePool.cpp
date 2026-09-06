@@ -68,7 +68,7 @@ void OptixImageTexturePool::build(Context const &context) {
 
     try {
         // TODO(krr): Reuse CUDA arrays for unchanged ImageAssets.
-        // ImageAsset::read uses the OIIO cache. Each build still creates a
+        // ImageAsset::readMipChain uses the OIIO cache. Each build still creates a
         // complete host buffer and uploads every active image.
         auto const uploadImage = [&](ImageAsset const &asset) {
             auto &images = imageBuffers.emplace_back(asset.readMipChain());

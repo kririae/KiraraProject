@@ -49,6 +49,51 @@ primitiveProperties(flux::TriangleMesh const &mesh, flux::BSDF const *bsdf = nul
 }
 } // namespace
 
+TEST(OptixGeometryTests, PreservesFilteredAlbedoUnderInstanceTransforms) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    auto context = flux::Context::create();
+    (void)context->create<flux::PathIntegrator>();
+    (void)context->create<flux::IndependentSampler>();
+    kira::Properties meshProps;
+    meshProps.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "IndexedTriangle.obj");
+    auto mesh = context->create<flux::TriangleMesh>(meshProps);
+    kira::Properties textureProps;
+    textureProps.set("type", "image");
+    textureProps.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Texture2x2.ppm");
+    textureProps.set("color_space", "linear");
+    textureProps.set("filter_mode", "linear");
+    kira::Properties bsdfProps;
+    bsdfProps.set("R", textureProps);
+    auto bsdf = context->create<flux::DiffuseBSDF>(bsdfProps);
+    auto primitive = context->create<flux::Primitive>(primitiveProperties(*mesh, bsdf.get()));
+    auto camera = flux::Camera::create();
+    camera->setPosition({0.25F, 0.25F, 1.0F});
+    camera->setLookAt({0.25F, 0.25F, 0.0F});
+    camera->setVerticalFieldOfView(10.0F);
+    kira::Properties productProps;
+    productProps.set("resolution", flux::Vec2u{1, 1});
+    auto product = flux::RenderProduct::create(camera, productProps);
+    product->getFilm().setChannels(flux::FilmChannels::Albedo);
+    flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
+    handler.render(*product, 32);
+    handler.download(*product);
+    auto const expected = product->getFilm().getChannel<flux::AlbedoChannel>()[0];
+    EXPECT_GT(expected.norm2(), 0.0F);
+
+    // Rotate about Y, scale uniformly by four, and translate both scene and camera.
+    primitive->setTransform({0, 0, 4, 10, 0, 4, 0, 20, -4, 0, 0, 30});
+    camera->setPosition({14, 21, 29});
+    camera->setLookAt({10, 21, 29});
+    handler.sync();
+    handler.render(*product, 32);
+    handler.download(*product);
+    auto const actual = product->getFilm().getChannel<flux::AlbedoChannel>()[0];
+    for (auto component = 0U; component < 3; ++component)
+        EXPECT_NEAR(actual[component], expected[component], 2.0e-3F);
+}
+
 TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
     if (!flux::test::hasCudaMemoryPoolSupport())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";

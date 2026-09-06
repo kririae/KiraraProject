@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <cmath>
 #include <numbers>
 #include <stdexcept>
 
@@ -99,6 +100,25 @@ TEST(PathIntegratorTests, ProjectsFootprintsAtNormalIncidence) {
     EXPECT_NEAR(dpdy.norm(), 0.2F, 1.0e-6F);
     EXPECT_NEAR(dpdx.dot(normal), 0.0F, 1.0e-6F);
     EXPECT_NEAR(dpdy.dot(normal), 0.0F, 1.0e-6F);
+}
+
+TEST(PathIntegratorTests, ProjectsOrthogonalFootprintAxes) {
+    auto const normal = flux::Vec3f{0.0F, 0.0F, 1.0F};
+    for (auto const width : {0.0F, 0.2F}) {
+        auto const footprint = flux::RayFootprint{
+            .cones = {flux::RayCone{.width = width}, flux::RayCone{}},
+        };
+        for (auto const cosine : {1.0F, 0.5F, 0.01F, 0.0F}) {
+            auto const direction = flux::Vec3f{std::sqrt(1.0F - cosine * cosine), 0.0F, cosine};
+            flux::Vec3f dx{}, dy{};
+            footprint.project(direction, normal, dx, dy);
+            EXPECT_NEAR(dx.norm(), width / std::max(cosine, 1.0F / 16.0F), 1.0e-6F);
+            EXPECT_NEAR(dy.norm(), width, 1.0e-6F);
+            EXPECT_NEAR(dx.dot(dy), 0.0F, 1.0e-6F);
+            EXPECT_NEAR(dx.dot(normal), 0.0F, 1.0e-6F);
+            EXPECT_NEAR(dy.dot(normal), 0.0F, 1.0e-6F);
+        }
+    }
 }
 
 TEST(PathIntegratorTests, KeepsFirstSuccessfulIntegratorActive) {

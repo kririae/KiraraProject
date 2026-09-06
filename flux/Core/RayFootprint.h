@@ -136,17 +136,20 @@ struct RayFootprint {
         constexpr auto invMaxAnisotropy = 1.0F / static_cast<float>(maxAnisotropy);
         auto const width = std::max(std::abs(cones[0].width), std::abs(cones[1].width));
         auto const cosine = direction.dot(normal);
+        auto tangent = Vec3f{};
         if (std::abs(cosine) < 0.999F) {
-            dpdx = (direction - normal * cosine).normalize() *
-                   (width / std::max(std::abs(cosine), invMaxAnisotropy));
+            tangent = (direction - normal * cosine).normalize();
+            dpdx = tangent * (width / std::max(std::abs(cosine), invMaxAnisotropy));
         } else {
             // The ray direction does not define a stable tangent near normal incidence.
-            auto const tangent = std::abs(normal.x()) > std::abs(normal.z())
-                                     ? Vec3f{-normal.y(), normal.x(), 0.0F}
-                                     : Vec3f{0.0F, -normal.z(), normal.y()};
-            dpdx = tangent.normalize() * width;
+            tangent = std::abs(normal.x()) > std::abs(normal.z())
+                          ? Vec3f{-normal.y(), normal.x(), 0.0F}
+                          : Vec3f{0.0F, -normal.z(), normal.y()};
+            tangent = tangent.normalize();
+            dpdx = tangent * width;
         }
-        dpdy = cross(dpdx, normal).normalize() * width;
+        // Both vectors are unit and perpendicular, so their cross product is unit.
+        dpdy = cross(tangent, normal) * width;
     }
 };
 

@@ -37,6 +37,34 @@ struct ReconstructTriangleInteraction {
 }
 } // namespace
 
+TEST(GeometryTests, TexturePartialsAreTranslationInvariant) {
+    auto const indices = std::array{flux::Vec3u{0, 1, 2}};
+    auto const uvIndices = std::array{flux::Vec3u{2, 0, 1}};
+    auto const uvs = std::array{
+        flux::Vec2f{3.0F, 2.0F},
+        flux::Vec2f{1.0F, 5.0F},
+        flux::Vec2f{1.0F, 2.0F},
+    };
+    for (auto const offset : {0.0F, 1000000.0F}) {
+        auto const vertices = std::array{
+            flux::Vec3f{offset, offset, 0.0F},
+            flux::Vec3f{offset + 1.0F, offset, 0.0F},
+            flux::Vec3f{offset, offset + 1.0F, 0.0F},
+        };
+        flux::TriangleMesh::Impl mesh{};
+        mesh.vertices = vertices.data();
+        mesh.triangles = indices.data();
+        mesh.texCoords = uvs.data();
+        mesh.texCoordIndices = uvIndices.data();
+        flux::Vec2f dx{}, dy{};
+        mesh.computeTexCoordPartials(0, {0.01F, 0.02F, 0.0F}, {-0.02F, 0.01F, 0.0F}, dx, dy);
+        EXPECT_NEAR(dx.x(), 0.02F, 1.0e-6F);
+        EXPECT_NEAR(dx.y(), 0.06F, 1.0e-6F);
+        EXPECT_NEAR(dy.x(), -0.04F, 1.0e-6F);
+        EXPECT_NEAR(dy.y(), 0.03F, 1.0e-6F);
+    }
+}
+
 TEST(GeometryTests, AppliesPointerBasedAffineTransforms) {
     std::array const pointTransform{
         2.0F, 0.0F, 0.0F, 1.0F, 0.0F, 3.0F, 0.0F, 2.0F, 0.0F, 0.0F, 4.0F, 3.0F,

@@ -60,15 +60,18 @@ KIRA_HOST_DEVICE inline void TriangleMesh::Impl::computeTexCoordPartials(
     auto const ta = texCoords[textureIndices[0]];
     auto const tb = texCoords[textureIndices[1]];
     auto const tc = texCoords[textureIndices[2]];
-    auto const abc = cross(b - a, c - a);
+    auto const ab = b - a;
+    auto const ac = c - a;
+    auto const abc = cross(ab, ac);
     auto const invArea2 = 1.0F / abc.norm2();
+    // Gradients of barycentric b and c. Differentiate edge vectors directly:
+    // adding a small offset to a large vertex position can round it away.
+    auto const db = cross(ac, abc) * invArea2;
+    auto const dc = cross(abc, ab) * invArea2;
+    auto const tab = tb - ta;
+    auto const tac = tc - ta;
 
-    auto const getPartial = [&](Vec3f const &dp) {
-        auto const p = a + dp;
-        auto const pa = abc.dot(cross(b - p, c - p)) * invArea2;
-        auto const pb = abc.dot(cross(c - p, a - p)) * invArea2;
-        return (pa - 1.0F) * ta + pb * tb + (1.0F - pa - pb) * tc;
-    };
+    auto const getPartial = [&](Vec3f const &dp) { return tab * db.dot(dp) + tac * dc.dot(dp); };
     duvdx = getPartial(dpdx);
     duvdy = getPartial(dpdy);
 }
