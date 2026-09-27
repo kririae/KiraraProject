@@ -58,15 +58,10 @@ TEST(PathIntegratorTests, PropagatesAndPacksRayFootprints) {
     EXPECT_NEAR(unpacked.cones[1].width, footprint.cones[1].width, 1.0e-3F);
 }
 
-TEST(PathIntegratorTests, ReflectsAndRefractsRayCones) {
-    auto reflected = flux::RayCone{.angle = 0.1F, .width = 0.2F};
-    reflected.reflect(0.5F);
-    EXPECT_FLOAT_EQ(reflected.angle, 0.3F);
-    EXPECT_FLOAT_EQ(reflected.width, 0.2F);
-
+TEST(PathIntegratorTests, RefractsRayCones) {
     auto refracted = flux::RayCone{.angle = 0.1F, .width = 0.2F};
-    refracted.refract(0.5F, 2.0F);
-    EXPECT_NEAR(refracted.angle, 0.0F, 1.0e-7F);
+    refracted.refract(2.0F);
+    EXPECT_FLOAT_EQ(refracted.angle, 0.05F);
     EXPECT_FLOAT_EQ(refracted.width, 0.2F);
 }
 

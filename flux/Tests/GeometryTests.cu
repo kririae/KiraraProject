@@ -37,7 +37,7 @@ struct ReconstructTriangleInteraction {
 }
 } // namespace
 
-TEST(GeometryTests, TexturePartialsAreTranslationInvariant) {
+TEST(GeometryTests, TextureGradientsAreTranslationInvariant) {
     auto const indices = std::array{flux::Vec3u{0, 1, 2}};
     auto const uvIndices = std::array{flux::Vec3u{2, 0, 1}};
     auto const uvs = std::array{
@@ -56,8 +56,13 @@ TEST(GeometryTests, TexturePartialsAreTranslationInvariant) {
         mesh.triangles = indices.data();
         mesh.texCoords = uvs.data();
         mesh.texCoordIndices = uvIndices.data();
-        flux::Vec2f dx{}, dy{};
-        mesh.computeTexCoordPartials(0, {0.01F, 0.02F, 0.0F}, {-0.02F, 0.01F, 0.0F}, dx, dy);
+        auto const interaction = mesh.computeInteraction(
+            flux::PreliminaryIntersection{.coordinates = {}, .elementIndex = 0}
+        );
+        auto const dpdx = flux::Vec3f{0.01F, 0.02F, 0.0F};
+        auto const dpdy = flux::Vec3f{-0.02F, 0.01F, 0.0F};
+        auto const dx = flux::Vec2f{dpdx.dot(interaction.uvGradU), dpdx.dot(interaction.uvGradV)};
+        auto const dy = flux::Vec2f{dpdy.dot(interaction.uvGradU), dpdy.dot(interaction.uvGradV)};
         EXPECT_NEAR(dx.x(), 0.02F, 1.0e-6F);
         EXPECT_NEAR(dx.y(), 0.06F, 1.0e-6F);
         EXPECT_NEAR(dy.x(), -0.04F, 1.0e-6F);
@@ -201,55 +206,6 @@ TEST(GeometryTests, SamplesTriangleMeshesByGeometrySpaceArea) {
     EXPECT_NEAR(sample.geometricNormal.norm(), 1.0F, 1.0e-6F);
 }
 
-TEST(GeometryTests, ComputesUnitSphereTriangleCurvature) {
-    auto const vertices = std::array{
-        flux::Vec3f{1.0F, 0.0F, 0.0F},
-        flux::Vec3f{0.0F, 1.0F, 0.0F},
-        flux::Vec3f{0.0F, 0.0F, 1.0F},
-    };
-    auto const triangles = std::array{flux::Vec3u{0, 1, 2}};
-    auto const mesh = flux::TriangleMesh::Impl{
-        .vertices = vertices.data(),
-        .triangles = triangles.data(),
-        .normals = vertices.data(),
-        .normalIndices = triangles.data(),
-        .numVertices = static_cast<std::uint32_t>(vertices.size()),
-        .numTriangles = static_cast<std::uint32_t>(triangles.size()),
-    };
-    auto curvatures = std::array<float, 1>{};
-
-    flux::TriangleMesh::computeCurvatures(mesh, curvatures);
-
-    EXPECT_FLOAT_EQ(curvatures[0], 1.0F);
-}
-
-TEST(GeometryTests, ComputesZeroPlanarTriangleCurvature) {
-    auto const vertices = std::array{
-        flux::Vec3f{0.0F, 0.0F, 0.0F},
-        flux::Vec3f{1.0F, 0.0F, 0.0F},
-        flux::Vec3f{0.0F, 1.0F, 0.0F},
-    };
-    auto const triangles = std::array{flux::Vec3u{0, 1, 2}};
-    auto const normals = std::array{
-        flux::Vec3f{0.0F, 0.0F, 1.0F},
-        flux::Vec3f{0.0F, 0.0F, 1.0F},
-        flux::Vec3f{0.0F, 0.0F, 1.0F},
-    };
-    auto const mesh = flux::TriangleMesh::Impl{
-        .vertices = vertices.data(),
-        .triangles = triangles.data(),
-        .normals = normals.data(),
-        .normalIndices = triangles.data(),
-        .numVertices = static_cast<std::uint32_t>(vertices.size()),
-        .numTriangles = static_cast<std::uint32_t>(triangles.size()),
-    };
-    auto curvatures = std::array<float, 1>{};
-
-    flux::TriangleMesh::computeCurvatures(mesh, curvatures);
-
-    EXPECT_FLOAT_EQ(curvatures[0], 0.0F);
-}
-
 TEST(GeometryTests, ReportsZeroDensityForAnUnsampledTriangle) {
     auto const cdf = std::array{1.0F, 1.0F};
     auto const pdf = std::array{1.0F, 0.0F};
@@ -376,10 +332,11 @@ TEST(GeometryTests, InterpolatesIndexedShadingAttributes) {
         flux::Vec3f{0.0F, 0.0F, 1.0F},
     };
     std::array const normalIndices{flux::Vec3u{1, 2, 0}};
+    // Non-collinear so that the two gradient rows differ.
     std::array const texCoords{
         flux::Vec2f{0.1F, 0.2F},
         flux::Vec2f{0.3F, 0.4F},
-        flux::Vec2f{0.5F, 0.6F},
+        flux::Vec2f{0.5F, 0.9F},
     };
     std::array const texCoordIndices{flux::Vec3u{2, 0, 1}};
 
@@ -432,5 +389,13 @@ TEST(GeometryTests, InterpolatesIndexedShadingAttributes) {
     EXPECT_NEAR(result[0].shadingNormal.y(), 0.4082483F, 1.0e-6F);
     EXPECT_NEAR(result[0].shadingNormal.z(), 0.4082483F, 1.0e-6F);
     EXPECT_NEAR(result[0].uv.x(), 0.3F, 1.0e-6F);
-    EXPECT_NEAR(result[0].uv.y(), 0.4F, 1.0e-6F);
+    EXPECT_NEAR(result[0].uv.y(), 0.475F, 1.0e-6F);
+    // The gradients of the barycentric coordinates pair with the texture coordinate deltas:
+    // b with texture1 - texture0 and c with texture2 - texture0.
+    EXPECT_NEAR(result[0].uvGradU.x(), -0.2F, 1.0e-6F);
+    EXPECT_NEAR(result[0].uvGradU.y(), -0.05F, 1.0e-6F);
+    EXPECT_NEAR(result[0].uvGradU.z(), 0.0F, 1.0e-6F);
+    EXPECT_NEAR(result[0].uvGradV.x(), -0.35F, 1.0e-6F);
+    EXPECT_NEAR(result[0].uvGradV.y(), -0.125F, 1.0e-6F);
+    EXPECT_NEAR(result[0].uvGradV.z(), 0.0F, 1.0e-6F);
 }

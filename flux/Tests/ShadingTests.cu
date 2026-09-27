@@ -383,17 +383,6 @@ TEST(ShadingTests, CreatesPrincipledWithConstantParameters) {
     EXPECT_EQ(impl.eta, 1.45F);
 }
 
-TEST(ShadingTests, FindsImageTexturesUsedByPrincipled) {
-    auto impl = referencePrincipled();
-    EXPECT_FALSE(impl.needsTextureFootprint());
-
-    impl.clearcoatRoughness = {
-        .type = flux::TextureType::Image,
-        .storage = {.image = {.imageTextureIndex = 0}},
-    };
-    EXPECT_TRUE(impl.needsTextureFootprint());
-}
-
 TEST(ShadingTests, ResolvesPrincipledEta) {
     auto context = flux::Context::create();
     kira::Properties conflicting;

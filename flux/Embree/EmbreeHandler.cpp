@@ -95,7 +95,6 @@ RenderStats EmbreeHandler::render(RenderProduct const &product, std::uint32_t sa
         .sampleOffset = impl_->sampleOffset,
         .film = entry.film,
         .batchSize = samples,
-        .needsTextureFootprint = impl_->embreeContext.needsTextureFootprint(),
     };
 
     try {

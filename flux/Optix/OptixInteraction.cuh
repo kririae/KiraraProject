@@ -18,6 +18,16 @@ template <typename GeometryImpl>
     std::uint32_t primitiveIndex, Ray const &ray
 ) noexcept {
     auto const geometryInteraction = geometry.computeInteraction(preliminary);
+    // A parameterization gradient maps a position offset to a uv offset, so it is a covector
+    // and transforms by the inverse transpose, exactly like a normal.
+    auto const uvGradU = optixHitObjectTransformNormalFromObjectToWorldSpace(make_float3(
+        geometryInteraction.uvGradU.x(), geometryInteraction.uvGradU.y(),
+        geometryInteraction.uvGradU.z()
+    ));
+    auto const uvGradV = optixHitObjectTransformNormalFromObjectToWorldSpace(make_float3(
+        geometryInteraction.uvGradV.x(), geometryInteraction.uvGradV.y(),
+        geometryInteraction.uvGradV.z()
+    ));
     auto const geometricNormalValue =
         optixHitObjectTransformNormalFromObjectToWorldSpace(make_float3(
             geometryInteraction.geometricNormal.x(), geometryInteraction.geometricNormal.y(),
@@ -36,6 +46,8 @@ template <typename GeometryImpl>
         .shadingNormal =
             Vec3f{shadingNormalValue.x, shadingNormalValue.y, shadingNormalValue.z}.normalize(),
         .uv = geometryInteraction.uv,
+        .uvGradU = {uvGradU.x, uvGradU.y, uvGradU.z},
+        .uvGradV = {uvGradV.x, uvGradV.y, uvGradV.z},
         .primitiveIndex = primitiveIndex,
         .elementIndex = geometryInteraction.elementIndex,
     };

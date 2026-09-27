@@ -117,11 +117,6 @@ float Primitive::estimateAreaScale() const noexcept {
     return (scale.x() * scale.y() + scale.x() * scale.z() + scale.y() * scale.z()) / 3.0F;
 }
 
-float Primitive::estimateCurvatureScale() const noexcept {
-    auto const scale = getScale(transform_).hmax();
-    return scale > 0.0F ? 1.0F / scale : 1.0F;
-}
-
 bool Primitive::hasNonUniformScale() const noexcept {
     auto const scale = getScale(transform_);
     auto const maximum = scale.hmax();

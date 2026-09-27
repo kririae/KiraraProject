@@ -58,15 +58,12 @@ public:
 
     [[nodiscard]] Impl getImpl() const noexcept;
 
-    [[nodiscard]] bool needsTextureFootprint() const noexcept;
-
 private:
     struct EmptyState {};
 
     struct TriangleData {
         kira::SmallVector<float, 0> areaCDF;
         kira::SmallVector<float, 0> areaPDF;
-        kira::SmallVector<float, 0> curvatures;
     };
 
     EmbreeContext(EmptyState, Context &context) noexcept;
@@ -112,7 +109,6 @@ private:
     EmbreeImageTexturePool imageTexturePool_;
 
     EmbreeLightSampler lightSampler_;
-    bool needsTextureFootprint_{};
 };
 
 /// \brief Embree scene used during rendering.
@@ -176,10 +172,6 @@ public:
     [[nodiscard]] TextureEvalContext getTextureEvalContext(
         SurfaceInteraction const &isect, Vec3f const &direction, RayFootprint const &footprint
     ) const noexcept;
-
-    /// \brief Returns world-space curvature oriented toward \p wo.
-    [[nodiscard]] float
-    getCurvature(SurfaceInteraction const &isect, Vec3f const &wo) const noexcept;
 
     /// \brief Returns the primitive at dense \p index.
     ///

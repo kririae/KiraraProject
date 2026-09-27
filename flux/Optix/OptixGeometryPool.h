@@ -27,9 +27,7 @@ public:
     /// Meshes omitted from \p meshes are released.
     /// \param meshes Host meshes to upload in device-table order.
     /// \throw kira::Anyhow If CUDA cannot enqueue an allocation or copy.
-    /// \pre \p needsCurvature has one element for each mesh.
-    void
-    build(std::span<Ref<TriangleMesh const> const> meshes, std::span<bool const> needsCurvature);
+    void build(std::span<Ref<TriangleMesh const> const> meshes);
 
     /// \brief Creates build inputs backed by the current resident storage.
     ///
@@ -53,7 +51,7 @@ private:
         explicit Entry(cudaStream_t stream)
             : vertices(stream), triangles(stream), normals(stream), normalIndices(stream),
               texCoords(stream), texCoordIndices(stream), triangleAreaCDF(stream),
-              triangleAreaPDF(stream), curvatures(stream) {}
+              triangleAreaPDF(stream) {}
 
         DeviceBuffer<Vec3f> vertices;
         DeviceBuffer<Vec3u> triangles;
@@ -63,10 +61,8 @@ private:
         DeviceBuffer<Vec3u> texCoordIndices;
         kira::SmallVector<float, 0> triangleAreaCDFStaging;
         kira::SmallVector<float, 0> triangleAreaPDFStaging;
-        kira::SmallVector<float, 0> curvatureStaging;
         DeviceBuffer<float> triangleAreaCDF;
         DeviceBuffer<float> triangleAreaPDF;
-        DeviceBuffer<float> curvatures;
         CUdeviceptr vertexBuffer{};
         unsigned int flags{OPTIX_GEOMETRY_FLAG_NONE};
     };

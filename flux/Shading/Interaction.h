@@ -26,6 +26,17 @@ struct SurfaceInteraction {
     /// Surface parameterization; zero is the fallback value.
     Vec2f uv{};
 
+    /// Gradient of \c uv.x() with respect to world-space position, or zero without texture
+    /// coordinates.
+    ///
+    /// A world-space offset \p dp maps to a \c uv offset of
+    /// \c {dp.dot(uvGradU), dp.dot(uvGradV)}.
+    Vec3f uvGradU{};
+
+    /// Gradient of \c uv.y() with respect to world-space position, or zero without texture
+    /// coordinates.
+    Vec3f uvGradV{};
+
     /// Dense primitive index in the current backend scene.
     std::uint32_t primitiveIndex{};
 

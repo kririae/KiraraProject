@@ -44,12 +44,9 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
     auto const ray =
         optixLaunchParams.camera.generateRay(rasterPosition, sampler.get2D(), resolution);
 
-    auto packedFootprint = flux::PackedRayFootprint{};
-    if (optixLaunchParams.needsTextureFootprint) {
-        packedFootprint = flux::PackedRayFootprint::pack(
-            optixLaunchParams.camera.getRayFootprint(ray.direction, resolution)
-        );
-    }
+    auto const packedFootprint = flux::PackedRayFootprint::pack(
+        optixLaunchParams.camera.getRayFootprint(ray.direction, resolution)
+    );
     flux::PathState state{.ray = ray, .sampler = sampler, .footprint = packedFootprint};
     auto const writesColor = optixLaunchParams.film.hasChannel<flux::ColorChannel>();
 
@@ -59,7 +56,7 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
         if (!optixLaunchParams.scene.intersect(state.ray, hit, reorder)) {
             if (writesColor && optixLaunchParams.hasEnvMap) {
                 optixLaunchParams.integrator.onMiss<OptixImageTextureEvaluator>(
-                    state, optixLaunchParams.scene, optixLaunchParams.needsTextureFootprint
+                    state, optixLaunchParams.scene
                 );
             } else {
                 optixLaunchParams.integrator.onMiss(state);
@@ -69,11 +66,8 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
 
         auto const &isect = hit.surface;
         // NVCC generates a faster path when the unpacked footprint stays in this scope.
-        auto footprint = flux::RayFootprint{};
-        if (optixLaunchParams.needsTextureFootprint) {
-            footprint = state.footprint.unpack();
-            footprint.propagate(optixHitObjectGetRayTmax());
-        }
+        auto footprint = state.footprint.unpack();
+        footprint.propagate(optixHitObjectGetRayTmax());
         auto const &primitive = optixLaunchParams.scene.getPrimitive(isect.primitiveIndex);
         auto const isPrimary = state.depth == 0;
         auto const wo = -state.ray.direction;
@@ -120,12 +114,9 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
             auto const u1 = state.sampler.get1D();
             auto const u2 = state.sampler.get2D();
             auto const &bsdf = optixLaunchParams.scene.getBSDF(primitive.getBSDFIndex());
-            auto texCtx = flux::TextureEvalContext{.uv = isect.uv};
-            if (bsdf.needsTextureFootprint) {
-                texCtx = optixLaunchParams.scene.getTextureEvalContext(
-                    isect, state.ray.direction, footprint
-                );
-            }
+            auto const texCtx = optixLaunchParams.scene.getTextureEvalContext(
+                isect, state.ray.direction, footprint
+            );
             auto const result =
                 optixLaunchParams.bsdfDispatcher.execute<OptixImageTextureEvaluator>(
                     bsdf, texCtx, localWo, localLightWi, directLight.pdf > 0.0F, u1, u2
@@ -144,16 +135,11 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
             candidate = optixLaunchParams.integrator.makeDirectLightCandidate(
                 state.throughput, directLight, result.evaluation
             );
-            auto curvature = 0.0F;
-            if (optixLaunchParams.needsTextureFootprint && result.sample.needsCurvature())
-                curvature = optixLaunchParams.scene.getCurvature(isect, wo);
             optixLaunchParams.integrator.onSurfaceHit(
                 state, isect, frame.toWorld(result.sample.wi), result.sample
             );
-            if (optixLaunchParams.needsTextureFootprint && state.active)
-                optixLaunchParams.integrator.updateFootprint(
-                    state, result.sample, footprint, curvature
-                );
+            if (state.active)
+                optixLaunchParams.integrator.updateFootprint(state, result.sample, footprint);
         }
 
         // Trace the shadow ray on every lane that reaches here, candidate or not. OptiX resumes

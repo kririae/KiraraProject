@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <limits>
 #include <unordered_map>
-#include <unordered_set>
 #include <utility>
 
 #include "flux/Core/Logging.h"
@@ -87,7 +86,6 @@ void EmbreeContext::reset() noexcept {
     edfs_.clear();
     imageTexturePool_.clear();
     lightSampler_.clear();
-    needsTextureFootprint_ = false;
 }
 
 void EmbreeContext::sync() try {
@@ -118,21 +116,6 @@ void EmbreeContext::sync() try {
         for (auto const &edf : contextEDFs)
             edfs_[context_.getEDFIndex(edf->getContextId())] = edf->getImpl();
     }
-    std::unordered_set<std::size_t> curvatureGeometryIds;
-    for (auto const &primitive : contextPrimitives) {
-        auto const bsdf = primitive->getBSDF();
-        if (!primitive->isVisible() || !bsdf)
-            continue;
-
-        auto const bsdfIndex = context_.getBSDFIndex(bsdf->getContextId());
-        needsTextureFootprint_ |= bsdfs_[bsdfIndex].needsTextureFootprint;
-        if (bsdf->needsCurvature())
-            curvatureGeometryIds.insert(primitive->getGeometry()->getContextId());
-    }
-    if (auto const envMap = context_.getActiveEnvMap())
-        needsTextureFootprint_ |= envMap->getTexture()->getImpl().type == TextureType::Image;
-    if (!needsTextureFootprint_)
-        curvatureGeometryIds.clear();
     imageTexturePool_.build(context_);
 
     auto const getOrAddGeometryIndex = [&](Ref<Geometry const> const &geometry) {
@@ -159,11 +142,6 @@ void EmbreeContext::sync() try {
         );
         impl.triangleAreaCDF = data.areaCDF.data();
         impl.triangleAreaPDF = data.areaPDF.data();
-        if (curvatureGeometryIds.contains(contextId)) {
-            data.curvatures.resize_for_overwrite(impl.numTriangles);
-            TriangleMesh::computeCurvatures(impl, {data.curvatures.data(), data.curvatures.size()});
-            impl.curvatures = data.curvatures.data();
-        }
         impl.surfaceArea = data.areaCDF.empty() ? impl.surfaceArea : data.areaCDF.back();
         geometryImpls_.emplace_back(impl);
         retainedMeshes_.push_back(std::move(mesh));
@@ -195,7 +173,6 @@ void EmbreeContext::sync() try {
             .geometryIndex = geometryIndex,
             .bsdfIndex = bsdfIndex,
             .edfIndex = edfIndex,
-            .curvatureScale = primitive->estimateCurvatureScale(),
         });
         transforms_.push_back(primitive->getTransform());
         normalTransforms_.push_back(primitive->getNormalTransform());
@@ -300,8 +277,6 @@ EmbreeContext::Impl EmbreeContext::getImpl() const noexcept {
     };
 }
 
-bool EmbreeContext::needsTextureFootprint() const noexcept { return needsTextureFootprint_; }
-
 bool EmbreeContext::Impl::intersect(Ray const &ray, Hit &hit) const noexcept {
     if (!scene)
         return false;
@@ -341,14 +316,21 @@ SurfaceInteraction
 EmbreeContext::Impl::makeSurfaceInteraction(Ray const &ray, Hit const &hit) const noexcept {
     auto const &primitive = primitives[hit.primitiveIndex];
     auto const &geometry = geometries[primitive.getGeometryIndex()];
+    auto const geometryInteraction = geometry.computeInteraction(hit.preliminary);
     auto const shadingNormal =
         geometry.interpolateShadingNormal(hit.preliminary, hit.geometricNormal);
     auto const &normalTransform = normalTransforms[hit.primitiveIndex];
+    // A parameterization gradient maps a position offset to a uv offset, so it is a covector
+    // and transforms by the inverse transpose, exactly like a normal.
+    auto const uvGradU = transformVec(normalTransform.data(), geometryInteraction.uvGradU);
+    auto const uvGradV = transformVec(normalTransform.data(), geometryInteraction.uvGradV);
     return {
         .position = ray.origin + ray.direction * hit.preliminary.distance,
         .geometricNormal = transformVec(normalTransform.data(), hit.geometricNormal).normalize(),
         .shadingNormal = transformVec(normalTransform.data(), shadingNormal).normalize(),
-        .uv = geometry.interpolateTexCoord(hit.preliminary),
+        .uv = geometryInteraction.uv,
+        .uvGradU = uvGradU,
+        .uvGradV = uvGradV,
         .primitiveIndex = hit.primitiveIndex,
         .elementIndex = hit.preliminary.elementIndex,
     };
@@ -360,24 +342,11 @@ TextureEvalContext EmbreeContext::Impl::getTextureEvalContext(
     auto dpdx = Vec3f{};
     auto dpdy = Vec3f{};
     footprint.project(direction, isect.geometricNormal, dpdx, dpdy);
-    auto const &worldToObject = normalTransforms[isect.primitiveIndex];
-    dpdx = transformTransposeVec(worldToObject.data(), dpdx);
-    dpdy = transformTransposeVec(worldToObject.data(), dpdy);
-
-    auto result = TextureEvalContext{.uv = isect.uv};
-    auto const &primitive = getPrimitive(isect.primitiveIndex);
-    getGeometry(primitive.getGeometryIndex())
-        .computeTexCoordPartials(isect.elementIndex, dpdx, dpdy, result.duvdx, result.duvdy);
-    return result;
-}
-
-float EmbreeContext::Impl::getCurvature(
-    SurfaceInteraction const &isect, Vec3f const &wo
-) const noexcept {
-    auto const &prim = getPrimitive(isect.primitiveIndex);
-    auto const side = wo.dot(isect.shadingNormal) < 0.0F ? -1.0F : 1.0F;
-    return side * getGeometry(prim.getGeometryIndex()).getCurvature(isect.elementIndex) *
-           prim.curvatureScale;
+    return TextureEvalContext{
+        .uv = isect.uv,
+        .duvdx = {dpdx.dot(isect.uvGradU), dpdx.dot(isect.uvGradV)},
+        .duvdy = {dpdy.dot(isect.uvGradU), dpdy.dot(isect.uvGradV)},
+    };
 }
 
 float EmbreeContext::Impl::pdfDirectLight(

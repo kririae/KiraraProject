@@ -106,9 +106,8 @@ public:
 
         /// \brief Adds environment emission and terminates an escaped path.
         template <typename Evaluator, typename BackendContext>
-        KIRA_HOST_DEVICE void onMiss(
-            PathState &state, BackendContext const &backend, bool trackFootprint
-        ) const noexcept {
+        KIRA_HOST_DEVICE void
+        onMiss(PathState &state, BackendContext const &backend) const noexcept {
             auto const *envMap = backend.lightSampler.table.envMap;
             if (!envMap) {
                 state.active = false;
@@ -117,9 +116,7 @@ public:
 
             auto radiance = Spectrum{};
             auto weight = 1.0F;
-            auto coneAngle = 0.0F;
-            if (trackFootprint)
-                coneAngle = state.footprint.unpack().angle();
+            auto const coneAngle = state.footprint.unpack().angle();
             if (state.depth > 0 && !state.prevDelta) {
                 float envMapPdf;
                 radiance = envMap->template evalAndPdf<Evaluator>(
@@ -243,7 +240,7 @@ public:
         }
 
         KIRA_HOST_DEVICE void updateFootprint(
-            PathState &state, BSDFSample const &sample, RayFootprint footprint, float curvature
+            PathState &state, BSDFSample const &sample, RayFootprint footprint
         ) const noexcept {
             if (sample.lobe == BSDFLobe::DiffuseReflection ||
                 sample.lobe == BSDFLobe::DiffuseTransmission) {
@@ -254,9 +251,7 @@ public:
 
             if (sample.lobe == BSDFLobe::GlossyTransmission ||
                 sample.lobe == BSDFLobe::DeltaTransmission)
-                footprint.refract(curvature, sample.eta);
-            else
-                footprint.reflect(curvature);
+                footprint.refract(sample.eta);
 
             // Continuous sample weight is f * abs(cos theta) / pdf.
             if (!sample.isDelta())

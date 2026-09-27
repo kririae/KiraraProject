@@ -60,7 +60,6 @@ private:
 
     [[nodiscard]] Impl getImpl() const noexcept;
     [[nodiscard]] OptixProgramSpec const &getProgramSpec() const noexcept;
-    [[nodiscard]] bool needsTextureFootprint() const noexcept;
 
     struct Storage;
     std::unique_ptr<Storage> storage_;
@@ -122,15 +121,13 @@ public:
     [[nodiscard]] KIRA_DEVICE Vec3f
     transformNormalToWorld(std::uint32_t primitiveIndex, Vec3f const &normal) const noexcept;
 
-    /// \pre The current outgoing OptiX hit object is the hit that produced \p isect.
-    /// Call before any subsequent traversal, including a shadow query.
+    /// \brief Returns texture coordinates and gradients for \p isect.
+    ///
+    /// Reads only \p isect and \p footprint, so callers may invoke it after a later
+    /// traversal. \p footprint must already be propagated to the hit distance.
     [[nodiscard]] KIRA_DEVICE TextureEvalContext getTextureEvalContext(
         SurfaceInteraction const &isect, Vec3f const &direction, RayFootprint const &footprint
     ) const noexcept;
-
-    /// \brief Returns world-space curvature oriented toward \p wo.
-    [[nodiscard]] KIRA_DEVICE float
-    getCurvature(SurfaceInteraction const &isect, Vec3f const &wo) const noexcept;
 
     /// \brief Returns the primitive at dense \p instanceIndex.
     ///

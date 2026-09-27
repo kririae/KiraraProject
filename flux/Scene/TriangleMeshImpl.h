@@ -34,55 +34,6 @@ KIRA_HOST_DEVICE inline Vec3f TriangleMesh::Impl::interpolateShadingNormal(
     return geometricNormal;
 }
 
-KIRA_HOST_DEVICE inline Vec2f
-TriangleMesh::Impl::interpolateTexCoord(PreliminaryIntersection const &preliminary) const noexcept {
-    if (!texCoords)
-        return {};
-
-    auto const u = preliminary.coordinates.x();
-    auto const v = preliminary.coordinates.y();
-    auto const w = 1.0F - u - v;
-    auto const indices = texCoordIndices[preliminary.elementIndex];
-    return texCoords[indices[0]] * w + texCoords[indices[1]] * u + texCoords[indices[2]] * v;
-}
-
-KIRA_HOST_DEVICE inline void TriangleMesh::Impl::computeTexCoordPartials(
-    std::uint32_t triangle, Vec3f const &dpdx, Vec3f const &dpdy, Vec2f &duvdx, Vec2f &duvdy
-) const noexcept {
-    if (!texCoords)
-        return;
-
-    auto const vertexIndices = triangles[triangle];
-    auto const a = vertices[vertexIndices[0]];
-    auto const b = vertices[vertexIndices[1]];
-    auto const c = vertices[vertexIndices[2]];
-    auto const textureIndices = texCoordIndices[triangle];
-    auto const ta = texCoords[textureIndices[0]];
-    auto const tb = texCoords[textureIndices[1]];
-    auto const tc = texCoords[textureIndices[2]];
-    auto const ab = b - a;
-    auto const ac = c - a;
-    auto const abc = cross(ab, ac);
-    auto const invArea2 = 1.0F / abc.norm2();
-    // Gradients of barycentric b and c. Differentiate edge vectors directly:
-    // adding a small offset to a large vertex position can round it away.
-    auto const db = cross(ac, abc) * invArea2;
-    auto const dc = cross(abc, ab) * invArea2;
-    auto const tab = tb - ta;
-    auto const tac = tc - ta;
-
-    auto const getPartial = [&](Vec3f const &dp) { return tab * db.dot(dp) + tac * dc.dot(dp); };
-    duvdx = getPartial(dpdx);
-    duvdy = getPartial(dpdy);
-}
-
-KIRA_HOST_DEVICE inline float
-TriangleMesh::Impl::getCurvature(std::uint32_t triangle) const noexcept {
-    if (!curvatures)
-        return 0.0F;
-    return curvatures[triangle];
-}
-
 KIRA_HOST_DEVICE inline GeometryInteraction
 TriangleMesh::Impl::computeInteraction(PreliminaryIntersection const &preliminary) const noexcept {
     auto const indices = triangles[preliminary.elementIndex];
@@ -94,13 +45,37 @@ TriangleMesh::Impl::computeInteraction(PreliminaryIntersection const &preliminar
     auto const w = 1.0F - u - v;
     auto const edge1 = vertex1 - vertex0;
     auto const edge2 = vertex2 - vertex0;
-    auto const normal = cross(edge1, edge2).normalize();
+    auto const areaNormal = cross(edge1, edge2);
+    auto const normal = areaNormal.normalize();
+
+    // The parameterization gradients reuse the barycentric gradients of b and c, which need
+    // the same triangle area. Differentiating the edge vectors directly keeps a small offset
+    // from rounding away against a large vertex position.
+    auto uv = Vec2f{};
+    auto uvGradU = Vec3f{};
+    auto uvGradV = Vec3f{};
+    if (texCoords) {
+        auto const textureIndices = texCoordIndices[preliminary.elementIndex];
+        auto const texture0 = texCoords[textureIndices[0]];
+        auto const texture1 = texCoords[textureIndices[1]];
+        auto const texture2 = texCoords[textureIndices[2]];
+        auto const inverseArea2 = 1.0F / areaNormal.norm2();
+        auto const gradientB = cross(edge2, areaNormal) * inverseArea2;
+        auto const gradientC = cross(areaNormal, edge1) * inverseArea2;
+        auto const deltaUvB = texture1 - texture0;
+        auto const deltaUvC = texture2 - texture0;
+        uv = texture0 * w + texture1 * u + texture2 * v;
+        uvGradU = gradientB * deltaUvB.x() + gradientC * deltaUvC.x();
+        uvGradV = gradientB * deltaUvB.y() + gradientC * deltaUvC.y();
+    }
 
     return {
         .position = vertex0 * w + vertex1 * u + vertex2 * v,
         .geometricNormal = normal,
         .shadingNormal = interpolateShadingNormal(preliminary, normal),
-        .uv = interpolateTexCoord(preliminary),
+        .uv = uv,
+        .uvGradU = uvGradU,
+        .uvGradV = uvGradV,
         .elementIndex = preliminary.elementIndex,
     };
 }

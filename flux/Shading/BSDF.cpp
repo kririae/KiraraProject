@@ -31,7 +31,6 @@ BSDF::Impl BSDF::getImpl() const {
         auto const impl = static_cast<DiffuseBSDF const &>(*this).getImpl();
         return {
             .type = type_,
-            .needsTextureFootprint = impl.needsTextureFootprint(),
             .storage = {.diffuse = impl},
         };
     }
@@ -39,7 +38,6 @@ BSDF::Impl BSDF::getImpl() const {
         auto const impl = static_cast<PrincipledBSDF const &>(*this).getImpl();
         return {
             .type = type_,
-            .needsTextureFootprint = impl.needsTextureFootprint(),
             .storage = {.principled = impl},
         };
     }

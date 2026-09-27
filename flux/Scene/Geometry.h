@@ -42,6 +42,16 @@ struct GeometryInteraction {
     /// Surface parameterization, or zero when the geometry has no texture coordinates.
     Vec2f uv{};
 
+    /// Gradient of \c uv.x() with respect to geometry-space position, or zero without
+    /// texture coordinates.
+    ///
+    /// A geometry-space offset \p dp maps to a \c uv.x() offset of \c dp.dot(uvGradU).
+    Vec3f uvGradU{};
+
+    /// Gradient of \c uv.y() with respect to geometry-space position, or zero without
+    /// texture coordinates.
+    Vec3f uvGradV{};
+
     /// Element index within the concrete geometry.
     std::uint32_t elementIndex{};
 };

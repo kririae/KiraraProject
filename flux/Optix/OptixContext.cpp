@@ -2,7 +2,6 @@
 
 #include <optix_stubs.h>
 
-#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <unordered_map>
@@ -49,15 +48,12 @@ struct OptixContext::Storage : private CudaStreamMixin {
         auto const contextBSDFs = context.getObjects<BSDF>();
         auto const contextEDFs = context.getObjects<EDF>();
         kira::SmallVector<Ref<TriangleMesh const>> uniqueMeshes;
-        kira::SmallVector<bool> geometryNeedsCurvature;
         std::unordered_map<std::size_t, std::uint32_t> geometryIndexByContextId;
         std::vector<OptixAccel::InstanceDesc> instanceDescs;
         primitiveStaging.clear();
         bsdfStaging.clear();
         edfStaging.clear();
-        needsTextureFootprint = false;
         uniqueMeshes.reserve(contextPrimitives.size());
-        geometryNeedsCurvature.reserve(contextPrimitives.size());
         geometryIndexByContextId.reserve(contextPrimitives.size());
         instanceDescs.reserve(contextPrimitives.size());
         primitiveStaging.reserve(contextPrimitives.size());
@@ -95,7 +91,6 @@ struct OptixContext::Storage : private CudaStreamMixin {
                         "OptixContext: geometry type does not match its host implementation"
                     );
                 uniqueMeshes.push_back(std::move(mesh));
-                geometryNeedsCurvature.push_back(false);
                 break;
             }
             case GeometryType::Count: throw kira::Anyhow("OptixContext: unsupported geometry type");
@@ -114,11 +109,8 @@ struct OptixContext::Storage : private CudaStreamMixin {
             auto const geometryIndex = getOrAddGeometryIndex(geometry);
             auto const bsdf = primitive->getBSDF();
             auto bsdfIndex = Primitive::Impl::invalidBSDFIndex;
-            if (bsdf) {
+            if (bsdf)
                 bsdfIndex = context.getBSDFIndex(bsdf->getContextId());
-                needsTextureFootprint |= bsdfStaging[bsdfIndex].needsTextureFootprint;
-                geometryNeedsCurvature[geometryIndex] |= bsdf->needsCurvature();
-            }
             auto const edf = primitive->getEDF();
             auto edfIndex = Primitive::Impl::invalidEDFIndex;
             if (edf)
@@ -127,7 +119,6 @@ struct OptixContext::Storage : private CudaStreamMixin {
                 .geometryIndex = geometryIndex,
                 .bsdfIndex = bsdfIndex,
                 .edfIndex = edfIndex,
-                .curvatureScale = primitive->estimateCurvatureScale(),
             });
             auto const bsdfType = bsdf ? bsdf->getType() : BSDFType::Diffuse;
             instanceDescs.push_back({
@@ -136,14 +127,9 @@ struct OptixContext::Storage : private CudaStreamMixin {
                 .transform = primitive->getTransform(),
             });
         }
-        if (auto const envMap = context.getActiveEnvMap())
-            needsTextureFootprint |= envMap->getTexture()->getImpl().type == TextureType::Image;
-        if (!needsTextureFootprint)
-            std::ranges::fill(geometryNeedsCurvature, false);
-
         // Rebuild in dependency order. GAS consumes the geometry buffers; IAS
         // then consumes the GAS handles and the matching primitive layout.
-        geometryPool.build(uniqueMeshes, geometryNeedsCurvature);
+        geometryPool.build(uniqueMeshes);
         imageTexturePool.build(context);
         auto const buildInputs = geometryPool.getBuildInputs();
         accel.buildGas(deviceContext, buildInputs);
@@ -183,7 +169,6 @@ struct OptixContext::Storage : private CudaStreamMixin {
     DeviceBuffer<BSDF::Impl> bsdfs{getStream()};
     std::vector<EDF::Impl> edfStaging;
     DeviceBuffer<EDF::Impl> edfs{getStream()};
-    bool needsTextureFootprint{};
 };
 
 OptixContext::OptixContext(
@@ -214,10 +199,6 @@ void OptixContext::launch(
 
 OptixProgramSpec const &OptixContext::getProgramSpec() const noexcept {
     return storage_->program->getSpec();
-}
-
-bool OptixContext::needsTextureFootprint() const noexcept {
-    return storage_->needsTextureFootprint;
 }
 
 OptixContext::Impl OptixContext::getImpl() const noexcept {

@@ -3,7 +3,10 @@
 /// \file
 /// \brief Ray-cone texture footprints.
 ///
-/// The update rules follow the NVIDIA OptiX Toolkit ray-cone model.
+/// The update rules follow the NVIDIA OptiX Toolkit ray-cone model, except that surface
+/// curvature does not widen the cone. A per-triangle curvature estimate is unreliable on
+/// meshes that generate smooth normals, and the term only affects near-delta lobes that
+/// reflect or transmit onto a textured surface.
 /// \see https://github.com/NVIDIA/optix-toolkit/tree/master/ShaderUtil/docs/rayCones
 
 #include <algorithm>
@@ -44,23 +47,12 @@ public:
         width = std::abs(width);
     }
 
-    /// \brief Updates the angle after reflection from a surface.
-    ///
-    /// Curvature \f$k\f$ changes the angle by \f$2k|w|\f$.
-    KIRA_HOST_DEVICE void reflect(float curvature) noexcept {
-        if (angle < maxAngle)
-            angle += 2.0F * curvature * std::abs(width);
-    }
-
     /// \brief Updates the angle after refraction through a surface.
     ///
     /// \p eta is the next IOR divided by the current IOR.
-    KIRA_HOST_DEVICE void refract(float curvature, float eta) noexcept {
-        if (angle >= maxAngle)
-            return;
-
-        auto const curvatureAngle = curvature * std::abs(width);
-        angle = (angle + curvatureAngle) / eta - curvatureAngle;
+    KIRA_HOST_DEVICE void refract(float eta) noexcept {
+        if (angle < maxAngle)
+            angle /= eta;
     }
 
     /// \brief Broadens the cone after BSDF scattering.
@@ -108,14 +100,9 @@ struct RayFootprint {
             cone.setDiffuse();
     }
 
-    KIRA_HOST_DEVICE void reflect(float curvature) noexcept {
+    KIRA_HOST_DEVICE void refract(float eta) noexcept {
         for (auto &cone : cones)
-            cone.reflect(curvature);
-    }
-
-    KIRA_HOST_DEVICE void refract(float curvature, float eta) noexcept {
-        for (auto &cone : cones)
-            cone.refract(curvature, eta);
+            cone.refract(eta);
     }
 
     KIRA_HOST_DEVICE void scatter(float bsdf) noexcept {

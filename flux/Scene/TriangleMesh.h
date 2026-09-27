@@ -73,13 +73,6 @@ public:
         Impl const &mesh, std::span<float> areaCDF, std::span<float> areaPDF
     );
 
-    /// \brief Computes one signed curvature per triangle.
-    ///
-    /// Uses the smallest absolute edge curvature when all edge signs match;
-    /// otherwise stores zero.
-    /// \pre \p curvatures contains \c mesh.numTriangles elements.
-    static void computeCurvatures(Impl const &mesh, std::span<float> curvatures);
-
     [[nodiscard]] float getSurfaceArea() const noexcept override { return surfaceArea_; }
 
 private:
@@ -133,9 +126,6 @@ struct TriangleMesh::Impl {
     /// Geometry-space area densities, or null when unavailable.
     float const *triangleAreaPDF{};
 
-    /// Geometry-space curvature indexed by triangle, or null when unused.
-    float const *curvatures{};
-
     /// Total geometry-space surface area.
     float surfaceArea{};
 
@@ -147,17 +137,6 @@ public:
     [[nodiscard]] KIRA_HOST_DEVICE inline Vec3f interpolateShadingNormal(
         PreliminaryIntersection const &preliminary, Vec3f const &geometricNormal
     ) const noexcept;
-
-    /// \brief Interpolates texture coordinates, or returns zero when absent.
-    [[nodiscard]] KIRA_HOST_DEVICE inline Vec2f
-    interpolateTexCoord(PreliminaryIntersection const &preliminary) const noexcept;
-
-    /// \brief Computes texture gradients from geometry-space surface offsets.
-    KIRA_HOST_DEVICE inline void computeTexCoordPartials(
-        std::uint32_t triangle, Vec3f const &dpdx, Vec3f const &dpdy, Vec2f &duvdx, Vec2f &duvdy
-    ) const noexcept;
-
-    [[nodiscard]] KIRA_HOST_DEVICE inline float getCurvature(std::uint32_t triangle) const noexcept;
 
     /// \brief Reconstructs a geometry-space interaction from \p preliminary.
     ///

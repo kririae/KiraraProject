@@ -33,8 +33,6 @@ struct EmbreeLaunchParams {
     /// Positive number of samples assigned to each pixel in this batch.
     std::uint32_t batchSize;
 
-    bool needsTextureFootprint;
-
 public:
     /// \brief Returns the absolute sequence index for one batch element.
     ///

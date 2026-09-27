@@ -40,20 +40,15 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
             static_cast<float>(pixel.y()) + pixelSample.y(),
         };
         auto const ray = params.camera.generateRay(rasterPosition, sampler.get2D(), resolution);
-        auto packedFootprint = PackedRayFootprint{};
-        if (params.needsTextureFootprint) {
-            packedFootprint =
-                PackedRayFootprint::pack(params.camera.getRayFootprint(ray.direction, resolution));
-        }
+        auto const packedFootprint =
+            PackedRayFootprint::pack(params.camera.getRayFootprint(ray.direction, resolution));
         PathState state{.ray = ray, .sampler = sampler, .footprint = packedFootprint};
 
         while (state.active) {
             EmbreeContext::Hit hit;
             if (!params.scene.intersect(state.ray, hit)) {
                 if (writesColor)
-                    params.integrator.onMiss<EmbreeImageTextureEvaluator>(
-                        state, params.scene, params.needsTextureFootprint
-                    );
+                    params.integrator.onMiss<EmbreeImageTextureEvaluator>(state, params.scene);
                 else
                     params.integrator.onMiss(state);
                 break;
@@ -99,16 +94,10 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
                 auto const u1 = state.sampler.get1D();
                 auto const u2 = state.sampler.get2D();
                 auto const &bsdf = params.scene.getBSDF(primitive.getBSDFIndex());
-                auto footprint = RayFootprint{};
-                if (params.needsTextureFootprint && (continues || bsdf.needsTextureFootprint)) {
-                    footprint = state.footprint.unpack();
-                    footprint.propagate(hit.preliminary.distance);
-                }
-                auto texCtx = TextureEvalContext{.uv = isect.uv};
-                if (bsdf.needsTextureFootprint) {
-                    texCtx =
-                        params.scene.getTextureEvalContext(isect, state.ray.direction, footprint);
-                }
+                auto footprint = state.footprint.unpack();
+                footprint.propagate(hit.preliminary.distance);
+                auto const texCtx =
+                    params.scene.getTextureEvalContext(isect, state.ray.direction, footprint);
                 auto const result = bsdfDispatcher.execute<EmbreeImageTextureEvaluator>(
                     bsdf, texCtx, localWo, localLightWi, directLight.pdf > 0.0F, u1, u2
                 );
@@ -123,14 +112,11 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
                 candidate = params.integrator.makeDirectLightCandidate(
                     state.throughput, directLight, result.evaluation
                 );
-                auto curvature = 0.0F;
-                if (params.needsTextureFootprint && result.sample.needsCurvature())
-                    curvature = params.scene.getCurvature(isect, wo);
                 params.integrator.onSurfaceHit(
                     state, isect, frame.toWorld(result.sample.wi), result.sample
                 );
-                if (params.needsTextureFootprint && state.active)
-                    params.integrator.updateFootprint(state, result.sample, footprint, curvature);
+                if (state.active)
+                    params.integrator.updateFootprint(state, result.sample, footprint);
             }
 
             if (!candidate.valid)

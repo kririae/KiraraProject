@@ -171,41 +171,6 @@ void TriangleMesh::computeSamplingDistribution(
     });
 }
 
-void TriangleMesh::computeCurvatures(Impl const &mesh, std::span<float> curvatures) {
-    KIRA_ASSERT(
-        curvatures.size() == mesh.numTriangles, "Triangle curvature array does not match the mesh"
-    );
-    if (!mesh.normals) {
-        std::ranges::fill(curvatures, 0.0F);
-        return;
-    }
-
-    tbb::parallel_for(std::uint32_t{0}, mesh.numTriangles, [&](std::uint32_t triangle) {
-        auto const vertexIds = mesh.triangles[triangle];
-        auto const normalIds = mesh.normalIndices[triangle];
-        auto const a = mesh.vertices[vertexIds[0]];
-        auto const b = mesh.vertices[vertexIds[1]];
-        auto const c = mesh.vertices[vertexIds[2]];
-        auto const na = mesh.normals[normalIds[0]].normalize();
-        auto const nb = mesh.normals[normalIds[1]].normalize();
-        auto const nc = mesh.normals[normalIds[2]].normalize();
-        auto const edgeCurvature = [](Vec3f const &p0, Vec3f const &p1, Vec3f const &n0,
-                                      Vec3f const &n1) {
-            auto const edge = p1 - p0;
-            return (n1 - n0).dot(edge) / edge.norm2();
-        };
-        auto const ab = edgeCurvature(a, b, na, nb);
-        auto const bc = edgeCurvature(b, c, nb, nc);
-        auto const ac = edgeCurvature(a, c, na, nc);
-        auto value = 0.0F;
-        if (ab > 0.0F && bc > 0.0F && ac > 0.0F)
-            value = std::min(ab, std::min(bc, ac));
-        else if (ab < 0.0F && bc < 0.0F && ac < 0.0F)
-            value = std::max(ab, std::max(bc, ac));
-        curvatures[triangle] = value;
-    });
-}
-
 void TriangleMesh::loadObj(std::filesystem::path const &path) {
     auto result = rapidobj::ParseFile(path, rapidobj::MaterialLibrary::Ignore());
     if (result.error)

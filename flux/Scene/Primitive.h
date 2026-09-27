@@ -77,11 +77,6 @@ public:
     /// \brief Estimates the object-to-world surface-area scale.
     [[nodiscard]] float estimateAreaScale() const noexcept;
 
-    /// \brief Estimates the geometry-to-world curvature scale.
-    ///
-    /// Uniform scaling is exact. Non-uniform scaling uses the largest axis.
-    [[nodiscard]] float estimateCurvatureScale() const noexcept;
-
     [[nodiscard]] bool hasNonUniformScale() const noexcept;
 
     /// \brief Estimates total emitted power for light selection.
@@ -118,9 +113,6 @@ struct Primitive::Impl {
 
     /// Dense primitive-light index, or \c invalidPrimLightIndex.
     std::uint32_t primLightIndex{invalidPrimLightIndex};
-
-    /// Multiplier from geometry-space curvature to world-space curvature.
-    float curvatureScale{1.0F};
 
 public:
     /// \brief Returns the dense geometry index in this backend scene.
