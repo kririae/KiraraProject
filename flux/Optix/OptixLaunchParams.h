@@ -35,10 +35,17 @@ struct OptixLaunchParams {
     /// Number of sequence elements skipped before sample zero.
     std::uint64_t sampleOffset;
 
+    /// Next path not yet claimed by any lane, counted from the launch size. Zeroed per launch.
+    std::uint32_t *nextPath;
+
     Film::Impl film;
 
     /// Number of samples assigned to each pixel in this batch.
     std::uint32_t batchSize;
+
+    /// Paths in this batch, one per pixel sample. The launch may be smaller, in which case lanes
+    /// claim the remaining paths through \c nextPath.
+    std::uint32_t pathCount;
 
     /// Whether radiance traversal uses shader execution reordering.
     bool shaderReorder;
@@ -47,19 +54,18 @@ struct OptixLaunchParams {
     bool hasEnvMap;
 
 public:
-    /// \brief Decodes a linear OptiX launch index.
+    /// \brief Decodes a path index into the sample it renders.
     ///
     /// Consecutive indices belong to consecutive samples of the same pixel.
     /// This keeps a full 32-sample batch on one warp in a one-dimensional
     /// launch.
     ///
     /// \pre \c batchSize and the film dimensions are nonzero.
-    /// \pre \p launchIndex is smaller than
-    /// `film.width * film.height * batchSize`.
+    /// \pre \p pathIndex is smaller than \c pathCount.
     [[nodiscard]] KIRA_DEVICE OptixLaunchSample
-    getLaunchSample(std::uint32_t launchIndex) const noexcept {
-        auto const batchIndex = launchIndex % batchSize;
-        auto const pixelIndex = launchIndex / batchSize;
+    getLaunchSample(std::uint32_t pathIndex) const noexcept {
+        auto const batchIndex = pathIndex % batchSize;
+        auto const pixelIndex = pathIndex / batchSize;
         return {
             .pixel = {pixelIndex % film.width, pixelIndex / film.width},
             .sampleIndex = accumulatedSamples + sampleOffset + batchIndex,

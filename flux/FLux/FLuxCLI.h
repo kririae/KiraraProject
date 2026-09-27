@@ -19,6 +19,7 @@ struct FluxCLIRequest {
     std::optional<std::filesystem::path> outputPath;
     std::optional<std::filesystem::path> logFilePath;
     std::optional<std::uint32_t> samplesPerPixel;
+    std::optional<double> launchWaves;
     RenderBackend backend{RenderBackend::Optix};
     spdlog::level::level_enum logLevel{spdlog::level::warn};
 };

@@ -35,6 +35,11 @@ int run(int argc, char **argv) {
     auto const stats = [&] {
         if (request.backend == flux::RenderBackend::Optix) {
             flux::OptixHandler handler{scene.context, std::filesystem::path{FLUX_OPTIX_IR}};
+            if (request.launchWaves)
+                handler.setLaunchWaves(*request.launchWaves);
+            flux::LogDebug(
+                "OptixHandler: estimated resident threads {}", handler.getEstimatedResidentThreads()
+            );
             flux::RenderStats result;
             auto remaining = scene.product->getSamplesPerPixel();
             // A full batch assigns one pixel's samples to one warp.

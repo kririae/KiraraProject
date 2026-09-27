@@ -21,6 +21,12 @@ FluxCLIRequest parseFluxCLI(int argc, char **argv) {
             "show logs at this level or higher: 'trace', 'debug', 'info', 'warning', or 'error'; "
             "default: 'warning'"
         );
+    program.add_argument("--launch-waves")
+        .scan<'g', double>()
+        .help(
+            "OptiX megakernel threads as a multiple of the estimated resident thread count; "
+            "lanes claim the rest, default: 2"
+        );
     program.add_argument("--log-file").help("also append logs to this file");
     program.parse_args(argc, argv);
 
@@ -34,6 +40,12 @@ FluxCLIRequest parseFluxCLI(int argc, char **argv) {
         if (*samples == 0)
             throw kira::Anyhow("--spp must be greater than zero");
         request.samplesPerPixel = samples;
+    }
+
+    if (auto waves = program.present<double>("--launch-waves")) {
+        if (!(*waves > 0.0))
+            throw kira::Anyhow("--launch-waves must be greater than zero");
+        request.launchWaves = waves;
     }
 
     if (auto backend = program.present<std::string>("--backend")) {

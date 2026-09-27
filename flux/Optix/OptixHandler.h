@@ -54,6 +54,22 @@ public:
     void download(RenderProduct &product);
 
 public:
+    /// \brief Sets how many threads later launches use, as a multiple of resident threads.
+    ///
+    /// Lanes claim whatever paths the launch does not cover, so this changes how many threads
+    /// share a batch, not how much work it does. Values above one keep an underestimated
+    /// residency from leaving part of the device idle; values below one shrink the resident set
+    /// of continuation frames, which can pay off on a small L2.
+    ///
+    /// \throw kira::Anyhow If \p waves is not positive.
+    void setLaunchWaves(double waves);
+
+    /// \brief Returns the estimated number of megakernel threads this device keeps resident.
+    ///
+    /// Derived from the register budget the module is compiled against, since OptiX exposes no
+    /// occupancy query. This is the raw estimate, with no launch policy applied.
+    [[nodiscard]] std::uint32_t getEstimatedResidentThreads() const;
+
     /// \brief Sets the sequence offset used by later render batches.
     ///
     /// Changing the offset clears accumulation for every render product.

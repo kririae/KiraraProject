@@ -3,6 +3,7 @@
 #include <optix_stubs.h>
 
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
@@ -28,6 +29,20 @@
 
 namespace flux {
 namespace {
+/// \brief Estimates how many megakernel threads \p properties keeps resident.
+///
+/// OptiX exposes no occupancy query for a pipeline, so this derives the count from the register
+/// budget the module is compiled against. It reports the estimate alone; how a launch is sized
+/// against it is the caller's choice.
+[[nodiscard]] std::uint32_t estimateResidentThreads(cudaDeviceProp const &properties) noexcept {
+    auto const perSM = std::min(
+        properties.maxThreadsPerMultiProcessor,
+        static_cast<int>(properties.regsPerMultiprocessor / megakernelMaxRegisterCount)
+    );
+    return static_cast<std::uint32_t>(properties.multiProcessorCount) *
+           static_cast<std::uint32_t>(std::max(perSM, 1));
+}
+
 /// \brief Owns the CUDA execution state used by one OptiX handler.
 ///
 /// This object precedes every dependent handler member, so its stream and
@@ -47,6 +62,7 @@ public:
         cudaDeviceProp deviceProperties{};
         cudaCheck(cudaGetDeviceProperties(&deviceProperties, deviceId));
         LogInfo("OptixHandler: using CUDA device {} ('{}')", deviceId, deviceProperties.name);
+        estimatedResidentThreads_ = estimateResidentThreads(deviceProperties);
         cudaCheck(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
         optixCheck(optixInit());
 
@@ -91,6 +107,11 @@ public:
     /// \brief Returns the stream used by every dependent resource.
     [[nodiscard]] cudaStream_t getStream() const noexcept { return stream_; }
 
+    /// \brief Returns the estimated number of megakernel threads the device keeps resident.
+    [[nodiscard]] std::uint32_t getEstimatedResidentThreads() const noexcept {
+        return estimatedResidentThreads_;
+    }
+
     /// \brief Selects the CUDA device that owns this handle.
     template <bool ShouldThrow = true> void selectDevice() const noexcept(not ShouldThrow) {
         cudaCheck<ShouldThrow>(cudaSetDevice(deviceId));
@@ -107,6 +128,7 @@ private:
 
     cudaStream_t stream_{};
     OptixDeviceContext context_{};
+    std::uint32_t estimatedResidentThreads_{};
 };
 
 [[nodiscard]] Ref<Context> requireContext(Ref<Context> context) {
@@ -138,6 +160,19 @@ struct OptixHandler::Impl final {
     /// \brief Returns the stream shared by this backend's device resources.
     [[nodiscard]] cudaStream_t getStream() const noexcept { return deviceContext.getStream(); }
 
+    /// \brief Returns how many threads to launch for \p pathCount paths.
+    ///
+    /// Lanes claim the paths the launch does not cover, so this only decides how many threads
+    /// share the work. Launching past the estimated residency keeps an underestimate from
+    /// leaving part of the device idle for the whole launch; launching under it trades threads
+    /// for a smaller resident set of continuation frames.
+    [[nodiscard]] std::uint32_t getLaunchSize(std::uint32_t pathCount) const noexcept {
+        auto const scaled =
+            static_cast<double>(deviceContext.getEstimatedResidentThreads()) * launchWaves;
+        auto const threads = static_cast<std::uint32_t>(std::lround(std::max(scaled, 1.0)));
+        return std::min(pathCount, std::max(threads, 1U));
+    }
+
     /// Host \c Context retained for the lifetime of the backend.
     Ref<Context> context;
 
@@ -147,13 +182,20 @@ struct OptixHandler::Impl final {
     OptixContext optixContext;
     OptixRenderProductPool renderProducts{getStream()};
     DeviceBuffer<OptixLaunchParams> launchParams{getStream()};
+
+    /// Next path not yet claimed by any lane. Zeroed before each launch.
+    DeviceBuffer<std::uint32_t> pathCounter{getStream()};
     CudaStreamTimer timer{getStream()};
     std::uint64_t sampleOffset{};
+
+    /// Threads to launch as a multiple of the estimated resident thread count.
+    double launchWaves{2.0};
 };
 
 OptixHandler::Impl::Impl(Ref<Context> hostContext, std::filesystem::path const &modulePath)
     : context(requireContext(std::move(hostContext))),
       optixContext(*context, deviceContext.get(), getStream(), modulePath) {
+    pathCounter.resize(1);
     sync();
 }
 
@@ -202,13 +244,15 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
             "OptixHandler: program specialization changed; call sync before rendering"
         );
 
-    // Launch one work item per pixel sample and keep each pixel's samples
-    // consecutive.
+    // One path per pixel sample, with each pixel's samples consecutive. The launch is capped at
+    // the resident thread count, so a lane whose path ends claims another rather than retiring
+    // and leaving its warp short.
     auto const pixelCount =
         static_cast<std::uint64_t>(film.getWidth()) * static_cast<std::uint64_t>(film.getHeight());
     if (pixelCount > maxOptixLaunchDimension || samples > maxOptixLaunchDimension / pixelCount)
         throw std::invalid_argument("OptixHandler: render batch exceeds the OptiX launch limit");
-    auto const launchSize = static_cast<std::uint32_t>(pixelCount * samples);
+    auto const pathCount = static_cast<std::uint32_t>(pixelCount * samples);
+    auto const launchSize = impl_->getLaunchSize(pathCount);
 
     impl_->deviceContext.selectDevice();
 
@@ -245,6 +289,7 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
 
         // The stream orders normalization, parameter upload, and OptiX work.
         // Synchronization below also closes the host lifetime of launch data.
+        impl_->pathCounter.zero();
         auto const &programSpec = impl_->optixContext.getProgramSpec();
         auto const params = OptixLaunchParams{
             .scene = impl_->optixContext.getImpl(),
@@ -257,8 +302,10 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
                 },
             .accumulatedSamples = accumulatedSamples,
             .sampleOffset = impl_->sampleOffset,
+            .nextPath = impl_->pathCounter.data(),
             .film = entry.film,
             .batchSize = samples,
+            .pathCount = pathCount,
             .shaderReorder = programSpec.shaderReorder, // (3)
             .hasEnvMap = programSpec.hasEnvMap,         // (4)
         };
@@ -271,7 +318,7 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
             .samples = totalSamples,
         };
         return {
-            .paths = launchSize,
+            .paths = pathCount,
             .elapsed = elapsed,
         };
     } catch (...) {
@@ -300,6 +347,16 @@ void OptixHandler::download(RenderProduct &product) {
         cudaCheck<false>(cudaStreamSynchronize(impl_->getStream()));
         throw;
     }
+}
+
+void OptixHandler::setLaunchWaves(double waves) {
+    if (!(waves > 0.0))
+        throw kira::Anyhow("OptixHandler: launch waves must be positive, got {}", waves);
+    impl_->launchWaves = waves;
+}
+
+std::uint32_t OptixHandler::getEstimatedResidentThreads() const {
+    return impl_->deviceContext.getEstimatedResidentThreads();
 }
 
 void OptixHandler::setSampleOffset(std::uint64_t offset) {

@@ -13,6 +13,10 @@
 namespace flux {
 class Context;
 
+/// Register budget the megakernel module is compiled against. Also bounds how many threads the
+/// device keeps resident, which is what sizes a persistent launch.
+inline constexpr unsigned int megakernelMaxRegisterCount = 128;
+
 /// \brief Values specialized while compiling an OptiX program.
 struct OptixProgramSpec {
     SamplerType samplerType; // (1)
