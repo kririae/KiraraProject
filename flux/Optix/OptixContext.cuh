@@ -2,7 +2,6 @@
 
 #include <optix_device.h>
 
-#include <bit>
 #include <cstdint>
 
 #include "flux/Core/MathUtils.h"
@@ -36,12 +35,9 @@ OptixContext::Impl::intersect(Ray const &ray, Hit &hit, bool shaderReorder) cons
     if (!optixHitObjectIsHit())
         return false;
     if (shaderReorder) {
-        // The SBT offset is a backend-assigned coherence key; material dispatch stays in raygen.
-        constexpr auto numShadingPrograms = static_cast<unsigned int>(BSDFType::Count) *
-                                            static_cast<unsigned int>(GeometryType::Count);
-        constexpr auto hintBits = std::bit_width(numShadingPrograms - 1);
-        static_assert(hintBits <= 16);
-        optixReorder(optixHitObjectGetSbtRecordIndex(), hintBits);
+        // Sort by the outgoing hit object alone. It already carries the SBT record, so a
+        // coherence hint built from that record would only take sort bits away from it.
+        optixReorder();
     }
 
     // Capture the world-space interaction while the outgoing hit object provides its transform.

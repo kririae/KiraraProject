@@ -52,8 +52,11 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
 
     while (state.active) {
         flux::OptixContext::Impl::Hit hit;
-        auto const reorder = optixLaunchParams.shaderReorder && state.depth > 0;
-        if (!optixLaunchParams.scene.intersect(state.ray, hit, reorder)) {
+        // Reorder on every hit, primary ones included. Guarding this on depth would give the
+        // shading two static predecessors, one per continuation, and the compiler would emit a
+        // second copy of it. Once paths are regenerated the guard would also stop being
+        // warp-uniform, which would split the warp across two continuations for good.
+        if (!optixLaunchParams.scene.intersect(state.ray, hit, optixLaunchParams.shaderReorder)) {
             if (writesColor && optixLaunchParams.hasEnvMap) {
                 optixLaunchParams.integrator.onMiss<OptixImageTextureEvaluator>(
                     state, optixLaunchParams.scene

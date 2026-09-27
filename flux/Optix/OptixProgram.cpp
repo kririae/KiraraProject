@@ -160,7 +160,7 @@ void OptixProgram::buildModule(std::filesystem::path const &modulePath) {
             .pipelineParamOffsetInBytes = offsetof(OptixLaunchParams, shaderReorder),
             .sizeInBytes = sizeof(spec_.shaderReorder),
             .boundValuePtr = &spec_.shaderReorder,
-            .annotation = "Enable SER for secondary surface hits",
+            .annotation = "Enable SER for surface hits",
         },
         OptixModuleCompileBoundValueEntry{
             // (4)
