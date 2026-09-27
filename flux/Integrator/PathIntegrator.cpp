@@ -13,7 +13,7 @@ PathIntegrator::PathIntegrator(TXContext &tx, kira::Properties const &props)
           props.use_or<std::uint32_t>("rr_depth", 2),
           props.use_or<float>("rr_prob", 0.95F),
       },
-      shaderReorder_(props.use_or<bool>("shader_reorder", true)) {
+      shaderReorder_(props.use_or<bool>("shader_reorder", false)) {
     auto const type = props.use_or<std::string>("type", "path");
     if (type != "path")
         throw kira::Anyhow("PathIntegrator: unsupported type '{}'", type);

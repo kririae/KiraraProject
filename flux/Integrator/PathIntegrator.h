@@ -67,7 +67,8 @@ public:
 /// - \c max_depth: maximum path depth; defaults to 8.
 /// - \c rr_depth: first depth subject to Russian roulette; defaults to 2.
 /// - \c rr_prob: maximum Russian roulette continuation probability; defaults to 0.95.
-/// - \c shader_reorder: requests OptiX shader execution reordering; defaults to true.
+/// - \c shader_reorder: requests OptiX shader execution reordering; defaults to false, since
+///   claiming paths already keeps warps full and reordering then only adds its own cost.
 class PathIntegrator final : public RenderObject {
     friend class TXContext;
 
