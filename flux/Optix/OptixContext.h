@@ -108,7 +108,11 @@ public:
     intersect(Ray const &ray, Hit &hit, bool shaderReorder) const noexcept;
 
     /// \brief Returns whether \p ray reaches its endpoint without obstruction.
-    [[nodiscard]] KIRA_DEVICE bool isVisible(Ray const &ray) const noexcept;
+    ///
+    /// Only instances whose visibility mask shares a bit with \p mask can block \p ray. A zero
+    /// \p mask visits no instance and returns true.
+    [[nodiscard]] KIRA_DEVICE bool
+    isVisible(Ray const &ray, unsigned int mask = 255) const noexcept;
 
     /// \brief Maps a geometry-space point through primitive \p primitiveIndex.
     [[nodiscard]] KIRA_DEVICE Vec3f

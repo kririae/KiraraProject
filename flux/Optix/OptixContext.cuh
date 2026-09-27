@@ -60,7 +60,8 @@ OptixContext::Impl::intersect(Ray const &ray, Hit &hit, bool shaderReorder) cons
     return true;
 }
 
-KIRA_DEVICE inline bool OptixContext::Impl::isVisible(Ray const &ray) const noexcept {
+KIRA_DEVICE inline bool
+OptixContext::Impl::isVisible(Ray const &ray, unsigned int mask) const noexcept {
     if (!traversable)
         return true;
 
@@ -72,7 +73,7 @@ KIRA_DEVICE inline bool OptixContext::Impl::isVisible(Ray const &ray) const noex
         /* tmin =            */ ray.minDistance,
         /* tmax =            */ ray.maxDistance,
         /* rayTime =         */ 0.0F,
-        /* visibilityMask =  */ 255,
+        /* visibilityMask =  */ mask,
         /* rayFlags =        */ OPTIX_RAY_FLAG_DISABLE_ANYHIT |
                                OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT |
                                OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT,

@@ -156,13 +156,23 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
                 );
         }
 
-        if (!candidate.valid)
-            continue;
-
-        auto const shadowRay = directLight.type == flux::LightType::EnvMap
-                                   ? isect.spawnRay(directLight.wi)
-                                   : isect.spawnRayTo(directLight.position);
-        if (optixLaunchParams.scene.isVisible(shadowRay))
+        // Trace the shadow ray on every lane that reaches here, candidate or not. OptiX resumes
+        // a lane at the continuation of the traversal it suspended at, so a lane that skipped
+        // this call would suspend at the next extension traversal instead and resume in a
+        // different continuation from the rest of its warp, with nothing to merge the two groups
+        // again. Lanes without a candidate pass mask 0, which visits no instance. Reusing
+        // state.ray keeps no extra value live across the traversal.
+        auto shadowRay = state.ray;
+        auto mask = 0U;
+        if (candidate.valid) {
+            shadowRay = directLight.type == flux::LightType::EnvMap
+                            ? isect.spawnRay(directLight.wi)
+                            : isect.spawnRayTo(directLight.position);
+            mask = 255U;
+        }
+        // Bind the result before testing it. Short-circuiting the traversal would split the warp.
+        auto const visible = optixLaunchParams.scene.isVisible(shadowRay, mask);
+        if (candidate.valid && visible)
             state.radiance = state.radiance + candidate.contribution;
     }
 
