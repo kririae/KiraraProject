@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
 #include <numbers>
 
 #include "flux/Core/MathUtils.h"
@@ -152,8 +151,8 @@ EnvMapLight::Impl::sampleDirect(LightSamplingContext const &ctx, Vec2f u) const 
     return {
         .radiance = evalUV<Evaluator>(uv, 0.0F, 0.0F),
         .wi = wi,
-        .distance = std::numeric_limits<float>::max(),
         .pdf = pdfValue,
+        .type = LightType::EnvMap,
     };
 }
 

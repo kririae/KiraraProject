@@ -156,8 +156,13 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
                 );
         }
 
-        if (candidate.valid &&
-            optixLaunchParams.scene.isVisible(isect.spawnRay(directLight.wi, directLight.distance)))
+        if (!candidate.valid)
+            continue;
+
+        auto const shadowRay = directLight.type == flux::LightType::EnvMap
+                                   ? isect.spawnRay(directLight.wi)
+                                   : isect.spawnRayTo(directLight.position);
+        if (optixLaunchParams.scene.isVisible(shadowRay))
             state.radiance = state.radiance + candidate.contribution;
     }
 

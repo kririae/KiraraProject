@@ -41,16 +41,6 @@ public:
         };
     }
 
-    /// \brief Spawns a ray along \p direction that stops before \p distance.
-    [[nodiscard]] KIRA_HOST_DEVICE Ray
-    spawnRay(Vec3f const &direction, float distance) const noexcept {
-        return {
-            .origin = offsetRayOrigin(position, geometricNormal, direction),
-            .direction = direction,
-            .maxDistance = distance * (1.0F - shadowEpsilon),
-        };
-    }
-
     /// \brief Spawns a visibility ray toward \p target.
     ///
     /// The maximum distance stops before the target. A coincident target

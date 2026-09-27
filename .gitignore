@@ -33,6 +33,7 @@
 *.app
 
 build/
+/data/
 build*/
 cmake-build*/
 compile_commands.json

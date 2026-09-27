@@ -155,6 +155,24 @@ TEST(ShadingTests, KeepsShortVisibilityRaysPointedAtTheirTarget) {
     EXPECT_GT(ray.maxDistance, 0.0F);
 }
 
+TEST(ShadingTests, StopsVisibilityRaysBeforeTheEmitterAfterOffsetting) {
+    auto const surface = flux::SurfaceInteraction{
+        .position = {0.0F, 1.2F, 0.0F},
+        .geometricNormal = {0.0F, 1.0F, 0.0F},
+    };
+    auto const target = flux::Vec3f{0.1F, 2.0F, 0.2F};
+    auto const d = target - surface.position;
+    auto const ray = surface.spawnRayTo(target);
+    auto const emitterDistance = (target.y() - ray.origin.y()) / ray.direction.y();
+    EXPECT_LT(ray.maxDistance, emitterDistance);
+    EXPECT_GT(ray.maxDistance, emitterDistance * 0.999F);
+    EXPECT_NEAR((ray.origin + ray.direction * emitterDistance - target).norm(), 0.0F, 1.0e-6F);
+
+    auto const infinite = surface.spawnRay(d.normalize());
+    EXPECT_EQ(infinite.maxDistance, std::numeric_limits<float>::max());
+    EXPECT_EQ(infinite.direction, d.normalize());
+}
+
 TEST(ShadingTests, EvaluatesDiffuseOnHost) {
     constexpr auto dispatcher =
         flux::BSDF::Dispatcher{.types = flux::bsdfTypeBit(flux::BSDFType::Diffuse)};

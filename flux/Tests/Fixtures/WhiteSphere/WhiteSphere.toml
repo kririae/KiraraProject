@@ -23,5 +23,5 @@ R = [1.0, 1.0, 1.0]
 
 [[primitive]]
 type = "trimesh"
-path = "UnitSphere.ply"
+path = "../Shared/Geometry/UnitSphere.ply"
 bsdf = "white"

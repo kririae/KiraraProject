@@ -29,6 +29,14 @@ namespace {
 } // namespace
 
 Primitive::Primitive(TXContext &tx, kira::Properties const &props) : RenderObject(tx) {
+    if (props.contains("transform")) {
+        auto const values = props.use_array_view("transform");
+        if (values.size() != transform_.size())
+            throw kira::Anyhow("Primitive: transform requires 12 row-major matrix elements");
+        for (std::size_t index = 0; index < transform_.size(); ++index)
+            transform_[index] = values.get<float>(index);
+    }
+
     if (props.contains("geometry_ctx_id")) {
         auto const contextId = static_cast<std::size_t>(props.use<std::int64_t>("geometry_ctx_id"));
         geometry_ = tx.get<Geometry>(contextId);

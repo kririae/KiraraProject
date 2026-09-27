@@ -56,6 +56,24 @@ TEST(PrimitiveTests, AllowsAPrimitiveWithoutABsdf) {
     EXPECT_EQ(primitive->getBSDF(), nullptr);
 }
 
+TEST(PrimitiveTests, ReadsRowMajorTransform) {
+    auto context = flux::Context::create();
+    context->getFileResolver().prepend(FLUX_TEST_FIXTURES_DIR);
+    auto props = kira::Properties::parse(
+        R"(
+        type = "trimesh"
+        path = "Triangle.obj"
+        transform = [0, 0, 4, 10, 0, 4, 0, 20, -4, 0, 0, 30]
+    )",
+        "Transform.toml"
+    );
+    auto primitive = context->create<flux::Primitive>(props);
+    EXPECT_EQ(
+        primitive->getTransform(), (std::array<float, 12>{0, 0, 4, 10, 0, 4, 0, 20, -4, 0, 0, 30})
+    );
+    EXPECT_TRUE(props.is_all_used());
+}
+
 TEST(PrimitiveTests, RejectsInvalidGeometryIds) {
     auto context = flux::Context::create();
 

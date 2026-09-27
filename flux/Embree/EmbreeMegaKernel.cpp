@@ -133,8 +133,13 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
                     params.integrator.updateFootprint(state, result.sample, footprint, curvature);
             }
 
-            if (candidate.valid &&
-                params.scene.isVisible(isect.spawnRay(directLight.wi, directLight.distance)))
+            if (!candidate.valid)
+                continue;
+
+            auto const shadowRay = directLight.type == LightType::EnvMap
+                                       ? isect.spawnRay(directLight.wi)
+                                       : isect.spawnRayTo(directLight.position);
+            if (params.scene.isVisible(shadowRay))
                 state.radiance = state.radiance + candidate.contribution;
         }
 

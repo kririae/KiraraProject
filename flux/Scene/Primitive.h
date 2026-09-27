@@ -18,6 +18,7 @@ struct SurfaceInteraction;
 /// \brief Places geometry and its shading models in a scene.
 ///
 /// \par Properties
+/// - \c transform: optional row-major 3x4 geometry-to-world matrix.
 /// - \c geometry_ctx_id binds existing Geometry. Otherwise the properties
 ///   create Geometry inline.
 /// - \c bsdf_ctx_id binds an existing BSDF. An inline \c bsdf table creates one

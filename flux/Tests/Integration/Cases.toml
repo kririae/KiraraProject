@@ -1,0 +1,42 @@
+# Paths are relative to Fixtures. Thresholds apply to linear RGB components.
+[[case]]
+id = "white_sphere"
+scene = "WhiteSphere/WhiteSphere.toml"
+reference = "WhiteSphere/WhiteSphere.xml"
+spp = 1024
+expected = [1.0, 1.0, 1.0]
+mae = 0.02
+rmse = 0.025
+
+[[case]]
+id = "checker"
+scene = "TextureFootprint/Checker.toml"
+reference = "TextureFootprint/Checker.xml"
+spp = 1024
+expected = [0.5, 0.5, 0.5]
+mae = 0.0045
+rmse = 0.0055
+
+[[case]]
+id = "cbox"
+scene = "Cbox/Cbox.toml"
+reference = "Cbox/Cbox.xml"
+spp = 1024
+mae = 0.01
+rmse = 0.015
+
+[[case]]
+id = "principled_cbox"
+scene = "Cbox/PrincipledCbox.toml"
+reference = "Cbox/PrincipledCbox.xml"
+spp = 1024
+mae = 0.01
+rmse = 0.02
+
+[[case]]
+id = "transmission"
+scene = "Principled/Transmission.toml"
+reference = "Principled/Transmission.xml"
+spp = 1024
+mae = 0.01
+rmse = 0.03

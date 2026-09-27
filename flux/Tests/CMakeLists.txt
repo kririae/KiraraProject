@@ -9,15 +9,39 @@ add_test(NAME flux.CLI.CboxSmoke
          COMMAND $<TARGET_FILE:flux_cli> ${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/Cbox/Cbox.toml --backend embree --spp 1
                  --output ${CMAKE_CURRENT_BINARY_DIR}/FluxCLISmoke/cbox.exr)
 
-krr_add_test(
-    flux Render IntegrationTests
-    SOURCES RenderTests.cpp ../FLux/TomlScene.cpp
-    HARD_DEPENDENCIES flux)
-target_compile_definitions(
-    flux.Render.IntegrationTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
-                                         FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
-add_dependencies(flux.Render.IntegrationTests flux_megakernel_ir)
-set_tests_properties(flux.Render.IntegrationTests PROPERTIES LABELS integration)
+option(KRR_FLUX_TEST_REFERENCES "Run image comparisons against generated Mitsuba references" OFF)
+find_program(FLUX_TEST_UV uv)
+if(FLUX_TEST_UV)
+    set(flux_render_cases white_sphere checker)
+    if(KRR_FLUX_TEST_REFERENCES)
+        list(
+            APPEND
+            flux_render_cases
+            cbox
+            principled_cbox
+            transmission)
+    endif()
+    foreach(case IN LISTS flux_render_cases)
+        foreach(backend embree optix)
+            add_test(
+                NAME flux.Render.${case}.${backend}
+                COMMAND
+                    ${FLUX_TEST_UV} run --frozen --project ${CMAKE_CURRENT_SOURCE_DIR}/Integration python
+                    ${CMAKE_CURRENT_SOURCE_DIR}/Integration/run.py --flux-bin $<TARGET_FILE:flux_cli> --output-dir
+                    ${CMAKE_CURRENT_BINARY_DIR}/Integration --case ${case} --backend ${backend})
+            set_tests_properties(
+                flux.Render.${case}.${backend}
+                PROPERTIES LABELS
+                           integration
+                           TIMEOUT
+                           660
+                           RESOURCE_LOCK
+                           flux_render)
+        endforeach()
+    endforeach()
+else()
+    message(STATUS "FLux render integration tests require uv")
+endif()
 
 krr_add_test(
     flux Scene ContextTests

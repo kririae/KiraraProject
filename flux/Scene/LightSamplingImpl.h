@@ -45,8 +45,9 @@ template <typename Scene>
                             .wo = -wi,
                         }),
         .wi = wi,
-        .distance = dist,
+        .position = p,
         .pdf = geomSample.pdf / areaScale * dist2 / cosLight,
+        .type = LightType::Primitive,
     };
 }
 } // namespace detail

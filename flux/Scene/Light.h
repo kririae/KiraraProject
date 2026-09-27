@@ -50,12 +50,13 @@ struct DirectLightSample {
     Spectrum radiance{};
     /// World-space direction from the surface toward the light.
     Vec3f wi{};
-    /// Distance to the sampled light.
-    float distance{};
+    /// World-space target for Point and Primitive samples.
+    Vec3f position{};
     /// Solid-angle density, or discrete mass for a delta light.
     float pdf{};
     /// Whether the sampled light has a discrete directional distribution.
     bool delta{};
+    LightType type{LightType::Point};
 };
 
 /// \brief Host-side base for lights.
@@ -134,9 +135,10 @@ PointLight::Impl::sampleDirect(LightSamplingContext const &ctx) const noexcept {
     return {
         .radiance = intensity / dist2,
         .wi = d / dist,
-        .distance = dist,
+        .position = position,
         .pdf = 1.0F,
         .delta = true,
+        .type = LightType::Point,
     };
 }
 
