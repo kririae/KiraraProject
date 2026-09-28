@@ -12,23 +12,41 @@ add_test(NAME flux.CLI.CboxSmoke
 option(KRR_FLUX_TEST_REFERENCES "Run image comparisons against generated Mitsuba references" OFF)
 find_program(FLUX_TEST_UV uv)
 if(FLUX_TEST_UV)
-    set(flux_render_cases white_sphere checker)
+    set(flux_uv_python ${FLUX_TEST_UV} run --frozen --project ${CMAKE_CURRENT_SOURCE_DIR}/Integration python)
+    set(flux_render_output ${CMAKE_CURRENT_BINARY_DIR}/Integration)
+    set(flux_analytic_cases white_sphere checker)
+    set(flux_reference_cases)
     if(KRR_FLUX_TEST_REFERENCES)
-        list(
-            APPEND
-            flux_render_cases
+        set(flux_reference_cases
             cbox
             principled_cbox
             transmission)
+        # Renders the references whose recorded inputs changed and keeps the rest.
+        set(flux_reference_args)
+        foreach(case IN LISTS flux_reference_cases)
+            list(APPEND flux_reference_args --case ${case})
+        endforeach()
+        add_test(
+            NAME flux.Render.references
+            COMMAND ${flux_uv_python} ${CMAKE_CURRENT_SOURCE_DIR}/Integration/reference.py --output-dir
+                    ${flux_render_output} --variant cuda_ad_rgb --stale ${flux_reference_args})
+        set_tests_properties(
+            flux.Render.references
+            PROPERTIES FIXTURES_SETUP
+                       flux_references
+                       LABELS
+                       integration
+                       TIMEOUT
+                       1800
+                       RESOURCE_LOCK
+                       flux_render)
     endif()
-    foreach(case IN LISTS flux_render_cases)
+    foreach(case IN LISTS flux_analytic_cases flux_reference_cases)
         foreach(backend embree optix)
             add_test(
                 NAME flux.Render.${case}.${backend}
-                COMMAND
-                    ${FLUX_TEST_UV} run --frozen --project ${CMAKE_CURRENT_SOURCE_DIR}/Integration python
-                    ${CMAKE_CURRENT_SOURCE_DIR}/Integration/run.py --flux-bin $<TARGET_FILE:flux_cli> --output-dir
-                    ${CMAKE_CURRENT_BINARY_DIR}/Integration --case ${case} --backend ${backend})
+                COMMAND ${flux_uv_python} ${CMAKE_CURRENT_SOURCE_DIR}/Integration/run.py --flux-bin
+                        $<TARGET_FILE:flux_cli> --output-dir ${flux_render_output} --case ${case} --backend ${backend})
             set_tests_properties(
                 flux.Render.${case}.${backend}
                 PROPERTIES LABELS
@@ -37,6 +55,9 @@ if(FLUX_TEST_UV)
                            660
                            RESOURCE_LOCK
                            flux_render)
+            if(case IN_LIST flux_reference_cases)
+                set_tests_properties(flux.Render.${case}.${backend} PROPERTIES FIXTURES_REQUIRED flux_references)
+            endif()
         endforeach()
     endforeach()
 else()

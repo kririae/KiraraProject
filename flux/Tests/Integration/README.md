@@ -17,17 +17,18 @@ Install `uv` before configuring CMake. By default, CTest checks the white sphere
 and checker against analytical values on both backends. OptiX requires a
 supported NVIDIA GPU; add `-E '\.optix$'` to run Embree alone.
 
-Generate the Mitsuba references before enabling image comparisons:
+Enable the comparisons against Mitsuba references:
 
 ```sh
-uv run --frozen --project flux/Tests/Integration python flux/Tests/Integration/reference.py \
-    --output-dir build/developer/flux/Tests/Integration --variant cuda_ad_rgb
 cmake --preset developer -DKRR_FLUX_TEST_REFERENCES=ON
 ctest --test-dir build/developer -L integration --output-on-failure
 ```
 
-Use `--variant llvm_ad_rgb` to generate references on the CPU. To select a
-single test, add a CTest filter such as `-R 'principled_cbox\.optix$'`.
+The comparisons depend on `flux.Render.references`, which renders a Mitsuba
+reference on the GPU for every case whose scene, reference XML, generator, or
+lock file changed, and keeps the rest. To select a single test, add a CTest
+filter such as `-R 'principled_cbox\.optix$'`; CTest still runs the reference
+step first.
 
 ## Check failures
 

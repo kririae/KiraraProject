@@ -76,6 +76,9 @@ def main() -> None:
     parser.add_argument("--variant", choices=["llvm_ad_rgb", "cuda_ad_rgb"], default="llvm_ad_rgb")
     parser.add_argument("--spp", type=int, default=4096)
     parser.add_argument("--seed", type=int, default=17)
+    parser.add_argument(
+        "--stale", action="store_true", help="skip references whose recorded inputs still match"
+    )
     args = parser.parse_args()
     if args.spp <= 0:
         parser.error("--spp must be positive")
@@ -84,9 +87,17 @@ def main() -> None:
         directory = args.output_dir / case["id"]
         directory.mkdir(parents=True, exist_ok=True)
         metadata_path = directory / "reference.json"
+        metadata = recipe(case, args.variant, args.spp, args.seed)
+        if (
+            args.stale
+            and metadata_path.exists()
+            and (directory / "reference.exr").exists()
+            and json.loads(metadata_path.read_text()) == metadata
+        ):
+            print(f"{case['id']}: reference is current", flush=True)
+            continue
         # Failed regeneration leaves no valid reference metadata.
         metadata_path.unlink(missing_ok=True)
-        metadata = recipe(case, args.variant, args.spp, args.seed)
         scene = mi.load_file(str(FIXTURES / case["reference"]))
         image = mi.render(scene, spp=args.spp, seed=args.seed)
         write_image(directory / "reference.exr", image)
