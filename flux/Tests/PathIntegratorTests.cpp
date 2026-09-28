@@ -18,7 +18,7 @@ class ThrowingIntegratorOwner final : public flux::RenderObject {
     friend class flux::TXContext;
 
     ThrowingIntegratorOwner(flux::TXContext &tx, kira::Properties const &) : RenderObject(tx) {
-        (void)tx.create<flux::PathIntegrator>();
+        (void)tx.create<flux::PathIntegrator>(kira::Properties{});
         throw std::runtime_error("intentional integrator transaction failure");
     }
 };
@@ -120,14 +120,16 @@ TEST(PathIntegratorTests, KeepsFirstSuccessfulIntegratorActive) {
     auto context = flux::Context::create();
 
     EXPECT_THROW((void)context->getActiveIntegrator(), kira::Anyhow);
-    EXPECT_THROW((void)context->create<ThrowingIntegratorOwner>(), std::runtime_error);
+    EXPECT_THROW(
+        (void)context->create<ThrowingIntegratorOwner>(kira::Properties{}), std::runtime_error
+    );
     EXPECT_THROW((void)context->getActiveIntegrator(), kira::Anyhow);
 
-    auto first = context->create<flux::PathIntegrator>();
+    auto first = context->create<flux::PathIntegrator>(kira::Properties{});
     EXPECT_EQ(context->getActiveIntegrator().get(), first.get());
     EXPECT_FALSE(first->usesShaderReorder());
 
-    (void)context->create<flux::PathIntegrator>();
+    (void)context->create<flux::PathIntegrator>(kira::Properties{});
     EXPECT_EQ(context->getActiveIntegrator().get(), first.get());
 }
 

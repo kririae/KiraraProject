@@ -26,7 +26,7 @@ class ThrowingSamplerOwner final : public flux::RenderObject {
     friend class flux::TXContext;
 
     ThrowingSamplerOwner(flux::TXContext &tx, kira::Properties const &) : RenderObject(tx) {
-        (void)tx.create<flux::IndependentSampler>();
+        (void)tx.create<flux::IndependentSampler>(kira::Properties{});
         throw std::runtime_error("intentional sampler transaction failure");
     }
 };
@@ -189,13 +189,15 @@ TEST(SamplerTests, KeepsFirstSuccessfulSamplerActive) {
     auto context = flux::Context::create();
 
     EXPECT_THROW((void)context->getActiveSampler(), kira::Anyhow);
-    EXPECT_THROW((void)context->create<ThrowingSamplerOwner>(), std::runtime_error);
+    EXPECT_THROW(
+        (void)context->create<ThrowingSamplerOwner>(kira::Properties{}), std::runtime_error
+    );
     EXPECT_THROW((void)context->getActiveSampler(), kira::Anyhow);
 
-    auto first = context->create<flux::IndependentSampler>();
+    auto first = context->create<flux::IndependentSampler>(kira::Properties{});
     EXPECT_EQ(context->getActiveSampler().get(), first.get());
 
-    (void)context->create<flux::IndependentSampler>();
+    (void)context->create<flux::IndependentSampler>(kira::Properties{});
     EXPECT_EQ(context->getActiveSampler().get(), first.get());
 }
 
@@ -218,7 +220,7 @@ TEST(SamplerTests, CreatesTheSelectedSamplerThroughTheBaseType) {
 
 TEST(SamplerTests, DispatchesDeterministicPixelSequencesOnHost) {
     auto context = flux::Context::create();
-    (void)context->create<flux::IndependentSampler>();
+    (void)context->create<flux::IndependentSampler>(kira::Properties{});
     auto sampler = context->getActiveSampler()->getImpl({16U, 9U});
 
     sampler.startPixelSample({3U, 2U}, 7U, {16U, 9U});
@@ -234,7 +236,7 @@ TEST(SamplerTests, DispatchesDeterministicPixelSequences) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
-    (void)context->create<flux::IndependentSampler>();
+    (void)context->create<flux::IndependentSampler>(kira::Properties{});
     auto const resolution = flux::Vec2u{16U, 9U};
     flux::DeviceBuffer<SamplerResult> deviceResult(cudaStreamPerThread);
     deviceResult.resize(1);

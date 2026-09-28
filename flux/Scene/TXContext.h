@@ -31,17 +31,20 @@ class TXContext {
 public:
     /// \brief Creates and registers a configurable object in this transaction.
     ///
-    /// Base context object types provide a private \c create function that
-    /// selects a concrete type inside this transaction. Concrete types grant
-    /// \c TXContext access to their constructor.
-    template <IsConfigurableObject T>
-    [[nodiscard]] Ref<T> create(kira::Properties const &props = {}) {
+    /// \p args reach a \c T::create that returns a \c Ref<T>, and otherwise a
+    /// \c T constructor. Base context object types provide such a \c create to
+    /// select a concrete type inside this transaction. Concrete types grant
+    /// \c TXContext access to their constructors.
+    template <IsConfigurableObject T, typename... Args>
+    [[nodiscard]] Ref<T> create(Args &&...args) {
         if constexpr (requires {
-                          { T::create(*this, props) } -> std::same_as<Ref<T>>;
+                          {
+                              T::create(std::declval<TXContext &>(), std::declval<Args>()...)
+                          } -> std::same_as<Ref<T>>;
                       }) {
-            return T::create(*this, props);
+            return T::create(*this, std::forward<Args>(args)...);
         } else {
-            Ref<T> object{new T(*this, props)};
+            Ref<T> object{new T(*this, std::forward<Args>(args)...)};
             static_cast<ContextObject *>(object.get())->registerTo(*this);
             return object;
         }

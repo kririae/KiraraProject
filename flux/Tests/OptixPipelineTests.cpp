@@ -51,8 +51,8 @@ TEST(OptixPipelineTests, RendersAndDownloadsFilmChannels) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>();
-    (void)context->create<flux::IndependentSampler>();
+    (void)context->create<flux::PathIntegrator>(kira::Properties{});
+    (void)context->create<flux::IndependentSampler>(kira::Properties{});
     auto camera = flux::Camera::create();
     kira::Properties properties;
     properties.set("resolution", flux::Vec2u{1, 1});
@@ -87,8 +87,8 @@ TEST(OptixPipelineTests, ReleasesContextAfterConstructionFails) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>();
-    (void)context->create<flux::IndependentSampler>();
+    (void)context->create<flux::PathIntegrator>(kira::Properties{});
+    (void)context->create<flux::IndependentSampler>(kira::Properties{});
     EXPECT_THROW((void)flux::OptixHandler(context, std::filesystem::path{}), kira::Anyhow);
     EXPECT_EQ(context.getRefCount(), 1);
 
@@ -105,8 +105,8 @@ TEST(OptixPipelineTests, RendersConstantEnvironmentMapOnMiss) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>();
-    (void)context->create<flux::IndependentSampler>();
+    (void)context->create<flux::PathIntegrator>(kira::Properties{});
+    (void)context->create<flux::IndependentSampler>(kira::Properties{});
     kira::Properties lightProps;
     lightProps.set("scale", flux::Spectrum{0.25F, 0.5F, 0.75F});
     (void)context->create<flux::EnvMapLight>(lightProps);
@@ -130,8 +130,8 @@ TEST(OptixPipelineTests, RendersImageEnvironmentMapOnMiss) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>();
-    (void)context->create<flux::IndependentSampler>();
+    (void)context->create<flux::PathIntegrator>(kira::Properties{});
+    (void)context->create<flux::IndependentSampler>(kira::Properties{});
     kira::Properties textureProps;
     textureProps.set("type", "image");
     textureProps.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Texture2x2.ppm");
@@ -162,8 +162,8 @@ TEST(OptixPipelineTests, InvalidatesAccumulationAfterCameraChangeAndSync) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>();
-    (void)context->create<flux::IndependentSampler>();
+    (void)context->create<flux::PathIntegrator>(kira::Properties{});
+    (void)context->create<flux::IndependentSampler>(kira::Properties{});
     auto firstCamera = flux::Camera::create();
     auto secondCamera = flux::Camera::create();
 
@@ -200,8 +200,8 @@ TEST(OptixPipelineTests, TracksAccumulationAcrossFilmAndSampleTargetChanges) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>();
-    (void)context->create<flux::IndependentSampler>();
+    (void)context->create<flux::PathIntegrator>(kira::Properties{});
+    (void)context->create<flux::IndependentSampler>(kira::Properties{});
     auto camera = flux::Camera::create();
     kira::Properties properties;
     properties.set("resolution", flux::Vec2u{2, 2});

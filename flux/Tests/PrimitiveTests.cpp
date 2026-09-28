@@ -26,7 +26,7 @@ namespace {
 TEST(PrimitiveTests, ResolvesContextReferencesDuringConstruction) {
     auto context = flux::Context::create();
     auto mesh = context->create<flux::TriangleMesh>(triangleProperties());
-    auto bsdf = context->create<flux::DiffuseBSDF>();
+    auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
 
     kira::Properties properties;
     properties.set("geometry_ctx_id", static_cast<std::int64_t>(mesh->getContextId()));
@@ -88,7 +88,7 @@ TEST(PrimitiveTests, RejectsInvalidGeometryIds) {
 
 TEST(PrimitiveTests, RejectsNonGeometryReferences) {
     auto context = flux::Context::create();
-    auto bsdf = context->create<flux::DiffuseBSDF>();
+    auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
 
     kira::Properties properties;
     properties.set("geometry_ctx_id", static_cast<std::int64_t>(bsdf->getContextId()));
@@ -162,10 +162,10 @@ TEST(PrimitiveTests, SettersKeepRelationshipsInsideTheContext) {
     auto geometry = context->create<flux::TriangleMesh>(triangleProperties());
     auto replacement = context->create<flux::TriangleMesh>(triangleProperties());
     auto foreignGeometry = otherContext->create<flux::TriangleMesh>(triangleProperties());
-    auto bsdf = context->create<flux::DiffuseBSDF>();
-    auto foreignBsdf = otherContext->create<flux::DiffuseBSDF>();
-    auto edf = context->create<flux::ConstantEDF>();
-    auto foreignEdf = otherContext->create<flux::ConstantEDF>();
+    auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
+    auto foreignBsdf = otherContext->create<flux::DiffuseBSDF>(kira::Properties{});
+    auto edf = context->create<flux::ConstantEDF>(kira::Properties{});
+    auto foreignEdf = otherContext->create<flux::ConstantEDF>(kira::Properties{});
 
     kira::Properties properties;
     properties.set("geometry_ctx_id", static_cast<std::int64_t>(geometry->getContextId()));

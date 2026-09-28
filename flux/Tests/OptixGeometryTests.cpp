@@ -54,8 +54,8 @@ TEST(OptixGeometryTests, PreservesFilteredAlbedoUnderInstanceTransforms) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>();
-    (void)context->create<flux::IndependentSampler>();
+    (void)context->create<flux::PathIntegrator>(kira::Properties{});
+    (void)context->create<flux::IndependentSampler>(kira::Properties{});
     kira::Properties meshProps;
     meshProps.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "IndexedTriangle.obj");
     auto mesh = context->create<flux::TriangleMesh>(meshProps);
@@ -99,8 +99,8 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>();
-    (void)context->create<flux::IndependentSampler>();
+    (void)context->create<flux::PathIntegrator>(kira::Properties{});
+    (void)context->create<flux::IndependentSampler>(kira::Properties{});
     kira::Properties meshProperties;
     meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
     auto mesh = context->create<flux::TriangleMesh>(meshProperties);
@@ -108,7 +108,7 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
     bsdfProperties.set("R", flux::Spectrum{0.2F, 0.4F, 0.8F});
     auto bsdf = context->create<flux::DiffuseBSDF>(bsdfProperties);
 
-    EXPECT_THROW((void)context->create<ThrowingGapObject>(), std::runtime_error);
+    EXPECT_THROW((void)context->create<ThrowingGapObject>(kira::Properties{}), std::runtime_error);
     auto firstPrimitive = context->create<flux::Primitive>(primitiveProperties(*mesh, bsdf.get()));
     EXPECT_GT(firstPrimitive->getContextId(), mesh->getContextId() + 1);
 
@@ -123,7 +123,7 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
     flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
     EXPECT_NO_THROW(handler.render(*product, 1));
 
-    EXPECT_THROW((void)context->create<ThrowingGapObject>(), std::runtime_error);
+    EXPECT_THROW((void)context->create<ThrowingGapObject>(kira::Properties{}), std::runtime_error);
     auto secondPrimitive = context->create<flux::Primitive>(primitiveProperties(*mesh, bsdf.get()));
     secondPrimitive->setTransform({
         1.0F,
@@ -152,8 +152,8 @@ TEST(OptixGeometryTests, RendersDirectLightIntoColorChannel) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>();
-    (void)context->create<flux::IndependentSampler>();
+    (void)context->create<flux::PathIntegrator>(kira::Properties{});
+    (void)context->create<flux::IndependentSampler>(kira::Properties{});
 
     kira::Properties meshProperties;
     meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");

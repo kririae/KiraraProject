@@ -39,13 +39,13 @@ public:
 
     /// \brief Creates \c T and atomically absorbs its construction transaction.
     ///
-    /// Nested calls through the supplied \c TXContext join the same
-    /// transaction. If construction or registration throws, the context keeps
-    /// none of the transaction's objects.
-    template <IsConfigurableObject T>
-    [[nodiscard]] Ref<T> create(kira::Properties const &props = {}) {
+    /// \p args reach \c TXContext::create. Nested calls through the supplied
+    /// \c TXContext join the same transaction. If construction or registration
+    /// throws, the context keeps none of the transaction's objects.
+    template <IsConfigurableObject T, typename... Args>
+    [[nodiscard]] Ref<T> create(Args &&...args) {
         TXContext tx(*this);
-        auto object = tx.create<T>(props);
+        auto object = tx.create<T>(std::forward<Args>(args)...);
         absorb(std::move(tx));
         return object;
     }

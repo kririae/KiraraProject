@@ -29,16 +29,16 @@ TEST(LightTests, KeepsFirstEnvironmentMapActive) {
     auto context = flux::Context::create();
 
     EXPECT_FALSE(context->getActiveEnvMap());
-    auto first = context->create<flux::EnvMapLight>();
+    auto first = context->create<flux::EnvMapLight>(kira::Properties{});
     EXPECT_EQ(context->getActiveEnvMap(), first);
 
-    (void)context->create<flux::EnvMapLight>();
+    (void)context->create<flux::EnvMapLight>(kira::Properties{});
     EXPECT_EQ(context->getActiveEnvMap(), first);
 }
 
 TEST(LightTests, ClampsEnvironmentMapScale) {
     auto context = flux::Context::create();
-    auto light = context->create<flux::EnvMapLight>();
+    auto light = context->create<flux::EnvMapLight>(kira::Properties{});
 
     light->setScale({-1.0F, 2.0F, 3.0F});
 
@@ -90,7 +90,7 @@ TEST(LightTests, MapsEnvironmentFootprintsToImageGradients) {
 
 TEST(LightTests, UsesFluxWorldAxesForEnvironmentMaps) {
     auto context = flux::Context::create();
-    auto light = context->create<flux::EnvMapLight>()->getImpl({});
+    auto light = context->create<flux::EnvMapLight>(kira::Properties{})->getImpl({});
     auto const ctx = flux::LightSamplingContext{};
 
     auto const atZero = light.sampleDirect<UVTextureEvaluator>(ctx, {0.0F, 0.5F});

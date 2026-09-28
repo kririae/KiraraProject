@@ -33,7 +33,7 @@ class NestedRenderObject final : public flux::RenderObject {
     friend class flux::TXContext;
 
     explicit NestedRenderObject(flux::TXContext &tx, kira::Properties const &) : RenderObject(tx) {
-        childId = tx.create<TestRenderObject>()->getContextId();
+        childId = tx.create<TestRenderObject>(kira::Properties{})->getContextId();
     }
 
 public:
@@ -57,7 +57,7 @@ class ThrowingConstructor final : public flux::RenderObject {
     friend class flux::TXContext;
 
     explicit ThrowingConstructor(flux::TXContext &tx, kira::Properties const &) : RenderObject(tx) {
-        (void)tx.create<TrackedRenderObject>();
+        (void)tx.create<TrackedRenderObject>(kira::Properties{});
         throw std::runtime_error("constructor failed");
     }
 };
@@ -67,7 +67,7 @@ class ThrowingRegistration final : public flux::RenderObject {
 
     explicit ThrowingRegistration(flux::TXContext &tx, kira::Properties const &)
         : RenderObject(tx) {
-        (void)tx.create<TrackedRenderObject>();
+        (void)tx.create<TrackedRenderObject>(kira::Properties{});
         ++liveCount;
     }
 
@@ -109,7 +109,7 @@ TEST(ContextTests, OwnsCreatedObjectsAndConsumesProperties) {
 
 TEST(ContextTests, ClearsOwnerWhenContextIsDestroyed) {
     auto context = flux::Context::create();
-    auto object = context->create<TestRenderObject>();
+    auto object = context->create<TestRenderObject>(kira::Properties{});
 
     context.reset();
 
@@ -118,7 +118,7 @@ TEST(ContextTests, ClearsOwnerWhenContextIsDestroyed) {
 
 TEST(ContextTests, AbsorbsNestedCreationAsOneTransaction) {
     auto context = flux::Context::create();
-    auto parent = context->create<NestedRenderObject>();
+    auto parent = context->create<NestedRenderObject>(kira::Properties{});
 
     EXPECT_EQ(context->getNumContextObjects(), 2);
     EXPECT_NE(parent->getContextId(), parent->childId);
@@ -128,11 +128,15 @@ TEST(ContextTests, AbsorbsNestedCreationAsOneTransaction) {
 TEST(ContextTests, RollsBackConstructionAndRegistrationFailures) {
     auto context = flux::Context::create();
 
-    EXPECT_THROW((void)context->create<ThrowingConstructor>(), std::runtime_error);
+    EXPECT_THROW(
+        (void)context->create<ThrowingConstructor>(kira::Properties{}), std::runtime_error
+    );
     EXPECT_EQ(context->getNumContextObjects(), 0);
     EXPECT_EQ(TrackedRenderObject::liveCount, 0);
 
-    EXPECT_THROW((void)context->create<ThrowingRegistration>(), std::runtime_error);
+    EXPECT_THROW(
+        (void)context->create<ThrowingRegistration>(kira::Properties{}), std::runtime_error
+    );
     EXPECT_EQ(context->getNumContextObjects(), 0);
     EXPECT_EQ(TrackedRenderObject::liveCount, 0);
     EXPECT_EQ(ThrowingRegistration::liveCount, 0);
@@ -141,7 +145,7 @@ TEST(ContextTests, RollsBackConstructionAndRegistrationFailures) {
 
 TEST(ContextTests, RejectsUnknownIdsAndWrongTypes) {
     auto context = flux::Context::create();
-    auto object = context->create<TestRenderObject>();
+    auto object = context->create<TestRenderObject>(kira::Properties{});
 
     EXPECT_THROW(
         (void)context->get<TestRenderObject>(object->getContextId() + 1), std::out_of_range
@@ -189,7 +193,7 @@ TEST(ContextTests, TracksBSDFAndEDFIndices) {
 
     auto firstBSDF = context->create<flux::BSDF>(bsdfProps);
     auto secondBSDF = context->create<flux::BSDF>(bsdfProps);
-    auto edf = context->create<flux::EDF>();
+    auto edf = context->create<flux::EDF>(kira::Properties{});
 
     EXPECT_EQ(context->getBSDFIndex(firstBSDF->getContextId()), 0);
     EXPECT_EQ(context->getBSDFIndex(secondBSDF->getContextId()), 1);
