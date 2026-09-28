@@ -20,7 +20,9 @@ if(FLUX_TEST_UV)
         set(flux_reference_cases
             cbox
             principled_cbox
-            transmission)
+            transmission
+            sobol_cbox
+            sobol_transmission)
         # Renders the references whose recorded inputs changed and keeps the rest.
         set(flux_reference_args)
         foreach(case IN LISTS flux_reference_cases)

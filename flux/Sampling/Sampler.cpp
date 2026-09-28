@@ -10,6 +10,8 @@ Ref<Sampler> Sampler::create(TXContext &tx, kira::Properties const &props) {
     auto const type = props.use_or<std::string>("type", "independent");
     if (type == "independent")
         return tx.create<IndependentSampler>(props);
+    if (type == "sobol")
+        return tx.create<SobolSampler>(props);
     throw kira::Anyhow("Sampler: unsupported type '{}'", type);
 }
 
@@ -33,12 +35,25 @@ Sampler::Impl Sampler::getImpl(Vec2u const &resolution) const {
                 .independent = static_cast<IndependentSampler const &>(*this).getImpl(resolution),
             },
         };
+    case SamplerType::Sobol:
+        return {
+            .type = type,
+            .storage = {
+                .sobol = static_cast<SobolSampler const &>(*this).getImpl(resolution),
+            },
+        };
     }
     KIRA_UNREACHABLE();
 }
 
 IndependentSampler::Impl
 IndependentSampler::getImpl([[maybe_unused]] Vec2u const &resolution) const noexcept {
+    return {};
+}
+SobolSampler::SobolSampler(TXContext &tx, kira::Properties const &)
+    : Sampler(tx, SamplerType::Sobol) {}
+
+SobolSampler::Impl SobolSampler::getImpl([[maybe_unused]] Vec2u const &resolution) const noexcept {
     return {};
 }
 } // namespace flux

@@ -158,15 +158,16 @@ public:
 
         /// \brief Samples one light for next-event estimation.
         ///
-        /// Light selection and light sampling consume one 1D and one 2D sample
-        /// in that order. The returned PDF includes light selection.
+        /// Light selection and the position on the light come from one 3D sample. The
+        /// returned PDF includes light selection.
         template <typename Evaluator, typename BackendContext>
         [[nodiscard]] KIRA_HOST_DEVICE DirectLightSample sampleDirectLight(
             PathState &state, BackendContext const &backend, LightSamplingContext const &ctx,
             bool hasEnvMap
         ) const noexcept {
-            auto const uSelect = state.sampler.get1D();
-            auto const uLight = state.sampler.get2D();
+            auto const u = state.sampler.get3D(SampleUse::Light, state.depth);
+            auto const uSelect = u.x();
+            auto const uLight = Vec2f{u.y(), u.z()};
             return flux::sampleDirectLight<Evaluator>(backend, ctx, uSelect, uLight, hasEnvMap);
         }
 
@@ -245,7 +246,7 @@ public:
             if (state.depth >= rrDepth) {
                 // Squared IOR compensates radiance scaling across transmission.
                 auto const q = std::min(state.throughput.hmax() * state.eta * state.eta, rrProb);
-                if (q <= 0.0F || state.sampler.get1D() >= q) {
+                if (q <= 0.0F || state.sampler.get1D(SampleUse::Terminate, state.depth) >= q) {
                     state.active = false;
                     return;
                 }

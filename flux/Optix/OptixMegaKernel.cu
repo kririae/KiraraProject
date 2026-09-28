@@ -52,13 +52,14 @@ struct ShadowQuery {
         flux::Vec2u{optixLaunchParams.film.width, optixLaunchParams.film.height};
     auto sampler = optixLaunchParams.sampler;
     sampler.startPixelSample(sample.pixel, sample.sampleIndex, resolution);
-    auto const pixelSample = sampler.getPixel2D();
+    auto const pixelSample = sampler.get2D(flux::SampleUse::Pixel, 0);
     auto const rasterPosition = flux::Vec2f{
         static_cast<float>(sample.pixel.x()) + pixelSample.x(),
         static_cast<float>(sample.pixel.y()) + pixelSample.y(),
     };
-    auto const ray =
-        optixLaunchParams.camera.generateRay(rasterPosition, sampler.get2D(), resolution);
+    auto const ray = optixLaunchParams.camera.generateRay(
+        rasterPosition, sampler.get2D(flux::SampleUse::Lens, 0), resolution
+    );
     return flux::PathState{
         .rayDirection = ray.direction,
         .sampler = sampler,
@@ -122,13 +123,16 @@ struct ShadowQuery {
     auto const frame = flux::Frame{isect.shadingNormal};
     auto const localWo = frame.toLocal(wo);
     auto const localLightWi = frame.toLocal(directLight.wi);
-    auto const u1 = state.sampler.get1D();
-    auto const u2 = state.sampler.get2D();
+    // Split the sample before the BSDF dispatch. NVCC generates a much slower launch when the
+    // direction is built in the dispatched call's arguments.
+    auto const u = state.sampler.get3D(flux::SampleUse::Bsdf, state.depth);
+    auto const uLobe = u.x();
+    auto const uDirection = flux::Vec2f{u.y(), u.z()};
     auto const &bsdf = optixLaunchParams.scene.getBSDF(primitive.getBSDFIndex());
     auto const texCtx =
         optixLaunchParams.scene.getTextureEvalContext(isect, state.rayDirection, footprint);
     auto const result = optixLaunchParams.bsdfDispatcher.execute<OptixImageTextureEvaluator>(
-        bsdf, texCtx, localWo, localLightWi, directLight.pdf > 0.0F, u1, u2
+        bsdf, texCtx, localWo, localLightWi, directLight.pdf > 0.0F, uLobe, uDirection
     );
 
     if (writesAlbedo) {

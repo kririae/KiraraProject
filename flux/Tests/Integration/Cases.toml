@@ -40,3 +40,21 @@ reference = "Principled/Transmission.xml"
 spp = 1024
 mae = 0.01
 rmse = 0.03
+
+# The Sobol cases use the references and thresholds above at fewer samples, which an unbiased
+# sampler meets only if it stratifies.
+[[case]]
+id = "sobol_cbox"
+scene = "Cbox/SobolCbox.toml"
+reference = "Cbox/Cbox.xml"
+spp = 64
+mae = 0.01
+rmse = 0.015
+
+[[case]]
+id = "sobol_transmission"
+scene = "Principled/SobolTransmission.toml"
+reference = "Principled/Transmission.xml"
+spp = 128
+mae = 0.01
+rmse = 0.03

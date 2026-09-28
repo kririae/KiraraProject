@@ -34,12 +34,14 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
     for (std::uint32_t batchIndex = 0; batchIndex < params.batchSize; ++batchIndex) {
         auto sampler = params.sampler;
         sampler.startPixelSample(pixel, params.getSampleIndex(batchIndex), resolution);
-        auto const pixelSample = sampler.getPixel2D();
+        auto const pixelSample = sampler.get2D(SampleUse::Pixel, 0);
         auto const rasterPosition = Vec2f{
             static_cast<float>(pixel.x()) + pixelSample.x(),
             static_cast<float>(pixel.y()) + pixelSample.y(),
         };
-        auto const ray = params.camera.generateRay(rasterPosition, sampler.get2D(), resolution);
+        auto const ray = params.camera.generateRay(
+            rasterPosition, sampler.get2D(SampleUse::Lens, 0), resolution
+        );
         auto const packedFootprint =
             PackedRayFootprint::pack(params.camera.getRayFootprint(ray.direction, resolution));
         PathState state{
@@ -98,15 +100,16 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
                 auto const frame = Frame{isect.shadingNormal};
                 auto const localWo = frame.toLocal(wo);
                 auto const localLightWi = frame.toLocal(directLight.wi);
-                auto const u1 = state.sampler.get1D();
-                auto const u2 = state.sampler.get2D();
+                auto const u = state.sampler.get3D(SampleUse::Bsdf, state.depth);
+                auto const uLobe = u.x();
+                auto const uDirection = Vec2f{u.y(), u.z()};
                 auto const &bsdf = params.scene.getBSDF(primitive.getBSDFIndex());
                 auto footprint = state.footprint.unpack();
                 footprint.propagate(hit.preliminary.distance);
                 auto const texCtx =
                     params.scene.getTextureEvalContext(isect, traced.direction, footprint);
                 auto const result = bsdfDispatcher.execute<EmbreeImageTextureEvaluator>(
-                    bsdf, texCtx, localWo, localLightWi, directLight.pdf > 0.0F, u1, u2
+                    bsdf, texCtx, localWo, localLightWi, directLight.pdf > 0.0F, uLobe, uDirection
                 );
 
                 if (writesAlbedo)
