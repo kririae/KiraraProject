@@ -29,7 +29,8 @@ struct OptixImageTextureEvaluator {
 /// \brief What one path vertex asks of the shadow ray.
 ///
 /// A zero \c mask traces without visiting any instance, so a lane with no light candidate holds
-/// the traversal site without contributing anything.
+/// the traversal site without contributing anything. Such a lane leaves \c ray zeroed rather
+/// than copying one, which keeps a ray it would never use out of the continuation frame.
 struct ShadowQuery {
     flux::Ray ray;
     flux::Spectrum contribution;
@@ -59,8 +60,10 @@ struct ShadowQuery {
     auto const ray =
         optixLaunchParams.camera.generateRay(rasterPosition, sampler.get2D(), resolution);
     return flux::PathState{
-        .ray = ray,
+        .rayDirection = ray.direction,
         .sampler = sampler,
+        // The camera vertex has no surface, so the derived ray keeps this origin unoffset.
+        .prevLightCtx = {.position = ray.origin},
         .footprint = flux::PackedRayFootprint::pack(
             optixLaunchParams.camera.getRayFootprint(ray.direction, resolution)
         ),
@@ -82,7 +85,7 @@ struct ShadowQuery {
     footprint.propagate(optixHitObjectGetRayTmax());
     auto const &primitive = optixLaunchParams.scene.getPrimitive(isect.primitiveIndex);
     auto const isPrimary = state.depth == 0;
-    auto const wo = -state.ray.direction;
+    auto const wo = -state.rayDirection;
     if (writesColor)
         optixLaunchParams.integrator.onEmitterHit(
             state, optixLaunchParams.scene, primitive, isect, wo
@@ -94,14 +97,14 @@ struct ShadowQuery {
     }
     if (!primitive.hasBSDF()) {
         optixLaunchParams.integrator.onSurfaceHit(state);
-        return ShadowQuery{.ray = state.ray};
+        return ShadowQuery{};
     }
 
     auto const writesAlbedo = isPrimary && optixLaunchParams.film.hasChannel<flux::AlbedoChannel>();
     auto const continues = writesColor && optixLaunchParams.integrator.canContinue(state);
     if (!continues && !writesAlbedo) {
         optixLaunchParams.integrator.onSurfaceHit(state);
-        return ShadowQuery{.ray = state.ray};
+        return ShadowQuery{};
     }
 
     auto directLight = flux::DirectLightSample{};
@@ -123,7 +126,7 @@ struct ShadowQuery {
     auto const u2 = state.sampler.get2D();
     auto const &bsdf = optixLaunchParams.scene.getBSDF(primitive.getBSDFIndex());
     auto const texCtx =
-        optixLaunchParams.scene.getTextureEvalContext(isect, state.ray.direction, footprint);
+        optixLaunchParams.scene.getTextureEvalContext(isect, state.rayDirection, footprint);
     auto const result = optixLaunchParams.bsdfDispatcher.execute<OptixImageTextureEvaluator>(
         bsdf, texCtx, localWo, localLightWi, directLight.pdf > 0.0F, u1, u2
     );
@@ -135,7 +138,7 @@ struct ShadowQuery {
     }
     if (!continues) {
         optixLaunchParams.integrator.onSurfaceHit(state);
-        return ShadowQuery{.ray = state.ray};
+        return ShadowQuery{};
     }
 
     auto const candidate = optixLaunchParams.integrator.makeDirectLightCandidate(
@@ -148,7 +151,7 @@ struct ShadowQuery {
         optixLaunchParams.integrator.updateFootprint(state, result.sample, footprint);
 
     if (!candidate.valid)
-        return ShadowQuery{.ray = state.ray};
+        return ShadowQuery{};
     return ShadowQuery{
         .ray = directLight.type == flux::LightType::EnvMap ? isect.spawnRay(directLight.wi)
                                                            : isect.spawnRayTo(directLight.position),
@@ -162,12 +165,12 @@ struct ShadowQuery {
 /// Owns both traversal sites and reaches them in the same order on every lane, so a warp
 /// suspends and resumes together no matter which path each lane carries.
 KIRA_DEVICE __forceinline__ void step(flux::PathState &state, std::uint32_t index) noexcept {
-    auto query = ShadowQuery{.ray = state.ray};
+    auto query = ShadowQuery{};
     flux::OptixContext::Impl::Hit hit;
     // Reorder on every hit, primary ones included. Guarding this on depth would give the shading
     // two static predecessors, one per continuation, so the compiler would emit a second copy of
     // it, and the guard would stop being warp-uniform once lanes claim new paths.
-    if (optixLaunchParams.scene.intersect(state.ray, hit, optixLaunchParams.shaderReorder)) {
+    if (optixLaunchParams.scene.intersect(state.getRay(), hit, optixLaunchParams.shaderReorder)) {
         query = shade(state, hit, index);
     } else if (
         optixLaunchParams.film.hasChannel<flux::ColorChannel>() && optixLaunchParams.hasEnvMap

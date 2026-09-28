@@ -26,20 +26,20 @@ struct DirectLightCandidate {
 /// \brief State carried by one path between radiance traversals.
 ///
 /// \verbatim
-/// previous vertex -- ray --> current hit
+/// previous vertex -- rayDirection --> current hit
 ///                    \---- previous light context and BSDF PDF
 /// \endverbatim
 ///
-/// A BSDF sample replaces \c ray and records the data needed when that ray
-/// reaches an emitter.
+/// A BSDF sample replaces \c rayDirection and records the data needed when the
+/// ray it starts reaches an emitter.
 struct PathState {
-    /// Ray for the next radiance traversal.
-    Ray ray;
+    /// Direction the last vertex scattered into, which the next radiance traversal follows.
+    Vec3f rayDirection;
     /// Sampling sequence advanced across path vertices.
     Sampler::Impl sampler;
     /// Radiance accumulated by this sample.
     Spectrum radiance{};
-    /// Path throughput carried by \c ray.
+    /// Path throughput carried by the next ray.
     Spectrum throughput{1.0F, 1.0F, 1.0F};
     /// Product of relative IORs along the path.
     float eta{1.0F};
@@ -47,15 +47,28 @@ struct PathState {
 public:
     /// Previous vertex used to evaluate the light-sampling PDF at an emitter.
     LightSamplingContext prevLightCtx{};
-    /// BSDF PDF that produced \c ray.
+    /// BSDF PDF that produced \c rayDirection.
     float prevBSDFPdf{};
     PackedRayFootprint footprint{};
     /// Number of surface interactions that produced a continuation ray.
     std::uint32_t depth{};
     /// Whether another radiance vertex should be processed.
     bool active{true};
-    /// Whether the BSDF sample that produced \c ray was discrete.
+    /// Whether the BSDF sample that produced \c rayDirection was discrete.
     bool prevDelta{};
+
+public:
+    /// \brief Returns the ray for the next radiance traversal.
+    ///
+    /// The origin is derived rather than carried: \c spawnRay offsets \c prevLightCtx.position
+    /// along the same normal and in the same direction, so the two would hold the same point.
+    /// A vertex with no surface, such as the camera, leaves the normal zero and is not offset.
+    [[nodiscard]] KIRA_HOST_DEVICE Ray getRay() const noexcept {
+        return {
+            .origin = offsetRayOrigin(prevLightCtx.position, prevLightCtx.normal, rayDirection),
+            .direction = rayDirection,
+        };
+    }
 };
 
 /// \brief Estimates radiance with path tracing.
@@ -121,14 +134,14 @@ public:
             if (state.depth > 0 && !state.prevDelta) {
                 float envMapPdf;
                 radiance = envMap->template evalAndPdf<Evaluator>(
-                    state.ray.direction, coneAngle, envMapPdf
+                    state.rayDirection, coneAngle, envMapPdf
                 );
                 auto const selectPmf = backend.lightSampler.pmf(
                     state.prevLightCtx, {.type = LightType::EnvMap, .index = 0}
                 );
                 weight = misWeight(state.prevBSDFPdf, selectPmf * envMapPdf);
             } else
-                radiance = envMap->template eval<Evaluator>(state.ray.direction, coneAngle);
+                radiance = envMap->template eval<Evaluator>(state.rayDirection, coneAngle);
 
             state.radiance = state.radiance + state.throughput * radiance * weight;
             state.active = false;
@@ -219,7 +232,7 @@ public:
             };
             state.prevBSDFPdf = sample.pdf;
             state.prevDelta = sample.isDelta();
-            state.ray = isect.spawnRay(wi);
+            state.rayDirection = wi;
             state.throughput = state.throughput * sample.weight;
             state.eta *= sample.eta;
             ++state.depth;
@@ -281,7 +294,7 @@ static_assert(std::is_standard_layout_v<DirectLightCandidate>);
 static_assert(std::is_trivially_copyable_v<DirectLightCandidate>);
 static_assert(std::is_standard_layout_v<PathState>);
 static_assert(std::is_trivially_copyable_v<PathState>);
-static_assert(sizeof(PathState) <= 128, "PathState carry-over grew");
+static_assert(sizeof(PathState) <= 112, "PathState carry-over grew");
 static_assert(std::is_standard_layout_v<PathIntegrator::Impl>);
 static_assert(std::is_trivially_copyable_v<PathIntegrator::Impl>);
 } // namespace flux

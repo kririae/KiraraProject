@@ -42,11 +42,18 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
         auto const ray = params.camera.generateRay(rasterPosition, sampler.get2D(), resolution);
         auto const packedFootprint =
             PackedRayFootprint::pack(params.camera.getRayFootprint(ray.direction, resolution));
-        PathState state{.ray = ray, .sampler = sampler, .footprint = packedFootprint};
+        PathState state{
+            .rayDirection = ray.direction,
+            .sampler = sampler,
+            // The camera vertex has no surface, so the derived ray keeps this origin unoffset.
+            .prevLightCtx = {.position = ray.origin},
+            .footprint = packedFootprint,
+        };
 
         while (state.active) {
             EmbreeContext::Hit hit;
-            if (!params.scene.intersect(state.ray, hit)) {
+            auto const traced = state.getRay();
+            if (!params.scene.intersect(traced, hit)) {
                 if (writesColor)
                     params.integrator.onMiss<EmbreeImageTextureEvaluator>(state, params.scene);
                 else
@@ -54,10 +61,10 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
                 break;
             }
 
-            auto const isect = params.scene.makeSurfaceInteraction(state.ray, hit);
+            auto const isect = params.scene.makeSurfaceInteraction(traced, hit);
             auto const &primitive = params.scene.getPrimitive(hit.primitiveIndex);
             auto const isPrimary = state.depth == 0;
-            auto const wo = -state.ray.direction;
+            auto const wo = -traced.direction;
             if (writesColor)
                 params.integrator.onEmitterHit(state, params.scene, primitive, isect, wo);
             if (isPrimary)
@@ -97,7 +104,7 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
                 auto footprint = state.footprint.unpack();
                 footprint.propagate(hit.preliminary.distance);
                 auto const texCtx =
-                    params.scene.getTextureEvalContext(isect, state.ray.direction, footprint);
+                    params.scene.getTextureEvalContext(isect, traced.direction, footprint);
                 auto const result = bsdfDispatcher.execute<EmbreeImageTextureEvaluator>(
                     bsdf, texCtx, localWo, localLightWi, directLight.pdf > 0.0F, u1, u2
                 );
