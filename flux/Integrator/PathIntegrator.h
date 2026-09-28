@@ -60,9 +60,9 @@ public:
 public:
     /// \brief Returns the ray for the next radiance traversal.
     ///
-    /// The origin is derived rather than carried: \c spawnRay offsets \c prevLightCtx.position
-    /// along the same normal and in the same direction, so the two would hold the same point.
-    /// A vertex with no surface, such as the camera, leaves the normal zero and is not offset.
+    /// The ray starts at \c prevLightCtx.position, offset along \c prevLightCtx.normal as
+    /// \c SurfaceInteraction::spawnRay offsets it. A zero normal, as at the camera, leaves the
+    /// origin unoffset.
     [[nodiscard]] KIRA_HOST_DEVICE Ray getRay() const noexcept {
         return {
             .origin = offsetRayOrigin(prevLightCtx.position, prevLightCtx.normal, rayDirection),

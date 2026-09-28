@@ -29,8 +29,8 @@ struct OptixImageTextureEvaluator {
 /// \brief What one path vertex asks of the shadow ray.
 ///
 /// A zero \c mask traces without visiting any instance, so a lane with no light candidate holds
-/// the traversal site without contributing anything. Such a lane leaves \c ray zeroed rather
-/// than copying one, which keeps a ray it would never use out of the continuation frame.
+/// the traversal site without contributing anything. Such a lane leaves \c ray zeroed, which
+/// keeps it out of the continuation frame.
 struct ShadowQuery {
     flux::Ray ray;
     flux::Spectrum contribution;
