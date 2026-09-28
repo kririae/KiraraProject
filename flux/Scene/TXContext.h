@@ -15,6 +15,7 @@ class PathIntegrator;
 class Sampler;
 class ImageTexture;
 class EnvMapLight;
+class TriangleMesh;
 
 /// \brief Collects objects created by one \c Context::create call.
 ///
@@ -27,6 +28,7 @@ class TXContext {
     friend class Sampler;
     friend class ImageTexture;
     friend class EnvMapLight;
+    friend class TriangleMesh;
 
 public:
     /// \brief Creates and registers a configurable object in this transaction.

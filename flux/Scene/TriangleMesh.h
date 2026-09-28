@@ -12,8 +12,9 @@
 namespace flux {
 /// \brief Host indexed triangle mesh.
 ///
-/// The \c path property names an OBJ or PLY file. TriangleMesh owns its host arrays.
-/// Each backend builds its geometry from these arrays.
+/// A mesh is built either from owned host arrays or from the OBJ or PLY file
+/// named by the \c path property. TriangleMesh owns its host arrays, and each
+/// backend builds its geometry from them.
 ///
 /// PLY polygons are triangulated. Complete vertex normals and texture coordinates
 /// are imported. Missing or incomplete normals are generated; missing or incomplete
@@ -23,6 +24,37 @@ class TriangleMesh final : public Geometry {
 
 public:
     struct Impl;
+
+    /// \brief Host arrays a triangle mesh is built from.
+    ///
+    /// \c triangles indexes \c vertices. Nonempty \c normals are indexed by
+    /// \c normalIndices, or by \c triangles when those are empty; \c texCoords
+    /// and \c texCoordIndices pair with \c triangles the same way. Empty
+    /// \c normals request generated angle-weighted vertex normals, and an index
+    /// array whose attribute array is empty is not a mesh.
+    struct Data {
+        /// Geometry-space vertex positions. Construction appends one element, so
+        /// capacity for one more avoids a reallocation.
+        kira::SmallVector<Vec3f, 0> vertices;
+
+        /// Zero-based vertex indices of each triangle.
+        kira::SmallVector<Vec3u, 0> triangles;
+
+        kira::SmallVector<Vec3f, 0> normals;
+        kira::SmallVector<Vec3u, 0> normalIndices;
+        kira::SmallVector<Vec2f, 0> texCoords;
+        kira::SmallVector<Vec3u, 0> texCoordIndices;
+    };
+
+    /// \brief Checks that every index in \p data addresses its array.
+    ///
+    /// Construction does not check indices, so a caller that did not produce
+    /// \p data itself calls this first. Reporting the source of \p data is left
+    /// to that caller, which knows it.
+    ///
+    /// \throw kira::Anyhow If an index is out of range, or an index array is
+    ///        nonempty and does not have one entry per triangle.
+    static void checkIndices(Data const &data);
 
     /// \brief Returns geometry-space vertex positions.
     [[nodiscard]] std::span<Vec3f const> getVertices() const noexcept {
@@ -76,10 +108,16 @@ public:
     [[nodiscard]] float getSurfaceArea() const noexcept override { return surfaceArea_; }
 
 private:
-    TriangleMesh(TXContext &tx, kira::Properties const &props);
+    /// \brief Builds a mesh from owned host arrays.
+    ///
+    /// \pre Every index in \p data addresses its array, which
+    ///      \c checkIndices establishes.
+    /// \throw kira::Anyhow If \p data holds more vertices or triangles than a
+    ///        mesh can address.
+    TriangleMesh(TXContext &tx, Data &&data);
 
-    void loadObj(std::filesystem::path const &path);
-    void loadPly(std::filesystem::path const &path);
+    /// \brief Builds a mesh from the file named by the \c path property.
+    TriangleMesh(TXContext &tx, kira::Properties const &props);
 
     /// Embree may read four floats for RTC_FORMAT_FLOAT3, so vertex storage
     /// includes one padding element.

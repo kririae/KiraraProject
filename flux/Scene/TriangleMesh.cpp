@@ -77,27 +77,62 @@ void generateVertexNormals(
             normals[index] = normals[index] / std::sqrt(lengthSquared);
     });
 }
-} // namespace
 
-TriangleMesh::TriangleMesh(TXContext &tx, kira::Properties const &props)
-    : Geometry(tx, GeometryType::TriangleMesh) {
+/// \brief Returns the largest index in \p indices, or zero when it is empty.
+[[nodiscard]] std::uint32_t largestIndex(std::span<Vec3u const> indices) {
+    return tbb::parallel_reduce(
+        tbb::blocked_range<std::size_t>{0, indices.size()}, std::uint32_t{0},
+        [&](auto const &range, std::uint32_t largest) {
+        for (auto index = range.begin(); index != range.end(); ++index)
+            largest =
+                std::max({largest, indices[index][0u], indices[index][1u], indices[index][2u]});
+        return largest;
+    }, [](std::uint32_t left, std::uint32_t right) { return std::max(left, right); }
+    );
+}
+
+[[nodiscard]] TriangleMesh::Data loadObj(std::filesystem::path const &path);
+[[nodiscard]] TriangleMesh::Data loadPly(std::filesystem::path const &path);
+
+/// \brief Loads the mesh file named by the \c path property of \p props.
+[[nodiscard]] TriangleMesh::Data
+loadMeshFile(kira::FileResolver const &resolver, kira::Properties const &props) {
     auto const authoredPath = props.use<std::filesystem::path>("path");
-    auto const path = getContext()->getFileResolver().resolve(authoredPath);
+    auto const path = resolver.resolve(authoredPath);
     if (!std::filesystem::exists(path))
         throw kira::Anyhow("TriangleMesh: failed to resolve '{}'", authoredPath.string());
+
     auto extension = path.extension().string();
     std::ranges::transform(extension, extension.begin(), [](unsigned char character) {
         return static_cast<char>(std::tolower(character));
     });
 
     if (extension == ".obj")
-        loadObj(path);
-    else if (extension == ".ply")
-        loadPly(path);
-    else
+        return loadObj(path);
+    if (extension == ".ply")
+        return loadPly(path);
+    throw kira::Anyhow(
+        "TriangleMesh: unsupported file extension '{}' for '{}'", extension, path.string()
+    );
+}
+} // namespace
+
+TriangleMesh::TriangleMesh(TXContext &tx, kira::Properties const &props)
+    : TriangleMesh(tx, loadMeshFile(tx.getContext().getFileResolver(), props)) {}
+
+TriangleMesh::TriangleMesh(TXContext &tx, Data &&data)
+    : Geometry(tx, GeometryType::TriangleMesh), vertices_(std::move(data.vertices)),
+      triangles_(std::move(data.triangles)), normals_(std::move(data.normals)),
+      normalIndices_(std::move(data.normalIndices)), texCoords_(std::move(data.texCoords)),
+      texCoordIndices_(std::move(data.texCoordIndices)) {
+    if (vertices_.size() >= std::numeric_limits<std::uint32_t>::max())
         throw kira::Anyhow(
-            "TriangleMesh: unsupported file extension '{}' for '{}'", extension, path.string()
+            "TriangleMesh: {} vertices exceed the addressable range", vertices_.size()
         );
+    vertices_.push_back(Vec3f{});
+
+    if (normals_.empty())
+        generateVertexNormals(getVertices(), getTriangles(), normals_);
 
     auto const impl = getImpl();
     surfaceArea_ = tbb::parallel_reduce(
@@ -108,6 +143,44 @@ TriangleMesh::TriangleMesh(TXContext &tx, kira::Properties const &props)
         return area;
     }, std::plus<>{}
     );
+}
+
+void TriangleMesh::checkIndices(Data const &data) {
+    auto const check = [&](std::span<Vec3u const> indices, std::size_t limit, char const *name) {
+        if (indices.empty())
+            return;
+        if (indices.size() != data.triangles.size())
+            throw kira::Anyhow(
+                "TriangleMesh: {} {} indices do not match {} triangles", indices.size(), name,
+                data.triangles.size()
+            );
+
+        auto const largest = largestIndex(indices);
+        if (largest >= limit)
+            throw kira::Anyhow(
+                "TriangleMesh: a triangle addresses {} {} of {}", name, largest, limit
+            );
+    };
+
+    auto const triangles = std::span<Vec3u const>{data.triangles};
+
+    // Indices without their attribute array would be published against generated
+    // normals, which are per vertex, or against no array at all.
+    auto const checkAttribute = [&](std::span<Vec3u const> indices, std::size_t attributeCount,
+                                    char const *name) {
+        if (attributeCount == 0) {
+            if (!indices.empty())
+                throw kira::Anyhow(
+                    "TriangleMesh: {} {} indices address no {}", indices.size(), name, name
+                );
+            return;
+        }
+        check(indices.empty() ? triangles : indices, attributeCount, name);
+    };
+
+    check(triangles, data.vertices.size(), "vertex");
+    checkAttribute(data.normalIndices, data.normals.size(), "normal");
+    checkAttribute(data.texCoordIndices, data.texCoords.size(), "texture-coordinate");
 }
 
 TriangleMesh::Impl TriangleMesh::getImpl() const noexcept {
@@ -171,7 +244,9 @@ void TriangleMesh::computeSamplingDistribution(
     });
 }
 
-void TriangleMesh::loadObj(std::filesystem::path const &path) {
+namespace {
+TriangleMesh::Data loadObj(std::filesystem::path const &path) {
+    TriangleMesh::Data data;
     auto result = rapidobj::ParseFile(path, rapidobj::MaterialLibrary::Ignore());
     if (result.error)
         throw kira::Anyhow(
@@ -286,11 +361,11 @@ void TriangleMesh::loadObj(std::filesystem::path const &path) {
     if (!hasCompleteTexCoords)
         release(result.attributes.texcoords);
 
-    triangles_.resize_for_overwrite(numTriangles);
+    data.triangles.resize_for_overwrite(numTriangles);
     if (hasCompleteNormals && !normalIndicesAliasVertices)
-        normalIndices_.resize_for_overwrite(numTriangles);
+        data.normalIndices.resize_for_overwrite(numTriangles);
     if (hasCompleteTexCoords && !texCoordIndicesAliasVertices)
-        texCoordIndices_.resize_for_overwrite(numTriangles);
+        data.texCoordIndices.resize_for_overwrite(numTriangles);
 
     // Write each shape to its own output range in parallel.
     tbb::parallel_for(std::size_t{0}, result.shapes.size(), [&](std::size_t shapeIndex) {
@@ -299,19 +374,19 @@ void TriangleMesh::loadObj(std::filesystem::path const &path) {
         for (std::size_t triangleIndex = 0; triangleIndex < indices.size() / 3; ++triangleIndex) {
             auto const sourceOffset = triangleIndex * 3;
             auto const destination = outputOffset + triangleIndex;
-            triangles_[destination] = Vec3u{
+            data.triangles[destination] = Vec3u{
                 static_cast<std::uint32_t>(indices[sourceOffset].position_index),
                 static_cast<std::uint32_t>(indices[sourceOffset + 1].position_index),
                 static_cast<std::uint32_t>(indices[sourceOffset + 2].position_index),
             };
-            if (!normalIndices_.empty())
-                normalIndices_[destination] = Vec3u{
+            if (!data.normalIndices.empty())
+                data.normalIndices[destination] = Vec3u{
                     static_cast<std::uint32_t>(indices[sourceOffset].normal_index),
                     static_cast<std::uint32_t>(indices[sourceOffset + 1].normal_index),
                     static_cast<std::uint32_t>(indices[sourceOffset + 2].normal_index),
                 };
-            if (!texCoordIndices_.empty())
-                texCoordIndices_[destination] = Vec3u{
+            if (!data.texCoordIndices.empty())
+                data.texCoordIndices[destination] = Vec3u{
                     static_cast<std::uint32_t>(indices[sourceOffset].texcoord_index),
                     static_cast<std::uint32_t>(indices[sourceOffset + 1].texcoord_index),
                     static_cast<std::uint32_t>(indices[sourceOffset + 2].texcoord_index),
@@ -320,47 +395,47 @@ void TriangleMesh::loadObj(std::filesystem::path const &path) {
     });
     release(result.shapes);
 
-    vertices_.resize_for_overwrite(numVertices + 1);
+    data.vertices.reserve(numVertices + 1);
+    data.vertices.resize_for_overwrite(numVertices);
     tbb::parallel_for(std::size_t{0}, numVertices, [&](std::size_t index) {
         auto const offset = index * 3;
-        vertices_[index] = Vec3f{
+        data.vertices[index] = Vec3f{
             result.attributes.positions[offset],
             result.attributes.positions[offset + 1],
             result.attributes.positions[offset + 2],
         };
     });
-    vertices_[numVertices] = Vec3f{};
     release(result.attributes.positions);
 
     if (hasCompleteNormals) {
-        normals_.resize_for_overwrite(numNormals);
+        data.normals.resize_for_overwrite(numNormals);
         tbb::parallel_for(std::size_t{0}, numNormals, [&](std::size_t index) {
             auto const offset = index * 3;
-            normals_[index] = Vec3f{
+            data.normals[index] = Vec3f{
                 result.attributes.normals[offset],
                 result.attributes.normals[offset + 1],
                 result.attributes.normals[offset + 2],
             };
         });
         release(result.attributes.normals);
-    } else {
-        generateVertexNormals(getVertices(), getTriangles(), normals_);
     }
 
     if (hasCompleteTexCoords) {
-        texCoords_.resize_for_overwrite(numTexCoords);
+        data.texCoords.resize_for_overwrite(numTexCoords);
         tbb::parallel_for(std::size_t{0}, numTexCoords, [&](std::size_t index) {
             auto const offset = index * 2;
-            texCoords_[index] = Vec2f{
+            data.texCoords[index] = Vec2f{
                 result.attributes.texcoords[offset],
                 result.attributes.texcoords[offset + 1],
             };
         });
         release(result.attributes.texcoords);
     }
+    return data;
 }
 
-void TriangleMesh::loadPly(std::filesystem::path const &path) {
+TriangleMesh::Data loadPly(std::filesystem::path const &path) {
+    TriangleMesh::Data data;
     static_assert(sizeof(Vec2f) == 2 * sizeof(float));
     static_assert(sizeof(Vec3f) == 3 * sizeof(float));
     static_assert(sizeof(Vec3u) == 3 * sizeof(std::uint32_t));
@@ -413,9 +488,9 @@ void TriangleMesh::loadPly(std::filesystem::path const &path) {
             throw kira::Anyhow("TriangleMesh: PLY '{}' has too many polygon indices", pathString);
 
         if (!needsTriangulation) {
-            triangles_.resize_for_overwrite(static_cast<std::size_t>(numTriangles));
+            data.triangles.resize_for_overwrite(static_cast<std::size_t>(numTriangles));
             if (!reader.extract_list_property(
-                    faceProperty, miniply::PLYPropertyType::UInt, triangles_.front().data()
+                    faceProperty, miniply::PLYPropertyType::UInt, data.triangles.front().data()
                 ))
                 throw kira::Anyhow("TriangleMesh: failed to read faces from PLY '{}'", pathString);
             return;
@@ -430,7 +505,7 @@ void TriangleMesh::loadPly(std::filesystem::path const &path) {
                 "TriangleMesh: failed to read vertex indices from PLY '{}'", pathString
             );
         if (!std::ranges::all_of(polygonIndices, [&](std::uint32_t index) {
-            return index < getVertices().size();
+            return index < data.vertices.size();
         }))
             throw kira::Anyhow(
                 "TriangleMesh: PLY '{}' contains an invalid vertex index", pathString
@@ -438,11 +513,11 @@ void TriangleMesh::loadPly(std::filesystem::path const &path) {
 
         std::array<std::vector<std::array<float, 2>>, 1> projectedPolygon;
         std::size_t sourceOffset = 0;
-        triangles_.reserve(static_cast<std::size_t>(numTriangles));
+        data.triangles.reserve(static_cast<std::size_t>(numTriangles));
         for (std::uint32_t face = 0; face < reader.num_rows(); ++face) {
             auto const count = counts[face];
             if (count == 3) {
-                triangles_.push_back(
+                data.triangles.push_back(
                     Vec3u{
                         polygonIndices[sourceOffset],
                         polygonIndices[sourceOffset + 1],
@@ -452,9 +527,9 @@ void TriangleMesh::loadPly(std::filesystem::path const &path) {
             } else {
                 Vec3f polygonNormal{};
                 for (std::uint32_t corner = 0; corner < count; ++corner) {
-                    auto const &current = vertices_[polygonIndices[sourceOffset + corner]];
+                    auto const &current = data.vertices[polygonIndices[sourceOffset + corner]];
                     auto const &next =
-                        vertices_[polygonIndices[sourceOffset + (corner + 1) % count]];
+                        data.vertices[polygonIndices[sourceOffset + (corner + 1) % count]];
                     polygonNormal.x() += (current.y() - next.y()) * (current.z() + next.z());
                     polygonNormal.y() += (current.z() - next.z()) * (current.x() + next.x());
                     polygonNormal.z() += (current.x() - next.x()) * (current.y() + next.y());
@@ -478,7 +553,7 @@ void TriangleMesh::loadPly(std::filesystem::path const &path) {
                 polygon.clear();
                 polygon.reserve(count);
                 for (std::uint32_t corner = 0; corner < count; ++corner) {
-                    auto const &position = vertices_[polygonIndices[sourceOffset + corner]];
+                    auto const &position = data.vertices[polygonIndices[sourceOffset + corner]];
                     if (projectionAxis == 0)
                         polygon.push_back({position.y(), position.z()});
                     else if (projectionAxis == 1)
@@ -503,13 +578,13 @@ void TriangleMesh::loadPly(std::filesystem::path const &path) {
                             pathString
                         );
 
-                    auto const &position0 = vertices_[polygonIndices[sourceOffset + index0]];
-                    auto const &position1 = vertices_[polygonIndices[sourceOffset + index1]];
-                    auto const &position2 = vertices_[polygonIndices[sourceOffset + index2]];
+                    auto const &position0 = data.vertices[polygonIndices[sourceOffset + index0]];
+                    auto const &position1 = data.vertices[polygonIndices[sourceOffset + index1]];
+                    auto const &position2 = data.vertices[polygonIndices[sourceOffset + index2]];
                     if (cross(position1 - position0, position2 - position0).dot(polygonNormal) <
                         0.0F)
                         std::swap(index1, index2);
-                    triangles_.push_back(
+                    data.triangles.push_back(
                         Vec3u{
                             polygonIndices[sourceOffset + index0],
                             polygonIndices[sourceOffset + index1],
@@ -578,23 +653,23 @@ void TriangleMesh::loadPly(std::filesystem::path const &path) {
             if (numVertices == std::numeric_limits<std::uint32_t>::max())
                 throw kira::Anyhow("TriangleMesh: PLY '{}' has too many vertices", pathString);
 
-            vertices_.resize_for_overwrite(static_cast<std::size_t>(numVertices) + 1);
+            data.vertices.reserve(static_cast<std::size_t>(numVertices) + 1);
+            data.vertices.resize_for_overwrite(numVertices);
             if (!reader.extract_properties_with_stride(
                     positionProperties.data(),
                     static_cast<std::uint32_t>(positionProperties.size()),
-                    miniply::PLYPropertyType::Float, vertices_.front().data(), sizeof(Vec3f)
+                    miniply::PLYPropertyType::Float, data.vertices.front().data(), sizeof(Vec3f)
                 ))
                 throw kira::Anyhow(
                     "TriangleMesh: failed to read vertices from PLY '{}'", pathString
                 );
-            vertices_[numVertices] = Vec3f{};
 
             if (hasNormals) {
-                normals_.resize_for_overwrite(numVertices);
+                data.normals.resize_for_overwrite(numVertices);
                 if (!reader.extract_properties_with_stride(
                         normalProperties.data(),
                         static_cast<std::uint32_t>(normalProperties.size()),
-                        miniply::PLYPropertyType::Float, normals_.front().data(), sizeof(Vec3f)
+                        miniply::PLYPropertyType::Float, data.normals.front().data(), sizeof(Vec3f)
                     ))
                     throw kira::Anyhow(
                         "TriangleMesh: failed to read normals from PLY '{}'", pathString
@@ -608,11 +683,12 @@ void TriangleMesh::loadPly(std::filesystem::path const &path) {
             }
 
             if (hasTexCoords) {
-                texCoords_.resize_for_overwrite(numVertices);
+                data.texCoords.resize_for_overwrite(numVertices);
                 if (!reader.extract_properties_with_stride(
                         texCoordProperties.data(),
                         static_cast<std::uint32_t>(texCoordProperties.size()),
-                        miniply::PLYPropertyType::Float, texCoords_.front().data(), sizeof(Vec2f)
+                        miniply::PLYPropertyType::Float, data.texCoords.front().data(),
+                        sizeof(Vec2f)
                     ))
                     throw kira::Anyhow(
                         "TriangleMesh: failed to read texture coordinates from PLY '{}'", pathString
@@ -651,13 +727,10 @@ void TriangleMesh::loadPly(std::filesystem::path const &path) {
 
     if (!hasTriangles)
         throw kira::Anyhow("TriangleMesh: PLY '{}' contains no triangles", pathString);
-    if (!std::ranges::all_of(triangles_, [&](Vec3u const &triangle) {
-        return triangle[0u] < getVertices().size() && triangle[1u] < getVertices().size() &&
-               triangle[2u] < getVertices().size();
-    }))
-        throw kira::Anyhow("TriangleMesh: PLY '{}' contains an invalid vertex index", pathString);
 
-    if (normals_.empty())
-        generateVertexNormals(getVertices(), getTriangles(), normals_);
+    // A face element of triangles is read without inspecting its indices.
+    TriangleMesh::checkIndices(data);
+    return data;
 }
+} // namespace
 } // namespace flux

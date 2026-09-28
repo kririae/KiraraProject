@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -249,6 +250,145 @@ TEST(GeometryTests, RejectsInvalidPlyVertexIndex) {
         (void)context->create<flux::TriangleMesh>(triangleProperties("InvalidIndex.ply")),
         kira::Anyhow
     );
+}
+
+TEST(GeometryTests, BuildsAMeshFromHostArrays) {
+    auto context = flux::Context::create();
+    auto mesh = context->create<flux::TriangleMesh>(flux::TriangleMesh::Data{
+        .vertices =
+            {flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{2.0F, 0.0F, 0.0F},
+             flux::Vec3f{0.0F, 2.0F, 0.0F}},
+        .triangles = {flux::Vec3u{0, 1, 2}},
+        .texCoords = {flux::Vec2f{0.0F, 0.0F}, flux::Vec2f{1.0F, 0.0F}, flux::Vec2f{0.0F, 1.0F}},
+    });
+
+    ASSERT_EQ(mesh->getVertices().size(), 3);
+    ASSERT_EQ(mesh->getTriangles().size(), 1);
+    EXPECT_EQ(mesh->getSurfaceArea(), 2.0F);
+    ASSERT_EQ(mesh->getTexCoords().size(), 3);
+    EXPECT_TRUE(mesh->getTexCoordIndices().empty());
+
+    // Absent normals are generated, as they are for a file.
+    ASSERT_EQ(mesh->getNormals().size(), 3);
+    for (auto const &normal : mesh->getNormals())
+        EXPECT_EQ(normal, (flux::Vec3f{0.0F, 0.0F, 1.0F}));
+}
+
+TEST(GeometryTests, KeepsIndependentAttributeIndicesFromHostArrays) {
+    auto context = flux::Context::create();
+    auto mesh = context->create<flux::TriangleMesh>(flux::TriangleMesh::Data{
+        .vertices =
+            {flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F},
+             flux::Vec3f{0.0F, 1.0F, 0.0F}},
+        .triangles = {flux::Vec3u{0, 1, 2}},
+        .normals = {flux::Vec3f{0.0F, 0.0F, 1.0F}},
+        .normalIndices = {flux::Vec3u{0, 0, 0}},
+    });
+
+    ASSERT_EQ(mesh->getNormals().size(), 1);
+    ASSERT_EQ(mesh->getNormalIndices().size(), 1);
+    EXPECT_EQ(mesh->getNormalIndices()[0], (flux::Vec3u{0, 0, 0}));
+}
+
+TEST(GeometryTests, RejectsHostArraysThatAddressMissingElements) {
+    auto const triangle = [] {
+        return flux::TriangleMesh::Data{
+            .vertices =
+                {flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F},
+                 flux::Vec3f{0.0F, 1.0F, 0.0F}},
+            .triangles = {flux::Vec3u{0, 1, 2}},
+        };
+    };
+    auto const normal = flux::Vec3f{0.0F, 0.0F, 1.0F};
+
+    EXPECT_NO_THROW(flux::TriangleMesh::checkIndices(triangle()));
+
+    // A vertex index of its own count is one past the end.
+    auto outOfRange = triangle();
+    outOfRange.triangles[0] = flux::Vec3u{0, 1, 3};
+    EXPECT_THROW(flux::TriangleMesh::checkIndices(outOfRange), kira::Anyhow);
+
+    auto emptyVertices = triangle();
+    emptyVertices.vertices = {};
+    EXPECT_THROW(flux::TriangleMesh::checkIndices(emptyVertices), kira::Anyhow);
+
+    // Indices that address no attribute array at all.
+    auto orphanedNormalIndices = triangle();
+    orphanedNormalIndices.normalIndices = {flux::Vec3u{0, 0, 0}};
+    EXPECT_THROW(flux::TriangleMesh::checkIndices(orphanedNormalIndices), kira::Anyhow);
+
+    auto orphanedTexCoordIndices = triangle();
+    orphanedTexCoordIndices.texCoordIndices = {flux::Vec3u{0, 0, 0}};
+    EXPECT_THROW(flux::TriangleMesh::checkIndices(orphanedTexCoordIndices), kira::Anyhow);
+
+    auto shortNormalIndices = triangle();
+    shortNormalIndices.normals = {normal};
+    shortNormalIndices.normalIndices = {flux::Vec3u{0, 0, 0}, flux::Vec3u{0, 0, 0}};
+    EXPECT_THROW(flux::TriangleMesh::checkIndices(shortNormalIndices), kira::Anyhow);
+
+    auto normalIndexOutOfRange = triangle();
+    normalIndexOutOfRange.normals = {normal};
+    normalIndexOutOfRange.normalIndices = {flux::Vec3u{0, 1, 0}};
+    EXPECT_THROW(flux::TriangleMesh::checkIndices(normalIndexOutOfRange), kira::Anyhow);
+
+    // Aliased attributes are addressed by the triangles, so they need one entry
+    // per addressed vertex.
+    auto aliasedNormals = triangle();
+    aliasedNormals.normals = {normal, normal};
+    EXPECT_THROW(flux::TriangleMesh::checkIndices(aliasedNormals), kira::Anyhow);
+
+    auto aliasedTexCoords = triangle();
+    aliasedTexCoords.texCoords = {flux::Vec2f{0.0F, 0.0F}};
+    EXPECT_THROW(flux::TriangleMesh::checkIndices(aliasedTexCoords), kira::Anyhow);
+
+    auto mismatchedTexCoordIndices = triangle();
+    mismatchedTexCoordIndices.texCoords = {flux::Vec2f{0.0F, 0.0F}};
+    mismatchedTexCoordIndices.texCoordIndices = {flux::Vec3u{0, 0, 0}, flux::Vec3u{0, 0, 0}};
+    EXPECT_THROW(flux::TriangleMesh::checkIndices(mismatchedTexCoordIndices), kira::Anyhow);
+}
+
+TEST(GeometryTests, FindsAnOutOfRangeIndexInAnyChunk) {
+    // One triangle per chunk would never exercise the reduction's combine step.
+    auto constexpr numTriangles = 200000u;
+    flux::TriangleMesh::Data data;
+    data.vertices.resize_for_overwrite(numTriangles + 2);
+    for (auto vertex = 0u; vertex < data.vertices.size(); ++vertex)
+        data.vertices[vertex] = flux::Vec3f{static_cast<float>(vertex), 0.0F, 0.0F};
+    data.triangles.resize_for_overwrite(numTriangles);
+    for (auto triangle = 0u; triangle < numTriangles; ++triangle)
+        data.triangles[triangle] = flux::Vec3u{triangle, triangle + 1, triangle + 2};
+    ASSERT_NO_THROW(flux::TriangleMesh::checkIndices(data));
+
+    for (auto const position : {0u, numTriangles / 2, numTriangles - 1}) {
+        auto bad = data;
+        bad.triangles[position] = flux::Vec3u{0, 1, numTriangles + 2};
+        EXPECT_THROW(flux::TriangleMesh::checkIndices(bad), kira::Anyhow) << "at " << position;
+    }
+}
+
+TEST(GeometryTests, BuildsTheSameMeshFromHostArraysAsFromAFile) {
+    auto context = flux::Context::create();
+    auto file = context->create<flux::TriangleMesh>(triangleProperties("IndexedTriangle.obj"));
+    auto hostArrays = context->create<flux::TriangleMesh>(flux::TriangleMesh::Data{
+        .vertices =
+            {flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F},
+             flux::Vec3f{0.0F, 1.0F, 0.0F}},
+        .triangles = {flux::Vec3u{0, 1, 2}},
+        .normals =
+            {flux::Vec3f{1.0F, 0.0F, 0.0F}, flux::Vec3f{0.0F, 1.0F, 0.0F},
+             flux::Vec3f{0.0F, 0.0F, 1.0F}},
+        .normalIndices = {flux::Vec3u{1, 2, 0}},
+        .texCoords = {flux::Vec2f{0.1F, 0.2F}, flux::Vec2f{0.3F, 0.4F}, flux::Vec2f{0.5F, 0.6F}},
+        .texCoordIndices = {flux::Vec3u{2, 0, 1}},
+    });
+
+    EXPECT_EQ(hostArrays->getSurfaceArea(), file->getSurfaceArea());
+    EXPECT_TRUE(std::ranges::equal(hostArrays->getVertices(), file->getVertices()));
+    EXPECT_TRUE(std::ranges::equal(hostArrays->getTriangles(), file->getTriangles()));
+    EXPECT_TRUE(std::ranges::equal(hostArrays->getNormals(), file->getNormals()));
+    EXPECT_TRUE(std::ranges::equal(hostArrays->getNormalIndices(), file->getNormalIndices()));
+    EXPECT_TRUE(std::ranges::equal(hostArrays->getTexCoords(), file->getTexCoords()));
+    EXPECT_TRUE(std::ranges::equal(hostArrays->getTexCoordIndices(), file->getTexCoordIndices()));
 }
 
 TEST(GeometryTests, RejectsTruncatedPlyFace) {
