@@ -2,6 +2,7 @@
 
 #include <optix_stubs.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -77,7 +78,10 @@ struct OptixContext::Storage : private CudaStreamMixin {
         geometryPool.releaseHostStaging();
         LogDebug(
             "OptixContext: built {} geometries and {} visible primitives",
-            table.objects.meshes.size(), table.primitives.size()
+            std::ranges::count_if(
+                table.objects.meshes, [](auto const &mesh) { return static_cast<bool>(mesh); }
+            ),
+            table.primitives.size()
         );
     } catch (...) {
         cudaCheck<false>(cudaStreamSynchronize(getStream()));

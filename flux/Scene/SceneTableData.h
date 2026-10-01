@@ -24,7 +24,8 @@ struct SceneTableData final : private Noncopyable {
         /// Visible primitives in dense primitive order.
         kira::SmallVector<Ref<Primitive const>> primitives;
 
-        /// Unique meshes in dense geometry order.
+        /// Meshes indexed by the indices assigned by Context, or null when no
+        /// visible primitive references the index.
         kira::SmallVector<Ref<TriangleMesh const>> meshes;
     } objects;
 

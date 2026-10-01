@@ -3,6 +3,7 @@
 #include <optix_types.h>
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -25,20 +26,22 @@ public:
     /// \brief Builds the resident triangle meshes.
     ///
     /// Meshes omitted from \p meshes are released.
-    /// \param meshes Host meshes to upload in device-table order.
+    /// \param meshes Host meshes to upload at their geometry indices. A null
+    ///        mesh is a hole, which gets no device storage.
     /// \throw kira::Anyhow If CUDA cannot enqueue an allocation or copy.
     void build(std::span<Ref<TriangleMesh const> const> meshes);
 
     /// \brief Creates build inputs backed by the current resident storage.
     ///
-    /// The returned inputs remain valid until the next call to \c build.
-    [[nodiscard]] std::vector<OptixBuildInput> getBuildInputs() const;
+    /// The result is indexed like \c build's \c meshes, and a hole has no input.
+    /// The inputs remain valid until the next call to \c build.
+    [[nodiscard]] std::vector<std::optional<OptixBuildInput>> getBuildInputs() const;
 
     /// \brief Releases host arrays after their queued copies complete.
     /// \pre The build stream has completed.
     void releaseHostStaging() noexcept;
 
-    /// \brief Returns the number of resident meshes.
+    /// \brief Returns the number of geometry indices, holes included.
     [[nodiscard]] std::size_t size() const noexcept { return entries_.size(); }
 
     ///
@@ -47,6 +50,7 @@ public:
     }
 
 private:
+    /// Device storage of one geometry index. A hole has empty buffers.
     struct Entry {
         explicit Entry(cudaStream_t stream)
             : vertices(stream), triangles(stream), normals(stream), normalIndices(stream),
@@ -68,6 +72,7 @@ private:
     };
 
     std::vector<Entry> entries_;
+    /// Host copy of the device Impls. A hole holds a default Impl.
     std::vector<Geometry::Impl> staging_;
     DeviceBuffer<Geometry::Impl> deviceImpls_{getStream()};
 };

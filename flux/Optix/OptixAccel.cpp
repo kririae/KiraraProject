@@ -21,7 +21,7 @@ getDeviceLimit(OptixDeviceContext context, OptixDeviceProperty property) {
 } // namespace
 
 void OptixAccel::buildGas(
-    OptixDeviceContext deviceContext, std::span<OptixBuildInput const> inputs
+    OptixDeviceContext deviceContext, std::span<std::optional<OptixBuildInput> const> inputs
 ) {
     instances_.clear();
     ias_.clear();
@@ -38,9 +38,11 @@ void OptixAccel::buildGas(
     auto const maxPrimitives =
         getDeviceLimit(deviceContext, OPTIX_DEVICE_PROPERTY_LIMIT_MAX_PRIMITIVES_PER_GAS);
     for (auto const &input : inputs) {
-        if (input.type != OPTIX_BUILD_INPUT_TYPE_TRIANGLES)
+        if (!input)
+            continue;
+        if (input->type != OPTIX_BUILD_INPUT_TYPE_TRIANGLES)
             throw kira::Anyhow("OptixAccel: only triangle build inputs are supported");
-        if (input.triangleArray.numIndexTriplets > maxPrimitives)
+        if (input->triangleArray.numIndexTriplets > maxPrimitives)
             throw kira::Anyhow("OptixAccel: triangle count exceeds the device limit");
     }
 
@@ -56,13 +58,17 @@ void OptixAccel::buildGas(
     pending.reserve(inputs.size());
     gasEntries_.reserve(inputs.size());
     for (std::size_t index = 0; index < inputs.size(); ++index) {
-        auto const &input = inputs[index];
+        // Keep a hole at its index with no GAS.
+        auto &gas = pending.emplace_back(getStream());
+        if (!inputs[index])
+            continue;
+
+        auto const &input = *inputs[index];
         OptixAccelBufferSizes sizes{};
         optixCheck(optixAccelComputeMemoryUsage(deviceContext, &options, &input, 1, &sizes));
 
         DeviceBuffer<std::byte> temporary(getStream());
         temporary.resize(sizes.tempSizeInBytes);
-        auto &gas = pending.emplace_back(getStream());
         gas.storage.resize(sizes.outputSizeInBytes);
 
         OptixAccelEmitDesc const compactedSize{
@@ -94,6 +100,9 @@ void OptixAccel::buildGas(
     for (std::size_t index = 0; index < pending.size(); ++index) {
         auto &gas = pending[index];
         auto &entry = gasEntries_.emplace_back(getStream());
+        if (!inputs[index])
+            continue;
+
         if (compactedBytes[index] > 0 && compactedBytes[index] < gas.storage.size()) {
             entry.storage.resize(static_cast<std::size_t>(compactedBytes[index]));
             optixCheck(optixAccelCompact(
@@ -131,7 +140,8 @@ void OptixAccel::buildIas(
     instanceStaging_.reserve(instances.size());
     for (std::size_t index = 0; index < instances.size(); ++index) {
         auto const &description = instances[index];
-        if (description.geometryIndex >= gasEntries_.size())
+        if (description.geometryIndex >= gasEntries_.size() ||
+            !gasEntries_[description.geometryIndex].handle)
             throw kira::Anyhow("OptixAccel: instance references an unknown geometry");
         if (description.sbtOffset > maxSbtOffset)
             throw kira::Anyhow("OptixAccel: instance SBT offset exceeds the device limit");

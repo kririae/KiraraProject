@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <type_traits>
 
 #include "flux/Core/Math.h"
@@ -79,8 +80,15 @@ protected:
 public:
     struct Impl;
 
+    /// Kind whose index map holds geometries.
+    static constexpr IndexedKind indexedKind = IndexedKind::Geometry;
+
     /// \brief Returns the concrete geometry type.
     [[nodiscard]] GeometryType getType() const noexcept { return type_; }
+
+    [[nodiscard]] std::optional<IndexedKind> getIndexedKind() const noexcept override {
+        return indexedKind;
+    }
 
     /// \brief Returns the geometry-space surface area.
     [[nodiscard]] virtual float getSurfaceArea() const noexcept = 0;

@@ -94,10 +94,12 @@ private:
     /// Current top-level instance scene.
     RTCScene scene_{};
 
-    /// One entry per unique mesh, indexed by dense geometry index.
+    /// Entries indexed by the geometry indices assigned by Context. An index that
+    /// no visible primitive references keeps a default entry without a scene.
     std::vector<GeometryEntry> geometries_;
 
-    /// Geometry-space views of the entry arrays, indexed like \c geometries_.
+    /// Geometry-space views of the entry arrays, indexed like \c geometries_. An
+    /// unreferenced index holds a default value.
     std::vector<Geometry::Impl> geometryImpls_;
 
     /// World-space normal transforms indexed by dense primitive index.

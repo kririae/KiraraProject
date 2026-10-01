@@ -5,6 +5,7 @@
 
 #include "TestUtils.h"
 #include "flux/Scene/Context.h"
+#include "flux/Scene/Geometry.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/SceneTableData.h"
 #include "flux/Scene/TriangleMesh.h"
@@ -126,8 +127,30 @@ TEST(SceneTableTests, ExcludesAMeshThatNoVisiblePrimitiveUses) {
     auto table = flux::SceneTableData{};
     table.build(*context);
 
-    ASSERT_EQ(table.objects.meshes.size(), 1);
+    ASSERT_EQ(table.objects.meshes.size(), 2);
     EXPECT_EQ(table.objects.meshes[0], visibleMesh);
+    EXPECT_FALSE(table.objects.meshes[1]);
+}
+
+TEST(SceneTableTests, TakesGeometryIndicesFromTheContextAndLeavesHoles) {
+    auto context = flux::Context::create();
+    auto const unused = context->create<flux::TriangleMesh>(triangle());
+    auto const used = context->create<flux::TriangleMesh>(triangle());
+    (void)makePrimitive(*context, used);
+
+    auto table = flux::SceneTableData{};
+    table.build(*context);
+
+    // The unreferenced mesh keeps its index as a hole.
+    auto const unusedIndex = context->getIndex<flux::Geometry>(unused->getContextId());
+    auto const usedIndex = context->getIndex<flux::Geometry>(used->getContextId());
+    ASSERT_EQ(table.objects.meshes.size(), context->getIndexLimit<flux::Geometry>());
+    ASSERT_EQ(table.objects.meshes.size(), 2);
+    EXPECT_FALSE(table.objects.meshes[unusedIndex]);
+    EXPECT_EQ(table.objects.meshes[usedIndex], used);
+    ASSERT_EQ(table.primitives.size(), 1);
+    EXPECT_EQ(table.primitives[0].geometryIndex, usedIndex);
+    EXPECT_EQ(usedIndex, 1);
 }
 
 TEST(SceneTableTests, CopiesEveryBsdfAndEdfTheContextHolds) {

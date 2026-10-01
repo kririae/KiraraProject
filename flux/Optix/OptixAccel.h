@@ -5,6 +5,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -22,7 +23,7 @@ public:
     /// The descriptor's position in the input array becomes its OptiX
     /// instance ID.
     struct InstanceDesc {
-        /// Dense index of the referenced GAS.
+        /// Index of the referenced GAS, which must not be a hole.
         std::uint32_t geometryIndex{};
 
         /// Base hitgroup record selected for this instance.
@@ -36,19 +37,23 @@ public:
 
     explicit OptixAccel(cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
 
-    /// \brief Rebuilds and compacts one GAS for every element of \p inputs.
+    /// \brief Rebuilds and compacts one GAS for every input of \p inputs.
     ///
-    /// Existing GAS and IAS storage is released before rebuilding.
+    /// Existing GAS and IAS storage is released before rebuilding. The GAS of
+    /// input \c i is the one that an instance with geometry index \c i references.
     /// \param deviceContext OptiX context used for the build.
-    /// \param inputs Triangle build inputs whose device storage remains alive.
+    /// \param inputs Triangle build inputs whose device storage remains alive. An
+    ///        empty entry is a hole, which gets no GAS.
     /// \throw kira::Anyhow If OptiX or CUDA setup fails.
-    void buildGas(OptixDeviceContext deviceContext, std::span<OptixBuildInput const> inputs);
+    void buildGas(
+        OptixDeviceContext deviceContext, std::span<std::optional<OptixBuildInput> const> inputs
+    );
 
     /// \brief Rebuilds the IAS from \p instances.
     ///
     /// \param deviceContext OptiX context used for the build.
     /// \param instances Complete visible primitive list in device-table order.
-    /// \throw kira::Anyhow If an index is invalid or OptiX setup fails.
+    /// \throw kira::Anyhow If an index is invalid or a hole, or OptiX setup fails.
     void buildIas(OptixDeviceContext deviceContext, std::span<InstanceDesc const> instances);
 
     /// \brief Returns the current IAS handle, or zero when empty.
@@ -60,6 +65,7 @@ public:
     [[nodiscard]] float getSceneRadius() const noexcept;
 
 private:
+    /// GAS of one geometry index. A hole has a zero handle.
     struct GasEntry {
         explicit GasEntry(cudaStream_t stream) noexcept : storage(stream) {}
 

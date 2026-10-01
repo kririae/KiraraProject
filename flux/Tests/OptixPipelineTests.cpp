@@ -11,12 +11,37 @@
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/EnvMapLight.h"
+#include "flux/Scene/Geometry.h"
+#include "flux/Scene/Light.h"
+#include "flux/Scene/Primitive.h"
 #include "flux/Scene/RenderProduct.h"
+#include "flux/Scene/TriangleMesh.h"
+#include "flux/Shading/BSDF.h"
 #include "kira/Anyhow.h"
 
 #ifndef FLUX_TEST_OPTIX_IR
 #error "FLUX_TEST_OPTIX_IR must name the test OptiX IR module"
 #endif
+
+namespace {
+[[nodiscard]] kira::Properties
+primitiveProperties(flux::TriangleMesh const &mesh, flux::BSDF const &bsdf) {
+    kira::Properties properties;
+    properties.set("geometry_ctx_id", static_cast<std::int64_t>(mesh.getContextId()));
+    properties.set("bsdf_ctx_id", static_cast<std::int64_t>(bsdf.getContextId()));
+    return properties;
+}
+
+[[nodiscard]] flux::TriangleMesh::Data triangleData() {
+    return {
+        .vertices = flux::test::sharedBuffer(
+            flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F},
+            flux::Vec3f{0.0F, 1.0F, 0.0F}
+        ),
+        .triangles = flux::test::sharedBuffer(flux::Vec3u{0, 1, 2}),
+    };
+}
+} // namespace
 
 TEST(OptixPipelineTests, UsesAStableProgramTypeSbtLayout) {
     EXPECT_EQ(
@@ -258,4 +283,50 @@ TEST(OptixPipelineTests, TracksAccumulationAcrossFilmAndSampleTargetChanges) {
     handler.render(*product, 9);
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 9);
     EXPECT_TRUE(handler.isConverged(*product));
+}
+
+TEST(OptixPipelineTests, RendersAMeshWhoseIndexFollowsAnUnreferencedMesh) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    // Light a triangle with a point light and return the center pixel.
+    auto const render = [&](bool withUnusedMesh) {
+        auto context = flux::Context::create();
+        (void)context->create<flux::PathIntegrator>(kira::Properties{});
+        (void)context->create<flux::IndependentSampler>(kira::Properties{});
+
+        // Create a mesh first that no primitive references, so the visible mesh has index 1.
+        if (withUnusedMesh)
+            (void)context->create<flux::TriangleMesh>(triangleData());
+        auto mesh = context->create<flux::TriangleMesh>(triangleData());
+        auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
+        (void)context->create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
+        EXPECT_EQ(context->getIndex<flux::Geometry>(mesh->getContextId()), withUnusedMesh ? 1 : 0);
+
+        kira::Properties lightProperties;
+        lightProperties.set("position", flux::Vec3f{0.75F, 0.25F, 1.0F});
+        lightProperties.set("intensity", flux::Spectrum{1.0F, 1.0F, 1.0F});
+        (void)context->create<flux::PointLight>(lightProperties);
+
+        kira::Properties cameraProperties;
+        cameraProperties.set("position", flux::Vec3f{0.25F, 0.25F, 1.0F});
+        cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.0F});
+        cameraProperties.set("fov", 1.0F);
+        auto camera = flux::Camera::create(cameraProperties);
+        kira::Properties productProperties;
+        productProperties.set("resolution", flux::Vec2u{1, 1});
+        productProperties.set("num_samples", std::uint32_t{4});
+        auto product = flux::RenderProduct::create(camera, productProperties);
+        product->getFilm().setChannels(flux::FilmChannels::Color);
+
+        flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
+        handler.render(*product, 4);
+        handler.download(*product);
+        return product->getFilm().getChannel<flux::ColorChannel>()[0];
+    };
+
+    auto const expected = render(false);
+    auto const actual = render(true);
+    EXPECT_GT(expected.x(), 0.0F);
+    EXPECT_EQ(actual, expected);
 }

@@ -21,6 +21,14 @@ void OptixGeometryPool::build(std::span<Ref<TriangleMesh const> const> meshes) {
 
     for (auto index = std::size_t{}; index < meshes.size(); ++index) {
         auto const &mesh = meshes[index];
+
+        // Leave a hole without device storage.
+        if (!mesh) {
+            entries_.emplace_back(getStream());
+            staging_.emplace_back();
+            continue;
+        }
+
         auto const hostImpl = mesh->getImpl();
         auto const vertices = mesh->getVertices();
         auto const triangles = mesh->getTriangles();
@@ -85,11 +93,17 @@ void OptixGeometryPool::build(std::span<Ref<TriangleMesh const> const> meshes) {
     deviceImpls_.copyFromHost({staging_.data(), staging_.size()});
 }
 
-std::vector<OptixBuildInput> OptixGeometryPool::getBuildInputs() const {
-    std::vector<OptixBuildInput> inputs;
+std::vector<std::optional<OptixBuildInput>> OptixGeometryPool::getBuildInputs() const {
+    std::vector<std::optional<OptixBuildInput>> inputs;
     inputs.reserve(entries_.size());
 
     for (auto const &entry : entries_) {
+        // A mesh always has triangles, so empty storage marks a hole.
+        if (entry.triangles.empty()) {
+            inputs.emplace_back();
+            continue;
+        }
+
         OptixBuildInput input{
             .type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES,
             .triangleArray = {},
@@ -104,7 +118,7 @@ std::vector<OptixBuildInput> OptixGeometryPool::getBuildInputs() const {
         input.triangleArray.indexStrideInBytes = sizeof(Vec3u);
         input.triangleArray.flags = &entry.flags;
         input.triangleArray.numSbtRecords = 1;
-        inputs.push_back(input);
+        inputs.emplace_back(input);
     }
     return inputs;
 }

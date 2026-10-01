@@ -156,6 +156,7 @@ enum class IndexedKind : std::uint8_t {
     ImageTexture,
     BSDF,
     EDF,
+    Geometry,
     Count,
 };
 

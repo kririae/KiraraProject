@@ -109,13 +109,17 @@ void EmbreeContext::sync() try {
     table_.build(context_);
     imageTexturePool_.build(context_);
 
-    // Entry arrays are heap allocated, so growing geometries_ leaves the
-    // pointers in geometryImpls_ valid.
-    geometryImpls_.reserve(table_.objects.meshes.size());
-    geometries_.reserve(table_.objects.meshes.size());
-    for (auto const &mesh : table_.objects.meshes) {
+    // Size both arrays once, so no later step moves an entry. Holes keep their
+    // default entry and Impl.
+    geometries_.resize(table_.objects.meshes.size());
+    geometryImpls_.resize(table_.objects.meshes.size());
+    for (std::size_t index = 0; index < geometries_.size(); ++index) {
+        auto const &mesh = table_.objects.meshes[index];
+        if (!mesh)
+            continue;
+
         // Hold the arrays that the child scene and the Impl read.
-        auto &entry = geometries_.emplace_back();
+        auto &entry = geometries_[index];
         entry.data = mesh->getData();
 
         // Build the triangle selection distribution.
@@ -131,7 +135,7 @@ void EmbreeContext::sync() try {
         impl.triangleAreaCDF = entry.areaCDF.data();
         impl.triangleAreaPDF = entry.areaPDF.data();
         impl.surfaceArea = entry.areaCDF.empty() ? impl.surfaceArea : entry.areaCDF.back();
-        geometryImpls_.emplace_back(impl);
+        geometryImpls_[index] = impl;
     }
 
     normalTransforms_.reserve(table_.primitives.size());
@@ -142,6 +146,9 @@ void EmbreeContext::sync() try {
     // immutable, so they favor traversal over build time.
     for (std::size_t index = 0; index < geometries_.size(); ++index) {
         auto &entry = geometries_[index];
+        if (!entry.data.vertices)
+            continue;
+
         RTCScene childScene = rtcNewScene(device_);
         embreeCheck(device_);
         entry.scene = childScene;
@@ -220,7 +227,10 @@ void EmbreeContext::sync() try {
     lightSampler_.build(table_, context_, imageTexturePool_.getImpl(), sceneRadius);
     LogDebug(
         "EmbreeContext: built {} geometries and {} visible primitives",
-        table_.objects.meshes.size(), table_.primitives.size()
+        std::ranges::count_if(
+            table_.objects.meshes, [](auto const &mesh) { return static_cast<bool>(mesh); }
+        ),
+        table_.primitives.size()
     );
 } catch (...) {
     reset();
