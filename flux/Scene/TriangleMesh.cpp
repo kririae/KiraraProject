@@ -222,13 +222,15 @@ void TriangleMesh::checkIndices(Data const &data) {
     checkAttribute(view(data.texCoordIndices), view(data.texCoords).size(), "texture-coordinate");
 }
 
-TriangleMesh::Impl TriangleMesh::getImpl() const noexcept {
-    auto const vertices = getVertices();
-    auto const triangles = getTriangles();
-    auto const normals = getNormals();
-    auto const normalIndices = getNormalIndices();
-    auto const texCoords = getTexCoords();
-    auto const texCoordIndices = getTexCoordIndices();
+TriangleMesh::Impl TriangleMesh::getImpl() const noexcept { return makeImpl(data_, surfaceArea_); }
+
+TriangleMesh::Impl TriangleMesh::makeImpl(Data const &data, float surfaceArea) noexcept {
+    auto const vertices = view(data.vertices);
+    auto const triangles = view(data.triangles);
+    auto const normals = view(data.normals);
+    auto const normalIndices = view(data.normalIndices);
+    auto const texCoords = view(data.texCoords);
+    auto const texCoordIndices = view(data.texCoordIndices);
     return {
         .vertices = vertices.data(),
         .triangles = triangles.data(),
@@ -242,7 +244,7 @@ TriangleMesh::Impl TriangleMesh::getImpl() const noexcept {
                                                                         : texCoordIndices.data()),
         .numVertices = static_cast<std::uint32_t>(vertices.size()),
         .numTriangles = static_cast<std::uint32_t>(triangles.size()),
-        .surfaceArea = surfaceArea_,
+        .surfaceArea = surfaceArea,
     };
 }
 

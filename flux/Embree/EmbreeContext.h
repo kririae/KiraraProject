@@ -27,8 +27,8 @@ class Context;
 
 /// \brief Owns the Embree scene built from one host \c Context.
 ///
-/// The Embree scene shares immutable mesh arrays with the scene tables and owns
-/// its acceleration structures, triangle sampling distributions, and instance
+/// The Embree scene holds the shared mesh arrays it reads and owns its
+/// acceleration structures, triangle sampling distributions, and instance
 /// normal transforms. Call \c sync from one thread. Traversal supports
 /// concurrent calls after sync.
 class EmbreeContext final : private Noncopyable {
@@ -64,9 +64,19 @@ public:
 private:
     struct EmptyState {};
 
-    struct TriangleData {
+    /// \brief Per-geometry state built during sync.
+    struct GeometryEntry {
+        /// Shared arrays that the child scene and the geometry \c Impl read.
+        TriangleMesh::Data data;
+
+        /// Cumulative geometry-space triangle areas.
         kira::SmallVector<float, 0> areaCDF;
+
+        /// Geometry-space area density of each triangle.
         kira::SmallVector<float, 0> areaPDF;
+
+        /// Instanced child scene.
+        RTCScene scene{};
     };
 
     EmbreeContext(EmptyState, Context &context) noexcept;
@@ -84,14 +94,11 @@ private:
     /// Current top-level instance scene.
     RTCScene scene_{};
 
-    /// One instanced child scene per unique mesh.
-    std::vector<RTCScene> meshScenes_;
+    /// One entry per unique mesh, indexed by dense geometry index.
+    std::vector<GeometryEntry> geometries_;
 
-    /// Geometry-space views of the mesh arrays the tables retain.
+    /// Geometry-space views of the entry arrays, indexed like \c geometries_.
     std::vector<Geometry::Impl> geometryImpls_;
-
-    /// Per-triangle data for each geometry.
-    std::vector<TriangleData> triangleData_;
 
     /// World-space normal transforms indexed by dense primitive index.
     std::vector<std::array<float, 9>> normalTransforms_;

@@ -91,11 +91,11 @@ void EmbreeContext::reset() noexcept {
     if (scene_)
         rtcReleaseScene(scene_);
     scene_ = nullptr;
-    for (RTCScene const scene : meshScenes_)
-        rtcReleaseScene(scene);
-    meshScenes_.clear();
+    for (auto const &geometry : geometries_)
+        if (geometry.scene)
+            rtcReleaseScene(geometry.scene);
+    geometries_.clear();
     geometryImpls_.clear();
-    triangleData_.clear();
     table_.clear();
     normalTransforms_.clear();
     imageTexturePool_.clear();
@@ -109,22 +109,28 @@ void EmbreeContext::sync() try {
     table_.build(context_);
     imageTexturePool_.build(context_);
 
-    // Geometry data is heap allocated, so growing triangleData_ leaves these
-    // pointers valid.
+    // Entry arrays are heap allocated, so growing geometries_ leaves the
+    // pointers in geometryImpls_ valid.
     geometryImpls_.reserve(table_.objects.meshes.size());
-    triangleData_.reserve(table_.objects.meshes.size());
+    geometries_.reserve(table_.objects.meshes.size());
     for (auto const &mesh : table_.objects.meshes) {
-        auto impl = mesh->getImpl();
-        auto &data = triangleData_.emplace_back();
-        data.areaCDF.resize_for_overwrite(impl.numTriangles);
-        data.areaPDF.resize_for_overwrite(impl.numTriangles);
+        // Hold the arrays that the child scene and the Impl read.
+        auto &entry = geometries_.emplace_back();
+        entry.data = mesh->getData();
+
+        // Build the triangle selection distribution.
+        auto impl = TriangleMesh::makeImpl(entry.data, mesh->getSurfaceArea());
+        entry.areaCDF.resize_for_overwrite(impl.numTriangles);
+        entry.areaPDF.resize_for_overwrite(impl.numTriangles);
         TriangleMesh::computeSamplingDistribution(
-            impl, {data.areaCDF.data(), data.areaCDF.size()},
-            {data.areaPDF.data(), data.areaPDF.size()}
+            impl, {entry.areaCDF.data(), entry.areaCDF.size()},
+            {entry.areaPDF.data(), entry.areaPDF.size()}
         );
-        impl.triangleAreaCDF = data.areaCDF.data();
-        impl.triangleAreaPDF = data.areaPDF.data();
-        impl.surfaceArea = data.areaCDF.empty() ? impl.surfaceArea : data.areaCDF.back();
+
+        // Publish the Impl with the distribution.
+        impl.triangleAreaCDF = entry.areaCDF.data();
+        impl.triangleAreaPDF = entry.areaPDF.data();
+        impl.surfaceArea = entry.areaCDF.empty() ? impl.surfaceArea : entry.areaCDF.back();
         geometryImpls_.emplace_back(impl);
     }
 
@@ -132,27 +138,26 @@ void EmbreeContext::sync() try {
     for (auto const &transform : table_.transforms)
         normalTransforms_.push_back(makeNormalTransform(transform));
 
-    // Embree borrows the mesh arrays the tables retain until the next sync. The
-    // scenes are immutable, so they favor traversal over build time.
-    meshScenes_.reserve(table_.objects.meshes.size());
-    for (auto const &mesh : table_.objects.meshes) {
+    // Embree borrows the entry arrays until the next sync. The scenes are
+    // immutable, so they favor traversal over build time.
+    for (std::size_t index = 0; index < geometries_.size(); ++index) {
+        auto &entry = geometries_[index];
         RTCScene childScene = rtcNewScene(device_);
         embreeCheck(device_);
-        meshScenes_.push_back(childScene);
+        entry.scene = childScene;
         rtcSetSceneBuildQuality(childScene, RTC_BUILD_QUALITY_HIGH);
         embreeCheck(device_);
 
         EmbreeGeometryHandle geometry(rtcNewGeometry(device_, RTC_GEOMETRY_TYPE_TRIANGLE));
         embreeCheck(device_);
-        auto const vertices = mesh->getVertices();
-        auto const triangles = mesh->getTriangles();
+        auto const &vertices = *entry.data.vertices;
+        auto const &triangles = *entry.data.triangles;
 
         // Embree reads 16 bytes from the last RTC_FORMAT_FLOAT3 vertex.
-        auto const &vertexBuffer = *mesh->getData().vertices;
-        if (vertexBuffer.capacity() <= vertexBuffer.size())
+        if (vertices.capacity() <= vertices.size())
             throw kira::Anyhow(
                 "EmbreeContext: the vertex buffer of mesh {} has no spare capacity",
-                mesh->getContextId()
+                table_.objects.meshes[index]->getContextId()
             );
 
         rtcSetSharedGeometryBuffer(
@@ -183,7 +188,7 @@ void EmbreeContext::sync() try {
         EmbreeGeometryHandle instance(rtcNewGeometry(device_, RTC_GEOMETRY_TYPE_INSTANCE));
         embreeCheck(device_);
         rtcSetGeometryInstancedScene(
-            instance.get(), meshScenes_[table_.primitives[index].getGeometryIndex()]
+            instance.get(), geometries_[table_.primitives[index].getGeometryIndex()].scene
         );
         embreeCheck(device_);
         rtcSetGeometryTransform(

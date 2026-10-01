@@ -111,6 +111,12 @@ public:
     /// \brief Returns an Impl that refers to the host mesh arrays.
     [[nodiscard]] Impl getImpl() const noexcept;
 
+    /// \brief Returns an Impl that refers to the arrays of \p data.
+    ///
+    /// \p surfaceArea is the total geometry-space area of the mesh. The Impl
+    /// holds no handle, so \p data must outlive it.
+    [[nodiscard]] static Impl makeImpl(Data const &data, float surfaceArea) noexcept;
+
     /// \brief Computes the triangle-selection distribution for \p mesh.
     ///
     /// \pre Both output spans contain \c mesh.numTriangles elements.
