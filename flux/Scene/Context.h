@@ -119,6 +119,9 @@ public:
     /// the active integrator, sampler, or environment map, that slot becomes empty. An exception
     /// leaves the context unchanged.
     ///
+    /// \pre No edit to the object runs concurrently. Editing it afterwards is unspecified; the
+    ///      host may still read or release it.
+    ///
     /// \throw std::out_of_range if the ID is unknown.
     /// \throw kira::Anyhow if the object is a dependent.
     void remove(std::size_t contextId);
