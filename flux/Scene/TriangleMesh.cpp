@@ -157,6 +157,10 @@ TriangleMesh::TriangleMesh(TXContext &tx, Data &&data)
         throw kira::Anyhow(
             "TriangleMesh: {} vertices exceed the addressable range", vertices.size()
         );
+    if (getTriangles().size() > std::numeric_limits<std::uint32_t>::max())
+        throw kira::Anyhow(
+            "TriangleMesh: {} triangles exceed the addressable range", getTriangles().size()
+        );
 
     // Generate the normals in a new buffer, which the input data does not share.
     if (!data_.normals) {

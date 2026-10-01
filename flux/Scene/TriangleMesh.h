@@ -132,7 +132,7 @@ private:
     /// \pre Every index in \p data addresses its array, which
     ///      \c checkIndices establishes.
     /// \throw kira::Anyhow If \p data has no vertices or no triangles, or holds
-    ///        more vertices than a mesh can address.
+    ///        more vertices or triangles than a mesh can address.
     TriangleMesh(TXContext &tx, Data &&data);
 
     /// \brief Builds a mesh from the file named by the \c path property.

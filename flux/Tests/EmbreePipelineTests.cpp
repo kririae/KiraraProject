@@ -196,23 +196,30 @@ TEST(EmbreePipelineTests, HoldsTheMeshArraysItReads) {
     auto vertices = flux::test::sharedBuffer(
         flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F}, flux::Vec3f{0.0F, 1.0F, 0.0F}
     );
-    auto triangles = flux::test::sharedBuffer(flux::Vec3u{0, 1, 2});
     auto mesh = context->create<flux::TriangleMesh>(flux::TriangleMesh::Data{
         .vertices = vertices,
-        .triangles = triangles,
+        .triangles = flux::test::sharedBuffer(flux::Vec3u{0, 1, 2}),
+        .texCoords = flux::test::sharedBuffer(
+            flux::Vec2f{0.0F, 0.0F}, flux::Vec2f{1.0F, 0.0F}, flux::Vec2f{0.0F, 1.0F}
+        ),
     });
     auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
     (void)context->create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
 
-    // The test and the mesh hold each array before Embree syncs.
-    auto const vertexCount = vertices.use_count();
-    auto const triangleCount = triangles.use_count();
+    // Count the holders of each array the Impl reads, generated normals included.
+    auto const &data = mesh->getData();
+    auto const counts = std::array{
+        data.vertices.use_count(), data.triangles.use_count(), data.normals.use_count(),
+        data.texCoords.use_count()
+    };
     auto handler = flux::EmbreeHandler(context);
 
-    // Embree adds its own handle to each array it reads. use_count is the only
-    // observable, since the entries are private.
-    EXPECT_EQ(vertices.use_count(), vertexCount + 1);
-    EXPECT_EQ(triangles.use_count(), triangleCount + 1);
+    // Embree holds each array. use_count is the only observable, since the
+    // entries are private.
+    EXPECT_GT(data.vertices.use_count(), counts[0]);
+    EXPECT_GT(data.triangles.use_count(), counts[1]);
+    EXPECT_GT(data.normals.use_count(), counts[2]);
+    EXPECT_GT(data.texCoords.use_count(), counts[3]);
 }
 
 TEST(EmbreePipelineTests, RendersDirectLightIntoColorChannel) {
