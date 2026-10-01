@@ -57,7 +57,7 @@ void OptixImageTexturePool::build(Context const &context) {
     clear();
     arrays_.reserve(textures.size());
     textureObjects_.reserve(textures.size() * 2);
-    staging_.resize(context.getImageTextureIndexLimit());
+    staging_.resize(context.getIndexLimit<ImageTexture>());
     // Keep host pixels alive until the stream synchronization below.
     std::vector<std::vector<ImageAsset::ImageBuffer>> imageBuffers;
     imageBuffers.reserve(textures.size());
@@ -151,7 +151,7 @@ void OptixImageTexturePool::build(Context const &context) {
                 textureObjects_.push_back(pointTexture);
             }
 
-            staging_[context.getImageTextureIndex(texture->getContextId())] = {
+            staging_[context.getIndex<ImageTexture>(texture->getContextId())] = {
                 .texture = textureObject,
                 .pointTexture = pointTexture,
                 .componentMapping = texture->getComponentMapping(),

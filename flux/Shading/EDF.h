@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cuda/std/variant>
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -23,6 +24,13 @@ class EDF : public RenderObject {
 
 public:
     struct Impl;
+
+    /// Kind whose index map holds EDFs.
+    static constexpr IndexedKind indexedKind = IndexedKind::EDF;
+
+    [[nodiscard]] std::optional<IndexedKind> getIndexedKind() const noexcept override {
+        return indexedKind;
+    }
 
     [[nodiscard]] virtual Impl getImpl() const = 0;
     /// \brief Estimates emitted luminance for light selection.

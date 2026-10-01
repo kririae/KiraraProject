@@ -36,7 +36,7 @@ void EmbreeImageTexturePool::build(Context const &context) {
     };
 
     textures_.clear();
-    textures_.resize(context.getImageTextureIndexLimit());
+    textures_.resize(context.getIndexLimit<ImageTexture>());
 
     for (auto const &texture : textures) {
         auto const &asset = texture->getImageAsset();
@@ -85,7 +85,7 @@ void EmbreeImageTexturePool::build(Context const &context) {
             };
         }
 
-        textures_[context.getImageTextureIndex(texture->getContextId())] = {
+        textures_[context.getIndex<ImageTexture>(texture->getContextId())] = {
             .asset = asset,
             .textureSystem = asset->pImpl_->textureSystem.get(),
             .textureHandle = asset->pImpl_->textureHandle,

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <concepts>
 #include <cstddef>
 #include <optional>
@@ -91,24 +92,18 @@ public:
 
     [[nodiscard]] ImageAssetPool &getImageAssetPool() noexcept { return imageAssetPool_; }
 
-    [[nodiscard]] ContextIndexMap::Index getImageTextureIndex(std::size_t contextId) const {
-        return imageTextures_.getIndex(contextId);
-    }
-    [[nodiscard]] ContextIndexMap::Index getBSDFIndex(std::size_t contextId) const {
-        return bsdfs_.getIndex(contextId);
-    }
-    [[nodiscard]] ContextIndexMap::Index getEDFIndex(std::size_t contextId) const {
-        return edfs_.getIndex(contextId);
+    /// \brief Returns the index assigned to \p contextId in the map of \c T's kind.
+    ///
+    /// \throw std::out_of_range If \p contextId is not in that map.
+    template <IsIndexedObject T>
+    [[nodiscard]] ContextIndexMap::Index getIndex(std::size_t contextId) const {
+        return getMap<T>().getIndex(contextId);
     }
 
-    [[nodiscard]] ContextIndexMap::Index getImageTextureIndexLimit() const noexcept {
-        return imageTextures_.getIndexLimit();
-    }
-    [[nodiscard]] ContextIndexMap::Index getBSDFIndexLimit() const noexcept {
-        return bsdfs_.getIndexLimit();
-    }
-    [[nodiscard]] ContextIndexMap::Index getEDFIndexLimit() const noexcept {
-        return edfs_.getIndexLimit();
+    /// \brief Returns one past the largest index ever assigned in the map of \c T's kind.
+    template <IsIndexedObject T>
+    [[nodiscard]] ContextIndexMap::Index getIndexLimit() const noexcept {
+        return getMap<T>().getIndexLimit();
     }
 
     /// \brief Returns the first integrator successfully added to this context.
@@ -130,12 +125,8 @@ public:
     ///
     /// Results are ordered by context ID.
     template <IsContextObject T> [[nodiscard]] kira::SmallVector<Ref<T const>> getObjects() const {
-        if constexpr (std::same_as<T, ImageTexture>)
-            return getIndexedObjects<T>(imageTextures_);
-        if constexpr (std::same_as<T, BSDF>)
-            return getIndexedObjects<T>(bsdfs_);
-        if constexpr (std::same_as<T, EDF>)
-            return getIndexedObjects<T>(edfs_);
+        if constexpr (IsIndexedObject<T>)
+            return getIndexedObjects<T>(getMap<T>());
 
         kira::SmallVector<Ref<T const>> result;
         for (auto const &entry : objects_)
@@ -155,20 +146,26 @@ private:
     [[nodiscard]] std::size_t allocateId() noexcept { return nextId_++; }
     void absorb(TXContext &&tx);
 
+    template <IsIndexedObject T> [[nodiscard]] ContextIndexMap const &getMap() const noexcept {
+        return indices_[static_cast<std::size_t>(T::indexedKind)];
+    }
+
+    /// \brief Returns the objects of \p indices that are a \c T, ordered by ID.
+    ///
+    /// A \c T below the kind's base class selects only part of the map.
     template <IsContextObject T>
     [[nodiscard]] kira::SmallVector<Ref<T const>>
     getIndexedObjects(ContextIndexMap const &indices) const {
         kira::SmallVector<Ref<T const>> result;
         result.reserve(indices.size());
         for (auto const &[contextId, unused] : indices.entries_)
-            result.push_back(get<T>(contextId));
+            if (auto typed = objects_.at(contextId).template dynamicCast<T const>())
+                result.push_back(std::move(typed));
         return result;
     }
 
     std::unordered_map<std::size_t, Ref<ContextObject>> objects_;
-    ContextIndexMap imageTextures_;
-    ContextIndexMap bsdfs_;
-    ContextIndexMap edfs_;
+    std::array<ContextIndexMap, numIndexedKinds> indices_;
     std::optional<std::size_t> activeIntegratorId_;
     std::optional<std::size_t> activeSamplerId_;
     std::optional<std::size_t> activeEnvMapId_;

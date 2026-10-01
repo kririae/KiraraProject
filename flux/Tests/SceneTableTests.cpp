@@ -139,7 +139,7 @@ TEST(SceneTableTests, CopiesEveryBsdfAndEdfTheContextHolds) {
     auto table = flux::SceneTableData{};
     table.build(*context);
 
-    ASSERT_EQ(table.bsdfs.size(), context->getBSDFIndexLimit());
+    ASSERT_EQ(table.bsdfs.size(), context->getIndexLimit<flux::BSDF>());
     ASSERT_FALSE(table.bsdfs.empty());
     for (auto const &bsdf : table.bsdfs)
         EXPECT_NE(bsdf.type, flux::BSDFType::Count);
@@ -162,8 +162,10 @@ TEST(SceneTableTests, ResolvesTheBsdfAndEdfIndicesOfAPrimitive) {
     table.build(*context);
 
     ASSERT_EQ(table.primitives.size(), 2);
-    EXPECT_EQ(table.primitives[0].getBSDFIndex(), context->getBSDFIndex(bsdf->getContextId()));
-    EXPECT_EQ(table.primitives[0].getEDFIndex(), context->getEDFIndex(edf->getContextId()));
+    EXPECT_EQ(
+        table.primitives[0].getBSDFIndex(), context->getIndex<flux::BSDF>(bsdf->getContextId())
+    );
+    EXPECT_EQ(table.primitives[0].getEDFIndex(), context->getIndex<flux::EDF>(edf->getContextId()));
     EXPECT_FALSE(table.primitives[1].hasBSDF());
     EXPECT_FALSE(table.primitives[1].hasEDF());
 }

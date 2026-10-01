@@ -11,6 +11,7 @@
 #include "flux/Scene/TXContext.h"
 #include "flux/Shading/BSDF.h"
 #include "flux/Shading/EDF.h"
+#include "flux/Shading/Texture.h"
 
 namespace {
 class TestRenderObject final : public flux::RenderObject {
@@ -195,8 +196,36 @@ TEST(ContextTests, TracksBSDFAndEDFIndices) {
     auto secondBSDF = context->create<flux::BSDF>(bsdfProps);
     auto edf = context->create<flux::EDF>(kira::Properties{});
 
-    EXPECT_EQ(context->getBSDFIndex(firstBSDF->getContextId()), 0);
-    EXPECT_EQ(context->getBSDFIndex(secondBSDF->getContextId()), 1);
-    EXPECT_EQ(context->getEDFIndex(edf->getContextId()), 0);
-    EXPECT_THROW((void)context->getEDFIndex(firstBSDF->getContextId()), std::out_of_range);
+    EXPECT_EQ(context->getIndex<flux::BSDF>(firstBSDF->getContextId()), 0);
+    EXPECT_EQ(context->getIndex<flux::BSDF>(secondBSDF->getContextId()), 1);
+    EXPECT_EQ(context->getIndex<flux::EDF>(edf->getContextId()), 0);
+    EXPECT_THROW((void)context->getIndex<flux::EDF>(firstBSDF->getContextId()), std::out_of_range);
+}
+
+TEST(ContextTests, ObjectsReportTheirIndexedKind) {
+    static_assert(flux::BSDF::indexedKind == flux::IndexedKind::BSDF);
+    static_assert(flux::EDF::indexedKind == flux::IndexedKind::EDF);
+    static_assert(flux::ImageTexture::indexedKind == flux::IndexedKind::ImageTexture);
+    static_assert(flux::IsIndexedObject<flux::DiffuseBSDF>);
+    static_assert(!flux::IsIndexedObject<TestRenderObject>);
+
+    auto context = flux::Context::create();
+    kira::Properties bsdfProps;
+    bsdfProps.set("type", "diffuse");
+    auto bsdf = context->create<flux::BSDF>(bsdfProps);
+    auto edf = context->create<flux::EDF>(kira::Properties{});
+    auto plain = context->create<TestRenderObject>(kira::Properties{});
+
+    // The override agrees with the static trait; unindexed objects have no kind.
+    EXPECT_EQ(bsdf->getIndexedKind(), flux::BSDF::indexedKind);
+    EXPECT_EQ(edf->getIndexedKind(), flux::EDF::indexedKind);
+    EXPECT_FALSE(plain->getIndexedKind().has_value());
+
+    // Only an indexed object enters the map of its kind.
+    EXPECT_EQ(context->getIndexLimit<flux::BSDF>(), 1);
+    EXPECT_EQ(context->getIndexLimit<flux::EDF>(), 1);
+    EXPECT_EQ(context->getIndexLimit<flux::ImageTexture>(), 0);
+    EXPECT_EQ(context->getObjects<flux::BSDF>().size(), 1);
+    EXPECT_EQ(context->getObjects<flux::DiffuseBSDF>().size(), 1);
+    EXPECT_EQ(context->getObjects<flux::PrincipledBSDF>().size(), 0);
 }

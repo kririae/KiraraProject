@@ -16,14 +16,14 @@ void Context::absorb(TXContext &&tx) {
         if (objects_.contains(entry.first))
             throw kira::Anyhow("Context: object ID is already registered");
 
-    imageTextures_.validateMerge(tx.imageTextures_);
-    bsdfs_.validateMerge(tx.bsdfs_);
-    edfs_.validateMerge(tx.edfs_);
+    // Validate every map before merging any, so a failure leaves them unchanged.
+    for (std::size_t kind = 0; kind < numIndexedKinds; ++kind)
+        indices_[kind].validateMerge(tx.indices_[kind]);
     objects_.reserve(objects_.size() + tx.objects_.size());
 
-    imageTextures_.mergeValidated(std::move(tx.imageTextures_));
-    bsdfs_.mergeValidated(std::move(tx.bsdfs_));
-    edfs_.mergeValidated(std::move(tx.edfs_));
+    // Merge the validated maps and objects.
+    for (std::size_t kind = 0; kind < numIndexedKinds; ++kind)
+        indices_[kind].mergeValidated(std::move(tx.indices_[kind]));
     objects_.merge(tx.objects_);
     if (!activeIntegratorId_ && tx.activeIntegratorId_)
         activeIntegratorId_ = tx.activeIntegratorId_;

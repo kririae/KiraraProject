@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <concepts>
 #include <cstddef>
 #include <optional>
@@ -73,9 +74,7 @@ private:
 
     Context &context_;
     std::unordered_map<std::size_t, Ref<ContextObject>> objects_;
-    ContextIndexMap::Transaction imageTextures_;
-    ContextIndexMap::Transaction bsdfs_;
-    ContextIndexMap::Transaction edfs_;
+    std::array<ContextIndexMap::Transaction, numIndexedKinds> indices_;
     std::optional<std::size_t> activeIntegratorId_;
     std::optional<std::size_t> activeSamplerId_;
     std::optional<std::size_t> activeEnvMapId_;

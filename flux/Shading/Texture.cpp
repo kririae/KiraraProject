@@ -143,7 +143,7 @@ Texture::Impl ImageTexture::getImpl() const {
     return {
         .type = TextureType::Image,
         .storage = {
-            .image = {.imageTextureIndex = getContext()->getImageTextureIndex(getContextId())}
+            .image = {.imageTextureIndex = getContext()->getIndex<ImageTexture>(getContextId())}
         },
     };
 }

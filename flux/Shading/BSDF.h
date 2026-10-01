@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <type_traits>
 
 #include "flux/Core/Math.h"
@@ -125,8 +126,15 @@ public:
     struct Impl;
     struct Dispatcher;
 
+    /// Kind whose index map holds BSDFs.
+    static constexpr IndexedKind indexedKind = IndexedKind::BSDF;
+
     /// \brief Returns the concrete implementation type.
     [[nodiscard]] BSDFType getType() const noexcept { return type_; }
+
+    [[nodiscard]] std::optional<IndexedKind> getIndexedKind() const noexcept override {
+        return indexedKind;
+    }
 
     /// \brief Builds this BSDF's scattering implementation.
     [[nodiscard]] Impl getImpl() const;

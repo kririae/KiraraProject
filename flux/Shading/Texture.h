@@ -2,6 +2,7 @@
 
 #include <concepts>
 #include <cstdint>
+#include <optional>
 #include <string_view>
 #include <type_traits>
 
@@ -168,6 +169,13 @@ class ImageTexture final : public Texture {
 
 public:
     struct Impl;
+
+    /// Kind whose index map holds image textures.
+    static constexpr IndexedKind indexedKind = IndexedKind::ImageTexture;
+
+    [[nodiscard]] std::optional<IndexedKind> getIndexedKind() const noexcept override {
+        return indexedKind;
+    }
 
     [[nodiscard]] Ref<ImageAsset const> const &getImageAsset() const noexcept {
         return imageAsset_;

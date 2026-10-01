@@ -22,5 +22,5 @@
 
 - Context IDs only increase. They identify objects and serve as lookup keys.
 - Backend and device indices come from explicit maps. They have no numeric relation to Context
-  IDs. For example, use `context.getBSDFIndex(bsdf->getContextId())`; do not cast a Context ID and
+  IDs. For example, use `context.getIndex<BSDF>(bsdf->getContextId())`; do not cast a Context ID and
   use it as an array index.

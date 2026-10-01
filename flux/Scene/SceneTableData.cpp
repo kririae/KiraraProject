@@ -23,18 +23,13 @@ void SceneTableData::build(Context const &context) {
     primitives.reserve(contextPrimitives.size());
     transforms.reserve(contextPrimitives.size());
 
-    // Unused indices hold the first implementation, so every index below a limit
-    // addresses valid storage.
-    if (!contextBSDFs.empty()) {
-        bsdfs.assign(context.getBSDFIndexLimit(), contextBSDFs.front()->getImpl());
-        for (auto const &bsdf : contextBSDFs)
-            bsdfs[context.getBSDFIndex(bsdf->getContextId())] = bsdf->getImpl();
-    }
-    if (!contextEDFs.empty()) {
-        edfs.assign(context.getEDFIndexLimit(), contextEDFs.front()->getImpl());
-        for (auto const &edf : contextEDFs)
-            edfs[context.getEDFIndex(edf->getContextId())] = edf->getImpl();
-    }
+    // Fill the tables with empty entries, then place each object at its index.
+    bsdfs.assign(context.getIndexLimit<BSDF>(), BSDF::Impl{});
+    for (auto const &bsdf : contextBSDFs)
+        bsdfs[context.getIndex<BSDF>(bsdf->getContextId())] = bsdf->getImpl();
+    edfs.assign(context.getIndexLimit<EDF>(), EDF::Impl{});
+    for (auto const &edf : contextEDFs)
+        edfs[context.getIndex<EDF>(edf->getContextId())] = edf->getImpl();
 
     // Shared geometries use one dense geometry index.
     std::unordered_map<std::size_t, std::uint32_t> geometryIndexByContextId;
@@ -81,13 +76,13 @@ void SceneTableData::build(Context const &context) {
         auto const bsdf = primitive->getBSDF();
         auto bsdfIndex = Primitive::Impl::invalidBSDFIndex;
         if (bsdf)
-            bsdfIndex = context.getBSDFIndex(bsdf->getContextId());
+            bsdfIndex = context.getIndex<BSDF>(bsdf->getContextId());
 
         // Resolve the EDF index assigned by Context.
         auto const edf = primitive->getEDF();
         auto edfIndex = Primitive::Impl::invalidEDFIndex;
         if (edf)
-            edfIndex = context.getEDFIndex(edf->getContextId());
+            edfIndex = context.getIndex<EDF>(edf->getContextId());
 
         // Write the primitive at its dense index in every segment.
         objects.primitives.push_back(primitive);

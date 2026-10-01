@@ -4,6 +4,7 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -148,6 +149,19 @@ public:
     virtual ~Object() = default;
 };
 
+/// \brief Identifies a kind of context object that has its own dense index map.
+///
+/// A \c Context assigns every object of a kind an index in that kind's map.
+enum class IndexedKind : std::uint8_t {
+    ImageTexture,
+    BSDF,
+    EDF,
+    Count,
+};
+
+/// Number of indexed kinds.
+inline constexpr std::size_t numIndexedKinds = static_cast<std::size_t>(IndexedKind::Count);
+
 /// \brief An object owned by a \c Context.
 ///
 /// A successful \c Context::create call makes its Context an owner.
@@ -178,6 +192,13 @@ public:
     /// \brief Returns the stable identifier assigned by the owning context.
     [[nodiscard]] std::size_t getContextId() const noexcept { return contextId_; }
 
+    /// \brief Returns the kind whose index map holds this object, or nothing.
+    ///
+    /// A kind's base class overrides this to return its \c indexedKind.
+    [[nodiscard]] virtual std::optional<IndexedKind> getIndexedKind() const noexcept {
+        return std::nullopt;
+    }
+
 private:
     Context *context_;
     std::size_t contextId_;
@@ -192,6 +213,13 @@ protected:
 /// \brief Matches objects owned by a \c Context.
 template <typename T>
 concept IsContextObject = std::derived_from<T, ContextObject>;
+
+/// \brief Matches context objects that belong to an indexed kind.
+///
+/// Such a type names its kind in a static member \c indexedKind.
+template <typename T>
+concept IsIndexedObject =
+    IsContextObject<T> && std::convertible_to<decltype(T::indexedKind), IndexedKind>;
 
 /// \brief Matches context objects constructed from \c kira::Properties.
 template <typename T>
