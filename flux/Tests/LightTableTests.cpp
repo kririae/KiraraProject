@@ -73,6 +73,8 @@ void expectConsistentSlots(flux::SceneTableData const &scene, flux::LightTableDa
     // A primitive with a slot has an EDF, and its handle names it.
     for (std::uint32_t index = 0; index < scene.primitives.size(); ++index) {
         auto const slot = table.slots.primSlots[index];
+        if (scene.primitives[index].isHole())
+            EXPECT_EQ(slot, flux::LightTableData::invalidSlot);
         if (slot == flux::LightTableData::invalidSlot)
             continue;
         EXPECT_TRUE(scene.primitives[index].hasEDF());
@@ -110,7 +112,7 @@ TEST(LightTableTests, BuildsEmptyTablesFromAnEmptyContext) {
     EXPECT_EQ(table.slots.envMapSlot, flux::LightTableData::invalidSlot);
 }
 
-TEST(LightTableTests, IndexesEmittersByDensePrimitiveIndex) {
+TEST(LightTableTests, IndexesEmittersByPrimitiveIndexAroundAHole) {
     auto context = flux::Context::create();
     auto const mesh = context->create<flux::TriangleMesh>(triangle());
     auto const edf = makeEDF(*context, {1.0F, 1.0F, 1.0F});
@@ -124,18 +126,25 @@ TEST(LightTableTests, IndexesEmittersByDensePrimitiveIndex) {
     auto table = flux::LightTableData{};
     table.build(scene, *context, 1.0F);
 
-    ASSERT_EQ(scene.primitives.size(), 3);
+    // The hidden emitter at index 2 is a hole and gets no slot.
+    ASSERT_EQ(scene.primitives.size(), 4);
+    ASSERT_TRUE(scene.primitives[2].isHole());
     expectConsistentSlots(scene, table);
     EXPECT_NE(table.slots.primSlots[0], flux::LightTableData::invalidSlot);
     EXPECT_EQ(table.slots.primSlots[1], flux::LightTableData::invalidSlot);
-    EXPECT_NE(table.slots.primSlots[2], flux::LightTableData::invalidSlot);
+    EXPECT_EQ(table.slots.primSlots[2], flux::LightTableData::invalidSlot);
+    EXPECT_NE(table.slots.primSlots[3], flux::LightTableData::invalidSlot);
+
+    // The emitter after the hole is selected by its own index.
+    EXPECT_GT(getPmf(table, table.slots.primSlots[3]), 0.0F);
 
     // The environment map ranks before every emitter.
     EXPECT_EQ(table.slots.envMapSlot, 0);
 
     EXPECT_FLOAT_EQ(table.lights.primAreaScales[0], 1.0F);
     EXPECT_FLOAT_EQ(table.lights.primAreaScales[1], 9.0F);
-    EXPECT_FLOAT_EQ(table.lights.primAreaScales[2], 4.0F);
+    EXPECT_FLOAT_EQ(table.lights.primAreaScales[2], 0.0F);
+    EXPECT_FLOAT_EQ(table.lights.primAreaScales[3], 4.0F);
 }
 
 TEST(LightTableTests, RebuildingMatchesABuildFromScratch) {

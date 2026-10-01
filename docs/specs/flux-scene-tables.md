@@ -28,8 +28,19 @@ and the two orders are kept equal by comparing counts at run time.
 
 **View.** The pointer-only structure a runtime reads, named `<Table>`.
 
-**Dense index.** An index the scene table assigns to a visible primitive or to one
-of its meshes, in the order the table visits them.
+**Primitive index, geometry index.** The index `Context` assigns to a primitive or
+a mesh from its `ContextIndexMap`. It stays unchanged while the object is
+registered. Tables are sized by the index limit.
+
+**Hole.** An index with no visible primitive, or a geometry index no visible
+primitive references. A hole keeps an empty entry, and no instance, acceleration
+structure, or light slot refers to it. Hiding a primitive makes its index a hole
+and moves no other index.
+
+Amendment: earlier text called these the *dense* primitive and geometry indices,
+ranked by the scene table over visible primitives in Context ID order. The rest of
+this specification still says "dense" for them; read it as the index above. See
+[FLux Runtime Data Ownership](flux-runtime-ownership.md#primitive-indices).
 
 **Light identity.** The index that names a light within its type: the point-light
 index for a point light, the dense primitive index for an emitting primitive, and
@@ -67,9 +78,9 @@ takes a geometry pointer as its parameter.
 
 ### Index ownership
 
-`Context` assigns BSDF, EDF, and image-texture indices, because it assigns them to
-objects it owns. The scene table assigns dense primitive and dense geometry
-indices, because it defines the order those indices rank. The light table assigns
+`Context` assigns BSDF, EDF, image-texture, geometry, and primitive indices,
+because it assigns them to objects it owns. The scene table writes the entry at
+each index, and a hole where no visible primitive is. The light table assigns
 slots and point-light indices. A runtime assigns its own geometry implementation
 indices.
 
@@ -83,8 +94,8 @@ An index is a claim about another array's contents. Two producers of one index
 can disagree, and the disagreement is invisible in the types, so an index and the
 array it addresses are produced together.
 
-The scene table's pass visits visible primitives in Context ID order, which is the
-only definition of dense order in the system. Nothing writes into a table after
+The scene table's pass writes each visible primitive at the index `Context`
+assigned it, so no table defines an order of its own. Nothing writes into a table after
 its `build` returns. The light table derives its data from the scene table, never
 from the primitives of the `Context`, so the dependency runs one way.
 

@@ -78,7 +78,11 @@ struct OptixContext::Impl {
     /// Top-level instance acceleration structure.
     OptixTraversableHandle traversable{};
 
-    /// Dense scene tables in device memory.
+    /// Instance index in the IAS of each primitive, by primitive index. A hole has
+    /// no instance, and its entry is unused.
+    std::uint32_t const *instanceIndices{};
+
+    /// Scene tables in device memory.
     SceneTable table{};
 
     OptixImageTexturePool::Impl imageTexturePool{};

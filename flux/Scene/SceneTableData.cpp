@@ -1,7 +1,7 @@
 #include "flux/Scene/SceneTableData.h"
 
+#include <array>
 #include <cstddef>
-#include <limits>
 #include <utility>
 
 #include "flux/Scene/Context.h"
@@ -17,9 +17,12 @@ void SceneTableData::build(Context const &context) {
     auto const contextPrimitives = context.getObjects<Primitive>();
     auto const contextBSDFs = context.getObjects<BSDF>();
     auto const contextEDFs = context.getObjects<EDF>();
-    objects.primitives.reserve(contextPrimitives.size());
-    primitives.reserve(contextPrimitives.size());
-    transforms.reserve(contextPrimitives.size());
+
+    // Fill the primitive tables with holes, then place each visible primitive at its index.
+    auto const limit = context.getIndexLimit<Primitive>();
+    objects.primitives.resize(limit);
+    primitives.assign(limit, Primitive::Impl{});
+    transforms.assign(limit, std::array<float, 12>{});
 
     // Fill the tables with empty entries, then place each object at its index.
     bsdfs.assign(context.getIndexLimit<BSDF>(), BSDF::Impl{});
@@ -55,8 +58,9 @@ void SceneTableData::build(Context const &context) {
     for (auto const &primitive : contextPrimitives) {
         if (!primitive->isVisible())
             continue;
-        if (primitives.size() >= std::numeric_limits<std::uint32_t>::max())
-            throw kira::Anyhow("SceneTableData: primitive count exceeds the dense index range");
+
+        // Resolve the primitive index assigned by Context.
+        auto const index = context.getIndex<Primitive>(primitive->getContextId());
 
         // Resolve the geometry index assigned by Context.
         auto const geometryIndex = placeMesh(primitive->getGeometry());
@@ -73,14 +77,14 @@ void SceneTableData::build(Context const &context) {
         if (edf)
             edfIndex = context.getIndex<EDF>(edf->getContextId());
 
-        // Write the primitive at its dense index in every segment.
-        objects.primitives.push_back(primitive);
-        primitives.push_back({
+        // Write the primitive at its index in every segment.
+        objects.primitives[index] = primitive;
+        primitives[index] = {
             .geometryIndex = geometryIndex,
             .bsdfIndex = bsdfIndex,
             .edfIndex = edfIndex,
-        });
-        transforms.push_back(primitive->getTransform());
+        };
+        transforms[index] = primitive->getTransform();
     }
 }
 

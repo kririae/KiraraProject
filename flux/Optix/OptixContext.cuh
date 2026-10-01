@@ -82,7 +82,8 @@ OptixContext::Impl::isVisible(Ray const &ray, unsigned int mask) const noexcept 
 KIRA_DEVICE inline Vec3f OptixContext::Impl::transformPointToWorld(
     std::uint32_t primitiveIndex, Vec3f const &point
 ) const noexcept {
-    auto const instance = optixGetInstanceTraversableFromIAS(traversable, primitiveIndex);
+    auto const instance =
+        optixGetInstanceTraversableFromIAS(traversable, instanceIndices[primitiveIndex]);
     auto const *transform = optixGetInstanceTransformFromHandle(instance);
     return transformPoint(transform, point);
 }
@@ -90,7 +91,8 @@ KIRA_DEVICE inline Vec3f OptixContext::Impl::transformPointToWorld(
 KIRA_DEVICE inline Vec3f OptixContext::Impl::transformNormalToWorld(
     std::uint32_t primitiveIndex, Vec3f const &normal
 ) const noexcept {
-    auto const instance = optixGetInstanceTraversableFromIAS(traversable, primitiveIndex);
+    auto const instance =
+        optixGetInstanceTraversableFromIAS(traversable, instanceIndices[primitiveIndex]);
     auto const *transform = optixGetInstanceInverseTransformFromHandle(instance);
     return transformTransposeVec(transform, normal);
 }

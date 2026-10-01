@@ -19,7 +19,8 @@ struct SceneTable {
     /// Unique geometries indexed by dense geometry index.
     Geometry::Impl const *geometries{};
 
-    /// Visible primitives indexed by dense primitive index.
+    /// Primitives indexed by the indices assigned by Context. An index without a
+    /// visible primitive holds a hole.
     Primitive::Impl const *primitives{};
 
     /// BSDFs indexed by the indices assigned by Context.
@@ -29,9 +30,9 @@ struct SceneTable {
     EDF::Impl const *edfs{};
 
 public:
-    /// \brief Returns the primitive at dense \p index.
+    /// \brief Returns the primitive at \p index.
     ///
-    /// \pre \p index addresses a primitive of the scene.
+    /// \pre \p index addresses a visible primitive of the scene.
     [[nodiscard]] KIRA_HOST_DEVICE Primitive::Impl const &
     getPrimitive(std::uint32_t index) const noexcept {
         return primitives[index];

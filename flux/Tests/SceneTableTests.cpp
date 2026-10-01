@@ -74,7 +74,7 @@ TEST(SceneTableTests, BuildsEmptyTablesFromAnEmptyContext) {
     EXPECT_TRUE(table.edfs.empty());
 }
 
-TEST(SceneTableTests, SkipsInvisiblePrimitivesAndKeepsTheDenseOrder) {
+TEST(SceneTableTests, KeepsEveryPrimitiveIndexWhenOneIsHidden) {
     auto context = flux::Context::create();
     auto const mesh = context->create<flux::TriangleMesh>(triangle());
     auto const first = makePrimitive(*context, mesh);
@@ -87,12 +87,46 @@ TEST(SceneTableTests, SkipsInvisiblePrimitivesAndKeepsTheDenseOrder) {
     auto table = flux::SceneTableData{};
     table.build(*context);
 
+    // The hidden primitive keeps its index as a hole.
+    auto const limit = context->getIndexLimit<flux::Primitive>();
+    ASSERT_EQ(limit, 3);
+    ASSERT_EQ(table.primitives.size(), limit);
+    ASSERT_EQ(table.objects.primitives.size(), limit);
+    ASSERT_EQ(table.transforms.size(), limit);
+    auto const firstIndex = context->getIndex<flux::Primitive>(first->getContextId());
+    auto const hiddenIndex = context->getIndex<flux::Primitive>(hidden->getContextId());
+    auto const thirdIndex = context->getIndex<flux::Primitive>(third->getContextId());
+    EXPECT_EQ(table.objects.primitives[firstIndex], first);
+    EXPECT_FALSE(table.objects.primitives[hiddenIndex]);
+    EXPECT_EQ(table.objects.primitives[thirdIndex], third);
+    EXPECT_FALSE(table.primitives[firstIndex].isHole());
+    EXPECT_TRUE(table.primitives[hiddenIndex].isHole());
+    EXPECT_FALSE(table.primitives[thirdIndex].isHole());
+    EXPECT_EQ(table.transforms[firstIndex], identity);
+    EXPECT_EQ(table.transforms[thirdIndex], translated(1.0F, 2.0F, 3.0F));
+}
+
+TEST(SceneTableTests, HidingAPrimitiveMovesNoIndex) {
+    auto context = flux::Context::create();
+    auto const mesh = context->create<flux::TriangleMesh>(triangle());
+    auto const first = makePrimitive(*context, mesh);
+    auto const second = makePrimitive(*context, mesh);
+    auto table = flux::SceneTableData{};
+    table.build(*context);
     ASSERT_EQ(table.primitives.size(), 2);
-    ASSERT_EQ(table.objects.primitives.size(), 2);
-    EXPECT_EQ(table.objects.primitives[0], first);
-    EXPECT_EQ(table.objects.primitives[1], third);
-    EXPECT_EQ(table.transforms[0], identity);
-    EXPECT_EQ(table.transforms[1], translated(1.0F, 2.0F, 3.0F));
+    EXPECT_FALSE(table.primitives[1].isHole());
+
+    // Hide one primitive and add another.
+    first->setVisible(false);
+    auto const added = makePrimitive(*context, mesh);
+    table.build(*context);
+
+    ASSERT_EQ(table.primitives.size(), 3);
+    EXPECT_TRUE(table.primitives[0].isHole());
+    EXPECT_EQ(table.objects.primitives[1], second);
+    EXPECT_EQ(table.objects.primitives[2], added);
+    EXPECT_FALSE(table.primitives[1].isHole());
+    EXPECT_FALSE(table.primitives[2].isHole());
 }
 
 TEST(SceneTableTests, GivesOneGeometryIndexToEveryPrimitiveThatSharesAMesh) {
@@ -212,6 +246,7 @@ TEST(SceneTableTests, RebuildingMatchesABuildFromScratch) {
     auto const freshMesh = freshContext->create<flux::TriangleMesh>(triangle());
     auto const freshOtherMesh = freshContext->create<flux::TriangleMesh>(triangle());
     makePrimitive(*freshContext, freshMesh)->setTransform(first->getTransform());
+    makePrimitive(*freshContext, freshMesh)->setVisible(false);
     auto const freshThird = makePrimitive(*freshContext, freshOtherMesh);
     freshThird->setTransform(translated(4.0F, 5.0F, 6.0F));
 

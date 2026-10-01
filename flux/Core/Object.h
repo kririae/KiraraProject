@@ -157,6 +157,7 @@ enum class IndexedKind : std::uint8_t {
     BSDF,
     EDF,
     Geometry,
+    Primitive,
     Count,
 };
 

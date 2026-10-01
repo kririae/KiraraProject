@@ -23,6 +23,7 @@
 #include "flux/Scene/RenderProduct.h"
 #include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
+#include "flux/Shading/EDF.h"
 #include "kira/Anyhow.h"
 
 #ifndef FLUX_TEST_FIXTURES_DIR
@@ -233,9 +234,9 @@ TEST(EmbreePipelineTests, HoldsTheMeshArraysItReads) {
     EXPECT_GT(data.texCoords.use_count(), counts[3]);
 }
 
-TEST(EmbreePipelineTests, RendersAMeshWhoseIndexFollowsAnUnreferencedMesh) {
-    // Light a triangle with a point light and return the center pixel.
-    auto const render = [&](bool withUnusedMesh) {
+TEST(EmbreePipelineTests, RendersWithIndicesThatFollowUnusedObjects) {
+    // Light a triangle with an emitter and return the center pixel.
+    auto const render = [&](bool withUnusedMesh, bool withHiddenPrimitive) {
         auto context = flux::Context::create();
         (void)context->create<flux::PathIntegrator>(kira::Properties{});
         (void)context->create<flux::IndependentSampler>(kira::Properties{});
@@ -245,13 +246,25 @@ TEST(EmbreePipelineTests, RendersAMeshWhoseIndexFollowsAnUnreferencedMesh) {
             (void)context->create<flux::TriangleMesh>(triangleData());
         auto mesh = context->create<flux::TriangleMesh>(triangleData());
         auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
-        (void)context->create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
+
+        // Create a hidden primitive first, so the visible primitive has index 1.
+        if (withHiddenPrimitive)
+            context->create<flux::Primitive>(primitiveProperties(*mesh, *bsdf))->setVisible(false);
+        auto primitive = context->create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
+        EXPECT_EQ(
+            context->getIndex<flux::Primitive>(primitive->getContextId()),
+            withHiddenPrimitive ? 1 : 0
+        );
         EXPECT_EQ(context->getIndex<flux::Geometry>(mesh->getContextId()), withUnusedMesh ? 1 : 0);
 
-        kira::Properties lightProperties;
-        lightProperties.set("position", flux::Vec3f{0.75F, 0.25F, 1.0F});
-        lightProperties.set("intensity", flux::Spectrum{1.0F, 1.0F, 1.0F});
-        (void)context->create<flux::PointLight>(lightProperties);
+        // Add an emitter facing the triangle, which light sampling reaches by primitive index.
+        auto edf = context->create<flux::ConstantEDF>(kira::Properties{});
+        auto emitterProperties = primitiveProperties(*mesh, *bsdf);
+        emitterProperties.set("edf_ctx_id", static_cast<std::int64_t>(edf->getContextId()));
+        auto emitter = context->create<flux::Primitive>(emitterProperties);
+        emitter->setTransform(
+            {1.0F, 0.0F, 0.0F, 0.0F, 0.0F, -1.0F, 0.0F, 0.0F, 0.0F, 0.0F, -1.0F, 1.0F}
+        );
 
         kira::Properties cameraProperties;
         cameraProperties.set("position", flux::Vec3f{0.25F, 0.25F, 1.0F});
@@ -270,10 +283,10 @@ TEST(EmbreePipelineTests, RendersAMeshWhoseIndexFollowsAnUnreferencedMesh) {
         return product->getFilm().getChannel<flux::ColorChannel>()[0];
     };
 
-    auto const expected = render(false);
-    auto const actual = render(true);
+    auto const expected = render(false, false);
     EXPECT_GT(expected.x(), 0.0F);
-    EXPECT_EQ(actual, expected);
+    EXPECT_EQ(render(true, false), expected);
+    EXPECT_EQ(render(false, true), expected);
 }
 
 TEST(EmbreePipelineTests, RendersDirectLightIntoColorChannel) {

@@ -138,9 +138,11 @@ void EmbreeContext::sync() try {
         geometryImpls_[index] = impl;
     }
 
-    normalTransforms_.reserve(table_.primitives.size());
-    for (auto const &transform : table_.transforms)
-        normalTransforms_.push_back(makeNormalTransform(transform));
+    // Skip holes, whose transforms are unused.
+    normalTransforms_.resize(table_.primitives.size());
+    for (std::size_t index = 0; index < table_.primitives.size(); ++index)
+        if (!table_.primitives[index].isHole())
+            normalTransforms_[index] = makeNormalTransform(table_.transforms[index]);
 
     // Embree borrows the entry arrays until the next sync. The scenes are
     // immutable, so they favor traversal over build time.
@@ -186,12 +188,17 @@ void EmbreeContext::sync() try {
     }
 
     // Instance each mesh scene into the top-level scene. Explicit geometry IDs
-    // make Embree hit IDs identical to primitive-array indices.
+    // make Embree hit IDs identical to primitive indices, and a hole has no ID.
     scene_ = rtcNewScene(device_);
     embreeCheck(device_);
     rtcSetSceneBuildQuality(scene_, RTC_BUILD_QUALITY_HIGH);
     embreeCheck(device_);
+    std::size_t numVisible = 0;
     for (std::size_t index = 0; index < table_.primitives.size(); ++index) {
+        if (table_.primitives[index].isHole())
+            continue;
+
+        ++numVisible;
         EmbreeGeometryHandle instance(rtcNewGeometry(device_, RTC_GEOMETRY_TYPE_INSTANCE));
         embreeCheck(device_);
         rtcSetGeometryInstancedScene(
@@ -211,7 +218,7 @@ void EmbreeContext::sync() try {
     embreeCheck(device_);
 
     auto sceneRadius = 1.0F;
-    if (!table_.primitives.empty()) {
+    if (numVisible > 0) {
         RTCBounds bounds{};
         rtcGetSceneBounds(scene_, &bounds);
         embreeCheck(device_);
@@ -230,7 +237,7 @@ void EmbreeContext::sync() try {
         std::ranges::count_if(
             table_.objects.meshes, [](auto const &mesh) { return static_cast<bool>(mesh); }
         ),
-        table_.primitives.size()
+        numVisible
     );
 } catch (...) {
     reset();

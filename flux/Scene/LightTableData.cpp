@@ -22,7 +22,7 @@ void LightTableData::build(
     auto const contextLights = context.getObjects<Light>();
     auto const numPrimitives = scene.primitives.size();
     lights.points.reserve(contextLights.size());
-    lights.primAreaScales.reserve(numPrimitives);
+    lights.primAreaScales.assign(numPrimitives, 0.0F);
     slots.handles.reserve(contextLights.size() + numPrimitives);
     slots.primSlots.assign(numPrimitives, invalidSlot);
 
@@ -69,11 +69,14 @@ void LightTableData::build(
     if (envMapPower)
         slots.envMapSlot = addSlot({.type = LightType::EnvMap, .index = 0}, *envMapPower);
 
-    // Assign slots to primitives with an EDF, in dense order. An emitter past the
-    // cap stays reachable by BSDF sampling, where MIS weights it one.
+    // Assign slots to visible primitives with an EDF, in index order. An emitter past
+    // the cap stays reachable by BSDF sampling, where MIS weights it one.
     for (std::size_t index = 0; index < numPrimitives; ++index) {
+        if (scene.primitives[index].isHole())
+            continue;
+
         auto const &primitive = scene.objects.primitives[index];
-        lights.primAreaScales.push_back(primitive->estimateAreaScale());
+        lights.primAreaScales[index] = primitive->estimateAreaScale();
         if (!scene.primitives[index].hasEDF())
             continue;
 

@@ -43,7 +43,7 @@ public:
         /// Unnormalized geometry-space normal reported by Embree.
         Vec3f geometricNormal;
 
-        /// Dense primitive index in this Embree scene.
+        /// Primitive index assigned by Context.
         std::uint32_t primitiveIndex;
     };
 
@@ -102,7 +102,7 @@ private:
     /// unreferenced index holds a default value.
     std::vector<Geometry::Impl> geometryImpls_;
 
-    /// World-space normal transforms indexed by dense primitive index.
+    /// World-space normal transforms indexed by primitive index. A hole holds zeros.
     std::vector<std::array<float, 9>> normalTransforms_;
 
     /// Image textures used by BSDFs.
@@ -119,13 +119,13 @@ struct EmbreeContext::Impl {
     /// Current top-level Embree scene.
     RTCScene scene{};
 
-    /// Dense scene tables in host memory.
+    /// Scene tables in host memory.
     SceneTable table{};
 
-    /// Object-to-world transforms indexed by dense primitive index.
+    /// Object-to-world transforms indexed by primitive index.
     std::array<float, 12> const *transforms{};
 
-    /// World-space normal transforms indexed by dense primitive index.
+    /// World-space normal transforms indexed by primitive index.
     std::array<float, 9> const *normalTransforms{};
 
     EmbreeImageTexturePool::Impl imageTexturePool{};

@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <type_traits>
 
 #include "flux/Scene/RenderObject.h"
@@ -33,7 +34,14 @@ class Primitive final : public RenderObject {
 public:
     struct Impl;
 
+    /// Kind whose index map holds primitives.
+    static constexpr IndexedKind indexedKind = IndexedKind::Primitive;
+
     ~Primitive() override;
+
+    [[nodiscard]] std::optional<IndexedKind> getIndexedKind() const noexcept override {
+        return indexedKind;
+    }
 
     /// \brief Returns the bound geometry.
     [[nodiscard]] Ref<Geometry const> getGeometry() const noexcept;
@@ -95,8 +103,11 @@ struct Primitive::Impl {
     static constexpr std::uint32_t invalidBSDFIndex = std::numeric_limits<std::uint32_t>::max();
     static constexpr std::uint32_t invalidEDFIndex = std::numeric_limits<std::uint32_t>::max();
 
-    /// Dense index of the bound geometry.
-    std::uint32_t geometryIndex{};
+    /// Sentinel used when no visible primitive has this entry's index.
+    static constexpr std::uint32_t invalidGeometryIndex = std::numeric_limits<std::uint32_t>::max();
+
+    /// Geometry index assigned by Context, or \c invalidGeometryIndex at a hole.
+    std::uint32_t geometryIndex{invalidGeometryIndex};
 
     /// BSDF index assigned by Context, or \c invalidBSDFIndex.
     std::uint32_t bsdfIndex{invalidBSDFIndex};
@@ -105,7 +116,16 @@ struct Primitive::Impl {
     std::uint32_t edfIndex{invalidEDFIndex};
 
 public:
-    /// \brief Returns the dense geometry index in this backend scene.
+    /// \brief Returns whether the entry has no visible primitive.
+    ///
+    /// A default entry is a hole. Rendering never reads a hole.
+    [[nodiscard]] KIRA_HOST_DEVICE bool isHole() const noexcept {
+        return geometryIndex == invalidGeometryIndex;
+    }
+
+    /// \brief Returns the geometry index assigned by Context.
+    ///
+    /// \pre \c isHole() is false.
     [[nodiscard]] KIRA_HOST_DEVICE std::uint32_t getGeometryIndex() const noexcept {
         return geometryIndex;
     }

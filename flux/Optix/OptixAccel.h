@@ -20,9 +20,12 @@ class OptixAccel final : private Noncopyable, private CudaStreamMixin {
 public:
     /// \brief Describes one IAS instance.
     ///
-    /// The descriptor's position in the input array becomes its OptiX
-    /// instance ID.
+    /// The descriptor's position in the input array is its instance index. Its
+    /// \c primitiveIndex becomes its OptiX instance ID.
     struct InstanceDesc {
+        /// Primitive index reported as the OptiX instance ID.
+        std::uint32_t primitiveIndex{};
+
         /// Index of the referenced GAS, which must not be a hole.
         std::uint32_t geometryIndex{};
 
@@ -52,7 +55,7 @@ public:
     /// \brief Rebuilds the IAS from \p instances.
     ///
     /// \param deviceContext OptiX context used for the build.
-    /// \param instances Complete visible primitive list in device-table order.
+    /// \param instances Complete visible primitive list. Primitive indices are unique.
     /// \throw kira::Anyhow If an index is invalid or a hole, or OptiX setup fails.
     void buildIas(OptixDeviceContext deviceContext, std::span<InstanceDesc const> instances);
 

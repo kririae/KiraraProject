@@ -17,7 +17,7 @@ struct SceneTableData;
 struct LightTable {
     /// Point lights by point-light index.
     PointLight::Impl const *points{};
-    /// World-area scale of each primitive, by dense primitive index.
+    /// World-area scale of each primitive, by primitive index.
     float const *primAreaScales{};
     EnvMapLight::Impl const *envMap{};
 };
@@ -31,19 +31,20 @@ struct LightTableData final : private Noncopyable {
         /// Point lights in Context ID order.
         std::vector<PointLight::Impl> points;
 
-        /// World-area scale of each primitive's transform, in dense primitive order.
+        /// World-area scale of each primitive's transform by primitive index, or
+        /// zero at a hole.
         std::vector<float> primAreaScales;
     } lights;
 
     /// How a light is selected. A slot is a position in the selection distribution.
     struct {
-        /// Light at each slot. A primitive's handle index is its dense index.
+        /// Light at each slot. A primitive's handle index is its primitive index.
         std::vector<LightHandle> handles;
 
         /// Cumulative selection weight at each slot.
         std::vector<float> cdf;
 
-        /// Slot of each primitive in dense primitive order, or \c invalidSlot.
+        /// Slot of each primitive by primitive index, or \c invalidSlot. A hole has none.
         std::vector<std::uint32_t> primSlots;
 
         /// Slot of the environment map, or \c invalidSlot.
@@ -53,7 +54,7 @@ struct LightTableData final : private Noncopyable {
 public:
     /// \brief Rebuilds the light data from \p scene and the lights of \p context.
     ///
-    /// Every primitive with an EDF is a light. At most \p maxSlots lights get a
+    /// Every visible primitive with an EDF is a light. At most \p maxSlots lights get a
     /// slot, and emitting primitives lose theirs first. \p maxSlots is bounded by
     /// \c LightPowerDistribution::maxLightCount. \p envMapPower is empty when no
     /// environment map is active.
