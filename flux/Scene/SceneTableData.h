@@ -37,12 +37,12 @@ struct SceneTableData final : private Noncopyable {
     /// zeros, which no consumer reads.
     std::vector<std::array<float, 12>> transforms;
 
-    /// BSDFs indexed by the indices assigned by Context. Unused indices hold an
-    /// empty entry, which no primitive references.
+    /// BSDFs indexed by the indices assigned by Context. An unused index holds the
+    /// empty BSDF.
     std::vector<BSDF::Impl> bsdfs;
 
-    /// EDFs indexed by the indices assigned by Context. Unused indices hold an
-    /// empty entry, which no primitive references.
+    /// EDFs indexed by the indices assigned by Context. An unused index holds the
+    /// empty EDF.
     std::vector<EDF::Impl> edfs;
 
 public:

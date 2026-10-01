@@ -240,6 +240,9 @@ public:
 };
 
 /// \brief Stores one BSDF implementation.
+///
+/// A value-initialized Impl is the empty BSDF: a valid diffuse BSDF with zero
+/// reflectance, which scatters nothing.
 struct BSDF::Impl {
     BSDFType type;
 

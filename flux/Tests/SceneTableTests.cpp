@@ -189,6 +189,20 @@ TEST(SceneTableTests, TakesGeometryIndicesFromTheContextAndLeavesHoles) {
     EXPECT_EQ(table.primitives[0].geometryIndex, usedIndex);
 }
 
+TEST(SceneTableTests, EmptyBsdfAndEdfAreValidAndInert) {
+    auto const bsdf = flux::BSDF::Impl{};
+    EXPECT_EQ(bsdf.type, flux::BSDFType::Diffuse);
+    EXPECT_EQ(bsdf.storage.diffuse.R.type, flux::TextureType::Constant);
+    EXPECT_EQ(bsdf.storage.diffuse.R.storage.constant.value, flux::Spectrum{});
+
+    auto const edf = flux::EDF::Impl{};
+    auto const query = flux::EDFQuery{
+        .geometricNormal = flux::Vec3f{0.0F, 0.0F, 1.0F},
+        .wo = flux::Vec3f{0.0F, 0.0F, 1.0F},
+    };
+    EXPECT_EQ(edf.evaluate(query), flux::Spectrum{});
+}
+
 TEST(SceneTableTests, CopiesEveryBsdfAndEdfTheContextHolds) {
     auto context = flux::Context::create();
     auto const mesh = context->create<flux::TriangleMesh>(triangle());

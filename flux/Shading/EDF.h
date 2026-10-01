@@ -73,6 +73,10 @@ struct ConstantEDF::Impl {
     }
 };
 
+/// \brief Stores one EDF implementation.
+///
+/// A value-initialized Impl is the empty EDF: a valid constant EDF with zero
+/// radiance, which emits nothing.
 struct EDF::Impl : cuda::std::variant<ConstantEDF::Impl> {
     using Base = cuda::std::variant<ConstantEDF::Impl>;
     using Base::Base;
