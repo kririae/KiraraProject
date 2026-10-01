@@ -98,11 +98,9 @@ void expectConsistentSlots(flux::SceneTableData const &scene, flux::LightTableDa
 
 TEST(LightTableTests, BuildsEmptyTablesFromAnEmptyContext) {
     auto const context = flux::Context::create();
-    auto scene = flux::SceneTableData{};
-    scene.build(*context);
 
     auto table = flux::LightTableData{};
-    table.build(scene, *context, std::nullopt);
+    table.build(*context, std::nullopt);
 
     EXPECT_TRUE(table.lights.points.empty());
     EXPECT_TRUE(table.lights.primAreaScales.empty());
@@ -124,7 +122,7 @@ TEST(LightTableTests, IndexesEmittersByPrimitiveIndexAroundAHole) {
     auto scene = flux::SceneTableData{};
     scene.build(*context);
     auto table = flux::LightTableData{};
-    table.build(scene, *context, 1.0F);
+    table.build(*context, 1.0F);
 
     // The hidden emitter at index 2 is a hole and gets no slot.
     ASSERT_EQ(scene.primitives.size(), 4);
@@ -142,7 +140,7 @@ TEST(LightTableTests, IndexesEmittersByPrimitiveIndexAroundAHole) {
     EXPECT_EQ(table.slots.envMapSlot, 0);
 
     EXPECT_FLOAT_EQ(table.lights.primAreaScales[0], 1.0F);
-    EXPECT_FLOAT_EQ(table.lights.primAreaScales[1], 9.0F);
+    EXPECT_FLOAT_EQ(table.lights.primAreaScales[1], 0.0F);
     EXPECT_FLOAT_EQ(table.lights.primAreaScales[2], 0.0F);
     EXPECT_FLOAT_EQ(table.lights.primAreaScales[3], 4.0F);
 }
@@ -156,19 +154,16 @@ TEST(LightTableTests, RebuildingMatchesABuildFromScratch) {
     (void)makePrimitive(*context, mesh, edf);
     makePointLight(*context);
 
-    auto scene = flux::SceneTableData{};
-    scene.build(*context);
     auto table = flux::LightTableData{};
-    table.build(scene, *context, 1.0F);
+    table.build(*context, 1.0F);
 
     hidden->setVisible(false);
+    table.build(*context, std::nullopt);
+    auto scene = flux::SceneTableData{};
     scene.build(*context);
-    table.build(scene, *context, std::nullopt);
 
-    auto freshScene = flux::SceneTableData{};
-    freshScene.build(*context);
     auto fresh = flux::LightTableData{};
-    fresh.build(freshScene, *context, std::nullopt);
+    fresh.build(*context, std::nullopt);
 
     expectConsistentSlots(scene, table);
     EXPECT_EQ(table.lights.points.size(), fresh.lights.points.size());
@@ -185,10 +180,8 @@ TEST(LightTableTests, KeepsAZeroPowerEmitterWithZeroProbability) {
     (void)makePrimitive(*context, mesh, makeEDF(*context, {0.0F, 0.0F, 0.0F}));
     makePointLight(*context);
 
-    auto scene = flux::SceneTableData{};
-    scene.build(*context);
     auto table = flux::LightTableData{};
-    table.build(scene, *context, std::nullopt);
+    table.build(*context, std::nullopt);
 
     auto const slot = table.slots.primSlots[0];
     ASSERT_NE(slot, flux::LightTableData::invalidSlot);
@@ -207,7 +200,7 @@ TEST(LightTableTests, DropsEmittersBeforeOtherLightsAtTheCap) {
     auto scene = flux::SceneTableData{};
     scene.build(*context);
     auto table = flux::LightTableData{};
-    table.build(scene, *context, 1.0F, 3);
+    table.build(*context, 1.0F, 3);
 
     // The point light and the environment map keep their slots; one emitter fits.
     expectConsistentSlots(scene, table);
@@ -233,7 +226,7 @@ TEST(LightTableTests, DropsPointLightsPastTheCap) {
     auto scene = flux::SceneTableData{};
     scene.build(*context);
     auto table = flux::LightTableData{};
-    table.build(scene, *context, 1.0F, 1);
+    table.build(*context, 1.0F, 1);
 
     // Every point light keeps its identity, but only the first gets a slot.
     expectConsistentSlots(scene, table);
@@ -252,10 +245,8 @@ TEST(LightTableTests, AssignsNoSlotWithAZeroCap) {
     (void)makePrimitive(*context, mesh, makeEDF(*context, {1.0F, 1.0F, 1.0F}));
     makePointLight(*context);
 
-    auto scene = flux::SceneTableData{};
-    scene.build(*context);
     auto table = flux::LightTableData{};
-    table.build(scene, *context, 1.0F, 0);
+    table.build(*context, 1.0F, 0);
 
     EXPECT_TRUE(table.slots.handles.empty());
     EXPECT_TRUE(table.slots.cdf.empty());

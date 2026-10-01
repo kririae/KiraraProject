@@ -9,7 +9,7 @@ namespace flux {
 static_assert(sizeof(Vec3f) == 3 * sizeof(float));
 static_assert(sizeof(Vec3u) == 3 * sizeof(std::uint32_t));
 
-void OptixGeometryPool::build(std::span<Ref<TriangleMesh const> const> meshes) {
+void OptixGeometryPool::build(std::span<TriangleMesh const *const> meshes) {
     if (meshes.size() > std::numeric_limits<unsigned int>::max())
         throw kira::Anyhow("OptixGeometryPool: mesh count exceeds OptiX limits");
 
@@ -20,7 +20,7 @@ void OptixGeometryPool::build(std::span<Ref<TriangleMesh const> const> meshes) {
     staging_.reserve(meshes.size());
 
     for (auto index = std::size_t{}; index < meshes.size(); ++index) {
-        auto const &mesh = meshes[index];
+        auto const *mesh = meshes[index];
 
         // Leave a hole without device storage.
         if (!mesh) {
@@ -46,6 +46,7 @@ void OptixGeometryPool::build(std::span<Ref<TriangleMesh const> const> meshes) {
             throw kira::Anyhow("OptixGeometryPool: triangle mesh attribute indices are invalid");
 
         auto &entry = entries_.emplace_back(getStream());
+        entry.resident = true;
         entry.vertices.copyFromHost({vertices.data(), vertices.size()});
         entry.triangles.copyFromHost({triangles.data(), triangles.size()});
         entry.normals.copyFromHost({normals.data(), normals.size()});
@@ -98,8 +99,7 @@ std::vector<std::optional<OptixBuildInput>> OptixGeometryPool::getBuildInputs() 
     inputs.reserve(entries_.size());
 
     for (auto const &entry : entries_) {
-        // A mesh always has triangles, so empty storage marks a hole.
-        if (entry.triangles.empty()) {
+        if (!entry.resident) {
             inputs.emplace_back();
             continue;
         }

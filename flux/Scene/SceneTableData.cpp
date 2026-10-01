@@ -5,6 +5,7 @@
 
 #include "flux/Scene/Context.h"
 #include "flux/Scene/Geometry.h"
+#include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
 #include "flux/Shading/EDF.h"
 #include "kira/Anyhow.h"
@@ -18,16 +19,13 @@ void SceneTableData::build(Context const &context) {
     auto const contextEDFs = context.getObjects<EDF>();
 
     // Fill each table with empty entries, then place each object's entry at its index.
-    objects.primitives.resize(context.getIndexLimit<Primitive>());
     primitives.assign(context.getIndexLimit<Primitive>(), Primitive::Impl{});
     transforms.assign(context.getIndexLimit<Primitive>(), std::array<float, 12>{});
     for (auto const &primitive : contextPrimitives) {
         auto const index = context.getIndex<Primitive>(primitive->getContextId());
         primitives[index] = primitive->getImpl();
-        if (primitive->isVisible()) {
-            objects.primitives[index] = primitive;
+        if (primitive->isVisible())
             transforms[index] = primitive->getTransform();
-        }
     }
 
     bsdfs.assign(context.getIndexLimit<BSDF>(), BSDF::Impl{});
@@ -38,35 +36,30 @@ void SceneTableData::build(Context const &context) {
     for (auto const &edf : contextEDFs)
         edfs[context.getIndex<EDF>(edf->getContextId())] = edf->getImpl();
 
-    // Derive the geometry holes from the primitives. No geometry can tell alone
+    // Derive the geometry types from the primitives. No geometry can tell alone
     // whether a visible primitive references it, so this pass is not per object.
-    objects.meshes.resize(context.getIndexLimit<Geometry>());
+    geometryTypes.assign(context.getIndexLimit<Geometry>(), std::nullopt);
     for (auto const &primitive : contextPrimitives) {
         if (!primitive->isVisible())
             continue;
 
         auto const geometry = primitive->getGeometry();
-        auto &mesh = objects.meshes[context.getIndex<Geometry>(geometry->getContextId())];
-        if (mesh)
-            continue;
-
+        auto &type = geometryTypes[context.getIndex<Geometry>(geometry->getContextId())];
         switch (geometry->getType()) {
-        case GeometryType::TriangleMesh: {
-            mesh = geometry.dynamicCast<TriangleMesh const>();
-            if (!mesh)
+        case GeometryType::TriangleMesh:
+            if (!dynamic_cast<TriangleMesh const *>(geometry.get()))
                 throw kira::Anyhow(
                     "SceneTableData: geometry type does not match its host implementation"
                 );
+            type = GeometryType::TriangleMesh;
             break;
-        }
         case GeometryType::Count: throw kira::Anyhow("SceneTableData: unsupported geometry type");
         }
     }
 }
 
 void SceneTableData::clear() noexcept {
-    objects.primitives.clear();
-    objects.meshes.clear();
+    geometryTypes.clear();
     primitives.clear();
     transforms.clear();
     bsdfs.clear();

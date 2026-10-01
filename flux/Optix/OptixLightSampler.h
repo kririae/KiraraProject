@@ -9,7 +9,6 @@
 
 namespace flux {
 class Context;
-struct SceneTableData;
 
 /// \brief Owns the light table and power distribution used by OptiX.
 class OptixLightSampler final : private Noncopyable, private CudaStreamMixin {
@@ -18,11 +17,9 @@ public:
 
     explicit OptixLightSampler(cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
 
-    /// \brief Rebuilds the sampler from \p scene and the lights of \p context.
-    void build(
-        SceneTableData const &scene, Context const &context,
-        OptixImageTexturePool::Impl imageTextures, float sceneRadius
-    );
+    /// \brief Rebuilds the sampler from the lights of \p context.
+    void
+    build(Context const &context, OptixImageTexturePool::Impl imageTextures, float sceneRadius);
 
     /// \brief Returns the sampler used for rendering.
     ///

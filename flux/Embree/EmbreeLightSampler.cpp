@@ -10,14 +10,12 @@
 #include "flux/Core/MathUtils.h"
 #include "flux/Sampling/Distribution2D.h"
 #include "flux/Scene/Context.h"
-#include "flux/Scene/SceneTableData.h"
 #include "flux/Shading/Texture.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
 void EmbreeLightSampler::build(
-    SceneTableData const &scene, Context const &context, EmbreeImageTexturePool::Impl imageTextures,
-    float sceneRadius
+    Context const &context, EmbreeImageTexturePool::Impl imageTextures, float sceneRadius
 ) {
     envMapCDF_.clear();
     envMapRows_.clear();
@@ -27,7 +25,7 @@ void EmbreeLightSampler::build(
     if (envMap)
         envMapPower = buildEnvMap(*envMap, imageTextures, sceneRadius);
 
-    tableData_.build(scene, context, envMapPower);
+    tableData_.build(context, envMapPower);
 }
 
 float EmbreeLightSampler::buildEnvMap(

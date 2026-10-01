@@ -52,13 +52,15 @@ the type `Ref<T>` for a context object `T`.
 - **Concurrent edits.** Between syncs, other threads call setters. A runtime
   that holds a context object can read it while it changes.
 
-### Current violations
+### Violations before this specification
 
-- `SceneTableData::objects` holds `Ref<Primitive const>` and
+Both are resolved; see [Staging](#staging).
+
+- `SceneTableData::objects` held `Ref<Primitive const>` and
   `Ref<TriangleMesh const>`, and `SceneTableData` lives in each runtime.
-- Embree shares the mesh arrays with `rtcSetSharedGeometryBuffer`, so its scenes
-  point into `TriangleMesh` storage after sync. Today this is kept valid only by
-  the `Ref<TriangleMesh const>` above.
+- Embree shared the mesh arrays with `rtcSetSharedGeometryBuffer`, so its scenes
+  pointed into `TriangleMesh` storage after sync, kept valid only by the
+  `Ref<TriangleMesh const>` above.
 
 ## Host buffers
 
@@ -218,10 +220,12 @@ from a `ContextIndexMap`, as it does for BSDFs and EDFs:
   whose `geometryIndex` is `invalidGeometryIndex`. A hidden primitive keeps its
   index as a hole, so hiding a primitive changes no index. No instance and no
   light slot refers to a hole.
-- The light table will walk the Context's primitives during sync and ask
+- The light table walks the Context's primitives during sync and asks
   `getIndex<Primitive>(id)`, so there is one source of the index and nothing to
-  keep in step. Until stage 2 ends, it reads `SceneTableData::objects.primitives`
-  at the same index.
+  keep in step.
+- A primitive builds its own entry with `Primitive::getImpl`, and
+  `Primitive::isLight` decides whether it is a light. Both tables ask the same
+  object, and no edit overlaps sync, so they agree.
 
 This replaces "visible primitives in Context ID order" in
 [FLux Scene and Light Tables](flux-scene-tables.md). It also makes incremental
@@ -232,10 +236,10 @@ Geometry indices follow the same rule. `Context` assigns a mesh's index from a
 `ContextIndexMap` when it absorbs the mesh, and `SceneTableData` no longer ranks
 meshes in each build. Adding a mesh moves no other mesh's index.
 
-When stage 2 ends, `SceneTableData` keeps no context object after `build`
-returns. The meshes it visits are a local of `build`, and each runtime takes the
-buffers it needs. Until then, `objects` holds them, with a null entry at each
-hole.
+`SceneTableData` keeps no context object after `build` returns. It records
+which geometry indices a visible primitive references in `geometryTypes`, and
+each runtime walks the Context's meshes during sync and takes the buffers it
+needs.
 
 ## Rejected alternatives
 

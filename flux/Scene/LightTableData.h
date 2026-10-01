@@ -8,10 +8,10 @@
 #include "flux/Sampling/LightPowerDistribution.h"
 #include "flux/Scene/EnvMapLight.h"
 #include "flux/Scene/Light.h"
+#include "flux/Scene/Primitive.h"
 
 namespace flux {
 class Context;
-struct SceneTableData;
 
 /// \brief Per-light data read while rendering.
 struct LightTable {
@@ -22,7 +22,7 @@ struct LightTable {
     EnvMapLight::Impl const *envMap{};
 };
 
-/// \brief Host light data derived from a scene table.
+/// \brief Host light data derived from the lights of a Context.
 struct LightTableData final : private Noncopyable {
     static constexpr std::uint32_t invalidSlot = LightPowerDistribution::invalidSlot;
 
@@ -32,7 +32,7 @@ struct LightTableData final : private Noncopyable {
         std::vector<PointLight::Impl> points;
 
         /// World-area scale of each primitive's transform by primitive index, or
-        /// zero at a hole.
+        /// zero for a primitive that is not a light.
         std::vector<float> primAreaScales;
     } lights;
 
@@ -52,14 +52,14 @@ struct LightTableData final : private Noncopyable {
     } slots;
 
 public:
-    /// \brief Rebuilds the light data from \p scene and the lights of \p context.
+    /// \brief Rebuilds the light data from \p context.
     ///
-    /// Every visible primitive with an EDF is a light. At most \p maxSlots lights get a
-    /// slot, and emitting primitives lose theirs first. \p maxSlots is bounded by
+    /// Every primitive for which \c Primitive::isLight is true is a light. At most \p maxSlots
+    /// lights get a slot, and emitting primitives lose theirs first. \p maxSlots is bounded by
     /// \c LightPowerDistribution::maxLightCount. \p envMapPower is empty when no
     /// environment map is active.
     void build(
-        SceneTableData const &scene, Context const &context, std::optional<float> envMapPower,
+        Context const &context, std::optional<float> envMapPower,
         std::uint32_t maxSlots = LightPowerDistribution::maxLightCount
     );
 

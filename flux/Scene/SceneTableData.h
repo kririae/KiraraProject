@@ -2,14 +2,14 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "flux/Core/Object.h"
+#include "flux/Scene/Geometry.h"
 #include "flux/Scene/Primitive.h"
-#include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
 #include "flux/Shading/EDF.h"
-#include "kira/SmallVector.h"
 
 namespace flux {
 class Context;
@@ -20,15 +20,10 @@ class Context;
 /// Context. An index without a visible primitive is a hole, and hiding a
 /// primitive changes no index.
 struct SceneTableData final : private Noncopyable {
-    /// Context object at each index. Host only; not read while rendering.
-    struct {
-        /// Visible primitives by primitive index, or null at a hole.
-        kira::SmallVector<Ref<Primitive const>> primitives;
-
-        /// Meshes indexed by the indices assigned by Context, or null when no
-        /// visible primitive references the index.
-        kira::SmallVector<Ref<TriangleMesh const>> meshes;
-    } objects;
+    /// Type of each geometry by the indices assigned by Context, or empty when no
+    /// visible primitive references the index. A runtime builds only the geometries
+    /// with a type.
+    std::vector<std::optional<GeometryType>> geometryTypes;
 
     /// Entry of each primitive by primitive index. A hole is a default entry.
     std::vector<Primitive::Impl> primitives;

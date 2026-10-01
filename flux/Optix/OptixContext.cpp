@@ -60,21 +60,28 @@ struct OptixContext::Storage : private CudaStreamMixin {
             instanceDescs.push_back({
                 .primitiveIndex = static_cast<std::uint32_t>(index),
                 .geometryIndex = geometryIndex,
-                .sbtOffset = OptixSbt::getInstanceOffset(
-                    bsdfType, table.objects.meshes[geometryIndex]->getType()
-                ),
+                .sbtOffset =
+                    OptixSbt::getInstanceOffset(bsdfType, *table.geometryTypes[geometryIndex]),
                 .transform = table.transforms[index],
             });
         }
 
         // Rebuild in dependency order. GAS consumes the geometry buffers; IAS
         // then consumes the GAS handles and the matching primitive layout.
-        geometryPool.build(table.objects.meshes);
+        // Gather the referenced meshes by geometry index, leaving a null at each hole.
+        auto const contextMeshes = context.getObjects<TriangleMesh>();
+        std::vector<TriangleMesh const *> meshes(table.geometryTypes.size());
+        for (auto const &mesh : contextMeshes) {
+            auto const index = context.getIndex<Geometry>(mesh->getContextId());
+            if (table.geometryTypes[index])
+                meshes[index] = mesh.get();
+        }
+        geometryPool.build(meshes);
         imageTexturePool.build(context);
         auto const buildInputs = geometryPool.getBuildInputs();
         accel.buildGas(deviceContext, buildInputs);
         accel.buildIas(deviceContext, instanceDescs);
-        lightSampler.build(table, context, imageTexturePool.getImpl(), accel.getSceneRadius());
+        lightSampler.build(context, imageTexturePool.getImpl(), accel.getSceneRadius());
         primitives.copyFromHost({table.primitives.data(), table.primitives.size()});
         instanceIndices.copyFromHost({iasIndices.data(), iasIndices.size()});
         bsdfs.copyFromHost({table.bsdfs.data(), table.bsdfs.size()});
@@ -87,7 +94,7 @@ struct OptixContext::Storage : private CudaStreamMixin {
         LogDebug(
             "OptixContext: built {} geometries and {} visible primitives",
             std::ranges::count_if(
-                table.objects.meshes, [](auto const &mesh) { return static_cast<bool>(mesh); }
+                table.geometryTypes, [](auto const &type) { return type.has_value(); }
             ),
             instanceDescs.size()
         );

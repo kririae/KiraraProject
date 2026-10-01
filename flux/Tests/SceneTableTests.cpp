@@ -52,9 +52,8 @@ void expectSameTables(flux::SceneTableData const &actual, flux::SceneTableData c
         EXPECT_EQ(actual.primitives[index].bsdfIndex, expected.primitives[index].bsdfIndex);
         EXPECT_EQ(actual.primitives[index].edfIndex, expected.primitives[index].edfIndex);
     }
-    EXPECT_EQ(actual.objects.primitives.size(), expected.objects.primitives.size());
     EXPECT_EQ(actual.transforms, expected.transforms);
-    EXPECT_EQ(actual.objects.meshes.size(), expected.objects.meshes.size());
+    EXPECT_EQ(actual.geometryTypes, expected.geometryTypes);
     EXPECT_EQ(actual.bsdfs.size(), expected.bsdfs.size());
     EXPECT_EQ(actual.edfs.size(), expected.edfs.size());
 }
@@ -66,10 +65,9 @@ TEST(SceneTableTests, BuildsEmptyTablesFromAnEmptyContext) {
     auto table = flux::SceneTableData{};
     table.build(*context);
 
-    EXPECT_TRUE(table.objects.primitives.empty());
     EXPECT_TRUE(table.primitives.empty());
     EXPECT_TRUE(table.transforms.empty());
-    EXPECT_TRUE(table.objects.meshes.empty());
+    EXPECT_TRUE(table.geometryTypes.empty());
     EXPECT_TRUE(table.bsdfs.empty());
     EXPECT_TRUE(table.edfs.empty());
 }
@@ -90,14 +88,10 @@ TEST(SceneTableTests, KeepsEveryPrimitiveIndexWhenOneIsHidden) {
     // The hidden primitive keeps its index as a hole.
     auto const limit = context->getIndexLimit<flux::Primitive>();
     ASSERT_EQ(table.primitives.size(), limit);
-    ASSERT_EQ(table.objects.primitives.size(), limit);
     ASSERT_EQ(table.transforms.size(), limit);
     auto const firstIndex = context->getIndex<flux::Primitive>(first->getContextId());
     auto const hiddenIndex = context->getIndex<flux::Primitive>(hidden->getContextId());
     auto const thirdIndex = context->getIndex<flux::Primitive>(third->getContextId());
-    EXPECT_EQ(table.objects.primitives[firstIndex], first);
-    EXPECT_FALSE(table.objects.primitives[hiddenIndex]);
-    EXPECT_EQ(table.objects.primitives[thirdIndex], third);
     EXPECT_FALSE(table.primitives[firstIndex].isHole());
     EXPECT_TRUE(table.primitives[hiddenIndex].isHole());
     EXPECT_FALSE(table.primitives[thirdIndex].isHole());
@@ -126,8 +120,6 @@ TEST(SceneTableTests, HidingAPrimitiveMovesNoIndex) {
     ASSERT_EQ(indexOf(second), secondIndex);
     ASSERT_EQ(table.primitives.size(), context->getIndexLimit<flux::Primitive>());
     EXPECT_TRUE(table.primitives[firstIndex].isHole());
-    EXPECT_EQ(table.objects.primitives[secondIndex], second);
-    EXPECT_EQ(table.objects.primitives[indexOf(added)], added);
     EXPECT_FALSE(table.primitives[secondIndex].isHole());
     EXPECT_FALSE(table.primitives[indexOf(added)].isHole());
 }
@@ -143,9 +135,9 @@ TEST(SceneTableTests, GivesOneGeometryIndexToEveryPrimitiveThatSharesAMesh) {
     auto table = flux::SceneTableData{};
     table.build(*context);
 
-    ASSERT_EQ(table.objects.meshes.size(), 2);
-    EXPECT_EQ(table.objects.meshes[0], firstMesh);
-    EXPECT_EQ(table.objects.meshes[1], secondMesh);
+    ASSERT_EQ(table.geometryTypes.size(), 2);
+    EXPECT_EQ(table.geometryTypes[0], flux::GeometryType::TriangleMesh);
+    EXPECT_EQ(table.geometryTypes[1], flux::GeometryType::TriangleMesh);
 
     ASSERT_EQ(table.primitives.size(), 3);
     EXPECT_EQ(table.primitives[0].geometryIndex, 0);
@@ -164,9 +156,9 @@ TEST(SceneTableTests, ExcludesAMeshThatNoVisiblePrimitiveUses) {
     auto table = flux::SceneTableData{};
     table.build(*context);
 
-    ASSERT_EQ(table.objects.meshes.size(), 2);
-    EXPECT_EQ(table.objects.meshes[0], visibleMesh);
-    EXPECT_FALSE(table.objects.meshes[1]);
+    ASSERT_EQ(table.geometryTypes.size(), 2);
+    EXPECT_EQ(table.geometryTypes[0], flux::GeometryType::TriangleMesh);
+    EXPECT_FALSE(table.geometryTypes[1]);
 }
 
 TEST(SceneTableTests, TakesGeometryIndicesFromTheContextAndLeavesHoles) {
@@ -181,10 +173,10 @@ TEST(SceneTableTests, TakesGeometryIndicesFromTheContextAndLeavesHoles) {
     // The unreferenced mesh keeps its index as a hole.
     auto const unusedIndex = context->getIndex<flux::Geometry>(unused->getContextId());
     auto const usedIndex = context->getIndex<flux::Geometry>(used->getContextId());
-    ASSERT_EQ(table.objects.meshes.size(), context->getIndexLimit<flux::Geometry>());
-    ASSERT_EQ(table.objects.meshes.size(), 2);
-    EXPECT_FALSE(table.objects.meshes[unusedIndex]);
-    EXPECT_EQ(table.objects.meshes[usedIndex], used);
+    ASSERT_EQ(table.geometryTypes.size(), context->getIndexLimit<flux::Geometry>());
+    ASSERT_EQ(table.geometryTypes.size(), 2);
+    EXPECT_FALSE(table.geometryTypes[unusedIndex]);
+    EXPECT_EQ(table.geometryTypes[usedIndex], flux::GeometryType::TriangleMesh);
     ASSERT_EQ(table.primitives.size(), 1);
     EXPECT_EQ(table.primitives[0].geometryIndex, usedIndex);
 }

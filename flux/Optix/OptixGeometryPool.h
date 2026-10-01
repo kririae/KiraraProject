@@ -27,9 +27,10 @@ public:
     ///
     /// Meshes omitted from \p meshes are released.
     /// \param meshes Host meshes to upload at their geometry indices. A null
-    ///        mesh is a hole, which gets no device storage.
+    ///        mesh is a hole, which gets no device storage. The meshes need to
+    ///        stay alive only during this call.
     /// \throw kira::Anyhow If CUDA cannot enqueue an allocation or copy.
-    void build(std::span<Ref<TriangleMesh const> const> meshes);
+    void build(std::span<TriangleMesh const *const> meshes);
 
     /// \brief Creates build inputs backed by the current resident storage.
     ///
@@ -50,7 +51,7 @@ public:
     }
 
 private:
-    /// Device storage of one geometry index. A hole has empty buffers.
+    /// Device storage of one geometry index.
     struct Entry {
         explicit Entry(cudaStream_t stream)
             : vertices(stream), triangles(stream), normals(stream), normalIndices(stream),
@@ -67,6 +68,8 @@ private:
         kira::SmallVector<float, 0> triangleAreaPDFStaging;
         DeviceBuffer<float> triangleAreaCDF;
         DeviceBuffer<float> triangleAreaPDF;
+        /// Whether a mesh was uploaded, and false at a hole.
+        bool resident{};
         CUdeviceptr vertexBuffer{};
         unsigned int flags{OPTIX_GEOMETRY_FLAG_NONE};
     };

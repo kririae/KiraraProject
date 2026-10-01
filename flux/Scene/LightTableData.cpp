@@ -5,13 +5,11 @@
 
 #include "flux/Core/Logging.h"
 #include "flux/Scene/Context.h"
-#include "flux/Scene/SceneTableData.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
 void LightTableData::build(
-    SceneTableData const &scene, Context const &context, std::optional<float> envMapPower,
-    std::uint32_t maxSlots
+    Context const &context, std::optional<float> envMapPower, std::uint32_t maxSlots
 ) {
     clear();
 
@@ -20,7 +18,8 @@ void LightTableData::build(
 
     // Size the arrays.
     auto const contextLights = context.getObjects<Light>();
-    auto const numPrimitives = scene.primitives.size();
+    auto const contextPrimitives = context.getObjects<Primitive>();
+    auto const numPrimitives = context.getIndexLimit<Primitive>();
     lights.points.reserve(contextLights.size());
     lights.primAreaScales.assign(numPrimitives, 0.0F);
     slots.handles.reserve(contextLights.size() + numPrimitives);
@@ -69,15 +68,10 @@ void LightTableData::build(
     if (envMapPower)
         slots.envMapSlot = addSlot({.type = LightType::EnvMap, .index = 0}, *envMapPower);
 
-    // Assign slots to visible primitives with an EDF, in index order. An emitter past
+    // Assign slots to primitives that are lights, in Context ID order. An emitter past
     // the cap stays reachable by BSDF sampling, where MIS weights it one.
-    for (std::size_t index = 0; index < numPrimitives; ++index) {
-        if (scene.primitives[index].isHole())
-            continue;
-
-        auto const &primitive = scene.objects.primitives[index];
-        lights.primAreaScales[index] = primitive->estimateAreaScale();
-        if (!scene.primitives[index].hasEDF())
+    for (auto const &primitive : contextPrimitives) {
+        if (!primitive->isLight())
             continue;
 
         if (primitive->hasNonUniformScale())
@@ -86,9 +80,10 @@ void LightTableData::build(
                 "scale for light sampling",
                 primitive->getContextId()
             );
-        auto const primIndex = static_cast<std::uint32_t>(index);
+        auto const index = context.getIndex<Primitive>(primitive->getContextId());
+        lights.primAreaScales[index] = primitive->estimateAreaScale();
         slots.primSlots[index] =
-            addSlot({.type = LightType::Primitive, .index = primIndex}, primitive->estimatePower());
+            addSlot({.type = LightType::Primitive, .index = index}, primitive->estimatePower());
     }
 
     // Report lights past the cap.

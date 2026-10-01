@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cstdint>
 #include <filesystem>
 
@@ -285,12 +286,12 @@ TEST(OptixPipelineTests, TracksAccumulationAcrossFilmAndSampleTargetChanges) {
     EXPECT_TRUE(handler.isConverged(*product));
 }
 
-TEST(OptixPipelineTests, RendersWithIndicesThatFollowUnusedObjects) {
+TEST(OptixPipelineTests, RendersWithIndicesThatFollowUnusedObjectsAndAfterAResync) {
     if (!flux::test::hasCudaMemoryPoolSupport())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     // Light a triangle with an emitter and return the center pixel.
-    auto const render = [&](bool withUnusedMesh, bool withHiddenPrimitive) {
+    auto const render = [&](bool withUnusedMesh, bool withHiddenPrimitive, bool withResync) {
         auto context = flux::Context::create();
         (void)context->create<flux::PathIntegrator>(kira::Properties{});
         (void)context->create<flux::IndependentSampler>(kira::Properties{});
@@ -320,6 +321,13 @@ TEST(OptixPipelineTests, RendersWithIndicesThatFollowUnusedObjects) {
             {1.0F, 0.0F, 0.0F, 0.0F, 0.0F, -1.0F, 0.0F, 0.0F, 0.0F, 0.0F, -1.0F, 1.0F}
         );
 
+        // Add a second emitter that the re-sync hides again.
+        auto extra = context->create<flux::Primitive>(emitterProperties);
+        extra->setTransform(
+            {1.0F, 0.0F, 0.0F, 0.5F, 0.0F, -1.0F, 0.0F, 0.0F, 0.0F, 0.0F, -1.0F, 1.0F}
+        );
+        extra->setVisible(withResync);
+
         kira::Properties cameraProperties;
         cameraProperties.set("position", flux::Vec3f{0.25F, 0.25F, 1.0F});
         cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.0F});
@@ -332,13 +340,54 @@ TEST(OptixPipelineTests, RendersWithIndicesThatFollowUnusedObjects) {
         product->getFilm().setChannels(flux::FilmChannels::Color);
 
         flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
-        handler.render(*product, 4);
-        handler.download(*product);
-        return product->getFilm().getChannel<flux::ColorChannel>()[0];
+        auto const color = [&] {
+            handler.render(*product, 4);
+            handler.download(*product);
+            return product->getFilm().getChannel<flux::ColorChannel>()[0];
+        };
+        if (!withResync)
+            return color();
+
+        // Render with the second emitter, then hide it and sync the same handler.
+        auto const lit = color();
+        extra->setVisible(false);
+        handler.sync();
+        auto const dimmed = color();
+        EXPECT_NE(dimmed, lit);
+        return dimmed;
     };
 
-    auto const expected = render(false, false);
+    auto const expected = render(false, false, false);
     EXPECT_GT(expected.x(), 0.0F);
-    EXPECT_EQ(render(true, false), expected);
-    EXPECT_EQ(render(false, true), expected);
+    EXPECT_EQ(render(true, false, false), expected);
+    EXPECT_EQ(render(false, true, false), expected);
+    EXPECT_EQ(render(false, false, true), expected);
+}
+
+TEST(OptixPipelineTests, HoldsNoContextObjectAfterSync) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    auto context = flux::Context::create();
+    (void)context->create<flux::PathIntegrator>(kira::Properties{});
+    (void)context->create<flux::IndependentSampler>(kira::Properties{});
+    auto mesh = context->create<flux::TriangleMesh>(triangleData());
+    auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
+    auto edf = context->create<flux::ConstantEDF>(kira::Properties{});
+    auto properties = primitiveProperties(*mesh, *bsdf);
+    properties.set("edf_ctx_id", static_cast<std::int64_t>(edf->getContextId()));
+    auto primitive = context->create<flux::Primitive>(properties);
+
+    // The test, the Context and, for the mesh, the primitive hold each object.
+    auto const counts = std::array{
+        mesh->getRefCount(), bsdf->getRefCount(), edf->getRefCount(), primitive->getRefCount()
+    };
+    flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
+    handler.sync();
+
+    // The runtime holds no context object after sync.
+    EXPECT_EQ(mesh->getRefCount(), counts[0]);
+    EXPECT_EQ(bsdf->getRefCount(), counts[1]);
+    EXPECT_EQ(edf->getRefCount(), counts[2]);
+    EXPECT_EQ(primitive->getRefCount(), counts[3]);
 }

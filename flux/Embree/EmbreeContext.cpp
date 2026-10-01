@@ -111,16 +111,23 @@ void EmbreeContext::sync() try {
 
     // Size both arrays once, so no later step moves an entry. Holes keep their
     // default entry and Impl.
-    geometries_.resize(table_.objects.meshes.size());
-    geometryImpls_.resize(table_.objects.meshes.size());
-    for (std::size_t index = 0; index < geometries_.size(); ++index) {
-        auto const &mesh = table_.objects.meshes[index];
-        if (!mesh)
+    geometries_.resize(table_.geometryTypes.size());
+    geometryImpls_.resize(table_.geometryTypes.size());
+    for (auto const &mesh : context_.getObjects<TriangleMesh>()) {
+        auto const index = context_.getIndex<Geometry>(mesh->getContextId());
+        if (!table_.geometryTypes[index])
             continue;
 
         // Hold the arrays that the child scene and the Impl read.
         auto &entry = geometries_[index];
         entry.data = mesh->getData();
+
+        // Embree reads 16 bytes from the last RTC_FORMAT_FLOAT3 vertex.
+        if (entry.data.vertices->capacity() <= entry.data.vertices->size())
+            throw kira::Anyhow(
+                "EmbreeContext: the vertex buffer of mesh {} has no spare capacity",
+                mesh->getContextId()
+            );
 
         // Build the triangle selection distribution.
         auto impl = TriangleMesh::makeImpl(entry.data, mesh->getSurfaceArea());
@@ -161,13 +168,6 @@ void EmbreeContext::sync() try {
         embreeCheck(device_);
         auto const &vertices = *entry.data.vertices;
         auto const &triangles = *entry.data.triangles;
-
-        // Embree reads 16 bytes from the last RTC_FORMAT_FLOAT3 vertex.
-        if (vertices.capacity() <= vertices.size())
-            throw kira::Anyhow(
-                "EmbreeContext: the vertex buffer of mesh {} has no spare capacity",
-                table_.objects.meshes[index]->getContextId()
-            );
 
         rtcSetSharedGeometryBuffer(
             geometry.get(), RTC_BUFFER_TYPE_VERTEX, 0, RTC_FORMAT_FLOAT3, vertices.data(), 0,
@@ -231,11 +231,11 @@ void EmbreeContext::sync() try {
                 .norm() *
             0.5F;
     }
-    lightSampler_.build(table_, context_, imageTexturePool_.getImpl(), sceneRadius);
+    lightSampler_.build(context_, imageTexturePool_.getImpl(), sceneRadius);
     LogDebug(
         "EmbreeContext: built {} geometries and {} visible primitives",
         std::ranges::count_if(
-            table_.objects.meshes, [](auto const &mesh) { return static_cast<bool>(mesh); }
+            table_.geometryTypes, [](auto const &type) { return type.has_value(); }
         ),
         numVisible
     );

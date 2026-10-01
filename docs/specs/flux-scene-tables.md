@@ -96,8 +96,15 @@ array it addresses are produced together.
 
 The scene table's pass writes each visible primitive at the index `Context`
 assigned it, so no table defines an order of its own. Nothing writes into a table after
-its `build` returns. The light table derives its data from the scene table, never
-from the primitives of the `Context`, so the dependency runs one way.
+its `build` returns.
+
+Amendment: the light table first derived its data from the scene table, so that
+one walk defined the order. With indices from `Context`, both tables walk the
+`Context`. They agree because the index has one source, `getIndex<Primitive>`,
+and each decision has one source on the primitive: `Primitive::getImpl` decides
+a hole and `Primitive::isLight` decides a light. The `objects` segment below is
+removed; `geometryTypes` records which geometry indices a visible primitive
+references. See [FLux Runtime Data Ownership](flux-runtime-ownership.md).
 
 ## The scene table
 
@@ -286,9 +293,9 @@ the same as the removed `primLightIndex`. Computing the scale from
 
 1. Point lights from the `Context`, in Context ID order.
 2. The environment map, when `envMapPower` is present.
-3. Primitives in index order, for each `i` with `scene.primitives[i].hasEDF()`.
-   Power and area scale come from `scene.objects.primitives[i]`, which is also
-   where the non-uniform-scale warning reads the Context ID.
+3. Primitives of the `Context` in Context ID order, for each one whose
+   `isLight()` is true, at its `getIndex<Primitive>`. Power and area scale come
+   from the primitive, which also gives the non-uniform-scale warning its ID.
 
 Every other `primSlots[i]` is `invalidSlot`, and `primSlots` and
 `primAreaScales` have one entry per primitive index. A hole has `invalidSlot` and

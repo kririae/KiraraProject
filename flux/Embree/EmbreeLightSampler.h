@@ -9,18 +9,15 @@
 
 namespace flux {
 class Context;
-struct SceneTableData;
 
 /// \brief Owns the light table and power distribution used by Embree.
 class EmbreeLightSampler final : private Noncopyable {
 public:
     struct Impl;
 
-    /// \brief Rebuilds the sampler from \p scene and the lights of \p context.
-    void build(
-        SceneTableData const &scene, Context const &context,
-        EmbreeImageTexturePool::Impl imageTextures, float sceneRadius
-    );
+    /// \brief Rebuilds the sampler from the lights of \p context.
+    void
+    build(Context const &context, EmbreeImageTexturePool::Impl imageTextures, float sceneRadius);
 
     void clear() noexcept;
 

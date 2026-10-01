@@ -11,7 +11,6 @@
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Sampling/Distribution2D.h"
 #include "flux/Scene/Context.h"
-#include "flux/Scene/SceneTableData.h"
 #include "flux/Shading/Texture.h"
 #include "kira/Anyhow.h"
 #include "kira/SmallVector.h"
@@ -43,8 +42,7 @@ struct SampleEnvMapWeights {
 } // namespace
 
 void OptixLightSampler::build(
-    SceneTableData const &scene, Context const &context, OptixImageTexturePool::Impl imageTextures,
-    float sceneRadius
+    Context const &context, OptixImageTexturePool::Impl imageTextures, float sceneRadius
 ) {
     points_.clear();
     primAreaScales_.clear();
@@ -60,7 +58,7 @@ void OptixLightSampler::build(
     if (envMap)
         envMapPower = buildEnvMap(*envMap, imageTextures, sceneRadius);
 
-    staging_.build(scene, context, envMapPower);
+    staging_.build(context, envMapPower);
     points_.copyFromHost(staging_.lights.points);
     primAreaScales_.copyFromHost(staging_.lights.primAreaScales);
     handles_.copyFromHost(staging_.slots.handles);
