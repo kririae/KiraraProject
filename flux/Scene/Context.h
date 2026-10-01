@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "flux/Core/EnumFlags.h"
 #include "flux/Scene/ContextIndexMap.h"
 #include "flux/Scene/ImageAsset.h"
 #include "flux/Scene/TXContext.h"
@@ -37,6 +38,17 @@ class Context final : public Object {
     friend class ContextObject;
 
 public:
+    /// \brief Changes to the context itself, as opposed to changes to one object.
+    ///
+    /// An active-object setter records its bit only when the active object changes.
+    enum class DirtyBits : std::uint32_t {
+        None = 0,
+        Added = 1U << 0U,
+        ActiveIntegrator = 1U << 1U,
+        ActiveSampler = 1U << 2U,
+        ActiveEnvMap = 1U << 3U,
+    };
+
     /// \brief Creates an empty context.
     [[nodiscard]] static Ref<Context> create();
 
@@ -111,20 +123,37 @@ public:
         return getMap<T>().getIndexLimit();
     }
 
-    /// \brief Returns the first integrator successfully added to this context.
+    /// \brief Returns the active integrator, initially the first one added.
     ///
     /// \throw kira::Anyhow If the context has no integrator.
     [[nodiscard]] Ref<PathIntegrator const> getActiveIntegrator() const;
 
-    /// \brief Returns the first sampler successfully added to this context.
+    /// \brief Makes \p integrator the active integrator.
+    ///
+    /// \throw kira::Anyhow If \p integrator is null or belongs to another context.
+    void setActiveIntegrator(Ref<PathIntegrator const> integrator);
+
+    /// \brief Returns the active sampler, initially the first one added.
     ///
     /// \throw kira::Anyhow If the context has no sampler.
     [[nodiscard]] Ref<Sampler const> getActiveSampler() const;
 
-    /// \brief Returns the first environment map successfully added to this context.
+    /// \brief Makes \p sampler the active sampler.
+    ///
+    /// \throw kira::Anyhow If \p sampler is null or belongs to another context.
+    void setActiveSampler(Ref<Sampler const> sampler);
+
+    /// \brief Returns the active environment map, initially the first one added.
     ///
     /// Returns an empty reference when the context has no environment map.
     [[nodiscard]] Ref<EnvMapLight const> getActiveEnvMap() const;
+
+    /// \brief Makes \p envMap the active environment map.
+    ///
+    /// An empty reference leaves the context without an environment map.
+    ///
+    /// \throw kira::Anyhow If \p envMap belongs to another context.
+    void setActiveEnvMap(Ref<EnvMapLight const> envMap);
 
     /// \brief Returns every context object that is a \c T or derives from it.
     ///
@@ -145,6 +174,14 @@ public:
     /// \brief Commits changes owned by this context.
     void commit() noexcept;
 
+    /// \brief Returns the context changes since the last \c clearDirty.
+    [[nodiscard]] DirtyBits getDirtyBits() const noexcept { return dirtyBits_; }
+
+    /// \brief Returns the IDs of objects added since the last \c clearDirty.
+    ///
+    /// The IDs are ascending.
+    [[nodiscard]] std::span<std::size_t const> getAddedIds() const noexcept { return addedIds_; }
+
     /// \brief Returns the IDs of objects changed since the last \c clearDirty.
     ///
     /// Each ID is listed once, in the order its object first changed.
@@ -155,8 +192,8 @@ public:
     /// \brief Returns the number of times \c clearDirty was called.
     [[nodiscard]] std::uint64_t getEpoch() const noexcept { return epoch_; }
 
-    /// \brief Zeroes the bits of every changed object, empties the changed list, and starts the
-    ///        next epoch.
+    /// \brief Zeroes the context bits and the bits of every changed object, empties the added and
+    ///        changed lists, and starts the next epoch.
     void clearDirty() noexcept;
 
 private:
@@ -164,6 +201,9 @@ private:
 
     [[nodiscard]] std::size_t allocateId() noexcept { return nextId_++; }
     void absorb(TXContext &&tx);
+
+    /// \brief Replaces \p slot with \p id and records \p bits when the active object changes.
+    void setActive(std::optional<std::size_t> &slot, std::optional<std::size_t> id, DirtyBits bits);
 
     template <IsIndexedObject T> [[nodiscard]] ContextIndexMap const &getMap() const noexcept {
         return indices_[static_cast<std::size_t>(T::indexedKind)];
@@ -195,6 +235,13 @@ private:
     /// IDs of objects changed this epoch. An object is listed when its first bit is recorded, so
     /// it is listed once. Every listed ID is in \c objects_.
     std::vector<std::size_t> changedIds_;
+
+    /// IDs of objects added this epoch, ascending. An added object is born clean, so it is listed
+    /// here and not in \c changedIds_.
+    std::vector<std::size_t> addedIds_;
+    DirtyBits dirtyBits_{DirtyBits::None};
     std::uint64_t epoch_{0};
 };
+
+template <> inline constexpr bool isEnumFlags<Context::DirtyBits> = true;
 } // namespace flux
