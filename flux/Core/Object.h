@@ -183,17 +183,19 @@ class ContextObject : public Object {
     friend class TXContext;
 
 protected:
-    /// \brief Assigns an owner and stable ID from \p tx.
+    /// \brief Assigns a stable ID from \p tx.
+    ///
+    /// The object has no owner until its context absorbs \p tx.
     explicit ContextObject(TXContext &tx);
 
-    /// \brief Registers a fully constructed object with \p tx.
-    virtual void registerTo(TXContext &tx);
-
 public:
-    /// \brief Returns the owning context, or null after that context is destroyed.
+    /// \brief Returns the owning context, or null.
+    ///
+    /// An object has no owner before its context absorbs it, after it leaves the scene, and
+    /// after its context is destroyed. An object without an owner records no changes.
     [[nodiscard]] Context *getContext() noexcept { return context_; }
 
-    /// \brief Returns the owning context, or null after that context is destroyed.
+    /// \copydoc getContext
     [[nodiscard]] Context const *getContext() const noexcept { return context_; }
 
     /// \brief Returns the stable identifier assigned by the owning context.
@@ -252,7 +254,7 @@ private:
     /// \brief Appends this object's ID to the context's changed list.
     void recordChanged();
 
-    Context *context_;
+    Context *context_{};
     std::size_t contextId_;
 
     /// Bits of the properties changed since the last \c Context::clearDirty. The meaning of a

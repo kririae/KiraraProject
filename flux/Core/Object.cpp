@@ -4,10 +4,7 @@
 #include "flux/Scene/TXContext.h"
 
 namespace flux {
-ContextObject::ContextObject(TXContext &tx)
-    : context_(&tx.getContext()), contextId_(tx.allocateId()) {}
-
-void ContextObject::registerTo(TXContext &tx) { tx.registerObject(Ref<ContextObject>{this}); }
+ContextObject::ContextObject(TXContext &tx) : contextId_(tx.allocateId()) {}
 
 void ContextObject::recordChanged() {
     std::scoped_lock const lock(context_->mutex_);

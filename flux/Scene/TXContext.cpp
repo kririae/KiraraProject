@@ -13,10 +13,15 @@ Ref<ContextObject> TXContext::getObject(std::size_t contextId) const {
     return context_.get<ContextObject>(contextId);
 }
 
-void TXContext::registerObject(Ref<ContextObject> object) {
-    if (object->getContext() != &context_)
-        throw kira::Anyhow("TXContext: object belongs to another context");
+kira::FileResolver const &TXContext::getFileResolver() const noexcept {
+    return context_.getFileResolver();
+}
 
+ImageAssetPool &TXContext::getImageAssetPool() const noexcept {
+    return context_.getImageAssetPool();
+}
+
+void TXContext::registerObject(Ref<ContextObject> object) {
     auto const contextId = object->getContextId();
     auto const [iterator, inserted] = objects_.emplace(contextId, std::move(object));
     if (!inserted)

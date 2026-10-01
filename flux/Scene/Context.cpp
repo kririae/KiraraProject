@@ -29,9 +29,11 @@ void Context::absorb(TXContext &&tx) {
         added.insert(entry.first);
     addedIds_.reserve(addedIds_.size() + added.size());
 
-    // Merge the validated maps, objects, and IDs.
+    // Merge the validated maps, objects, and IDs. The objects join the scene here.
     for (std::size_t kind = 0; kind < numIndexedKinds; ++kind)
         indices_[kind].mergeValidated(std::move(tx.indices_[kind]));
+    for (auto const &entry : tx.objects_)
+        entry.second->context_ = this;
     objects_.merge(tx.objects_);
     addedIds_.merge(added);
 }
@@ -45,10 +47,9 @@ void Context::remove(std::size_t contextId) {
         throw kira::Anyhow("Context: only a root object can be removed");
 
     // Find the active roles before the object can be destroyed.
-    auto const *object = static_cast<ContextObject const *>(iterator->second.get());
-    auto const isIntegrator = static_cast<ContextObject const *>(activeIntegrator_.get()) == object;
-    auto const isSampler = static_cast<ContextObject const *>(activeSampler_.get()) == object;
-    auto const isEnvMap = static_cast<ContextObject const *>(activeEnvMap_.get()) == object;
+    auto const isIntegrator = activeIntegrator_ && activeIntegrator_->getContextId() == contextId;
+    auto const isSampler = activeSampler_ && activeSampler_->getContextId() == contextId;
+    auto const isEnvMap = activeEnvMap_ && activeEnvMap_->getContextId() == contextId;
     reclaim(contextId);
 
     // Empty the active slots that held it. This cannot throw.

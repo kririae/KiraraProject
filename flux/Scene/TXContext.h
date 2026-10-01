@@ -10,25 +10,22 @@
 #include "flux/Scene/ContextIndexMap.h"
 #include "kira/Anyhow.h"
 
-namespace flux {
-class PathIntegrator;
-class Sampler;
-class ImageTexture;
-class EnvMapLight;
-class TriangleMesh;
+namespace kira {
+class FileResolver;
+}
 
-/// \brief Collects objects created by one \c Context::create call.
+namespace flux {
+class Context;
+class ImageAssetPool;
+
+/// \brief Holds the objects of one \c Context::create call before they join the scene.
 ///
-/// A transaction belongs to one context. The context absorbs it only after the
-/// requested object has been fully constructed and registered.
+/// A transaction lives only inside that call; a constructor receives it by reference and does
+/// not keep it. Its objects have IDs but no owner, so they appear in no scene query or record.
+/// The context absorbs the whole transaction at once, or none of it.
 class TXContext {
     friend class Context;
     friend class ContextObject;
-    friend class PathIntegrator;
-    friend class Sampler;
-    friend class ImageTexture;
-    friend class EnvMapLight;
-    friend class TriangleMesh;
 
 public:
     /// \brief Creates and registers a configurable object in this transaction.
@@ -47,7 +44,7 @@ public:
             return T::create(*this, std::forward<Args>(args)...);
         } else {
             Ref<T> object{new T(*this, std::forward<Args>(args)...)};
-            static_cast<ContextObject *>(object.get())->registerTo(*this);
+            registerObject(object);
             return object;
         }
     }
@@ -60,16 +57,23 @@ public:
         return object;
     }
 
+    /// \brief Returns the resolver for the files a constructor loads.
+    [[nodiscard]] kira::FileResolver const &getFileResolver() const noexcept;
+
+    /// \brief Returns the pool that shares loaded images.
+    [[nodiscard]] ImageAssetPool &getImageAssetPool() const noexcept;
+
 private:
     explicit TXContext(Context &context) noexcept;
 
-    [[nodiscard]] Context &getContext() const noexcept { return context_; }
     [[nodiscard]] Ref<ContextObject> getObject(std::size_t contextId) const;
     [[nodiscard]] std::size_t allocateId();
     void registerObject(Ref<ContextObject> object);
 
     Context &context_;
     std::unordered_map<std::size_t, Ref<ContextObject>> objects_;
+
+    /// IDs of the objects of each indexed kind, which the context merges into its index maps.
     std::array<ContextIndexMap::Transaction, numIndexedKinds> indices_;
 };
 } // namespace flux

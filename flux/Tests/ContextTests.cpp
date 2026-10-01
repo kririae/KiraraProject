@@ -56,33 +56,22 @@ public:
     static inline int liveCount{0};
 };
 
+class OwnerProbe final : public flux::RenderObject {
+    friend class flux::TXContext;
+
+    explicit OwnerProbe(flux::TXContext &tx, kira::Properties const &)
+        : RenderObject(tx), ownedWhileConstructed(getContext() != nullptr) {}
+
+public:
+    bool ownedWhileConstructed;
+};
+
 class ThrowingConstructor final : public flux::RenderObject {
     friend class flux::TXContext;
 
     explicit ThrowingConstructor(flux::TXContext &tx, kira::Properties const &) : RenderObject(tx) {
         (void)tx.create<TrackedRenderObject>(kira::Properties{});
         throw std::runtime_error("constructor failed");
-    }
-};
-
-class ThrowingRegistration final : public flux::RenderObject {
-    friend class flux::TXContext;
-
-    explicit ThrowingRegistration(flux::TXContext &tx, kira::Properties const &)
-        : RenderObject(tx) {
-        (void)tx.create<TrackedRenderObject>(kira::Properties{});
-        ++liveCount;
-    }
-
-public:
-    ~ThrowingRegistration() override { --liveCount; }
-
-    static inline int liveCount{0};
-
-protected:
-    void registerTo(flux::TXContext &tx) override {
-        RenderObject::registerTo(tx);
-        throw std::runtime_error("registration failed");
     }
 };
 
@@ -119,6 +108,14 @@ TEST(ContextTests, ClearsOwnerWhenContextIsDestroyed) {
     EXPECT_EQ(object->getContext(), nullptr);
 }
 
+TEST(ContextTests, GivesAnOwnerOnlyWhenAbsorbing) {
+    auto context = flux::Context::create();
+    auto probe = context->create<OwnerProbe>(kira::Properties{});
+
+    EXPECT_FALSE(probe->ownedWhileConstructed);
+    EXPECT_EQ(probe->getContext(), context.get());
+}
+
 TEST(ContextTests, AbsorbsNestedCreationAsOneTransaction) {
     auto context = flux::Context::create();
     auto parent = context->create<NestedRenderObject>(kira::Properties{});
@@ -128,7 +125,7 @@ TEST(ContextTests, AbsorbsNestedCreationAsOneTransaction) {
     EXPECT_EQ(context->get<TestRenderObject>(parent->childId)->getContext(), context.get());
 }
 
-TEST(ContextTests, RollsBackConstructionAndRegistrationFailures) {
+TEST(ContextTests, RollsBackConstructionFailures) {
     auto context = flux::Context::create();
 
     EXPECT_THROW(
@@ -136,13 +133,6 @@ TEST(ContextTests, RollsBackConstructionAndRegistrationFailures) {
     );
     EXPECT_EQ(context->getNumContextObjects(), 0);
     EXPECT_EQ(TrackedRenderObject::liveCount, 0);
-
-    EXPECT_THROW(
-        (void)context->create<ThrowingRegistration>(kira::Properties{}), std::runtime_error
-    );
-    EXPECT_EQ(context->getNumContextObjects(), 0);
-    EXPECT_EQ(TrackedRenderObject::liveCount, 0);
-    EXPECT_EQ(ThrowingRegistration::liveCount, 0);
 }
 
 TEST(ContextTests, RejectsUnknownIdsAndWrongTypes) {

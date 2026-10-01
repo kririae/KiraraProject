@@ -97,14 +97,14 @@ Texture::Impl ConstantTexture::getImpl() const {
 ImageTexture::ImageTexture(TXContext &tx, kira::Properties const &props)
     : Texture(tx), addressMode_(parseAddressMode(props)), filterMode_(parseFilterMode(props)) {
     auto const inputPath = props.use<std::filesystem::path>("path");
-    auto const path = tx.getContext().getFileResolver().resolve(inputPath);
+    auto const path = tx.getFileResolver().resolve(inputPath);
     auto const colorSpace = props.use_or<std::string>("color_space", "linear");
     auto imageColorSpace = ImageColorSpace::Linear;
     if (colorSpace == "srgb")
         imageColorSpace = ImageColorSpace::SRGB;
     else if (colorSpace != "linear")
         throw kira::Anyhow("ImageTexture: unsupported color space '{}'", colorSpace);
-    imageAsset_ = tx.getContext().getImageAssetPool().getOrCreate({
+    imageAsset_ = tx.getImageAssetPool().getOrCreate({
         .path = path,
         .colorSpace = imageColorSpace,
     });

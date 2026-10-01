@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -248,7 +249,9 @@ public:
 private:
     Context() = default;
 
-    [[nodiscard]] std::size_t allocateId() noexcept { return nextId_++; }
+    [[nodiscard]] std::size_t allocateId() noexcept {
+        return nextId_.fetch_add(1, std::memory_order_relaxed);
+    }
     void absorb(TXContext &&tx);
 
     /// \brief Removes object \p contextId from the scene and records it as removed.
@@ -289,7 +292,8 @@ private:
     Ref<EnvMapLight const> activeEnvMap_;
     ImageAssetPool imageAssetPool_;
     kira::FileResolver fileResolver_;
-    std::size_t nextId_{0};
+    /// Next context ID. Transactions on different threads allocate IDs concurrently.
+    std::atomic_size_t nextId_{0};
 
     /// IDs of objects created this epoch and still in the scene. A created object is born clean,
     /// so it enters \c changedIds_ only when a setter changes it.

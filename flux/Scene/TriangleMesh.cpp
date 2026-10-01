@@ -129,7 +129,7 @@ loadMeshFile(kira::FileResolver const &resolver, kira::Properties const &props) 
 } // namespace
 
 TriangleMesh::TriangleMesh(TXContext &tx, kira::Properties const &props)
-    : TriangleMesh(tx, loadMeshFile(tx.getContext().getFileResolver(), props)) {}
+    : TriangleMesh(tx, loadMeshFile(tx.getFileResolver(), props)) {}
 
 TriangleMesh::TriangleMesh(TXContext &tx, Data &&data)
     : Geometry(tx, GeometryType::TriangleMesh), data_(std::move(data)) {
