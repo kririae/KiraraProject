@@ -151,7 +151,7 @@ struct OptixHandler::pImpl final {
     pImpl(Ref<Context> hostContext, std::filesystem::path const &modulePath);
     ~pImpl();
 
-    /// \brief Rebuilds the OptiX scene from the host \c Context.
+    /// \brief Updates the OptiX scene from the host \c Context.
     void sync();
 
     /// \brief Uploads \p params and launches a one-dimensional grid.

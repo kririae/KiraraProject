@@ -4,6 +4,7 @@
 #include <array>
 #include <cstdint>
 #include <filesystem>
+#include <vector>
 
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Sampling/Sampler.h"
@@ -367,4 +368,17 @@ TEST(DirtyTests, ClearDirtyEmptiesTheSetsAndContextBits) {
     EXPECT_TRUE(context->getRemovedIds().empty());
     EXPECT_EQ(context->getDirtyBits(), ContextBits::None);
     EXPECT_EQ(flux::getDirtyBits(*env), flux::EnvMapLight::DirtyBits::None);
+}
+
+TEST(DirtyTests, ForEachBitVisitsEverySetBitFromTheLowestUp) {
+    using Bits = flux::Primitive::DirtyBits;
+    std::vector<Bits> visited;
+    flux::forEachBit(Bits::Visibility | Bits::Geometry | Bits::Transform, [&](Bits bit) {
+        visited.push_back(bit);
+    });
+    EXPECT_EQ(visited, (std::vector<Bits>{Bits::Geometry, Bits::Transform, Bits::Visibility}));
+
+    visited.clear();
+    flux::forEachBit(Bits::None, [&](Bits bit) { visited.push_back(bit); });
+    EXPECT_TRUE(visited.empty());
 }

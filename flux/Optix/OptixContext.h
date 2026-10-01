@@ -42,10 +42,13 @@ private:
         std::filesystem::path const &modulePath
     );
 
-    /// \brief Commits the host \c Context and rebuilds the OptiX scene.
+    /// \brief Brings the OptiX scene up to date with the host \c Context.
     ///
-    /// Rebuilding clears the current scene first and waits for queued work. A
-    /// failed sync leaves this context unusable.
+    /// Reads the records of the context's current epoch to decide what to rebuild. A sync with
+    /// no changes since the previous one rebuilds nothing. Any other sync, and the first one,
+    /// rebuilds the whole scene, clears the current scene first, and waits for queued work. A
+    /// failed sync leaves this context unusable and does not count as a sync, so the next one
+    /// rebuilds everything.
     void sync();
 
     /// \brief Launches \p size ray-generation work items on \p stream.

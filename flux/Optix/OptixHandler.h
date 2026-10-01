@@ -28,10 +28,10 @@ public:
 
     ~OptixHandler();
 
-    /// \brief Rebuilds the OptiX scene from the host \c Context.
+    /// \brief Updates the OptiX scene from the host \c Context.
     ///
-    /// Sync waits for queued work and clears accumulation for every render
-    /// product. If sync throws, the device state is unspecified: render nothing
+    /// Sync clears accumulation for every render product, and waits for queued work when it
+    /// rebuilds. If sync throws, the device state is unspecified: render nothing
     /// until a later sync succeeds.
     void sync();
 
