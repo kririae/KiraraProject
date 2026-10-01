@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <stdexcept>
 
+#include "SceneUtils.h"
 #include "TestUtils.h"
 #include "flux/IO/ImageIO.h"
 #include "flux/Integrator/PathIntegrator.h"
@@ -54,8 +55,7 @@ TEST(OptixGeometryTests, PreservesFilteredAlbedoUnderInstanceTransforms) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>(kira::Properties{});
-    (void)context->create<flux::IndependentSampler>(kira::Properties{});
+    flux::test::setActiveDefaults(*context);
     kira::Properties meshProps;
     meshProps.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "IndexedTriangle.obj");
     auto mesh = context->create<flux::TriangleMesh>(meshProps);
@@ -99,8 +99,7 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>(kira::Properties{});
-    (void)context->create<flux::IndependentSampler>(kira::Properties{});
+    flux::test::setActiveDefaults(*context);
     kira::Properties meshProperties;
     meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
     auto mesh = context->create<flux::TriangleMesh>(meshProperties);
@@ -152,8 +151,7 @@ TEST(OptixGeometryTests, RendersDirectLightIntoColorChannel) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>(kira::Properties{});
-    (void)context->create<flux::IndependentSampler>(kira::Properties{});
+    flux::test::setActiveDefaults(*context);
 
     kira::Properties meshProperties;
     meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");

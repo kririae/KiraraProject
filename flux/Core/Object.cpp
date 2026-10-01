@@ -9,7 +9,10 @@ ContextObject::ContextObject(TXContext &tx)
 
 void ContextObject::registerTo(TXContext &tx) { tx.registerObject(Ref<ContextObject>{this}); }
 
-void ContextObject::recordChanged() { context_->changedIds_.push_back(contextId_); }
+void ContextObject::recordChanged() {
+    std::scoped_lock const lock(context_->mutex_);
+    context_->changedIds_.insert(contextId_);
+}
 
 ConfigurableObject::ConfigurableObject(TXContext &tx) : ContextObject(tx) {}
 } // namespace flux

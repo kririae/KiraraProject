@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <string>
 
+#include "SceneUtils.h"
 #include "TestUtils.h"
 #include "flux/Embree/EmbreeHandler.h"
 #include "flux/IO/ImageIO.h"
@@ -65,8 +66,7 @@ primitiveProperties(flux::TriangleMesh const &mesh, flux::BSDF const &bsdf) {
 
 TEST(EmbreePipelineTests, RendersSecondInstanceAndDownloadsFilmChannels) {
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>(kira::Properties{});
-    (void)context->create<flux::IndependentSampler>(kira::Properties{});
+    flux::test::setActiveDefaults(*context);
 
     kira::Properties meshProperties;
     meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
@@ -147,8 +147,7 @@ TEST(EmbreePipelineTests, RendersSecondInstanceAndDownloadsFilmChannels) {
 
 TEST(EmbreePipelineTests, RejectsSingularInstanceTransforms) {
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>(kira::Properties{});
-    (void)context->create<flux::IndependentSampler>(kira::Properties{});
+    flux::test::setActiveDefaults(*context);
 
     kira::Properties meshProperties;
     meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
@@ -175,8 +174,7 @@ TEST(EmbreePipelineTests, RejectsSingularInstanceTransforms) {
 
 TEST(EmbreePipelineTests, RejectsAVertexBufferWithoutSpareCapacity) {
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>(kira::Properties{});
-    (void)context->create<flux::IndependentSampler>(kira::Properties{});
+    flux::test::setActiveDefaults(*context);
     auto const corners = std::array{
         flux::Vec3f{0.0F, 0.0F, 0.0F},
         flux::Vec3f{1.0F, 0.0F, 0.0F},
@@ -203,8 +201,7 @@ TEST(EmbreePipelineTests, RejectsAVertexBufferWithoutSpareCapacity) {
 
 TEST(EmbreePipelineTests, HoldsTheMeshArraysItReads) {
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>(kira::Properties{});
-    (void)context->create<flux::IndependentSampler>(kira::Properties{});
+    flux::test::setActiveDefaults(*context);
     auto vertices = flux::test::sharedBuffer(
         flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F}, flux::Vec3f{0.0F, 1.0F, 0.0F}
     );
@@ -238,8 +235,7 @@ TEST(EmbreePipelineTests, RendersWithIndicesThatFollowUnusedObjectsAndAfterAResy
     // Light a triangle with an emitter and return the center pixel.
     auto const render = [&](bool withUnusedMesh, bool withHiddenPrimitive, bool withResync) {
         auto context = flux::Context::create();
-        (void)context->create<flux::PathIntegrator>(kira::Properties{});
-        (void)context->create<flux::IndependentSampler>(kira::Properties{});
+        flux::test::setActiveDefaults(*context);
 
         // Create a mesh first that no primitive references, so the visible mesh has index 1.
         if (withUnusedMesh)
@@ -311,8 +307,7 @@ TEST(EmbreePipelineTests, RendersWithIndicesThatFollowUnusedObjectsAndAfterAResy
 
 TEST(EmbreePipelineTests, RendersDirectLightIntoColorChannel) {
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>(kira::Properties{});
-    (void)context->create<flux::IndependentSampler>(kira::Properties{});
+    flux::test::setActiveDefaults(*context);
 
     kira::Properties meshProperties;
     meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
@@ -370,11 +365,10 @@ TEST(EmbreePipelineTests, RendersDirectLightIntoColorChannel) {
 
 TEST(EmbreePipelineTests, RendersConstantEnvironmentMapOnMiss) {
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>(kira::Properties{});
-    (void)context->create<flux::IndependentSampler>(kira::Properties{});
+    flux::test::setActiveDefaults(*context);
     kira::Properties lightProps;
     lightProps.set("scale", flux::Spectrum{0.25F, 0.5F, 0.75F});
-    (void)context->create<flux::EnvMapLight>(lightProps);
+    context->setActiveEnvMap(context->create<flux::EnvMapLight>(lightProps));
 
     auto product =
         flux::RenderProduct::create(flux::Camera::create(), renderProductProperties(1, 1, 1));
@@ -390,14 +384,13 @@ TEST(EmbreePipelineTests, RendersConstantEnvironmentMapOnMiss) {
 
 TEST(EmbreePipelineTests, RendersImageEnvironmentMapOnMiss) {
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>(kira::Properties{});
-    (void)context->create<flux::IndependentSampler>(kira::Properties{});
+    flux::test::setActiveDefaults(*context);
     kira::Properties textureProps;
     textureProps.set("type", "image");
     textureProps.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Texture2x2.ppm");
     kira::Properties lightProps;
     lightProps.set("texture", textureProps);
-    (void)context->create<flux::EnvMapLight>(lightProps);
+    context->setActiveEnvMap(context->create<flux::EnvMapLight>(lightProps));
 
     kira::Properties cameraProps;
     cameraProps.set("fov", 1.0e-4F);
@@ -418,8 +411,7 @@ TEST(EmbreePipelineTests, RendersImageEnvironmentMapOnMiss) {
 
 TEST(EmbreePipelineTests, InvalidatesAccumulationForCameraFilmAndSync) {
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>(kira::Properties{});
-    (void)context->create<flux::IndependentSampler>(kira::Properties{});
+    flux::test::setActiveDefaults(*context);
     auto camera = flux::Camera::create();
     auto product = flux::RenderProduct::create(camera, renderProductProperties(1, 1, 4));
     product->getFilm().setChannels(flux::FilmChannels::Normal);
@@ -474,8 +466,7 @@ TEST(EmbreePipelineTests, InvalidatesAccumulationForCameraFilmAndSync) {
 
 TEST(EmbreePipelineTests, HoldsNoContextObjectAfterSync) {
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>(kira::Properties{});
-    (void)context->create<flux::IndependentSampler>(kira::Properties{});
+    flux::test::setActiveDefaults(*context);
     auto mesh = context->create<flux::TriangleMesh>(triangleData());
     auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
     auto edf = context->create<flux::ConstantEDF>(kira::Properties{});
@@ -512,8 +503,7 @@ struct RemovalScene {
 [[nodiscard]] RemovalScene makeRemovalScene(bool withDoomed, bool doomedEmits) {
     RemovalScene scene{.context = flux::Context::create()};
     auto &context = *scene.context;
-    (void)context.create<flux::PathIntegrator>(kira::Properties{});
-    (void)context.create<flux::IndependentSampler>(kira::Properties{});
+    flux::test::setActiveDefaults(context);
 
     if (withDoomed) {
         auto doomedMesh = context.create<flux::TriangleMesh>(triangleData());
@@ -617,4 +607,20 @@ TEST(EmbreePipelineTests, RendersAfterAMeshIsCollectedWithoutSync) {
     removeDoomed(scene);
 
     EXPECT_EQ(color(handler, *scene.product), expected);
+}
+
+TEST(EmbreePipelineTests, SyncFailsWithoutAnActiveIntegratorOrSampler) {
+    auto context = flux::Context::create();
+    flux::test::setActiveDefaults(*context);
+    flux::EmbreeHandler handler(context);
+    auto const integratorId = context->getActiveIntegrator()->getContextId();
+    auto const samplerId = context->getActiveSampler()->getContextId();
+
+    context->remove(integratorId);
+    EXPECT_THROW(handler.sync(), kira::Anyhow);
+    context->setActiveIntegrator(context->create<flux::PathIntegrator>(kira::Properties{}));
+    EXPECT_NO_THROW(handler.sync());
+
+    context->remove(samplerId);
+    EXPECT_THROW(handler.sync(), kira::Anyhow);
 }

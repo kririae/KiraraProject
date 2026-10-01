@@ -25,15 +25,16 @@ struct GradientTextureEvaluator {
 };
 } // namespace
 
-TEST(LightTests, KeepsFirstEnvironmentMapActive) {
+TEST(LightTests, ActivatesOnlyTheEnvironmentMapTheHostSets) {
     auto context = flux::Context::create();
 
     EXPECT_FALSE(context->getActiveEnvMap());
     auto first = context->create<flux::EnvMapLight>(kira::Properties{});
-    EXPECT_EQ(context->getActiveEnvMap(), first);
+    auto second = context->create<flux::EnvMapLight>(kira::Properties{});
+    EXPECT_FALSE(context->getActiveEnvMap());
 
-    (void)context->create<flux::EnvMapLight>(kira::Properties{});
-    EXPECT_EQ(context->getActiveEnvMap(), first);
+    context->setActiveEnvMap(second);
+    EXPECT_EQ(context->getActiveEnvMap(), second);
 }
 
 TEST(LightTests, ClampsEnvironmentMapScale) {

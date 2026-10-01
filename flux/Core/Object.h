@@ -206,11 +206,12 @@ public:
         return std::nullopt;
     }
 
-    /// \brief Returns whether the host removes this object explicitly.
+    /// \brief Returns whether this type is a root.
     ///
-    /// A root leaves its context only through \c Context::remove. A dependent leaves
-    /// when the context holds its only reference, so a type is a dependent unless it
-    /// overrides this.
+    /// No other context object holds a \c Ref to a root, except that the context's active
+    /// slots may. Removing a root through \c Context::remove can therefore happen at once, with
+    /// no referrer left holding its index. A type is a dependent unless it overrides this, and
+    /// a dependent leaves the scene only when the context holds its only reference.
     [[nodiscard]] virtual bool isRoot() const noexcept { return false; }
 
 protected:

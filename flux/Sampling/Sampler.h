@@ -47,9 +47,6 @@ class Sampler : public RenderObject {
 protected:
     Sampler(TXContext &tx, SamplerType type);
 
-    /// \copydoc ContextObject::registerTo
-    void registerTo(TXContext &tx) override;
-
 public:
     struct Impl;
 

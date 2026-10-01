@@ -109,6 +109,11 @@ OptixProgram::~OptixProgram() { reset(); }
 
 OptixProgramSpec OptixProgram::makeSpec(Context const &context) {
     auto const integrator = context.getActiveIntegrator();
+    auto const sampler = context.getActiveSampler();
+    if (!integrator)
+        throw kira::Anyhow("OptixProgram: context has no active integrator");
+    if (!sampler)
+        throw kira::Anyhow("OptixProgram: context has no active sampler");
     auto bsdfTypes = BSDFTypeMask{};
     for (auto const &primitive : context.getObjects<Primitive>()) {
         if (!primitive->isVisible())
@@ -122,7 +127,7 @@ OptixProgramSpec OptixProgram::makeSpec(Context const &context) {
     }
 
     return {
-        .samplerType = context.getActiveSampler()->getType(),      // (1)
+        .samplerType = sampler->getType(),                         // (1)
         .bsdfTypes = bsdfTypes,                                    // (2)
         .shaderReorder = integrator->usesShaderReorder(),          // (3)
         .hasEnvMap = static_cast<bool>(context.getActiveEnvMap()), // (4)

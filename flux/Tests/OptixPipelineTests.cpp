@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <filesystem>
 
+#include "SceneUtils.h"
 #include "TestUtils.h"
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Optix/OptixHandler.h"
@@ -77,8 +78,7 @@ TEST(OptixPipelineTests, RendersAndDownloadsFilmChannels) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>(kira::Properties{});
-    (void)context->create<flux::IndependentSampler>(kira::Properties{});
+    flux::test::setActiveDefaults(*context);
     auto camera = flux::Camera::create();
     kira::Properties properties;
     properties.set("resolution", flux::Vec2u{1, 1});
@@ -113,8 +113,7 @@ TEST(OptixPipelineTests, ReleasesContextAfterConstructionFails) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>(kira::Properties{});
-    (void)context->create<flux::IndependentSampler>(kira::Properties{});
+    flux::test::setActiveDefaults(*context);
     EXPECT_THROW((void)flux::OptixHandler(context, std::filesystem::path{}), kira::Anyhow);
     EXPECT_EQ(context.getRefCount(), 1);
 
@@ -131,11 +130,10 @@ TEST(OptixPipelineTests, RendersConstantEnvironmentMapOnMiss) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>(kira::Properties{});
-    (void)context->create<flux::IndependentSampler>(kira::Properties{});
+    flux::test::setActiveDefaults(*context);
     kira::Properties lightProps;
     lightProps.set("scale", flux::Spectrum{0.25F, 0.5F, 0.75F});
-    (void)context->create<flux::EnvMapLight>(lightProps);
+    context->setActiveEnvMap(context->create<flux::EnvMapLight>(lightProps));
 
     auto camera = flux::Camera::create();
     kira::Properties productProps;
@@ -156,14 +154,13 @@ TEST(OptixPipelineTests, RendersImageEnvironmentMapOnMiss) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>(kira::Properties{});
-    (void)context->create<flux::IndependentSampler>(kira::Properties{});
+    flux::test::setActiveDefaults(*context);
     kira::Properties textureProps;
     textureProps.set("type", "image");
     textureProps.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Texture2x2.ppm");
     kira::Properties lightProps;
     lightProps.set("texture", textureProps);
-    (void)context->create<flux::EnvMapLight>(lightProps);
+    context->setActiveEnvMap(context->create<flux::EnvMapLight>(lightProps));
 
     kira::Properties cameraProps;
     cameraProps.set("fov", 1.0e-4F);
@@ -188,8 +185,7 @@ TEST(OptixPipelineTests, InvalidatesAccumulationAfterCameraChangeAndSync) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>(kira::Properties{});
-    (void)context->create<flux::IndependentSampler>(kira::Properties{});
+    flux::test::setActiveDefaults(*context);
     auto firstCamera = flux::Camera::create();
     auto secondCamera = flux::Camera::create();
 
@@ -226,8 +222,7 @@ TEST(OptixPipelineTests, TracksAccumulationAcrossFilmAndSampleTargetChanges) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>(kira::Properties{});
-    (void)context->create<flux::IndependentSampler>(kira::Properties{});
+    flux::test::setActiveDefaults(*context);
     auto camera = flux::Camera::create();
     kira::Properties properties;
     properties.set("resolution", flux::Vec2u{2, 2});
@@ -293,8 +288,7 @@ TEST(OptixPipelineTests, RendersWithIndicesThatFollowUnusedObjectsAndAfterAResyn
     // Light a triangle with an emitter and return the center pixel.
     auto const render = [&](bool withUnusedMesh, bool withHiddenPrimitive, bool withResync) {
         auto context = flux::Context::create();
-        (void)context->create<flux::PathIntegrator>(kira::Properties{});
-        (void)context->create<flux::IndependentSampler>(kira::Properties{});
+        flux::test::setActiveDefaults(*context);
 
         // Create a mesh first that no primitive references, so the visible mesh has index 1.
         if (withUnusedMesh)
@@ -369,8 +363,7 @@ TEST(OptixPipelineTests, HoldsNoContextObjectAfterSync) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
-    (void)context->create<flux::PathIntegrator>(kira::Properties{});
-    (void)context->create<flux::IndependentSampler>(kira::Properties{});
+    flux::test::setActiveDefaults(*context);
     auto mesh = context->create<flux::TriangleMesh>(triangleData());
     auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
     auto edf = context->create<flux::ConstantEDF>(kira::Properties{});
@@ -407,8 +400,7 @@ struct RemovalScene {
 [[nodiscard]] RemovalScene makeRemovalScene(bool withDoomed, bool doomedEmits) {
     RemovalScene scene{.context = flux::Context::create()};
     auto &context = *scene.context;
-    (void)context.create<flux::PathIntegrator>(kira::Properties{});
-    (void)context.create<flux::IndependentSampler>(kira::Properties{});
+    flux::test::setActiveDefaults(context);
 
     if (withDoomed) {
         auto doomedMesh = context.create<flux::TriangleMesh>(triangleData());
@@ -520,4 +512,23 @@ TEST(OptixPipelineTests, RendersAfterAMeshIsCollectedWithoutSync) {
     removeDoomed(scene);
 
     EXPECT_EQ(color(handler, *scene.product), expected);
+}
+
+TEST(OptixPipelineTests, SyncFailsWithoutAnActiveIntegratorOrSampler) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    auto context = flux::Context::create();
+    flux::test::setActiveDefaults(*context);
+    flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
+    auto const integratorId = context->getActiveIntegrator()->getContextId();
+    auto const samplerId = context->getActiveSampler()->getContextId();
+
+    context->remove(integratorId);
+    EXPECT_THROW(handler.sync(), kira::Anyhow);
+    context->setActiveIntegrator(context->create<flux::PathIntegrator>(kira::Properties{}));
+    EXPECT_NO_THROW(handler.sync());
+
+    context->remove(samplerId);
+    EXPECT_THROW(handler.sync(), kira::Anyhow);
 }

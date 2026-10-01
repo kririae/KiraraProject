@@ -104,7 +104,6 @@ void EmbreeContext::reset() noexcept {
 
 void EmbreeContext::sync() try {
     reset();
-    context_.commit();
 
     table_.build(context_);
     imageTexturePool_.build(context_);

@@ -286,9 +286,6 @@ public:
 private:
     PathIntegrator(TXContext &tx, kira::Properties const &props);
 
-    /// \copydoc ContextObject::registerTo
-    void registerTo(TXContext &tx) override;
-
     Impl impl_;
     bool shaderReorder_;
 };

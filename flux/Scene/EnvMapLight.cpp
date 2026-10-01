@@ -47,11 +47,6 @@ void EnvMapLight::setRotation(Vec3f const &rotation) {
     setIfDifferent(rotation_, rotation, DirtyBits::Rotation);
 }
 
-void EnvMapLight::registerTo(TXContext &tx) {
-    Light::registerTo(tx);
-    tx.stageActiveEnvMap(getContextId());
-}
-
 EnvMapLight::Impl EnvMapLight::getImpl(Distribution2D distribution) const {
     using Matrix = Eigen::Matrix<float, 3, 3, Eigen::RowMajor>;
     auto const radians = rotation_ * (std::numbers::pi_v<float> / 180.0F);

@@ -3,7 +3,6 @@
 #include <array>
 #include <concepts>
 #include <cstddef>
-#include <optional>
 #include <unordered_map>
 #include <utility>
 
@@ -68,15 +67,9 @@ private:
     [[nodiscard]] Ref<ContextObject> getObject(std::size_t contextId) const;
     [[nodiscard]] std::size_t allocateId();
     void registerObject(Ref<ContextObject> object);
-    void stageActiveIntegrator(std::size_t contextId) noexcept;
-    void stageActiveSampler(std::size_t contextId) noexcept;
-    void stageActiveEnvMap(std::size_t contextId) noexcept;
 
     Context &context_;
     std::unordered_map<std::size_t, Ref<ContextObject>> objects_;
     std::array<ContextIndexMap::Transaction, numIndexedKinds> indices_;
-    std::optional<std::size_t> activeIntegratorId_;
-    std::optional<std::size_t> activeSamplerId_;
-    std::optional<std::size_t> activeEnvMapId_;
 };
 } // namespace flux

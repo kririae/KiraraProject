@@ -39,12 +39,12 @@ LoadedScene loadTomlScene(FluxCLIRequest const &request) {
     auto scene = kira::Properties::parse(source, request.scenePath);
     auto context = Context::create();
     context->getFileResolver().prepend(std::filesystem::absolute(request.scenePath).parent_path());
-    (void)context->create<PathIntegrator>(scene.use_view("integrator"));
-    (void)context->create<Sampler>(
+    context->setActiveIntegrator(context->create<PathIntegrator>(scene.use_view("integrator")));
+    context->setActiveSampler(context->create<Sampler>(
         scene.contains("sampler") ? scene.use_view("sampler") : kira::Properties{}
-    );
+    ));
     if (scene.contains("envmap"))
-        (void)context->create<EnvMapLight>(scene.use_view("envmap"));
+        context->setActiveEnvMap(context->create<EnvMapLight>(scene.use_view("envmap")));
 
     auto camera = Camera::create(scene.use_view("camera"));
     auto filmProps = scene.use_view("film");

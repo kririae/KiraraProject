@@ -30,19 +30,4 @@ void TXContext::registerObject(Ref<ContextObject> object) {
         throw;
     }
 }
-
-void TXContext::stageActiveIntegrator(std::size_t contextId) noexcept {
-    if (!activeIntegratorId_)
-        activeIntegratorId_ = contextId;
-}
-
-void TXContext::stageActiveSampler(std::size_t contextId) noexcept {
-    if (!activeSamplerId_)
-        activeSamplerId_ = contextId;
-}
-
-void TXContext::stageActiveEnvMap(std::size_t contextId) noexcept {
-    if (!activeEnvMapId_)
-        activeEnvMapId_ = contextId;
-}
 } // namespace flux

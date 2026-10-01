@@ -17,11 +17,6 @@ Ref<Sampler> Sampler::create(TXContext &tx, kira::Properties const &props) {
 
 Sampler::Sampler(TXContext &tx, SamplerType type) : RenderObject(tx), type_(type) {}
 
-void Sampler::registerTo(TXContext &tx) {
-    RenderObject::registerTo(tx);
-    tx.stageActiveSampler(getContextId());
-}
-
 IndependentSampler::IndependentSampler(TXContext &tx, kira::Properties const &)
     : Sampler(tx, SamplerType::Independent) {}
 

@@ -235,6 +235,8 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
     auto const resolution = Vec2u{film.getWidth(), film.getHeight()};
     auto const sampler = pImpl_->context->getActiveSampler();
     auto const integrator = pImpl_->context->getActiveIntegrator();
+    if (!sampler || !integrator)
+        throw kira::Anyhow("OptixHandler: context has no active sampler or integrator");
     auto const camera = product.getCamera().getImpl();
 
     // The module contains bound values. A changed Context spec requires sync

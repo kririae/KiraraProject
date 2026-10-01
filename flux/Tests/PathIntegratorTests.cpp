@@ -117,20 +117,20 @@ TEST(PathIntegratorTests, ProjectsOrthogonalFootprintAxes) {
     }
 }
 
-TEST(PathIntegratorTests, KeepsFirstSuccessfulIntegratorActive) {
+TEST(PathIntegratorTests, ActivatesOnlyTheIntegratorTheHostSets) {
     auto context = flux::Context::create();
 
-    EXPECT_THROW((void)context->getActiveIntegrator(), kira::Anyhow);
+    EXPECT_FALSE(context->getActiveIntegrator());
     EXPECT_THROW(
         (void)context->create<ThrowingIntegratorOwner>(kira::Properties{}), std::runtime_error
     );
-    EXPECT_THROW((void)context->getActiveIntegrator(), kira::Anyhow);
+    EXPECT_EQ(context->getNumContextObjects(), 0);
 
     auto first = context->create<flux::PathIntegrator>(kira::Properties{});
-    EXPECT_EQ(context->getActiveIntegrator().get(), first.get());
+    EXPECT_FALSE(context->getActiveIntegrator());
     EXPECT_FALSE(first->usesShaderReorder());
 
-    (void)context->create<flux::PathIntegrator>(kira::Properties{});
+    context->setActiveIntegrator(first);
     EXPECT_EQ(context->getActiveIntegrator().get(), first.get());
 }
 

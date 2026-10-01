@@ -97,8 +97,6 @@ OptixContext::Impl OptixContext::getImpl() const noexcept {
 }
 
 void OptixContext::pImpl::sync() try {
-    context.commit();
-
     // Rebuild the pipeline first because the SBT packs its program-group headers.
     auto const spec = OptixProgram::makeSpec(context);
     program.reset();

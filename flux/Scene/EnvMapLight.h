@@ -49,7 +49,6 @@ public:
 
 private:
     EnvMapLight(TXContext &tx, kira::Properties const &props);
-    void registerTo(TXContext &tx) override;
 
     Ref<Texture const> texture_;
     Spectrum scale_{1.0F, 1.0F, 1.0F};

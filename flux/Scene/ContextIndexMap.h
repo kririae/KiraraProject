@@ -13,8 +13,8 @@ class Context;
 /// \brief Maps Context object IDs to reusable array indices.
 ///
 /// IDs are lookup keys and have no numeric relation to their indices. An index
-/// remains unchanged while its ID is present. An erased index is reused only
-/// after \c recycle.
+/// remains unchanged while its ID is present. A later transaction may reuse an
+/// erased index.
 class ContextIndexMap final : private Noncopyable {
     friend class Context;
 
@@ -37,13 +37,8 @@ public:
 
     /// \brief Removes \p contextId and returns its released index.
     ///
-    /// No merge reuses the index before \c recycle. An exception leaves the map unchanged.
-    ///
     /// \throw std::out_of_range If \p contextId is not present.
     [[nodiscard]] Index erase(std::size_t contextId);
-
-    /// \brief Makes every index released by \c erase reusable.
-    void recycle() noexcept;
 
     /// \brief Returns the index assigned to \p contextId.
     ///
@@ -61,9 +56,6 @@ private:
 
     std::map<std::size_t, Index> entries_;
     kira::SmallVector<Index> freeIndices_;
-
-    /// Indices erased since the last \c recycle. \c freeIndices_ always has room for all of them.
-    kira::SmallVector<Index> releasedIndices_;
     Index indexLimit_{};
 };
 } // namespace flux

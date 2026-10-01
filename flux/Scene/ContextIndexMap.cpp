@@ -27,20 +27,10 @@ ContextIndexMap::Index ContextIndexMap::erase(std::size_t contextId) {
     if (iterator == entries_.end())
         throw std::out_of_range("ContextIndexMap: context ID is not registered");
 
-    // Reserve first, so that neither this call nor \c recycle can fail after the erase.
-    releasedIndices_.reserve(releasedIndices_.size() + 1);
-    freeIndices_.reserve(freeIndices_.size() + releasedIndices_.size() + 1);
-
     auto const index = iterator->second;
-    releasedIndices_.push_back(index);
+    freeIndices_.push_back(index);
     entries_.erase(iterator);
     return index;
-}
-
-void ContextIndexMap::recycle() noexcept {
-    for (auto const index : releasedIndices_)
-        freeIndices_.push_back(index);
-    releasedIndices_.clear();
 }
 
 ContextIndexMap::Index ContextIndexMap::getIndex(std::size_t contextId) const {

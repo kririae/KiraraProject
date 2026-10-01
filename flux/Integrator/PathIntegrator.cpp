@@ -25,9 +25,4 @@ PathIntegrator::PathIntegrator(TXContext &tx, kira::Properties const &props)
             "PathIntegrator: Russian roulette probability must be greater than zero and at most one"
         );
 }
-
-void PathIntegrator::registerTo(TXContext &tx) {
-    RenderObject::registerTo(tx);
-    tx.stageActiveIntegrator(getContextId());
-}
 } // namespace flux

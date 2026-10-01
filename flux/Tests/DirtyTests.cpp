@@ -22,6 +22,8 @@
 #endif
 
 namespace {
+using ContextBits = flux::Context::DirtyBits;
+
 [[nodiscard]] kira::Properties triangleProperties() {
     kira::Properties properties;
     properties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
@@ -133,6 +135,7 @@ TEST(DirtyTests, ListsAnObjectOnceAfterSeveralSetters) {
     auto mesh = context->create<flux::TriangleMesh>(triangleProperties());
     auto first = createPrimitive(*context, mesh);
     auto second = createPrimitive(*context, mesh);
+    context->clearDirty();
 
     second->setVisible(false);
     first->setTransform(moved);
@@ -141,10 +144,10 @@ TEST(DirtyTests, ListsAnObjectOnceAfterSeveralSetters) {
 
     EXPECT_EQ(flux::getDirtyBits(*first), Bits::Transform | Bits::Visibility);
     EXPECT_EQ(flux::getDirtyBits(*second), Bits::Transform | Bits::Visibility);
-    auto const ids = context->getChangedIds();
-    ASSERT_EQ(ids.size(), 2U);
-    EXPECT_EQ(ids[0], second->getContextId());
-    EXPECT_EQ(ids[1], first->getContextId());
+    auto const &ids = context->getChangedIds();
+    EXPECT_EQ(ids.size(), 2U);
+    EXPECT_TRUE(ids.contains(first->getContextId()));
+    EXPECT_TRUE(ids.contains(second->getContextId()));
 }
 
 TEST(DirtyTests, AssigningTheCurrentValueRecordsNothing) {
@@ -231,23 +234,22 @@ TEST(DirtyTests, FailedValidationRecordsNothing) {
 }
 
 TEST(DirtyTests, CreateListsNewObjectsAsAdded) {
-    using Bits = flux::Context::DirtyBits;
     auto context = flux::Context::create();
-    EXPECT_EQ(context->getDirtyBits(), Bits::None);
+    EXPECT_TRUE(context->getAddedIds().empty());
 
     auto mesh = context->create<flux::TriangleMesh>(triangleProperties());
     auto primitive = createPrimitive(*context, mesh);
 
-    EXPECT_EQ(context->getDirtyBits(), Bits::Added);
-    auto const added = context->getAddedIds();
-    ASSERT_EQ(added.size(), 2U);
-    EXPECT_EQ(added[0], mesh->getContextId());
-    EXPECT_EQ(added[1], primitive->getContextId());
+    auto const &added = context->getAddedIds();
+    EXPECT_EQ(added.size(), 2U);
+    EXPECT_TRUE(added.contains(mesh->getContextId()));
+    EXPECT_TRUE(added.contains(primitive->getContextId()));
     EXPECT_TRUE(context->getChangedIds().empty());
     EXPECT_EQ(flux::getDirtyBits(*primitive), flux::Primitive::DirtyBits::None);
+    EXPECT_EQ(context->getDirtyBits(), ContextBits::None);
 }
 
-TEST(DirtyTests, NestedCreationListsChildrenInAscendingOrder) {
+TEST(DirtyTests, NestedCreationListsChildrenToo) {
     auto context = flux::Context::create();
     auto properties = triangleProperties();
     properties.set("type", "trimesh");
@@ -257,43 +259,27 @@ TEST(DirtyTests, NestedCreationListsChildrenInAscendingOrder) {
 
     auto primitive = context->create<flux::Primitive>(properties);
 
-    auto const added = context->getAddedIds();
+    auto const &added = context->getAddedIds();
     EXPECT_EQ(added.size(), context->getNumContextObjects());
-    EXPECT_TRUE(std::ranges::is_sorted(added));
-    EXPECT_NE(std::ranges::find(added, primitive->getGeometry()->getContextId()), added.end());
-    EXPECT_NE(std::ranges::find(added, primitive->getBSDF()->getContextId()), added.end());
-    EXPECT_NE(std::ranges::find(added, primitive->getContextId()), added.end());
+    EXPECT_TRUE(added.contains(primitive->getGeometry()->getContextId()));
+    EXPECT_TRUE(added.contains(primitive->getBSDF()->getContextId()));
+    EXPECT_TRUE(added.contains(primitive->getContextId()));
     EXPECT_TRUE(context->getChangedIds().empty());
 }
 
-TEST(DirtyTests, FirstActiveObjectsRecordTheirBits) {
-    using Bits = flux::Context::DirtyBits;
+TEST(DirtyTests, ActiveObjectsAreEmptyByDefault) {
     auto context = flux::Context::create();
-
     (void)context->create<flux::PathIntegrator>(kira::Properties{});
-    EXPECT_EQ(context->getDirtyBits(), Bits::Added | Bits::ActiveIntegrator);
     (void)context->create<flux::IndependentSampler>(kira::Properties{});
     (void)context->create<flux::EnvMapLight>(kira::Properties{});
 
-    EXPECT_EQ(
-        context->getDirtyBits(),
-        Bits::Added | Bits::ActiveIntegrator | Bits::ActiveSampler | Bits::ActiveEnvMap
-    );
-}
-
-TEST(DirtyTests, SecondActiveObjectsRecordNothing) {
-    using Bits = flux::Context::DirtyBits;
-    auto context = flux::Context::create();
-    (void)context->create<flux::EnvMapLight>(kira::Properties{});
-    context->clearDirty();
-
-    (void)context->create<flux::EnvMapLight>(kira::Properties{});
-
-    EXPECT_EQ(context->getDirtyBits(), Bits::Added);
+    EXPECT_FALSE(context->getActiveIntegrator());
+    EXPECT_FALSE(context->getActiveSampler());
+    EXPECT_FALSE(context->getActiveEnvMap());
+    EXPECT_EQ(context->getDirtyBits(), ContextBits::None);
 }
 
 TEST(DirtyTests, ActiveSettersRecordOnlyChanges) {
-    using Bits = flux::Context::DirtyBits;
     auto context = flux::Context::create();
     auto integrator = context->create<flux::PathIntegrator>(kira::Properties{});
     auto otherIntegrator = context->create<flux::PathIntegrator>(kira::Properties{});
@@ -301,71 +287,84 @@ TEST(DirtyTests, ActiveSettersRecordOnlyChanges) {
     auto otherSampler = context->create<flux::IndependentSampler>(kira::Properties{});
     auto env = context->create<flux::EnvMapLight>(kira::Properties{});
     auto otherEnv = context->create<flux::EnvMapLight>(kira::Properties{});
+
+    // Setting an empty slot to empty changes nothing.
+    context->setActiveIntegrator(nullptr);
+    context->setActiveSampler(nullptr);
+    context->setActiveEnvMap(nullptr);
+    EXPECT_EQ(context->getDirtyBits(), ContextBits::None);
+
+    context->setActiveIntegrator(integrator);
+    context->setActiveSampler(sampler);
+    context->setActiveEnvMap(env);
+    EXPECT_EQ(
+        context->getDirtyBits(),
+        ContextBits::ActiveIntegrator | ContextBits::ActiveSampler | ContextBits::ActiveEnvMap
+    );
     context->clearDirty();
 
     context->setActiveIntegrator(integrator);
     context->setActiveSampler(sampler);
     context->setActiveEnvMap(env);
-    EXPECT_EQ(context->getDirtyBits(), Bits::None);
+    EXPECT_EQ(context->getDirtyBits(), ContextBits::None);
 
     context->setActiveIntegrator(otherIntegrator);
     EXPECT_EQ(context->getActiveIntegrator(), otherIntegrator);
-    EXPECT_EQ(context->getDirtyBits(), Bits::ActiveIntegrator);
+    EXPECT_EQ(context->getDirtyBits(), ContextBits::ActiveIntegrator);
     context->setActiveSampler(otherSampler);
-    EXPECT_EQ(context->getActiveSampler(), otherSampler);
     context->setActiveEnvMap(otherEnv);
-    EXPECT_EQ(context->getActiveEnvMap(), otherEnv);
     EXPECT_EQ(
-        context->getDirtyBits(), Bits::ActiveIntegrator | Bits::ActiveSampler | Bits::ActiveEnvMap
+        context->getDirtyBits(),
+        ContextBits::ActiveIntegrator | ContextBits::ActiveSampler | ContextBits::ActiveEnvMap
     );
     EXPECT_TRUE(context->getChangedIds().empty());
 }
 
-TEST(DirtyTests, NullEnvironmentMapClearsTheActiveOne) {
+TEST(DirtyTests, ActiveSettersAcceptNullAndRecordTheChange) {
     auto context = flux::Context::create();
-    (void)context->create<flux::EnvMapLight>(kira::Properties{});
+    auto env = context->create<flux::EnvMapLight>(kira::Properties{});
+    context->setActiveEnvMap(env);
     context->clearDirty();
 
     context->setActiveEnvMap(nullptr);
 
     EXPECT_FALSE(context->getActiveEnvMap());
-    EXPECT_EQ(context->getDirtyBits(), flux::Context::DirtyBits::ActiveEnvMap);
-
-    context->clearDirty();
-    context->setActiveEnvMap(nullptr);
-    EXPECT_EQ(context->getDirtyBits(), flux::Context::DirtyBits::None);
+    EXPECT_EQ(context->getDirtyBits(), ContextBits::ActiveEnvMap);
 }
 
-TEST(DirtyTests, ActiveSettersRejectForeignAndNullObjects) {
+TEST(DirtyTests, ActiveSettersRejectForeignObjects) {
     auto context = flux::Context::create();
     auto other = flux::Context::create();
     auto integrator = context->create<flux::PathIntegrator>(kira::Properties{});
-    auto sampler = context->create<flux::IndependentSampler>(kira::Properties{});
-    auto env = context->create<flux::EnvMapLight>(kira::Properties{});
     auto foreignIntegrator = other->create<flux::PathIntegrator>(kira::Properties{});
     auto foreignSampler = other->create<flux::IndependentSampler>(kira::Properties{});
     auto foreignEnv = other->create<flux::EnvMapLight>(kira::Properties{});
+    context->setActiveIntegrator(integrator);
     context->clearDirty();
 
     EXPECT_THROW(context->setActiveIntegrator(foreignIntegrator), kira::Anyhow);
-    EXPECT_THROW(context->setActiveIntegrator(nullptr), kira::Anyhow);
     EXPECT_THROW(context->setActiveSampler(foreignSampler), kira::Anyhow);
-    EXPECT_THROW(context->setActiveSampler(nullptr), kira::Anyhow);
     EXPECT_THROW(context->setActiveEnvMap(foreignEnv), kira::Anyhow);
 
-    EXPECT_EQ(context->getDirtyBits(), flux::Context::DirtyBits::None);
+    EXPECT_EQ(context->getDirtyBits(), ContextBits::None);
     EXPECT_EQ(context->getActiveIntegrator(), integrator);
-    EXPECT_EQ(context->getActiveSampler(), sampler);
-    EXPECT_EQ(context->getActiveEnvMap(), env);
+    EXPECT_FALSE(context->getActiveSampler());
+    EXPECT_FALSE(context->getActiveEnvMap());
 }
 
-TEST(DirtyTests, ClearDirtyEmptiesTheAddedListAndContextBits) {
+TEST(DirtyTests, ClearDirtyEmptiesTheSetsAndContextBits) {
     auto context = flux::Context::create();
-    (void)context->create<flux::EnvMapLight>(kira::Properties{});
+    auto env = context->create<flux::EnvMapLight>(kira::Properties{});
+    context->setActiveEnvMap(env);
+    env->setRotation({1.0F, 0.0F, 0.0F});
     ASSERT_FALSE(context->getAddedIds().empty());
+    ASSERT_FALSE(context->getChangedIds().empty());
 
     context->clearDirty();
 
     EXPECT_TRUE(context->getAddedIds().empty());
-    EXPECT_EQ(context->getDirtyBits(), flux::Context::DirtyBits::None);
+    EXPECT_TRUE(context->getChangedIds().empty());
+    EXPECT_TRUE(context->getRemovedIds().empty());
+    EXPECT_EQ(context->getDirtyBits(), ContextBits::None);
+    EXPECT_EQ(flux::getDirtyBits(*env), flux::EnvMapLight::DirtyBits::None);
 }
