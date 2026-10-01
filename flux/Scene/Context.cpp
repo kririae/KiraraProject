@@ -52,4 +52,11 @@ Ref<EnvMapLight const> Context::getActiveEnvMap() const {
 }
 
 void Context::commit() noexcept {}
+
+void Context::clearDirty() noexcept {
+    for (auto const id : changedIds_)
+        objects_.at(id)->dirtyMask_ = 0;
+    changedIds_.clear();
+    ++epoch_;
+}
 } // namespace flux

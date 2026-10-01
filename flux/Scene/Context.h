@@ -4,10 +4,13 @@
 #include <array>
 #include <concepts>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
+#include <span>
 #include <stdexcept>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "flux/Scene/ContextIndexMap.h"
 #include "flux/Scene/ImageAsset.h"
@@ -26,10 +29,12 @@ class EnvMapLight;
 
 /// \brief Owns the host-side objects in a Flux scene.
 ///
-/// Context mutation is single-threaded. Callers must serialize \c create and
-/// \c commit.
+/// Context mutation is single-threaded. Callers must serialize \c create,
+/// \c commit, \c clearDirty, and the setters of its objects, which list changed
+/// objects with the context.
 class Context final : public Object {
     friend class TXContext;
+    friend class ContextObject;
 
 public:
     /// \brief Creates an empty context.
@@ -140,6 +145,20 @@ public:
     /// \brief Commits changes owned by this context.
     void commit() noexcept;
 
+    /// \brief Returns the IDs of objects changed since the last \c clearDirty.
+    ///
+    /// Each ID is listed once, in the order its object first changed.
+    [[nodiscard]] std::span<std::size_t const> getChangedIds() const noexcept {
+        return changedIds_;
+    }
+
+    /// \brief Returns the number of times \c clearDirty was called.
+    [[nodiscard]] std::uint64_t getEpoch() const noexcept { return epoch_; }
+
+    /// \brief Zeroes the bits of every changed object, empties the changed list, and starts the
+    ///        next epoch.
+    void clearDirty() noexcept;
+
 private:
     Context() = default;
 
@@ -172,5 +191,10 @@ private:
     ImageAssetPool imageAssetPool_;
     kira::FileResolver fileResolver_;
     std::size_t nextId_{0};
+
+    /// IDs of objects changed this epoch. An object is listed when its first bit is recorded, so
+    /// it is listed once. Every listed ID is in \c objects_.
+    std::vector<std::size_t> changedIds_;
+    std::uint64_t epoch_{0};
 };
 } // namespace flux

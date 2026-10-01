@@ -31,12 +31,12 @@ PointLight::PointLight(TXContext &tx, kira::Properties const &props) : Light(tx,
 
 void PointLight::setPosition(Vec3f const &position) {
     validatePosition(position);
-    position_ = position;
+    setIfDifferent(position_, position, DirtyBits::Position);
 }
 
 void PointLight::setIntensity(Spectrum const &intensity) {
     validateIntensity(intensity);
-    intensity_ = intensity;
+    setIfDifferent(intensity_, intensity, DirtyBits::Intensity);
 }
 
 PointLight::Impl PointLight::getImpl() const noexcept {

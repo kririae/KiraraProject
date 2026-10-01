@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <type_traits>
 
+#include "flux/Core/EnumFlags.h"
 #include "flux/Core/Math.h"
 #include "flux/Scene/RenderObject.h"
 #include "kira/Compiler.h"
@@ -82,6 +83,15 @@ class PointLight final : public Light {
 public:
     struct Impl;
 
+    /// \brief Properties of a point light that a setter can change.
+    ///
+    /// One bit per setter. A setter records its bit only when the value changes.
+    enum class DirtyBits : std::uint32_t {
+        None = 0,
+        Position = 1U << 0U,
+        Intensity = 1U << 1U,
+    };
+
     /// World-space light position.
     [[nodiscard]] Vec3f const &getPosition() const noexcept { return position_; }
 
@@ -141,6 +151,8 @@ PointLight::Impl::sampleDirect(LightSamplingContext const &ctx) const noexcept {
         .type = LightType::Point,
     };
 }
+
+template <> inline constexpr bool isEnumFlags<PointLight::DirtyBits> = true;
 
 static_assert(std::is_standard_layout_v<DirectLightSample>);
 static_assert(std::is_trivially_copyable_v<DirectLightSample>);

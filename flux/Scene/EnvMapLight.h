@@ -3,6 +3,7 @@
 #include <array>
 #include <type_traits>
 
+#include "flux/Core/EnumFlags.h"
 #include "flux/Sampling/Distribution2D.h"
 #include "flux/Scene/Light.h"
 #include "flux/Shading/Texture.h"
@@ -14,6 +15,16 @@ class EnvMapLight final : public Light {
 
 public:
     struct Impl;
+
+    /// \brief Properties of an environment map that a setter can change.
+    ///
+    /// One bit per setter. A setter records its bit only when the value changes.
+    enum class DirtyBits : std::uint32_t {
+        None = 0,
+        Texture = 1U << 0U,
+        Scale = 1U << 1U,
+        Rotation = 1U << 2U,
+    };
 
     [[nodiscard]] Ref<Texture const> const &getTexture() const noexcept { return texture_; }
 
@@ -79,6 +90,8 @@ private:
     [[nodiscard]] KIRA_HOST_DEVICE Vec3f toWorld(Vec3f const &w) const noexcept;
     [[nodiscard]] KIRA_HOST_DEVICE static Vec2f directionToUV(Vec3f const &w) noexcept;
 };
+
+template <> inline constexpr bool isEnumFlags<EnvMapLight::DirtyBits> = true;
 
 static_assert(std::is_standard_layout_v<EnvMapLight::Impl>);
 static_assert(std::is_trivially_copyable_v<EnvMapLight::Impl>);

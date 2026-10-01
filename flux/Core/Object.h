@@ -206,10 +206,55 @@ public:
         return std::nullopt;
     }
 
+protected:
+    /// \brief Records \p bits as changed, and lists this object with its context
+    ///        when it was clean.
+    ///
+    /// An object whose context was destroyed records nothing.
+    template <typename Bits> void markDirty(Bits bits) {
+        auto const mask = static_cast<std::uint32_t>(bits);
+        if (mask == 0 || !context_)
+            return;
+
+        // List the object first, so a failed append leaves the mask unchanged.
+        if (dirtyMask_ == 0)
+            recordChanged();
+        dirtyMask_ |= mask;
+    }
+
+    /// \brief Assigns \p value to \p property and records \p bits when they differ.
+    template <typename T, typename Bits>
+    void setIfDifferent(T &property, T const &value, Bits bits) {
+        if (property == value)
+            return;
+
+        // Record before assigning, so a failed record leaves the property unchanged.
+        markDirty(bits);
+        property = value;
+    }
+
 private:
+    template <typename T> friend typename T::DirtyBits getDirtyBits(T const &object) noexcept;
+
+    /// \brief Appends this object's ID to the context's changed list.
+    void recordChanged();
+
     Context *context_;
     std::size_t contextId_;
+
+    /// Bits of the properties changed since the last \c Context::clearDirty. The meaning of a
+    /// bit belongs to the concrete type.
+    std::uint32_t dirtyMask_{};
 };
+
+/// \brief Returns the properties of \p object changed since the last \c Context::clearDirty.
+///
+/// \c T is the concrete type that declares \c DirtyBits.
+template <typename T> [[nodiscard]] typename T::DirtyBits getDirtyBits(T const &object) noexcept {
+    return static_cast<typename T::DirtyBits>(
+        static_cast<ContextObject const &>(object).dirtyMask_
+    );
+}
 
 /// \brief A context object constructed from \c kira::Properties.
 class ConfigurableObject : public ContextObject {

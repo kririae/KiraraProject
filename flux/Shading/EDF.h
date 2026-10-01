@@ -5,6 +5,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "flux/Core/EnumFlags.h"
 #include "flux/Core/Math.h"
 #include "flux/Scene/RenderObject.h"
 #include "kira/Compiler.h"
@@ -53,6 +54,14 @@ class ConstantEDF final : public EDF {
 public:
     struct Impl;
 
+    /// \brief Properties of a constant EDF that a setter can change.
+    ///
+    /// One bit per setter. A setter records its bit only when the value changes.
+    enum class DirtyBits : std::uint32_t {
+        None = 0,
+        Radiance = 1U << 0U,
+    };
+
     [[nodiscard]] Spectrum const &getRadiance() const noexcept { return radiance_; }
     void setRadiance(Spectrum const &radiance);
 
@@ -87,6 +96,8 @@ struct EDF::Impl : cuda::std::variant<ConstantEDF::Impl> {
         }, static_cast<Base const &>(*this));
     }
 };
+
+template <> inline constexpr bool isEnumFlags<ConstantEDF::DirtyBits> = true;
 
 static_assert(std::is_standard_layout_v<ConstantEDF::Impl>);
 static_assert(std::is_trivially_copyable_v<ConstantEDF::Impl>);

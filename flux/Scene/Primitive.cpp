@@ -71,9 +71,7 @@ void Primitive::setGeometry(Ref<Geometry const> geometry) {
         throw kira::Anyhow("Primitive: geometry must not be null");
     if (!getContext() || geometry->getContext() != getContext())
         throw kira::Anyhow("Primitive: geometry belongs to another context");
-    if (geometry_ == geometry)
-        return;
-    geometry_ = std::move(geometry);
+    setIfDifferent(geometry_, geometry, DirtyBits::Geometry);
 }
 
 Ref<BSDF const> Primitive::getBSDF() const noexcept { return bsdf_; }
@@ -81,9 +79,7 @@ Ref<BSDF const> Primitive::getBSDF() const noexcept { return bsdf_; }
 void Primitive::setBSDF(Ref<BSDF const> bsdf) {
     if (bsdf && (!getContext() || bsdf->getContext() != getContext()))
         throw kira::Anyhow("Primitive: BSDF belongs to another context");
-    if (bsdf_ == bsdf)
-        return;
-    bsdf_ = std::move(bsdf);
+    setIfDifferent(bsdf_, bsdf, DirtyBits::BSDF);
 }
 
 Ref<EDF const> Primitive::getEDF() const noexcept { return edf_; }
@@ -91,9 +87,7 @@ Ref<EDF const> Primitive::getEDF() const noexcept { return edf_; }
 void Primitive::setEDF(Ref<EDF const> edf) {
     if (edf && (!getContext() || edf->getContext() != getContext()))
         throw kira::Anyhow("Primitive: EDF belongs to another context");
-    if (edf_ == edf)
-        return;
-    edf_ = std::move(edf);
+    setIfDifferent(edf_, edf, DirtyBits::EDF);
 }
 
 Primitive::Impl Primitive::getImpl() const {

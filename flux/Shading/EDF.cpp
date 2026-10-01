@@ -30,7 +30,7 @@ ConstantEDF::ConstantEDF(TXContext &tx, kira::Properties const &props) : EDF(tx)
 
 void ConstantEDF::setRadiance(Spectrum const &radiance) {
     validateRadiance(radiance);
-    radiance_ = radiance;
+    setIfDifferent(radiance_, radiance, DirtyBits::Radiance);
 }
 
 EDF::Impl ConstantEDF::getImpl() const { return Impl{.radiance = radiance_}; }

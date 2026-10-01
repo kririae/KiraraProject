@@ -33,15 +33,19 @@ void EnvMapLight::setTexture(Ref<Texture const> texture) {
         throw kira::Anyhow("EnvMapLight: texture must not be null");
     if (!getContext() || texture->getContext() != getContext())
         throw kira::Anyhow("EnvMapLight: texture belongs to another context");
-    texture_ = std::move(texture);
+    setIfDifferent(texture_, texture, DirtyBits::Texture);
 }
 
 void EnvMapLight::setScale(Spectrum const &scale) {
-    scale_ = scale;
-    clampScale(scale_);
+    // Compare the clamped value, which is what the light stores.
+    auto clamped = scale;
+    clampScale(clamped);
+    setIfDifferent(scale_, clamped, DirtyBits::Scale);
 }
 
-void EnvMapLight::setRotation(Vec3f const &rotation) { rotation_ = rotation; }
+void EnvMapLight::setRotation(Vec3f const &rotation) {
+    setIfDifferent(rotation_, rotation, DirtyBits::Rotation);
+}
 
 void EnvMapLight::registerTo(TXContext &tx) {
     Light::registerTo(tx);

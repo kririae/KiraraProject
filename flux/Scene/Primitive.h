@@ -6,6 +6,7 @@
 #include <optional>
 #include <type_traits>
 
+#include "flux/Core/EnumFlags.h"
 #include "flux/Scene/RenderObject.h"
 #include "kira/Compiler.h"
 
@@ -33,6 +34,18 @@ class Primitive final : public RenderObject {
 
 public:
     struct Impl;
+
+    /// \brief Properties of a primitive that a setter can change.
+    ///
+    /// One bit per setter. A setter records its bit only when the value changes.
+    enum class DirtyBits : std::uint32_t {
+        None = 0,
+        Geometry = 1U << 0U,
+        BSDF = 1U << 1U,
+        EDF = 1U << 2U,
+        Transform = 1U << 3U,
+        Visibility = 1U << 4U,
+    };
 
     /// Kind whose index map holds primitives.
     static constexpr IndexedKind indexedKind = IndexedKind::Primitive;
@@ -69,13 +82,15 @@ public:
     [[nodiscard]] std::array<float, 12> const &getTransform() const noexcept { return transform_; }
 
     /// \brief Replaces the object-to-world affine transform.
-    void setTransform(std::array<float, 12> const &transform) noexcept { transform_ = transform; }
+    void setTransform(std::array<float, 12> const &transform) {
+        setIfDifferent(transform_, transform, DirtyBits::Transform);
+    }
 
     /// \brief Returns whether this primitive participates in rendering.
     [[nodiscard]] bool isVisible() const noexcept { return visible_; }
 
     /// \brief Includes or excludes this primitive from rendering.
-    void setVisible(bool visible) noexcept { visible_ = visible; }
+    void setVisible(bool visible) { setIfDifferent(visible_, visible, DirtyBits::Visibility); }
 
     /// \brief Returns whether this primitive is a light.
     ///
@@ -158,6 +173,8 @@ public:
 
     [[nodiscard]] KIRA_HOST_DEVICE std::uint32_t getEDFIndex() const noexcept { return edfIndex; }
 };
+
+template <> inline constexpr bool isEnumFlags<Primitive::DirtyBits> = true;
 
 static_assert(std::is_standard_layout_v<Primitive::Impl>);
 static_assert(std::is_trivially_copyable_v<Primitive::Impl>);
