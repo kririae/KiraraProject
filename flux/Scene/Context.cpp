@@ -14,9 +14,6 @@ Context::~Context() {
 
 void Context::absorb(TXContext &&tx) {
     std::scoped_lock const lock(mutex_);
-    for (auto const &entry : tx.objects_)
-        if (objects_.contains(entry.first))
-            throw kira::Anyhow("Context: object ID is already registered");
 
     // Validate every map before merging any, so a failure leaves them unchanged.
     for (std::size_t kind = 0; kind < numIndexedKinds; ++kind)
@@ -46,7 +43,7 @@ void Context::remove(std::size_t contextId) {
     if (!iterator->second->isRoot())
         throw kira::Anyhow("Context: only a root object can be removed");
 
-    // Find the active roles before the object can be destroyed.
+    // Find the active roles while the object is still in the scene.
     auto const isIntegrator = activeIntegrator_ && activeIntegrator_->getContextId() == contextId;
     auto const isSampler = activeSampler_ && activeSampler_->getContextId() == contextId;
     auto const isEnvMap = activeEnvMap_ && activeEnvMap_->getContextId() == contextId;
@@ -103,10 +100,10 @@ void Context::collectGarbage() {
 }
 
 void Context::setActiveIntegrator(Ref<PathIntegrator const> integrator) {
-    if (integrator && integrator->getContext() != this)
-        throw kira::Anyhow("Context: integrator belongs to another context");
-
+    // Check the owner under the lock, which \c remove holds while it clears the owner.
     std::scoped_lock const lock(mutex_);
+    if (integrator && integrator->getContext() != this)
+        throw kira::Anyhow("Context: integrator is not in this context");
     if (activeIntegrator_ == integrator)
         return;
     activeIntegrator_ = std::move(integrator);
@@ -114,10 +111,10 @@ void Context::setActiveIntegrator(Ref<PathIntegrator const> integrator) {
 }
 
 void Context::setActiveSampler(Ref<Sampler const> sampler) {
-    if (sampler && sampler->getContext() != this)
-        throw kira::Anyhow("Context: sampler belongs to another context");
-
+    // Check the owner under the lock, which \c remove holds while it clears the owner.
     std::scoped_lock const lock(mutex_);
+    if (sampler && sampler->getContext() != this)
+        throw kira::Anyhow("Context: sampler is not in this context");
     if (activeSampler_ == sampler)
         return;
     activeSampler_ = std::move(sampler);
@@ -125,10 +122,10 @@ void Context::setActiveSampler(Ref<Sampler const> sampler) {
 }
 
 void Context::setActiveEnvMap(Ref<EnvMapLight const> envMap) {
-    if (envMap && envMap->getContext() != this)
-        throw kira::Anyhow("Context: environment map belongs to another context");
-
+    // Check the owner under the lock, which \c remove holds while it clears the owner.
     std::scoped_lock const lock(mutex_);
+    if (envMap && envMap->getContext() != this)
+        throw kira::Anyhow("Context: environment map is not in this context");
     if (activeEnvMap_ == envMap)
         return;
     activeEnvMap_ = std::move(envMap);
@@ -147,7 +144,8 @@ void Context::clearDirty() {
         objects_.at(id)->dirtyMask_ = 0;
 
     // Erase the index of each removed object. The object is gone, so find the map that holds its
-    // ID. Ascending order keeps the order in which later objects reuse the indices.
+    // ID. Sorting makes the order in which later objects reuse the indices independent of hash
+    // order.
     std::vector<std::size_t> removed(removedIds_.begin(), removedIds_.end());
     std::ranges::sort(removed);
     for (auto const id : removed)

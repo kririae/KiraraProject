@@ -50,8 +50,10 @@ public:
     }
 
     /// \brief Gets an object from this transaction or its owning context.
-    template <IsContextObject T> [[nodiscard]] Ref<T> get(std::size_t contextId) const {
-        auto object = getObject(contextId).template dynamicCast<T>();
+    ///
+    /// The object is const, so a constructor binds it but does not edit it.
+    template <IsContextObject T> [[nodiscard]] Ref<T const> get(std::size_t contextId) const {
+        auto object = getObject(contextId).template dynamicCast<T const>();
         if (!object)
             throw kira::Anyhow("TXContext: object has the wrong type");
         return object;

@@ -303,7 +303,7 @@ private:
     std::unordered_set<std::size_t> addedIds_;
 
     /// IDs of objects that recorded a bit this epoch and are still in the scene. An object enters
-    /// when its first bit is recorded, so each is listed once.
+    /// when its first bit is recorded.
     std::unordered_set<std::size_t> changedIds_;
 
     /// IDs of objects removed this epoch. Each ID keeps its index entry until \c clearDirty.

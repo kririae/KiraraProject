@@ -24,8 +24,7 @@ ImageAssetPool &TXContext::getImageAssetPool() const noexcept {
 void TXContext::registerObject(Ref<ContextObject> object) {
     auto const contextId = object->getContextId();
     auto const [iterator, inserted] = objects_.emplace(contextId, std::move(object));
-    if (!inserted)
-        throw kira::Anyhow("TXContext: object ID is already registered");
+    KIRA_ASSERT(inserted, "TXContext: context IDs are unique");
 
     try {
         if (auto const kind = iterator->second->getIndexedKind())

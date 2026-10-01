@@ -272,3 +272,37 @@ TEST(RemovalTests, GetObjectsSkipsRemovedObjectsBeforeTheClear) {
     ASSERT_EQ(primitives.size(), 1U);
     EXPECT_EQ(primitives[0], second);
 }
+
+TEST(RemovalTests, RejectsARemovedRootAsActive) {
+    auto context = flux::Context::create();
+    auto env = context->create<flux::EnvMapLight>(kira::Properties{});
+    context->remove(env->getContextId());
+    context->clearDirty();
+
+    EXPECT_THROW(context->setActiveEnvMap(env), kira::Anyhow);
+    EXPECT_THROW(context->remove(env->getContextId()), std::out_of_range);
+    EXPECT_FALSE(context->getActiveEnvMap());
+    EXPECT_EQ(context->getDirtyBits(), ContextBits::None);
+}
+
+TEST(RemovalTests, ListsAChangedDependentOnlyAsRemoved) {
+    auto context = flux::Context::create();
+    auto mesh = context->create<flux::TriangleMesh>(triangleData());
+    auto edf = context->create<flux::ConstantEDF>(kira::Properties{});
+    auto primitive =
+        context->create<flux::Primitive>(primitiveProperties(*mesh, nullptr, edf.get()));
+    auto const edfId = edf->getContextId();
+    edf->setRadiance({2.0F, 2.0F, 2.0F});
+
+    primitive->setEDF(nullptr);
+    edf.reset();
+    context->collectGarbage();
+
+    EXPECT_FALSE(context->getAddedIds().contains(edfId));
+    EXPECT_FALSE(context->getChangedIds().contains(edfId));
+    EXPECT_TRUE(context->getRemovedIds().contains(edfId));
+    EXPECT_FALSE(context->findIndex<flux::Primitive>(edfId));
+    EXPECT_TRUE(context->findIndex<flux::EDF>(edfId));
+    context->clearDirty();
+    EXPECT_FALSE(context->findIndex<flux::EDF>(edfId));
+}

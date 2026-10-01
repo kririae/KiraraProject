@@ -180,7 +180,6 @@ inline constexpr std::size_t numIndexedKinds = static_cast<std::size_t>(IndexedK
 /// current one.
 class ContextObject : public Object {
     friend class Context;
-    friend class TXContext;
 
 protected:
     /// \brief Assigns a stable ID from \p tx.
@@ -220,7 +219,7 @@ protected:
     /// \brief Records \p bits as changed, and lists this object with its context
     ///        when it was clean.
     ///
-    /// An object whose context was destroyed records nothing.
+    /// An object without an owner records nothing.
     template <typename Bits> void markDirty(Bits bits) {
         static_assert(std::is_enum_v<Bits>, "Dirty bits must be an enumeration");
         static_assert(
@@ -251,7 +250,7 @@ protected:
 private:
     template <typename T> friend typename T::DirtyBits getDirtyBits(T const &object) noexcept;
 
-    /// \brief Appends this object's ID to the context's changed list.
+    /// \brief Inserts this object's ID into the context's changed set.
     void recordChanged();
 
     Context *context_{};

@@ -37,16 +37,21 @@ struct EmbreeHandler::pImpl {
     }
 
     void sync() {
-        if (!context->getActiveIntegrator())
+        // Read what render needs before the device state changes, since render does not touch
+        // the Context.
+        auto const activeSampler = context->getActiveSampler();
+        auto const activeIntegrator = context->getActiveIntegrator();
+        if (!activeIntegrator)
             throw kira::Anyhow("EmbreeHandler: context has no active integrator");
-        if (!context->getActiveSampler())
+        if (!activeSampler)
             throw kira::Anyhow("EmbreeHandler: context has no active sampler");
+        auto const nextSampler = activeSampler->getImpl();
+        auto const nextIntegrator = activeIntegrator->getImpl();
+
         renderProducts.resetAccumulation();
         embreeContext.sync();
-
-        // Keep the values that render reads, since render does not touch the Context.
-        sampler = context->getActiveSampler()->getImpl();
-        integrator = context->getActiveIntegrator()->getImpl();
+        sampler = nextSampler;
+        integrator = nextIntegrator;
     }
 
     Ref<Context> context;

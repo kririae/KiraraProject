@@ -28,11 +28,11 @@ public:
 
     ~OptixHandler();
 
-    /// \brief Commits the host \c Context and rebuilds the OptiX scene.
+    /// \brief Rebuilds the OptiX scene from the host \c Context.
     ///
-    /// Rebuilding clears the current scene first and waits for queued work. A
-    /// failed sync leaves this handler unusable. Sync also clears accumulation
-    /// for every render product. Recover by creating a new handler.
+    /// Sync waits for queued work and clears accumulation for every render
+    /// product. If sync throws, the device state is unspecified: render nothing
+    /// until a later sync succeeds.
     void sync();
 
     /// \brief Renders one sample batch into \p product and waits for completion.
