@@ -1,7 +1,5 @@
 #pragma once
 
-#include <vector>
-
 #include "flux/Core/Object.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/OptixImageTexturePool.h"

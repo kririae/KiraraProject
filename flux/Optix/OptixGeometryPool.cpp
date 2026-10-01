@@ -46,7 +46,7 @@ void OptixGeometryPool::build(std::span<TriangleMesh const *const> meshes) {
             throw kira::Anyhow("OptixGeometryPool: triangle mesh attribute indices are invalid");
 
         auto &entry = entries_.emplace_back(getStream());
-        entry.resident = true;
+        entry.valid = true;
         entry.vertices.copyFromHost({vertices.data(), vertices.size()});
         entry.triangles.copyFromHost({triangles.data(), triangles.size()});
         entry.normals.copyFromHost({normals.data(), normals.size()});
@@ -99,7 +99,7 @@ std::vector<std::optional<OptixBuildInput>> OptixGeometryPool::getBuildInputs() 
     inputs.reserve(entries_.size());
 
     for (auto const &entry : entries_) {
-        if (!entry.resident) {
+        if (!entry.valid) {
             inputs.emplace_back();
             continue;
         }

@@ -23,7 +23,7 @@ class OptixGeometryPool final : private Noncopyable, private CudaStreamMixin {
 public:
     explicit OptixGeometryPool(cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
 
-    /// \brief Builds the resident triangle meshes.
+    /// \brief Builds the triangle meshes.
     ///
     /// Meshes omitted from \p meshes are released.
     /// \param meshes Host meshes to upload at their geometry indices. A null
@@ -32,7 +32,7 @@ public:
     /// \throw kira::Anyhow If CUDA cannot enqueue an allocation or copy.
     void build(std::span<TriangleMesh const *const> meshes);
 
-    /// \brief Creates build inputs backed by the current resident storage.
+    /// \brief Creates build inputs backed by the current device storage.
     ///
     /// The result is indexed like \c build's \c meshes, and a hole has no input.
     /// The inputs remain valid until the next call to \c build.
@@ -68,8 +68,10 @@ private:
         kira::SmallVector<float, 0> triangleAreaPDFStaging;
         DeviceBuffer<float> triangleAreaCDF;
         DeviceBuffer<float> triangleAreaPDF;
+
         /// Whether a mesh was uploaded, and false at a hole.
-        bool resident{};
+        bool valid{};
+
         CUdeviceptr vertexBuffer{};
         unsigned int flags{OPTIX_GEOMETRY_FLAG_NONE};
     };

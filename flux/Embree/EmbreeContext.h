@@ -9,7 +9,6 @@
 #include "flux/Core/MathUtils.h"
 #include "flux/Core/Object.h"
 #include "flux/Core/Ray.h"
-#include "flux/Core/RayFootprint.h"
 #include "flux/Embree/EmbreeImageTexturePool.h"
 #include "flux/Embree/EmbreeLightSampler.h"
 #include "flux/Scene/GeometryImpl.h"
@@ -17,8 +16,6 @@
 #include "flux/Scene/SceneTable.h"
 #include "flux/Scene/SceneTableData.h"
 #include "flux/Scene/TriangleMesh.h"
-#include "flux/Shading/BSDF.h"
-#include "flux/Shading/EDF.h"
 #include "flux/Shading/Interaction.h"
 #include "kira/SmallVector.h"
 

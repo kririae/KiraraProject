@@ -5,7 +5,6 @@
 
 #include "flux/Core/Math.h"
 #include "flux/Core/Object.h"
-#include "flux/Shading/Texture.h"
 
 namespace flux {
 class Context;

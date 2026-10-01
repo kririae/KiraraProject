@@ -7,6 +7,7 @@
 #include "flux/Core/RayFootprint.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/ImageAssetPImpl.h"
+#include "flux/Shading/Texture.h"
 
 namespace flux {
 struct EmbreeImageTexturePool::Entry {

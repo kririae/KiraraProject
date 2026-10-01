@@ -11,14 +11,10 @@
 
 #include "flux/Core/Object.h"
 #include "flux/Core/Ray.h"
-#include "flux/Core/RayFootprint.h"
 #include "flux/Optix/OptixImageTexturePool.h"
 #include "flux/Optix/OptixLightSampler.h"
-#include "flux/Scene/GeometryImpl.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/SceneTable.h"
-#include "flux/Shading/BSDF.h"
-#include "flux/Shading/EDF.h"
 #include "flux/Shading/Interaction.h"
 #include "kira/Compiler.h"
 
@@ -62,8 +58,8 @@ private:
     [[nodiscard]] Impl getImpl() const noexcept;
     [[nodiscard]] OptixProgramSpec const &getProgramSpec() const noexcept;
 
-    struct Storage;
-    std::unique_ptr<Storage> storage_;
+    struct pImpl;
+    std::unique_ptr<pImpl> pImpl_;
 };
 
 /// \brief OptiX scene used by device programs.
