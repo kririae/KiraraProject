@@ -149,8 +149,8 @@ struct OptixContext::pImpl final : private CudaStreamMixin {
     DeviceBuffer<BSDF::Impl> bsdfs{getStream()};
     DeviceBuffer<EDF::Impl> edfs{getStream()};
 
-    /// Epoch of the last successful sync, or nothing before the first one. A failed sync does
-    /// not set it, so the next sync rebuilds everything.
+    /// Epoch of the last successful sync, or nothing before the first sync and after a failed
+    /// one, so the next sync rebuilds everything.
     std::optional<std::uint64_t> syncedEpoch;
 };
 
@@ -208,6 +208,8 @@ void OptixContext::pImpl::sync() try {
     // Record the epoch only now, after the work succeeded.
     syncedEpoch = context.getEpoch();
 } catch (...) {
+    // Forget the last sync, because the failure may have left part of its state replaced.
+    syncedEpoch.reset();
     cudaCheck<false>(cudaStreamSynchronize(getStream()));
     throw;
 }

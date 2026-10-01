@@ -46,9 +46,9 @@ private:
     ///
     /// Reads the records of the context's current epoch to decide what to rebuild. A sync with
     /// no changes since the previous one rebuilds nothing. Any other sync, and the first one,
-    /// rebuilds the whole scene, clears the current scene first, and waits for queued work. A
-    /// failed sync leaves this context unusable and does not count as a sync, so the next one
-    /// rebuilds everything.
+    /// clears the current scene, rebuilds all of it, and waits for queued work. A failed sync
+    /// leaves this context unusable and forgets the previous sync, so the next one rebuilds
+    /// everything.
     void sync();
 
     /// \brief Launches \p size ray-generation work items on \p stream.

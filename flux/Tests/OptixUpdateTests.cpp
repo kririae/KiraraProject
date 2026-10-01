@@ -162,7 +162,6 @@ struct Spec {
     bool sobol{false};
     int nextKey{0};
 
-public:
     [[nodiscard]] Prim &prim(int key) {
         for (auto &entry : prims)
             if (entry.first == key)
@@ -265,9 +264,9 @@ createIntegrator(flux::Context &context, Spec::Integrator const &integrator) {
 
 Spec::Ids Spec::build(flux::Context &context) const {
     Ids ids;
-    auto integrator_ = createIntegrator(context, integrator);
-    ids.integrator = integrator_->getContextId();
-    context.setActiveIntegrator(integrator_);
+    auto active = createIntegrator(context, integrator);
+    ids.integrator = active->getContextId();
+    context.setActiveIntegrator(active);
     auto sampler = createSampler(context, sobol);
     ids.sampler = sampler->getContextId();
     context.setActiveSampler(sampler);
@@ -793,7 +792,7 @@ private:
                 case Kind::Point:
                 case Kind::Env:
                 case Kind::Integrator:
-                case Kind::Sampler: return hasIndex(*context, id) == false;
+                case Kind::Sampler: return !hasIndex(*context, id);
                 }
                 return false;
             }();
@@ -1237,7 +1236,7 @@ TEST(OptixUpdateTests, SkipsTheRebuildWhenNothingChanged) {
     EXPECT_TRUE(rig.ok);
 }
 
-// A failed sync does not record its epoch, so the next sync rebuilds even with no records.
+// A failed sync forgets the previous sync, so the next sync rebuilds even with no records.
 TEST(OptixUpdateTests, RebuildsAfterAFailedSyncEvenWithoutRecords) {
     if (skipWithoutCuda())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
@@ -1246,16 +1245,17 @@ TEST(OptixUpdateTests, RebuildsAfterAFailedSyncEvenWithoutRecords) {
     auto const module = copyModule();
     Rig rig(base.spec, module);
     auto const before = rig.frame();
-    auto const saved = module.string() + ".saved";
-    std::filesystem::copy_file(module, saved, std::filesystem::copy_options::overwrite_existing);
-    std::filesystem::remove(module);
 
+    // Succeed and then fail in one epoch, so the clear below leads to the next epoch.
+    rig.handler->sync();
+    auto const saved = module.string() + ".saved";
+    std::filesystem::rename(module, saved);
     rig.move(base.occluder, makeTransform(0.6F, 1.1F, false, {0.3F, 0.2F, 0.5F}));
     EXPECT_THROW(rig.handler->sync(), kira::Anyhow);
 
     // Drop the records, restore the module, and sync an epoch with no records.
     rig.clearOnly();
-    std::filesystem::copy_file(saved, module);
+    std::filesystem::rename(saved, module);
     rig.context->collectGarbage();
     rig.handler->sync();
     auto const after = rig.compare();
