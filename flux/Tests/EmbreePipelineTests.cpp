@@ -1,11 +1,15 @@
 #include <OpenImageIO/imageio.h> // NOLINT(llvm-include-order)
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <stdexcept>
+#include <string>
 
+#include "TestUtils.h"
 #include "flux/Embree/EmbreeHandler.h"
 #include "flux/IO/ImageIO.h"
 #include "flux/Integrator/PathIntegrator.h"
@@ -155,6 +159,34 @@ TEST(EmbreePipelineTests, RejectsSingularInstanceTransforms) {
     });
 
     EXPECT_THROW((void)flux::EmbreeHandler(context), kira::Anyhow);
+}
+
+TEST(EmbreePipelineTests, RejectsAVertexBufferWithoutSpareCapacity) {
+    auto context = flux::Context::create();
+    (void)context->create<flux::PathIntegrator>(kira::Properties{});
+    (void)context->create<flux::IndependentSampler>(kira::Properties{});
+    auto const corners = std::array{
+        flux::Vec3f{0.0F, 0.0F, 0.0F},
+        flux::Vec3f{1.0F, 0.0F, 0.0F},
+        flux::Vec3f{0.0F, 1.0F, 0.0F},
+    };
+    auto vertices = std::make_shared<flux::HostBuffer<flux::Vec3f>>();
+    vertices->resize(corners.size());
+    std::ranges::copy(corners, vertices->data());
+    auto mesh = context->create<flux::TriangleMesh>(flux::TriangleMesh::Data{
+        .vertices = std::move(vertices),
+        .triangles = flux::test::sharedBuffer(flux::Vec3u{0, 1, 2}),
+    });
+    auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
+    (void)context->create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
+
+    try {
+        (void)flux::EmbreeHandler(context);
+        ADD_FAILURE() << "Embree accepted a vertex buffer without spare capacity";
+    } catch (kira::Anyhow const &error) {
+        EXPECT_NE(std::string(error.what()).find("spare capacity"), std::string::npos)
+            << error.what();
+    }
 }
 
 TEST(EmbreePipelineTests, RendersDirectLightIntoColorChannel) {

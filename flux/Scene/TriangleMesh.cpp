@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <ranges>
 #include <rapidobj/rapidobj.hpp>
 #include <string>
@@ -23,16 +24,18 @@
 #include "flux/Scene/Context.h"
 #include "flux/Scene/TriangleMeshImpl.h"
 #include "kira/Anyhow.h"
+#include "kira/SmallVector.h"
 
 namespace flux {
 namespace {
 template <typename Array> void release(Array &array) { array = std::remove_cvref_t<Array>{}; }
 
+/// \brief Writes angle-weighted vertex normals to \p normals.
+///
+/// \pre \p normals has one element per vertex.
 void generateVertexNormals(
-    std::span<Vec3f const> vertices, std::span<Vec3u const> triangles,
-    kira::SmallVector<Vec3f, 0> &normals
+    std::span<Vec3f const> vertices, std::span<Vec3u const> triangles, std::span<Vec3f> normals
 ) {
-    normals.resize_for_overwrite(vertices.size());
     tbb::parallel_for(std::size_t{0}, normals.size(), [&](std::size_t index) {
         normals[index] = Vec3f{0.0F};
     });
@@ -78,6 +81,14 @@ void generateVertexNormals(
     });
 }
 
+/// \brief Returns a new buffer of \p count elements and \p capacity readable elements.
+template <typename T>
+[[nodiscard]] std::shared_ptr<HostBuffer<T>> allocate(std::size_t count, std::size_t capacity) {
+    auto buffer = std::make_shared<HostBuffer<T>>();
+    buffer->resize(count, capacity);
+    return buffer;
+}
+
 /// \brief Returns the largest index in \p indices, or zero when it is empty.
 [[nodiscard]] std::uint32_t largestIndex(std::span<Vec3u const> indices) {
     return tbb::parallel_reduce(
@@ -121,19 +132,41 @@ TriangleMesh::TriangleMesh(TXContext &tx, kira::Properties const &props)
     : TriangleMesh(tx, loadMeshFile(tx.getContext().getFileResolver(), props)) {}
 
 TriangleMesh::TriangleMesh(TXContext &tx, Data &&data)
-    : Geometry(tx, GeometryType::TriangleMesh), vertices_(std::move(data.vertices)),
-      triangles_(std::move(data.triangles)), normals_(std::move(data.normals)),
-      normalIndices_(std::move(data.normalIndices)), texCoords_(std::move(data.texCoords)),
-      texCoordIndices_(std::move(data.texCoordIndices)) {
-    if (vertices_.size() >= std::numeric_limits<std::uint32_t>::max())
+    : Geometry(tx, GeometryType::TriangleMesh), data_(std::move(data)) {
+    // Turn each empty buffer into a null handle.
+    auto const dropEmpty = [](auto &handle) {
+        if (handle && handle->empty())
+            handle.reset();
+    };
+    dropEmpty(data_.vertices);
+    dropEmpty(data_.triangles);
+    dropEmpty(data_.normals);
+    dropEmpty(data_.normalIndices);
+    dropEmpty(data_.texCoords);
+    dropEmpty(data_.texCoordIndices);
+
+    // Check the counts. Every consumer would have to handle an empty mesh, and
+    // one that missed it would read out of bounds.
+    auto const vertices = getVertices();
+    if (vertices.empty() || getTriangles().empty())
         throw kira::Anyhow(
-            "TriangleMesh: {} vertices exceed the addressable range", vertices_.size()
+            "TriangleMesh: {} vertices and {} triangles do not form a mesh", vertices.size(),
+            getTriangles().size()
         );
-    vertices_.push_back(Vec3f{});
+    if (vertices.size() >= std::numeric_limits<std::uint32_t>::max())
+        throw kira::Anyhow(
+            "TriangleMesh: {} vertices exceed the addressable range", vertices.size()
+        );
 
-    if (normals_.empty())
-        generateVertexNormals(getVertices(), getTriangles(), normals_);
+    // Generate the normals in a new buffer, which the input data does not share.
+    if (!data_.normals) {
+        auto normals = std::make_shared<HostBuffer<Vec3f>>();
+        normals->resize(vertices.size());
+        generateVertexNormals(vertices, getTriangles(), normals->span());
+        data_.normals = std::move(normals);
+    }
 
+    // Sum the triangle areas.
     auto const impl = getImpl();
     surfaceArea_ = tbb::parallel_reduce(
         tbb::blocked_range<std::uint32_t>{0, impl.numTriangles}, 0.0F,
@@ -146,13 +179,21 @@ TriangleMesh::TriangleMesh(TXContext &tx, Data &&data)
 }
 
 void TriangleMesh::checkIndices(Data const &data) {
+    auto const vertices = view(data.vertices);
+    auto const triangles = view(data.triangles);
+    if (vertices.empty() || triangles.empty())
+        throw kira::Anyhow(
+            "TriangleMesh: {} vertices and {} triangles do not form a mesh", vertices.size(),
+            triangles.size()
+        );
+
     auto const check = [&](std::span<Vec3u const> indices, std::size_t limit, char const *name) {
         if (indices.empty())
             return;
-        if (indices.size() != data.triangles.size())
+        if (indices.size() != triangles.size())
             throw kira::Anyhow(
                 "TriangleMesh: {} {} indices do not match {} triangles", indices.size(), name,
-                data.triangles.size()
+                triangles.size()
             );
 
         auto const largest = largestIndex(indices);
@@ -161,8 +202,6 @@ void TriangleMesh::checkIndices(Data const &data) {
                 "TriangleMesh: a triangle addresses {} {} of {}", name, largest, limit
             );
     };
-
-    auto const triangles = std::span<Vec3u const>{data.triangles};
 
     // Indices without their attribute array would be published against generated
     // normals, which are per vertex, or against no array at all.
@@ -178,27 +217,31 @@ void TriangleMesh::checkIndices(Data const &data) {
         check(indices.empty() ? triangles : indices, attributeCount, name);
     };
 
-    check(triangles, data.vertices.size(), "vertex");
-    checkAttribute(data.normalIndices, data.normals.size(), "normal");
-    checkAttribute(data.texCoordIndices, data.texCoords.size(), "texture-coordinate");
+    check(triangles, vertices.size(), "vertex");
+    checkAttribute(view(data.normalIndices), view(data.normals).size(), "normal");
+    checkAttribute(view(data.texCoordIndices), view(data.texCoords).size(), "texture-coordinate");
 }
 
 TriangleMesh::Impl TriangleMesh::getImpl() const noexcept {
     auto const vertices = getVertices();
+    auto const triangles = getTriangles();
+    auto const normals = getNormals();
+    auto const normalIndices = getNormalIndices();
+    auto const texCoords = getTexCoords();
+    auto const texCoordIndices = getTexCoordIndices();
     return {
         .vertices = vertices.data(),
-        .triangles = triangles_.data(),
-        .normals = normals_.empty() ? nullptr : normals_.data(),
-        .normalIndices = normals_.empty()
+        .triangles = triangles.data(),
+        .normals = normals.data(),
+        .normalIndices = normals.empty()
                              ? nullptr
-                             : (normalIndices_.empty() ? triangles_.data() : normalIndices_.data()),
-        .texCoords = texCoords_.empty() ? nullptr : texCoords_.data(),
-        .texCoordIndices =
-            texCoords_.empty()
-                ? nullptr
-                : (texCoordIndices_.empty() ? triangles_.data() : texCoordIndices_.data()),
+                             : (normalIndices.empty() ? triangles.data() : normalIndices.data()),
+        .texCoords = texCoords.data(),
+        .texCoordIndices = texCoords.empty() ? nullptr
+                                             : (texCoordIndices.empty() ? triangles.data()
+                                                                        : texCoordIndices.data()),
         .numVertices = static_cast<std::uint32_t>(vertices.size()),
-        .numTriangles = static_cast<std::uint32_t>(triangles_.size()),
+        .numTriangles = static_cast<std::uint32_t>(triangles.size()),
         .surfaceArea = surfaceArea_,
     };
 }
@@ -246,7 +289,6 @@ void TriangleMesh::computeSamplingDistribution(
 
 namespace {
 TriangleMesh::Data loadObj(std::filesystem::path const &path) {
-    TriangleMesh::Data data;
     auto result = rapidobj::ParseFile(path, rapidobj::MaterialLibrary::Ignore());
     if (result.error)
         throw kira::Anyhow(
@@ -361,32 +403,47 @@ TriangleMesh::Data loadObj(std::filesystem::path const &path) {
     if (!hasCompleteTexCoords)
         release(result.attributes.texcoords);
 
-    data.triangles.resize_for_overwrite(numTriangles);
-    if (hasCompleteNormals && !normalIndicesAliasVertices)
-        data.normalIndices.resize_for_overwrite(numTriangles);
-    if (hasCompleteTexCoords && !texCoordIndicesAliasVertices)
-        data.texCoordIndices.resize_for_overwrite(numTriangles);
+    // Allocate each array. Vertices get one spare element for Embree.
+    auto vertices = allocate<Vec3f>(numVertices, numVertices + 1);
+    auto triangles = allocate<Vec3u>(numTriangles, numTriangles);
+    std::shared_ptr<HostBuffer<Vec3f>> normals;
+    std::shared_ptr<HostBuffer<Vec3u>> normalIndices;
+    std::shared_ptr<HostBuffer<Vec2f>> texCoords;
+    std::shared_ptr<HostBuffer<Vec3u>> texCoordIndices;
+    if (hasCompleteNormals) {
+        normals = allocate<Vec3f>(numNormals, numNormals);
+        if (!normalIndicesAliasVertices)
+            normalIndices = allocate<Vec3u>(numTriangles, numTriangles);
+    }
+    if (hasCompleteTexCoords) {
+        texCoords = allocate<Vec2f>(numTexCoords, numTexCoords);
+        if (!texCoordIndicesAliasVertices)
+            texCoordIndices = allocate<Vec3u>(numTriangles, numTriangles);
+    }
 
     // Write each shape to its own output range in parallel.
+    auto const outTriangles = triangles->span();
+    auto const outNormalIndices = normalIndices ? normalIndices->span() : std::span<Vec3u>{};
+    auto const outTexCoordIndices = texCoordIndices ? texCoordIndices->span() : std::span<Vec3u>{};
     tbb::parallel_for(std::size_t{0}, result.shapes.size(), [&](std::size_t shapeIndex) {
         auto const &indices = result.shapes[shapeIndex].mesh.indices;
         auto const outputOffset = triangleOffsets[shapeIndex];
         for (std::size_t triangleIndex = 0; triangleIndex < indices.size() / 3; ++triangleIndex) {
             auto const sourceOffset = triangleIndex * 3;
             auto const destination = outputOffset + triangleIndex;
-            data.triangles[destination] = Vec3u{
+            outTriangles[destination] = Vec3u{
                 static_cast<std::uint32_t>(indices[sourceOffset].position_index),
                 static_cast<std::uint32_t>(indices[sourceOffset + 1].position_index),
                 static_cast<std::uint32_t>(indices[sourceOffset + 2].position_index),
             };
-            if (!data.normalIndices.empty())
-                data.normalIndices[destination] = Vec3u{
+            if (!outNormalIndices.empty())
+                outNormalIndices[destination] = Vec3u{
                     static_cast<std::uint32_t>(indices[sourceOffset].normal_index),
                     static_cast<std::uint32_t>(indices[sourceOffset + 1].normal_index),
                     static_cast<std::uint32_t>(indices[sourceOffset + 2].normal_index),
                 };
-            if (!data.texCoordIndices.empty())
-                data.texCoordIndices[destination] = Vec3u{
+            if (!outTexCoordIndices.empty())
+                outTexCoordIndices[destination] = Vec3u{
                     static_cast<std::uint32_t>(indices[sourceOffset].texcoord_index),
                     static_cast<std::uint32_t>(indices[sourceOffset + 1].texcoord_index),
                     static_cast<std::uint32_t>(indices[sourceOffset + 2].texcoord_index),
@@ -395,11 +452,10 @@ TriangleMesh::Data loadObj(std::filesystem::path const &path) {
     });
     release(result.shapes);
 
-    data.vertices.reserve(numVertices + 1);
-    data.vertices.resize_for_overwrite(numVertices);
+    auto const outVertices = vertices->span();
     tbb::parallel_for(std::size_t{0}, numVertices, [&](std::size_t index) {
         auto const offset = index * 3;
-        data.vertices[index] = Vec3f{
+        outVertices[index] = Vec3f{
             result.attributes.positions[offset],
             result.attributes.positions[offset + 1],
             result.attributes.positions[offset + 2],
@@ -408,10 +464,10 @@ TriangleMesh::Data loadObj(std::filesystem::path const &path) {
     release(result.attributes.positions);
 
     if (hasCompleteNormals) {
-        data.normals.resize_for_overwrite(numNormals);
+        auto const outNormals = normals->span();
         tbb::parallel_for(std::size_t{0}, numNormals, [&](std::size_t index) {
             auto const offset = index * 3;
-            data.normals[index] = Vec3f{
+            outNormals[index] = Vec3f{
                 result.attributes.normals[offset],
                 result.attributes.normals[offset + 1],
                 result.attributes.normals[offset + 2],
@@ -421,21 +477,27 @@ TriangleMesh::Data loadObj(std::filesystem::path const &path) {
     }
 
     if (hasCompleteTexCoords) {
-        data.texCoords.resize_for_overwrite(numTexCoords);
+        auto const outTexCoords = texCoords->span();
         tbb::parallel_for(std::size_t{0}, numTexCoords, [&](std::size_t index) {
             auto const offset = index * 2;
-            data.texCoords[index] = Vec2f{
+            outTexCoords[index] = Vec2f{
                 result.attributes.texcoords[offset],
                 result.attributes.texcoords[offset + 1],
             };
         });
         release(result.attributes.texcoords);
     }
-    return data;
+    return {
+        .vertices = std::move(vertices),
+        .triangles = std::move(triangles),
+        .normals = std::move(normals),
+        .normalIndices = std::move(normalIndices),
+        .texCoords = std::move(texCoords),
+        .texCoordIndices = std::move(texCoordIndices),
+    };
 }
 
 TriangleMesh::Data loadPly(std::filesystem::path const &path) {
-    TriangleMesh::Data data;
     static_assert(sizeof(Vec2f) == 2 * sizeof(float));
     static_assert(sizeof(Vec3f) == 3 * sizeof(float));
     static_assert(sizeof(Vec3u) == 3 * sizeof(std::uint32_t));
@@ -447,6 +509,10 @@ TriangleMesh::Data loadPly(std::filesystem::path const &path) {
     bool hasVertices = false;
     bool hasTriangles = false;
     bool reloadFaces = false;
+    std::shared_ptr<HostBuffer<Vec3f>> vertices;
+    std::shared_ptr<HostBuffer<Vec3u>> triangles;
+    std::shared_ptr<HostBuffer<Vec3f>> normals;
+    std::shared_ptr<HostBuffer<Vec2f>> texCoords;
 
     auto loadFaces = [&](miniply::PLYReader &reader) {
         std::uint32_t faceProperty;
@@ -488,9 +554,11 @@ TriangleMesh::Data loadPly(std::filesystem::path const &path) {
             throw kira::Anyhow("TriangleMesh: PLY '{}' has too many polygon indices", pathString);
 
         if (!needsTriangulation) {
-            data.triangles.resize_for_overwrite(static_cast<std::size_t>(numTriangles));
+            triangles = allocate<Vec3u>(
+                static_cast<std::size_t>(numTriangles), static_cast<std::size_t>(numTriangles)
+            );
             if (!reader.extract_list_property(
-                    faceProperty, miniply::PLYPropertyType::UInt, data.triangles.front().data()
+                    faceProperty, miniply::PLYPropertyType::UInt, triangles->data()->data()
                 ))
                 throw kira::Anyhow("TriangleMesh: failed to read faces from PLY '{}'", pathString);
             return;
@@ -505,19 +573,23 @@ TriangleMesh::Data loadPly(std::filesystem::path const &path) {
                 "TriangleMesh: failed to read vertex indices from PLY '{}'", pathString
             );
         if (!std::ranges::all_of(polygonIndices, [&](std::uint32_t index) {
-            return index < data.vertices.size();
+            return index < vertices->size();
         }))
             throw kira::Anyhow(
                 "TriangleMesh: PLY '{}' contains an invalid vertex index", pathString
             );
 
+        // Triangulation may yield fewer triangles than counted, so collect them
+        // and hand their storage to the buffer.
+        kira::SmallVector<Vec3u, 0> collected;
+        collected.reserve(static_cast<std::size_t>(numTriangles));
+        auto const positions = vertices->span();
         std::array<std::vector<std::array<float, 2>>, 1> projectedPolygon;
         std::size_t sourceOffset = 0;
-        data.triangles.reserve(static_cast<std::size_t>(numTriangles));
         for (std::uint32_t face = 0; face < reader.num_rows(); ++face) {
             auto const count = counts[face];
             if (count == 3) {
-                data.triangles.push_back(
+                collected.push_back(
                     Vec3u{
                         polygonIndices[sourceOffset],
                         polygonIndices[sourceOffset + 1],
@@ -527,9 +599,9 @@ TriangleMesh::Data loadPly(std::filesystem::path const &path) {
             } else {
                 Vec3f polygonNormal{};
                 for (std::uint32_t corner = 0; corner < count; ++corner) {
-                    auto const &current = data.vertices[polygonIndices[sourceOffset + corner]];
+                    auto const &current = positions[polygonIndices[sourceOffset + corner]];
                     auto const &next =
-                        data.vertices[polygonIndices[sourceOffset + (corner + 1) % count]];
+                        positions[polygonIndices[sourceOffset + (corner + 1) % count]];
                     polygonNormal.x() += (current.y() - next.y()) * (current.z() + next.z());
                     polygonNormal.y() += (current.z() - next.z()) * (current.x() + next.x());
                     polygonNormal.z() += (current.x() - next.x()) * (current.y() + next.y());
@@ -553,7 +625,7 @@ TriangleMesh::Data loadPly(std::filesystem::path const &path) {
                 polygon.clear();
                 polygon.reserve(count);
                 for (std::uint32_t corner = 0; corner < count; ++corner) {
-                    auto const &position = data.vertices[polygonIndices[sourceOffset + corner]];
+                    auto const &position = positions[polygonIndices[sourceOffset + corner]];
                     if (projectionAxis == 0)
                         polygon.push_back({position.y(), position.z()});
                     else if (projectionAxis == 1)
@@ -578,13 +650,13 @@ TriangleMesh::Data loadPly(std::filesystem::path const &path) {
                             pathString
                         );
 
-                    auto const &position0 = data.vertices[polygonIndices[sourceOffset + index0]];
-                    auto const &position1 = data.vertices[polygonIndices[sourceOffset + index1]];
-                    auto const &position2 = data.vertices[polygonIndices[sourceOffset + index2]];
+                    auto const &position0 = positions[polygonIndices[sourceOffset + index0]];
+                    auto const &position1 = positions[polygonIndices[sourceOffset + index1]];
+                    auto const &position2 = positions[polygonIndices[sourceOffset + index2]];
                     if (cross(position1 - position0, position2 - position0).dot(polygonNormal) <
                         0.0F)
                         std::swap(index1, index2);
-                    data.triangles.push_back(
+                    collected.push_back(
                         Vec3u{
                             polygonIndices[sourceOffset + index0],
                             polygonIndices[sourceOffset + index1],
@@ -595,6 +667,7 @@ TriangleMesh::Data loadPly(std::filesystem::path const &path) {
             }
             sourceOffset += count;
         }
+        triangles = std::make_shared<HostBuffer<Vec3u>>(std::move(collected));
     };
 
     miniply::PLYReader reader{pathString.c_str()};
@@ -653,23 +726,22 @@ TriangleMesh::Data loadPly(std::filesystem::path const &path) {
             if (numVertices == std::numeric_limits<std::uint32_t>::max())
                 throw kira::Anyhow("TriangleMesh: PLY '{}' has too many vertices", pathString);
 
-            data.vertices.reserve(static_cast<std::size_t>(numVertices) + 1);
-            data.vertices.resize_for_overwrite(numVertices);
+            vertices = allocate<Vec3f>(numVertices, std::size_t{numVertices} + 1);
             if (!reader.extract_properties_with_stride(
                     positionProperties.data(),
                     static_cast<std::uint32_t>(positionProperties.size()),
-                    miniply::PLYPropertyType::Float, data.vertices.front().data(), sizeof(Vec3f)
+                    miniply::PLYPropertyType::Float, vertices->data()->data(), sizeof(Vec3f)
                 ))
                 throw kira::Anyhow(
                     "TriangleMesh: failed to read vertices from PLY '{}'", pathString
                 );
 
             if (hasNormals) {
-                data.normals.resize_for_overwrite(numVertices);
+                normals = allocate<Vec3f>(numVertices, numVertices);
                 if (!reader.extract_properties_with_stride(
                         normalProperties.data(),
                         static_cast<std::uint32_t>(normalProperties.size()),
-                        miniply::PLYPropertyType::Float, data.normals.front().data(), sizeof(Vec3f)
+                        miniply::PLYPropertyType::Float, normals->data()->data(), sizeof(Vec3f)
                     ))
                     throw kira::Anyhow(
                         "TriangleMesh: failed to read normals from PLY '{}'", pathString
@@ -683,12 +755,11 @@ TriangleMesh::Data loadPly(std::filesystem::path const &path) {
             }
 
             if (hasTexCoords) {
-                data.texCoords.resize_for_overwrite(numVertices);
+                texCoords = allocate<Vec2f>(numVertices, numVertices);
                 if (!reader.extract_properties_with_stride(
                         texCoordProperties.data(),
                         static_cast<std::uint32_t>(texCoordProperties.size()),
-                        miniply::PLYPropertyType::Float, data.texCoords.front().data(),
-                        sizeof(Vec2f)
+                        miniply::PLYPropertyType::Float, texCoords->data()->data(), sizeof(Vec2f)
                     ))
                     throw kira::Anyhow(
                         "TriangleMesh: failed to read texture coordinates from PLY '{}'", pathString
@@ -729,6 +800,11 @@ TriangleMesh::Data loadPly(std::filesystem::path const &path) {
         throw kira::Anyhow("TriangleMesh: PLY '{}' contains no triangles", pathString);
 
     // A face element of triangles is read without inspecting its indices.
+    TriangleMesh::Data data;
+    data.vertices = std::move(vertices);
+    data.triangles = std::move(triangles);
+    data.normals = std::move(normals);
+    data.texCoords = std::move(texCoords);
     TriangleMesh::checkIndices(data);
     return data;
 }

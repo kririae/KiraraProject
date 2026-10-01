@@ -174,6 +174,9 @@ the kind of container.
 `TriangleMesh::Data` holds one `Shared<HostBuffer<T>>` per array, and
 `TriangleMesh` holds a `Data`. Building a mesh copies handles, not elements.
 
+- A mesh is never empty. Construction throws when the vertices or the triangles
+  are absent, so no consumer handles zero elements. A producer that has an empty
+  mesh, such as a Hydra adapter mid-edit, creates no `TriangleMesh`.
 - A handle is null exactly when its array is absent. The constructor turns an
   empty buffer into a null handle, as `DeviceBuffer` keeps a null pointer
   exactly when it is empty. There is one form of "absent", and it needs no

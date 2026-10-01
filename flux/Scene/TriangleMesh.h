@@ -4,17 +4,17 @@
 #include <span>
 #include <type_traits>
 
+#include "flux/Core/HostBuffer.h"
 #include "flux/Core/Math.h"
 #include "flux/Scene/Geometry.h"
 #include "kira/Compiler.h"
-#include "kira/SmallVector.h"
 
 namespace flux {
 /// \brief Host indexed triangle mesh.
 ///
-/// A mesh is built either from owned host arrays or from the OBJ or PLY file
-/// named by the \c path property. TriangleMesh owns its host arrays, and each
-/// backend builds its geometry from them.
+/// A mesh is built either from shared host arrays or from the OBJ or PLY file
+/// named by the \c path property. TriangleMesh shares its host arrays with
+/// whoever built it, and each backend builds its geometry from them.
 ///
 /// PLY polygons are triangulated. Complete vertex normals and texture coordinates
 /// are imported. Missing or incomplete normals are generated; missing or incomplete
@@ -25,25 +25,35 @@ class TriangleMesh final : public Geometry {
 public:
     struct Impl;
 
-    /// \brief Host arrays a triangle mesh is built from.
+    /// \brief Shared host arrays a triangle mesh is built from.
     ///
-    /// \c triangles indexes \c vertices. Nonempty \c normals are indexed by
-    /// \c normalIndices, or by \c triangles when those are empty; \c texCoords
-    /// and \c texCoordIndices pair with \c triangles the same way. Empty
+    /// \c triangles indexes \c vertices. Present \c normals are indexed by
+    /// \c normalIndices, or by \c triangles when those are absent; \c texCoords
+    /// and \c texCoordIndices pair with \c triangles the same way. Absent
     /// \c normals request generated angle-weighted vertex normals, and an index
-    /// array whose attribute array is empty is not a mesh.
+    /// array whose attribute array is absent is not a mesh.
+    ///
+    /// \c vertices and \c triangles are required. Each other array is optional,
+    /// and absent when its handle is null or its buffer is empty.
     struct Data {
-        /// Geometry-space vertex positions. Construction appends one element, so
-        /// capacity for one more avoids a reallocation.
-        kira::SmallVector<Vec3f, 0> vertices;
+        /// Geometry-space vertex positions, nonempty. The buffer must have spare
+        /// capacity, \c capacity() > \c size(): Embree reads past the last vertex.
+        Shared<HostBuffer<Vec3f>> vertices;
 
-        /// Zero-based vertex indices of each triangle.
-        kira::SmallVector<Vec3u, 0> triangles;
+        /// Zero-based vertex indices of each triangle, nonempty.
+        Shared<HostBuffer<Vec3u>> triangles;
 
-        kira::SmallVector<Vec3f, 0> normals;
-        kira::SmallVector<Vec3u, 0> normalIndices;
-        kira::SmallVector<Vec2f, 0> texCoords;
-        kira::SmallVector<Vec3u, 0> texCoordIndices;
+        /// Geometry-space shading normals.
+        Shared<HostBuffer<Vec3f>> normals;
+
+        /// Normal indices of each triangle.
+        Shared<HostBuffer<Vec3u>> normalIndices;
+
+        /// Texture coordinates.
+        Shared<HostBuffer<Vec2f>> texCoords;
+
+        /// Texture-coordinate indices of each triangle.
+        Shared<HostBuffer<Vec3u>> texCoordIndices;
     };
 
     /// \brief Checks that every index in \p data addresses its array.
@@ -52,39 +62,42 @@ public:
     /// \p data itself calls this first. Reporting the source of \p data is left
     /// to that caller, which knows it.
     ///
-    /// \throw kira::Anyhow If an index is out of range, or an index array is
-    ///        nonempty and does not have one entry per triangle.
+    /// \throw kira::Anyhow If \p data has no vertices or no triangles, an index
+    ///        is out of range, or an index array is nonempty and does not have
+    ///        one entry per triangle.
     static void checkIndices(Data const &data);
+
+    /// \brief Returns the shared arrays the mesh was built from.
+    ///
+    /// \c vertices, \c triangles, and \c normals are never null; generated
+    /// normals replace absent ones. Another handle is null exactly when its
+    /// array is absent.
+    [[nodiscard]] Data const &getData() const noexcept { return data_; }
 
     /// \brief Returns geometry-space vertex positions.
     [[nodiscard]] std::span<Vec3f const> getVertices() const noexcept {
-        return {
-            vertices_.data(),
-            vertices_.empty() ? 0 : vertices_.size() - 1,
-        };
+        return view(data_.vertices);
     }
 
     /// \brief Returns zero-based vertex indices for each triangle.
     [[nodiscard]] std::span<Vec3u const> getTriangles() const noexcept {
-        return {triangles_.data(), triangles_.size()};
+        return view(data_.triangles);
     }
 
     /// \brief Returns geometry-space shading normals.
-    [[nodiscard]] std::span<Vec3f const> getNormals() const noexcept {
-        return {normals_.data(), normals_.size()};
-    }
+    [[nodiscard]] std::span<Vec3f const> getNormals() const noexcept { return view(data_.normals); }
 
     /// \brief Returns face-varying normal indices.
     ///
     /// An empty span with nonempty normals means the vertex indices also index
     /// the normals.
     [[nodiscard]] std::span<Vec3u const> getNormalIndices() const noexcept {
-        return {normalIndices_.data(), normalIndices_.size()};
+        return view(data_.normalIndices);
     }
 
     /// \brief Returns texture coordinates, or an empty span when absent.
     [[nodiscard]] std::span<Vec2f const> getTexCoords() const noexcept {
-        return {texCoords_.data(), texCoords_.size()};
+        return view(data_.texCoords);
     }
 
     /// \brief Returns face-varying texture-coordinate indices.
@@ -92,7 +105,7 @@ public:
     /// An empty span with nonempty texture coordinates means the vertex indices
     /// also index the texture coordinates.
     [[nodiscard]] std::span<Vec3u const> getTexCoordIndices() const noexcept {
-        return {texCoordIndices_.data(), texCoordIndices_.size()};
+        return view(data_.texCoordIndices);
     }
 
     /// \brief Returns an Impl that refers to the host mesh arrays.
@@ -108,25 +121,25 @@ public:
     [[nodiscard]] float getSurfaceArea() const noexcept override { return surfaceArea_; }
 
 private:
-    /// \brief Builds a mesh from owned host arrays.
+    /// \brief Builds a mesh from shared host arrays.
     ///
     /// \pre Every index in \p data addresses its array, which
     ///      \c checkIndices establishes.
-    /// \throw kira::Anyhow If \p data holds more vertices or triangles than a
-    ///        mesh can address.
+    /// \throw kira::Anyhow If \p data has no vertices or no triangles, or holds
+    ///        more vertices than a mesh can address.
     TriangleMesh(TXContext &tx, Data &&data);
 
     /// \brief Builds a mesh from the file named by the \c path property.
     TriangleMesh(TXContext &tx, kira::Properties const &props);
 
-    /// Embree may read four floats for RTC_FORMAT_FLOAT3, so vertex storage
-    /// includes one padding element.
-    kira::SmallVector<Vec3f, 0> vertices_;
-    kira::SmallVector<Vec3u, 0> triangles_;
-    kira::SmallVector<Vec3f, 0> normals_;
-    kira::SmallVector<Vec3u, 0> normalIndices_;
-    kira::SmallVector<Vec2f, 0> texCoords_;
-    kira::SmallVector<Vec3u, 0> texCoordIndices_;
+    /// \brief Returns the elements of \p buffer, or an empty span when it is null.
+    template <typename T>
+    [[nodiscard]] static std::span<T const> view(Shared<HostBuffer<T>> const &buffer) noexcept {
+        return buffer ? buffer->span() : std::span<T const>{};
+    }
+
+    /// Arrays built from, with generated normals in place of absent ones.
+    Data data_;
     float surfaceArea_{};
 };
 

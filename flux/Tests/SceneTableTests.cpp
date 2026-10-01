@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 
+#include "TestUtils.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/SceneTableData.h"
@@ -24,11 +25,13 @@ constexpr Transform identity{
 }
 
 [[nodiscard]] flux::TriangleMesh::Data triangle() {
+    using flux::test::sharedBuffer;
     return {
-        .vertices =
-            {flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F},
-             flux::Vec3f{0.0F, 1.0F, 0.0F}},
-        .triangles = {flux::Vec3u{0, 1, 2}},
+        .vertices = sharedBuffer(
+            flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F},
+            flux::Vec3f{0.0F, 1.0F, 0.0F}
+        ),
+        .triangles = sharedBuffer(flux::Vec3u{0, 1, 2}),
     };
 }
 

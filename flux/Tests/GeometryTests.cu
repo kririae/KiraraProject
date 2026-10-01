@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <utility>
 
 #include "TestUtils.h"
@@ -21,6 +22,8 @@
 #endif
 
 namespace {
+using flux::test::sharedBuffer;
+
 struct ReconstructTriangleInteraction {
     flux::TriangleMesh::Impl geometry;
     flux::PreliminaryIntersection preliminary;
@@ -255,11 +258,13 @@ TEST(GeometryTests, RejectsInvalidPlyVertexIndex) {
 TEST(GeometryTests, BuildsAMeshFromHostArrays) {
     auto context = flux::Context::create();
     auto mesh = context->create<flux::TriangleMesh>(flux::TriangleMesh::Data{
-        .vertices =
-            {flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{2.0F, 0.0F, 0.0F},
-             flux::Vec3f{0.0F, 2.0F, 0.0F}},
-        .triangles = {flux::Vec3u{0, 1, 2}},
-        .texCoords = {flux::Vec2f{0.0F, 0.0F}, flux::Vec2f{1.0F, 0.0F}, flux::Vec2f{0.0F, 1.0F}},
+        .vertices = sharedBuffer(
+            flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{2.0F, 0.0F, 0.0F},
+            flux::Vec3f{0.0F, 2.0F, 0.0F}
+        ),
+        .triangles = sharedBuffer(flux::Vec3u{0, 1, 2}),
+        .texCoords =
+            sharedBuffer(flux::Vec2f{0.0F, 0.0F}, flux::Vec2f{1.0F, 0.0F}, flux::Vec2f{0.0F, 1.0F}),
     });
 
     ASSERT_EQ(mesh->getVertices().size(), 3);
@@ -277,12 +282,13 @@ TEST(GeometryTests, BuildsAMeshFromHostArrays) {
 TEST(GeometryTests, KeepsIndependentAttributeIndicesFromHostArrays) {
     auto context = flux::Context::create();
     auto mesh = context->create<flux::TriangleMesh>(flux::TriangleMesh::Data{
-        .vertices =
-            {flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F},
-             flux::Vec3f{0.0F, 1.0F, 0.0F}},
-        .triangles = {flux::Vec3u{0, 1, 2}},
-        .normals = {flux::Vec3f{0.0F, 0.0F, 1.0F}},
-        .normalIndices = {flux::Vec3u{0, 0, 0}},
+        .vertices = sharedBuffer(
+            flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F},
+            flux::Vec3f{0.0F, 1.0F, 0.0F}
+        ),
+        .triangles = sharedBuffer(flux::Vec3u{0, 1, 2}),
+        .normals = sharedBuffer(flux::Vec3f{0.0F, 0.0F, 1.0F}),
+        .normalIndices = sharedBuffer(flux::Vec3u{0, 0, 0}),
     });
 
     ASSERT_EQ(mesh->getNormals().size(), 1);
@@ -290,13 +296,33 @@ TEST(GeometryTests, KeepsIndependentAttributeIndicesFromHostArrays) {
     EXPECT_EQ(mesh->getNormalIndices()[0], (flux::Vec3u{0, 0, 0}));
 }
 
+TEST(GeometryTests, RejectsAnEmptyMesh) {
+    auto context = flux::Context::create();
+    EXPECT_THROW(flux::TriangleMesh::checkIndices({}), kira::Anyhow);
+    EXPECT_THROW(
+        (void)context->create<flux::TriangleMesh>(flux::TriangleMesh::Data{}), kira::Anyhow
+    );
+
+    // An empty buffer is no triangles, as a null handle is.
+    auto noTriangles = flux::TriangleMesh::Data{
+        .vertices = sharedBuffer(
+            flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F},
+            flux::Vec3f{0.0F, 1.0F, 0.0F}
+        ),
+        .triangles = std::make_shared<flux::HostBuffer<flux::Vec3u>>(),
+    };
+    EXPECT_THROW(flux::TriangleMesh::checkIndices(noTriangles), kira::Anyhow);
+    EXPECT_THROW((void)context->create<flux::TriangleMesh>(std::move(noTriangles)), kira::Anyhow);
+}
+
 TEST(GeometryTests, RejectsHostArraysThatAddressMissingElements) {
     auto const triangle = [] {
         return flux::TriangleMesh::Data{
-            .vertices =
-                {flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F},
-                 flux::Vec3f{0.0F, 1.0F, 0.0F}},
-            .triangles = {flux::Vec3u{0, 1, 2}},
+            .vertices = sharedBuffer(
+                flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F},
+                flux::Vec3f{0.0F, 1.0F, 0.0F}
+            ),
+            .triangles = sharedBuffer(flux::Vec3u{0, 1, 2}),
         };
     };
     auto const normal = flux::Vec3f{0.0F, 0.0F, 1.0F};
@@ -305,64 +331,154 @@ TEST(GeometryTests, RejectsHostArraysThatAddressMissingElements) {
 
     // A vertex index of its own count is one past the end.
     auto outOfRange = triangle();
-    outOfRange.triangles[0] = flux::Vec3u{0, 1, 3};
+    outOfRange.triangles = sharedBuffer(flux::Vec3u{0, 1, 3});
     EXPECT_THROW(flux::TriangleMesh::checkIndices(outOfRange), kira::Anyhow);
 
     auto emptyVertices = triangle();
-    emptyVertices.vertices = {};
+    emptyVertices.vertices = nullptr;
     EXPECT_THROW(flux::TriangleMesh::checkIndices(emptyVertices), kira::Anyhow);
 
     // Indices that address no attribute array at all.
     auto orphanedNormalIndices = triangle();
-    orphanedNormalIndices.normalIndices = {flux::Vec3u{0, 0, 0}};
+    orphanedNormalIndices.normalIndices = sharedBuffer(flux::Vec3u{0, 0, 0});
     EXPECT_THROW(flux::TriangleMesh::checkIndices(orphanedNormalIndices), kira::Anyhow);
 
     auto orphanedTexCoordIndices = triangle();
-    orphanedTexCoordIndices.texCoordIndices = {flux::Vec3u{0, 0, 0}};
+    orphanedTexCoordIndices.texCoordIndices = sharedBuffer(flux::Vec3u{0, 0, 0});
     EXPECT_THROW(flux::TriangleMesh::checkIndices(orphanedTexCoordIndices), kira::Anyhow);
 
     auto shortNormalIndices = triangle();
-    shortNormalIndices.normals = {normal};
-    shortNormalIndices.normalIndices = {flux::Vec3u{0, 0, 0}, flux::Vec3u{0, 0, 0}};
+    shortNormalIndices.normals = sharedBuffer(normal);
+    shortNormalIndices.normalIndices = sharedBuffer(flux::Vec3u{0, 0, 0}, flux::Vec3u{0, 0, 0});
     EXPECT_THROW(flux::TriangleMesh::checkIndices(shortNormalIndices), kira::Anyhow);
 
     auto normalIndexOutOfRange = triangle();
-    normalIndexOutOfRange.normals = {normal};
-    normalIndexOutOfRange.normalIndices = {flux::Vec3u{0, 1, 0}};
+    normalIndexOutOfRange.normals = sharedBuffer(normal);
+    normalIndexOutOfRange.normalIndices = sharedBuffer(flux::Vec3u{0, 1, 0});
     EXPECT_THROW(flux::TriangleMesh::checkIndices(normalIndexOutOfRange), kira::Anyhow);
 
     // Aliased attributes are addressed by the triangles, so they need one entry
     // per addressed vertex.
     auto aliasedNormals = triangle();
-    aliasedNormals.normals = {normal, normal};
+    aliasedNormals.normals = sharedBuffer(normal, normal);
     EXPECT_THROW(flux::TriangleMesh::checkIndices(aliasedNormals), kira::Anyhow);
 
     auto aliasedTexCoords = triangle();
-    aliasedTexCoords.texCoords = {flux::Vec2f{0.0F, 0.0F}};
+    aliasedTexCoords.texCoords = sharedBuffer(flux::Vec2f{0.0F, 0.0F});
     EXPECT_THROW(flux::TriangleMesh::checkIndices(aliasedTexCoords), kira::Anyhow);
 
     auto mismatchedTexCoordIndices = triangle();
-    mismatchedTexCoordIndices.texCoords = {flux::Vec2f{0.0F, 0.0F}};
-    mismatchedTexCoordIndices.texCoordIndices = {flux::Vec3u{0, 0, 0}, flux::Vec3u{0, 0, 0}};
+    mismatchedTexCoordIndices.texCoords = sharedBuffer(flux::Vec2f{0.0F, 0.0F});
+    mismatchedTexCoordIndices.texCoordIndices =
+        sharedBuffer(flux::Vec3u{0, 0, 0}, flux::Vec3u{0, 0, 0});
     EXPECT_THROW(flux::TriangleMesh::checkIndices(mismatchedTexCoordIndices), kira::Anyhow);
 }
 
 TEST(GeometryTests, FindsAnOutOfRangeIndexInAnyChunk) {
     // One triangle per chunk would never exercise the reduction's combine step.
     auto constexpr numTriangles = 200000u;
-    flux::TriangleMesh::Data data;
-    data.vertices.resize_for_overwrite(numTriangles + 2);
-    for (auto vertex = 0u; vertex < data.vertices.size(); ++vertex)
-        data.vertices[vertex] = flux::Vec3f{static_cast<float>(vertex), 0.0F, 0.0F};
-    data.triangles.resize_for_overwrite(numTriangles);
+    auto vertices = std::make_shared<flux::HostBuffer<flux::Vec3f>>();
+    vertices->resize(numTriangles + 2, numTriangles + 3);
+    for (auto vertex = 0u; vertex < vertices->size(); ++vertex)
+        vertices->span()[vertex] = flux::Vec3f{static_cast<float>(vertex), 0.0F, 0.0F};
+    auto triangles = std::make_shared<flux::HostBuffer<flux::Vec3u>>();
+    triangles->resize(numTriangles);
     for (auto triangle = 0u; triangle < numTriangles; ++triangle)
-        data.triangles[triangle] = flux::Vec3u{triangle, triangle + 1, triangle + 2};
+        triangles->span()[triangle] = flux::Vec3u{triangle, triangle + 1, triangle + 2};
+    flux::TriangleMesh::Data data{.vertices = vertices, .triangles = triangles};
     ASSERT_NO_THROW(flux::TriangleMesh::checkIndices(data));
 
     for (auto const position : {0u, numTriangles / 2, numTriangles - 1}) {
-        auto bad = data;
-        bad.triangles[position] = flux::Vec3u{0, 1, numTriangles + 2};
-        EXPECT_THROW(flux::TriangleMesh::checkIndices(bad), kira::Anyhow) << "at " << position;
+        // Share nothing with the valid data, which is immutable.
+        auto bad = std::make_shared<flux::HostBuffer<flux::Vec3u>>();
+        bad->resize(numTriangles);
+        std::ranges::copy(triangles->span(), bad->data());
+        bad->span()[position] = flux::Vec3u{0, 1, numTriangles + 2};
+        auto invalid = data;
+        invalid.triangles = std::move(bad);
+        EXPECT_THROW(flux::TriangleMesh::checkIndices(invalid), kira::Anyhow) << "at " << position;
+    }
+}
+
+TEST(GeometryTests, SharesBuffersBetweenMeshes) {
+    auto context = flux::Context::create();
+    auto first = flux::TriangleMesh::Data{
+        .vertices = sharedBuffer(
+            flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F},
+            flux::Vec3f{0.0F, 1.0F, 0.0F}
+        ),
+        .triangles = sharedBuffer(flux::Vec3u{0, 1, 2}),
+    };
+    auto second = flux::TriangleMesh::Data{
+        .vertices = sharedBuffer(
+            flux::Vec3f{0.0F, 0.0F, 1.0F}, flux::Vec3f{1.0F, 0.0F, 1.0F},
+            flux::Vec3f{0.0F, 1.0F, 1.0F}
+        ),
+        .triangles = first.triangles,
+    };
+    auto const *vertices = first.vertices->data();
+
+    auto a = context->create<flux::TriangleMesh>(std::move(first));
+    auto b = context->create<flux::TriangleMesh>(std::move(second));
+
+    EXPECT_EQ(a->getTriangles().data(), b->getTriangles().data());
+    EXPECT_NE(a->getVertices().data(), b->getVertices().data());
+    EXPECT_EQ(a->getVertices().data(), vertices);
+    EXPECT_EQ(a->getData().triangles, b->getData().triangles);
+}
+
+TEST(GeometryTests, TurnsAbsentArraysIntoNullHandles) {
+    auto context = flux::Context::create();
+    auto triangle = [] {
+        return flux::TriangleMesh::Data{
+            .vertices = sharedBuffer(
+                flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F},
+                flux::Vec3f{0.0F, 1.0F, 0.0F}
+            ),
+            .triangles = sharedBuffer(flux::Vec3u{0, 1, 2}),
+        };
+    };
+
+    auto absent = context->create<flux::TriangleMesh>(triangle());
+    EXPECT_TRUE(absent->getTexCoords().empty());
+    EXPECT_EQ(absent->getData().texCoords, nullptr);
+    EXPECT_EQ(absent->getData().normalIndices, nullptr);
+    EXPECT_EQ(absent->getData().texCoordIndices, nullptr);
+    EXPECT_EQ(absent->getImpl().texCoords, nullptr);
+
+    // An empty buffer is as absent as a null handle.
+    auto data = triangle();
+    data.texCoords = std::make_shared<flux::HostBuffer<flux::Vec2f>>();
+    auto empty = context->create<flux::TriangleMesh>(std::move(data));
+    EXPECT_TRUE(empty->getTexCoords().empty());
+    EXPECT_EQ(empty->getData().texCoords, nullptr);
+    EXPECT_EQ(empty->getImpl().texCoords, nullptr);
+}
+
+TEST(GeometryTests, GeneratesNormalsInANewBuffer) {
+    auto context = flux::Context::create();
+    auto mesh = context->create<flux::TriangleMesh>(flux::TriangleMesh::Data{
+        .vertices = sharedBuffer(
+            flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F},
+            flux::Vec3f{0.0F, 1.0F, 0.0F}
+        ),
+        .triangles = sharedBuffer(flux::Vec3u{0, 1, 2}),
+    });
+
+    ASSERT_NE(mesh->getData().normals, nullptr);
+    EXPECT_EQ(mesh->getNormals().size(), mesh->getVertices().size());
+    EXPECT_EQ(mesh->getNormals().data(), mesh->getData().normals->data());
+}
+
+TEST(GeometryTests, KeepsSpareVertexCapacityInLoadedMeshes) {
+    auto context = flux::Context::create();
+    for (auto const *filename : {"IndexedTriangle.obj", "CboxFloor.ply", "Polygons.ply"}) {
+        auto mesh = context->create<flux::TriangleMesh>(triangleProperties(filename));
+        auto const &vertices = mesh->getData().vertices;
+
+        ASSERT_NE(vertices, nullptr) << filename;
+        EXPECT_GT(vertices->capacity(), vertices->size()) << filename;
+        EXPECT_EQ(mesh->getVertices().size(), vertices->size()) << filename;
     }
 }
 
@@ -370,16 +486,19 @@ TEST(GeometryTests, BuildsTheSameMeshFromHostArraysAsFromAFile) {
     auto context = flux::Context::create();
     auto file = context->create<flux::TriangleMesh>(triangleProperties("IndexedTriangle.obj"));
     auto hostArrays = context->create<flux::TriangleMesh>(flux::TriangleMesh::Data{
-        .vertices =
-            {flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F},
-             flux::Vec3f{0.0F, 1.0F, 0.0F}},
-        .triangles = {flux::Vec3u{0, 1, 2}},
-        .normals =
-            {flux::Vec3f{1.0F, 0.0F, 0.0F}, flux::Vec3f{0.0F, 1.0F, 0.0F},
-             flux::Vec3f{0.0F, 0.0F, 1.0F}},
-        .normalIndices = {flux::Vec3u{1, 2, 0}},
-        .texCoords = {flux::Vec2f{0.1F, 0.2F}, flux::Vec2f{0.3F, 0.4F}, flux::Vec2f{0.5F, 0.6F}},
-        .texCoordIndices = {flux::Vec3u{2, 0, 1}},
+        .vertices = sharedBuffer(
+            flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F},
+            flux::Vec3f{0.0F, 1.0F, 0.0F}
+        ),
+        .triangles = sharedBuffer(flux::Vec3u{0, 1, 2}),
+        .normals = sharedBuffer(
+            flux::Vec3f{1.0F, 0.0F, 0.0F}, flux::Vec3f{0.0F, 1.0F, 0.0F},
+            flux::Vec3f{0.0F, 0.0F, 1.0F}
+        ),
+        .normalIndices = sharedBuffer(flux::Vec3u{1, 2, 0}),
+        .texCoords =
+            sharedBuffer(flux::Vec2f{0.1F, 0.2F}, flux::Vec2f{0.3F, 0.4F}, flux::Vec2f{0.5F, 0.6F}),
+        .texCoordIndices = sharedBuffer(flux::Vec3u{2, 0, 1}),
     });
 
     EXPECT_EQ(hostArrays->getSurfaceArea(), file->getSurfaceArea());

@@ -147,6 +147,14 @@ void EmbreeContext::sync() try {
         auto const vertices = mesh->getVertices();
         auto const triangles = mesh->getTriangles();
 
+        // Embree reads 16 bytes from the last RTC_FORMAT_FLOAT3 vertex.
+        auto const &vertexBuffer = *mesh->getData().vertices;
+        if (vertexBuffer.capacity() <= vertexBuffer.size())
+            throw kira::Anyhow(
+                "EmbreeContext: the vertex buffer of mesh {} has no spare capacity",
+                mesh->getContextId()
+            );
+
         rtcSetSharedGeometryBuffer(
             geometry.get(), RTC_BUFFER_TYPE_VERTEX, 0, RTC_FORMAT_FLOAT3, vertices.data(), 0,
             sizeof(Vec3f), vertices.size()
