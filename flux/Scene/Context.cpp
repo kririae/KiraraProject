@@ -97,6 +97,9 @@ void Context::collectGarbage() {
         for (auto const contextId : garbage)
             reclaim(contextId);
     } while (!garbage.empty());
+
+    // Drop the images that the collected textures were the last to use.
+    imageAssetPool_.collectGarbage();
 }
 
 void Context::setActiveIntegrator(Ref<PathIntegrator const> integrator) {

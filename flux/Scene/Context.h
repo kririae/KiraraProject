@@ -141,7 +141,8 @@ public:
 public:
     // Quiet point.
 
-    /// \brief Removes every dependent that only this context references.
+    /// \brief Removes every dependent that only this context references, then every image that
+    ///        no texture uses.
     ///
     /// Repeats until a round removes nothing, because removing an object releases its
     /// references to others. Every round scans every dependent, which is deliberate: tracking

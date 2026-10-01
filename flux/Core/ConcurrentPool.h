@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <functional>
@@ -65,6 +66,26 @@ public:
         }
     }
 
+    /// \brief Removes every computed value for which \p keep returns false.
+    ///
+    /// A value still being computed stays.
+    ///
+    /// \pre No call to \c acquire runs concurrently.
+    template <typename Keep> void prune(Keep &&keep) {
+        std::scoped_lock lock(mutex_);
+        std::erase_if(entries_, [&](auto const &item) {
+            auto const &entry = *item.second;
+            return entry.state.load(std::memory_order_acquire) == State::Ready &&
+                   !std::invoke(keep, *entry.value);
+        });
+    }
+
+    /// \brief Returns the number of keys, including values still being computed.
+    [[nodiscard]] std::size_t size() const {
+        std::scoped_lock lock(mutex_);
+        return entries_.size();
+    }
+
 private:
     enum class State : std::uint8_t {
         Pending,
@@ -89,7 +110,7 @@ private:
         std::rethrow_exception(entry->error);
     }
 
-    std::mutex mutex_;
+    mutable std::mutex mutex_;
     std::unordered_map<Key, std::shared_ptr<Entry>, Hash> entries_;
 };
 } // namespace flux

@@ -201,3 +201,30 @@ TEST_F(ImageAssetTests, RejectsOffsetDataWindow) {
 
     EXPECT_THROW(static_cast<void>(pool.getOrCreate({.path = imagePath})), kira::Anyhow);
 }
+
+TEST_F(ImageAssetTests, CollectsAssetsThatOnlyThePoolHolds) {
+    auto const imagePath = path("image-asset-collect.exr");
+    auto const componentNames = std::array<std::string_view, 1>{"Y"};
+    auto const pixels = std::array{0.5F};
+    flux::writeImage(
+        imagePath,
+        {
+            .pixels = std::as_bytes(std::span{pixels}),
+            .extent = {1, 1},
+            .componentType = flux::ImageComponentType::Float32,
+            .componentCount = 1,
+        },
+        {
+            .outputComponentType = flux::ImageComponentType::Float32,
+            .componentNames = componentNames,
+        }
+    );
+
+    auto asset = pool.getOrCreate({.path = imagePath});
+    pool.collectGarbage();
+    EXPECT_EQ(pool.size(), 1U);
+
+    asset.reset();
+    pool.collectGarbage();
+    EXPECT_EQ(pool.size(), 0U);
+}

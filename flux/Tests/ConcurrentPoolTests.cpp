@@ -155,3 +155,15 @@ TEST(ConcurrentPoolTests, RetriesAfterAComputationError) {
     );
     EXPECT_EQ(computeCount, 2);
 }
+
+TEST(ConcurrentPoolTests, PrunesComputedValuesThatFailThePredicate) {
+    flux::ConcurrentPool<int, int> pool;
+    for (auto key = 0; key < 4; ++key)
+        (void)pool.acquire(key, [key] { return key * 10; });
+
+    pool.prune([](int value) { return value >= 20; });
+
+    EXPECT_EQ(pool.size(), 2U);
+    EXPECT_EQ(pool.acquire(3, [] { return -1; }), 30);
+    EXPECT_EQ(pool.acquire(0, [] { return -1; }), -1);
+}

@@ -344,4 +344,9 @@ Ref<ImageAsset const> ImageAssetPool::getOrCreate(ImageAssetRequest const &reque
         )};
     });
 }
+
+void ImageAssetPool::collectGarbage() {
+    // A count of one means the pool holds the only reference: no texture and no runtime uses it.
+    assets_.prune([](Ref<ImageAsset const> const &asset) { return asset.getRefCount() > 1; });
+}
 } // namespace flux

@@ -131,6 +131,14 @@ public:
     /// \brief Returns the shared asset for \p request.
     [[nodiscard]] Ref<ImageAsset const> getOrCreate(ImageAssetRequest const &request);
 
+    /// \brief Drops every asset that only this pool references.
+    ///
+    /// \pre No call to \c getOrCreate runs concurrently.
+    void collectGarbage();
+
+    /// \brief Returns the number of assets in the pool.
+    [[nodiscard]] std::size_t size() const { return assets_.size(); }
+
 private:
     struct pImpl;
 
