@@ -20,6 +20,7 @@ if(FLUX_TEST_UV)
         set(flux_reference_cases
             cbox
             principled_cbox
+            veach_mis
             transmission
             sobol_cbox
             sobol_transmission)

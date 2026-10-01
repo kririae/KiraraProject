@@ -58,3 +58,13 @@ reference = "Principled/Transmission.xml"
 spp = 128
 mae = 0.01
 rmse = 0.03
+
+# The spheres are lit by light and BSDF sampling in different proportions, so a wrong MIS weight
+# changes the highlights on the plates.
+[[case]]
+id = "veach_mis"
+scene = "VeachMIS/VeachMIS.toml"
+reference = "VeachMIS/VeachMIS.xml"
+spp = 2048
+mae = 0.011
+rmse = 0.3
