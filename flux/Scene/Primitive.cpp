@@ -7,6 +7,7 @@
 #include <string>
 #include <utility>
 
+#include "flux/Scene/Context.h"
 #include "flux/Scene/Geometry.h"
 #include "flux/Scene/TXContext.h"
 #include "flux/Shading/BSDF.h"
@@ -93,6 +94,18 @@ void Primitive::setEDF(Ref<EDF const> edf) {
     if (edf_ == edf)
         return;
     edf_ = std::move(edf);
+}
+
+Primitive::Impl Primitive::getImpl() const {
+    if (!visible_)
+        return {};
+
+    auto const &context = *getContext();
+    return {
+        .geometryIndex = context.getIndex<Geometry>(geometry_->getContextId()),
+        .bsdfIndex = bsdf_ ? context.getIndex<BSDF>(bsdf_->getContextId()) : Impl::invalidBSDFIndex,
+        .edfIndex = edf_ ? context.getIndex<EDF>(edf_->getContextId()) : Impl::invalidEDFIndex,
+    };
 }
 
 float Primitive::estimateAreaScale() const noexcept {

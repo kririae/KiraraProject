@@ -5,6 +5,7 @@
 #include <filesystem>
 
 #include "flux/Scene/Context.h"
+#include "flux/Scene/Geometry.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
@@ -189,4 +190,39 @@ TEST(PrimitiveTests, SettersKeepRelationshipsInsideTheContext) {
     EXPECT_EQ(primitive->getEDF(), edf);
     EXPECT_THROW(primitive->setEDF(foreignEdf), kira::Anyhow);
     EXPECT_EQ(primitive->getEDF(), edf);
+}
+
+TEST(PrimitiveTests, BuildsItsTableEntryFromContextIndices) {
+    auto context = flux::Context::create();
+    auto mesh = context->create<flux::TriangleMesh>(triangleProperties());
+    auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
+    auto edf = context->create<flux::EDF>(kira::Properties{});
+    auto const geometryIndex = context->getIndex<flux::Geometry>(mesh->getContextId());
+    auto const bsdfIndex = context->getIndex<flux::BSDF>(bsdf->getContextId());
+    auto const edfIndex = context->getIndex<flux::EDF>(edf->getContextId());
+
+    kira::Properties bare;
+    bare.set("geometry_ctx_id", static_cast<std::int64_t>(mesh->getContextId()));
+    auto plain = context->create<flux::Primitive>(bare);
+    auto full = context->create<flux::Primitive>(bare);
+    full->setBSDF(bsdf);
+    full->setEDF(edf);
+
+    // A visible primitive resolves the indices it binds.
+    auto const plainImpl = plain->getImpl();
+    EXPECT_FALSE(plainImpl.isHole());
+    EXPECT_EQ(plainImpl.getGeometryIndex(), geometryIndex);
+    EXPECT_FALSE(plainImpl.hasBSDF());
+    EXPECT_FALSE(plainImpl.hasEDF());
+    auto const fullImpl = full->getImpl();
+    EXPECT_EQ(fullImpl.getGeometryIndex(), geometryIndex);
+    EXPECT_EQ(fullImpl.getBSDFIndex(), bsdfIndex);
+    EXPECT_EQ(fullImpl.getEDFIndex(), edfIndex);
+
+    // A hidden primitive is a hole, and only a visible primitive with an EDF is a light.
+    EXPECT_FALSE(plain->isLight());
+    EXPECT_TRUE(full->isLight());
+    full->setVisible(false);
+    EXPECT_TRUE(full->getImpl().isHole());
+    EXPECT_FALSE(full->isLight());
 }

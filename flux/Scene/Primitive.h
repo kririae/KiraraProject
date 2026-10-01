@@ -77,6 +77,18 @@ public:
     /// \brief Includes or excludes this primitive from rendering.
     void setVisible(bool visible) noexcept { visible_ = visible; }
 
+    /// \brief Returns whether this primitive is a light.
+    ///
+    /// A light is a visible primitive with an EDF.
+    [[nodiscard]] bool isLight() const noexcept { return visible_ && edf_; }
+
+    /// \brief Returns this primitive's table entry, or a hole when it is hidden.
+    ///
+    /// Reads the owning Context, so call it only during sync. The entry depends
+    /// only on this primitive and the indices that Context assigned, never on
+    /// another table.
+    [[nodiscard]] Impl getImpl() const;
+
     /// \brief Estimates the object-to-world surface-area scale.
     [[nodiscard]] float estimateAreaScale() const noexcept;
 

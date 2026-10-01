@@ -2,7 +2,6 @@
 
 #include <array>
 #include <cstddef>
-#include <utility>
 
 #include "flux/Scene/Context.h"
 #include "flux/Scene/Geometry.h"
@@ -18,73 +17,50 @@ void SceneTableData::build(Context const &context) {
     auto const contextBSDFs = context.getObjects<BSDF>();
     auto const contextEDFs = context.getObjects<EDF>();
 
-    // Fill the primitive tables with holes, then place each visible primitive at its index.
-    auto const limit = context.getIndexLimit<Primitive>();
-    objects.primitives.resize(limit);
-    primitives.assign(limit, Primitive::Impl{});
-    transforms.assign(limit, std::array<float, 12>{});
+    // Fill each table with empty entries, then place each object's entry at its index.
+    objects.primitives.resize(context.getIndexLimit<Primitive>());
+    primitives.assign(context.getIndexLimit<Primitive>(), Primitive::Impl{});
+    transforms.assign(context.getIndexLimit<Primitive>(), std::array<float, 12>{});
+    for (auto const &primitive : contextPrimitives) {
+        auto const index = context.getIndex<Primitive>(primitive->getContextId());
+        primitives[index] = primitive->getImpl();
+        if (primitive->isVisible()) {
+            objects.primitives[index] = primitive;
+            transforms[index] = primitive->getTransform();
+        }
+    }
 
-    // Fill the tables with empty entries, then place each object at its index.
     bsdfs.assign(context.getIndexLimit<BSDF>(), BSDF::Impl{});
     for (auto const &bsdf : contextBSDFs)
         bsdfs[context.getIndex<BSDF>(bsdf->getContextId())] = bsdf->getImpl();
+
     edfs.assign(context.getIndexLimit<EDF>(), EDF::Impl{});
     for (auto const &edf : contextEDFs)
         edfs[context.getIndex<EDF>(edf->getContextId())] = edf->getImpl();
 
-    // Leave a hole at every geometry index until a visible primitive references it.
+    // Derive the geometry holes from the primitives. No geometry can tell alone
+    // whether a visible primitive references it, so this pass is not per object.
     objects.meshes.resize(context.getIndexLimit<Geometry>());
-
-    auto const placeMesh = [&](Ref<Geometry const> const &geometry) {
-        auto const index = context.getIndex<Geometry>(geometry->getContextId());
-        if (objects.meshes[index])
-            return index;
-
-        switch (geometry->getType()) {
-        case GeometryType::TriangleMesh: {
-            auto mesh = geometry.dynamicCast<TriangleMesh const>();
-            if (!mesh)
-                throw kira::Anyhow(
-                    "SceneTableData: geometry type does not match its host implementation"
-                );
-            objects.meshes[index] = std::move(mesh);
-            break;
-        }
-        case GeometryType::Count: throw kira::Anyhow("SceneTableData: unsupported geometry type");
-        }
-        return index;
-    };
-
     for (auto const &primitive : contextPrimitives) {
         if (!primitive->isVisible())
             continue;
 
-        // Resolve the primitive index assigned by Context.
-        auto const index = context.getIndex<Primitive>(primitive->getContextId());
+        auto const geometry = primitive->getGeometry();
+        auto &mesh = objects.meshes[context.getIndex<Geometry>(geometry->getContextId())];
+        if (mesh)
+            continue;
 
-        // Resolve the geometry index assigned by Context.
-        auto const geometryIndex = placeMesh(primitive->getGeometry());
-
-        // Resolve the BSDF index assigned by Context.
-        auto const bsdf = primitive->getBSDF();
-        auto bsdfIndex = Primitive::Impl::invalidBSDFIndex;
-        if (bsdf)
-            bsdfIndex = context.getIndex<BSDF>(bsdf->getContextId());
-
-        // Resolve the EDF index assigned by Context.
-        auto const edf = primitive->getEDF();
-        auto edfIndex = Primitive::Impl::invalidEDFIndex;
-        if (edf)
-            edfIndex = context.getIndex<EDF>(edf->getContextId());
-
-        // Write the primitive at its index in every segment.
-        objects.primitives[index] = primitive;
-        primitives[index] = {
-            .geometryIndex = geometryIndex,
-            .bsdfIndex = bsdfIndex,
-            .edfIndex = edfIndex,
-        };
-        transforms[index] = primitive->getTransform();
+        switch (geometry->getType()) {
+        case GeometryType::TriangleMesh: {
+            mesh = geometry.dynamicCast<TriangleMesh const>();
+            if (!mesh)
+                throw kira::Anyhow(
+                    "SceneTableData: geometry type does not match its host implementation"
+                );
+            break;
+        }
+        case GeometryType::Count: throw kira::Anyhow("SceneTableData: unsupported geometry type");
+        }
     }
 }
 
