@@ -78,6 +78,11 @@ krr_add_test(
     HARD_DEPENDENCIES flux)
 
 krr_add_test(
+    flux Core HostBufferTests
+    SOURCES HostBufferTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
     flux Scene ImageAssetTests
     SOURCES ImageAssetTests.cpp
     HARD_DEPENDENCIES flux)

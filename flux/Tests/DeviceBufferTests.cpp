@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "TestUtils.h"
+#include "flux/Core/HostBuffer.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/OptixUtils.h"
 
@@ -35,6 +36,31 @@ TEST(DeviceBufferTests, CopiesAndZerosStorageOnItsBoundStream) {
         buffer.copyToHost({output.data(), output.size()});
         flux::cudaCheck(cudaStreamSynchronize(cudaStreamPerThread));
         EXPECT_EQ(output, (std::array<std::uint32_t, 4>{}));
+    }
+
+    flux::cudaCheck(cudaStreamSynchronize(cudaStreamPerThread));
+}
+
+TEST(DeviceBufferTests, CopiesFromAHostBuffer) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    flux::HostBuffer<std::uint32_t> source;
+    source.resize(3, 4);
+    source.span()[0] = 5;
+    source.span()[1] = 6;
+    source.span()[2] = 7;
+    std::array<std::uint32_t, 3> output{};
+
+    {
+        flux::DeviceBuffer<std::uint32_t> buffer(cudaStreamPerThread);
+        buffer.copyFromHost(source);
+        buffer.copyToHost({output.data(), output.size()});
+        flux::cudaCheck(cudaStreamSynchronize(cudaStreamPerThread));
+
+        EXPECT_EQ(output, (std::array<std::uint32_t, 3>{5, 6, 7}));
+        EXPECT_EQ(buffer.size(), 3);
+        EXPECT_EQ(buffer.capacity(), buffer.size());
     }
 
     flux::cudaCheck(cudaStreamSynchronize(cudaStreamPerThread));

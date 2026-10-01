@@ -10,6 +10,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "flux/Core/HostBuffer.h"
 #include "flux/Core/Object.h"
 #include "flux/Optix/OptixUtils.h"
 #include "kira/Assertions.h"
@@ -167,6 +168,25 @@ public:
         setStream(stream);
     }
 
+    /// \brief Replaces the contents from \p source on the bound stream.
+    ///
+    /// Copies size() elements. \p source must remain alive until the copy completes.
+    /// \param source Host buffer to copy.
+    /// \throw std::invalid_argument If the byte size overflows.
+    /// \throw kira::Anyhow If CUDA cannot enqueue the allocation or copy.
+    void copyFromHost(HostBuffer<T> const &source) { copyFromHost(source.span(), getStream()); }
+
+    /// \brief Replaces the contents from \p source on \p stream.
+    ///
+    /// Copies size() elements. \p source must remain alive until the copy completes.
+    /// \param source Host buffer to copy.
+    /// \param stream Stream ordered after the allocation and its prior uses.
+    /// \throw std::invalid_argument If the byte size overflows.
+    /// \throw kira::Anyhow If CUDA cannot enqueue the allocation or copy.
+    void copyFromHost(HostBuffer<T> const &source, cudaStream_t stream) {
+        copyFromHost(source.span(), stream);
+    }
+
     /// \brief Copies the contents to same-sized host storage on the bound stream.
     ///
     /// The host storage must remain alive until the copy completes.
@@ -202,6 +222,9 @@ public:
 
     /// \brief Returns the number of stored elements.
     [[nodiscard]] std::size_t size() const noexcept { return size_; }
+
+    /// \brief Returns the number of elements the allocation holds, equal to size().
+    [[nodiscard]] std::size_t capacity() const noexcept { return size_; }
 
     /// \brief Returns whether the buffer is empty.
     [[nodiscard]] bool empty() const noexcept { return size_ == 0; }
