@@ -20,35 +20,30 @@ Sampler::Sampler(TXContext &tx, SamplerType type) : RenderObject(tx), type_(type
 IndependentSampler::IndependentSampler(TXContext &tx, kira::Properties const &)
     : Sampler(tx, SamplerType::Independent) {}
 
-Sampler::Impl Sampler::getImpl(Vec2u const &resolution) const {
+Sampler::Impl Sampler::getImpl() const {
     auto const type = getType();
     switch (type) {
     case SamplerType::Independent:
         return {
             .type = type,
             .storage = {
-                .independent = static_cast<IndependentSampler const &>(*this).getImpl(resolution),
+                .independent = static_cast<IndependentSampler const &>(*this).getImpl(),
             },
         };
     case SamplerType::Sobol:
         return {
             .type = type,
             .storage = {
-                .sobol = static_cast<SobolSampler const &>(*this).getImpl(resolution),
+                .sobol = static_cast<SobolSampler const &>(*this).getImpl(),
             },
         };
     }
     KIRA_UNREACHABLE();
 }
 
-IndependentSampler::Impl
-IndependentSampler::getImpl([[maybe_unused]] Vec2u const &resolution) const noexcept {
-    return {};
-}
+IndependentSampler::Impl IndependentSampler::getImpl() const noexcept { return {}; }
 SobolSampler::SobolSampler(TXContext &tx, kira::Properties const &)
     : Sampler(tx, SamplerType::Sobol) {}
 
-SobolSampler::Impl SobolSampler::getImpl([[maybe_unused]] Vec2u const &resolution) const noexcept {
-    return {};
-}
+SobolSampler::Impl SobolSampler::getImpl() const noexcept { return {}; }
 } // namespace flux

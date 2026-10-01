@@ -494,6 +494,9 @@ struct RemovalScene {
     flux::Ref<flux::Context> context;
     flux::Ref<flux::RenderProduct> product;
     flux::Ref<flux::Primitive> doomed;
+
+    /// The vertex array of the doomed mesh, held by no one in the scene once the mesh is gone.
+    std::weak_ptr<void const> doomedVertices;
 };
 
 /// \brief Builds the scene, creating the doomed primitive first so it holds index 0.
@@ -506,7 +509,9 @@ struct RemovalScene {
     flux::test::setActiveDefaults(context);
 
     if (withDoomed) {
-        auto doomedMesh = context.create<flux::TriangleMesh>(triangleData());
+        auto doomedData = triangleData();
+        scene.doomedVertices = doomedData.vertices;
+        auto doomedMesh = context.create<flux::TriangleMesh>(std::move(doomedData));
         auto doomedBSDF = context.create<flux::DiffuseBSDF>(kira::Properties{});
         auto doomedEDF = context.create<flux::ConstantEDF>(kira::Properties{});
         auto properties = primitiveProperties(*doomedMesh, *doomedBSDF);
@@ -606,7 +611,13 @@ TEST(EmbreePipelineTests, RendersAfterAMeshIsCollectedWithoutSync) {
     // traversal reads the vertices after the mesh object is gone.
     removeDoomed(scene);
 
+    // Embree holds the vertex array of the collected mesh, so the render is unchanged.
+    EXPECT_FALSE(scene.doomedVertices.expired());
     EXPECT_EQ(color(handler, *scene.product), expected);
+
+    // A sync drops the mesh and, with it, the array.
+    handler.sync();
+    EXPECT_TRUE(scene.doomedVertices.expired());
 }
 
 TEST(EmbreePipelineTests, SyncFailsWithoutAnActiveIntegratorOrSampler) {
@@ -623,4 +634,114 @@ TEST(EmbreePipelineTests, SyncFailsWithoutAnActiveIntegratorOrSampler) {
 
     context->remove(samplerId);
     EXPECT_THROW(handler.sync(), kira::Anyhow);
+}
+
+namespace {
+/// A lit triangle, and optionally an occluder that covers the center pixel.
+struct SwapScene {
+    flux::Ref<flux::Context> context;
+    flux::Ref<flux::RenderProduct> product;
+    flux::Ref<flux::Primitive> old;
+    std::size_t oldMeshId{};
+    std::size_t oldBSDFId{};
+};
+
+/// \brief Creates an occluder with its own mesh and BSDF, and returns its primitive.
+///
+/// \p size scales the mesh and \p reflectance sets the BSDF, so two occluders render differently.
+[[nodiscard]] flux::Ref<flux::Primitive>
+addOccluder(flux::Context &context, float size, float reflectance) {
+    auto mesh = context.create<flux::TriangleMesh>(flux::TriangleMesh::Data{
+        .vertices = flux::test::sharedBuffer(
+            flux::Vec3f{-size, -size, 0.0F}, flux::Vec3f{3.0F * size, -size, 0.0F},
+            flux::Vec3f{-size, 3.0F * size, 0.0F}
+        ),
+        .triangles = flux::test::sharedBuffer(flux::Vec3u{0, 1, 2}),
+    });
+    kira::Properties bsdfProperties;
+    bsdfProperties.set("R", flux::Spectrum{reflectance});
+    auto bsdf = context.create<flux::DiffuseBSDF>(bsdfProperties);
+    auto primitive = context.create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
+    primitive->setTransform(
+        {1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.5F}
+    );
+    return primitive;
+}
+
+/// \brief Builds the scene, creating the old occluder first so it holds index 0.
+[[nodiscard]] SwapScene makeSwapScene(bool withOld) {
+    SwapScene scene{.context = flux::Context::create()};
+    auto &context = *scene.context;
+    flux::test::setActiveDefaults(context);
+    if (withOld) {
+        scene.old = addOccluder(context, 2.0F, 0.1F);
+        scene.oldMeshId = scene.old->getGeometry()->getContextId();
+        scene.oldBSDFId = scene.old->getBSDF()->getContextId();
+    }
+
+    auto mesh = context.create<flux::TriangleMesh>(triangleData());
+    auto bsdf = context.create<flux::DiffuseBSDF>(kira::Properties{});
+    (void)context.create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
+    auto edf = context.create<flux::ConstantEDF>(kira::Properties{});
+    auto emitterProperties = primitiveProperties(*mesh, *bsdf);
+    emitterProperties.set("edf_ctx_id", static_cast<std::int64_t>(edf->getContextId()));
+    auto emitter = context.create<flux::Primitive>(emitterProperties);
+    emitter->setTransform(
+        {1.0F, 0.0F, 0.0F, 0.0F, 0.0F, -1.0F, 0.0F, 0.0F, 0.0F, 0.0F, -1.0F, 1.0F}
+    );
+
+    kira::Properties cameraProperties;
+    cameraProperties.set("position", flux::Vec3f{0.25F, 0.25F, 1.0F});
+    cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.0F});
+    cameraProperties.set("fov", 1.0F);
+    kira::Properties productProperties;
+    productProperties.set("resolution", flux::Vec2u{1, 1});
+    productProperties.set("num_samples", std::uint32_t{4});
+    scene.product =
+        flux::RenderProduct::create(flux::Camera::create(cameraProperties), productProperties);
+    scene.product->getFilm().setChannels(flux::FilmChannels::Color);
+    return scene;
+}
+} // namespace
+
+TEST(EmbreePipelineTests, RendersAnObjectThatReusesAFreedIndexLikeAFreshContext) {
+    auto const color = [](flux::EmbreeHandler &handler, flux::RenderProduct &product) {
+        handler.render(product, 4);
+        handler.download(product);
+        return product.getFilm().getChannel<flux::ColorChannel>()[0];
+    };
+
+    // The fresh context never held the old occluder.
+    auto fresh = makeSwapScene(false);
+    auto const freshOccluder = addOccluder(*fresh.context, 1.0F, 0.9F);
+    flux::EmbreeHandler freshHandler(fresh.context);
+    auto const expected = color(freshHandler, *fresh.product);
+
+    auto scene = makeSwapScene(true);
+    auto &context = *scene.context;
+    flux::EmbreeHandler handler(scene.context);
+    auto const before = color(handler, *scene.product);
+    auto const primitiveIndex = context.getIndex<flux::Primitive>(scene.old->getContextId());
+    auto const meshIndex = context.getIndex<flux::Geometry>(scene.oldMeshId);
+    auto const bsdfIndex = context.getIndex<flux::BSDF>(scene.oldBSDFId);
+
+    // Remove the old occluder and its dependents, then free their indices.
+    context.remove(scene.old->getContextId());
+    scene.old.reset();
+    context.collectGarbage();
+    context.clearDirty();
+    EXPECT_FALSE(context.findIndex<flux::Geometry>(scene.oldMeshId));
+
+    // A new occluder with another mesh and BSDF takes the freed indices.
+    auto const replacement = addOccluder(context, 1.0F, 0.9F);
+    EXPECT_EQ(context.getIndex<flux::Primitive>(replacement->getContextId()), primitiveIndex);
+    EXPECT_EQ(
+        context.getIndex<flux::Geometry>(replacement->getGeometry()->getContextId()), meshIndex
+    );
+    EXPECT_EQ(context.getIndex<flux::BSDF>(replacement->getBSDF()->getContextId()), bsdfIndex);
+
+    handler.sync();
+    auto const actual = color(handler, *scene.product);
+    EXPECT_NE(actual, before);
+    EXPECT_EQ(actual, expected);
 }

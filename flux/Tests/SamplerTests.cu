@@ -65,7 +65,7 @@ flux::Sampler::Impl makeSampler(std::string_view type) {
     auto context = flux::Context::create();
     kira::Properties properties;
     properties.set("type", std::string{type});
-    return context->create<flux::Sampler>(properties)->getImpl({16U, 9U});
+    return context->create<flux::Sampler>(properties)->getImpl();
 }
 
 /// Draws samples 0 to count - 1 of one dimension set of a pixel.
@@ -219,7 +219,7 @@ TEST(SamplerTests, CreatesTheSelectedSamplerThroughTheBaseType) {
 
 TEST(SamplerTests, DispatchesDeterministicPixelSequencesOnHost) {
     auto context = flux::Context::create();
-    auto sampler = context->create<flux::Sampler>(kira::Properties{})->getImpl({16U, 9U});
+    auto sampler = context->create<flux::Sampler>(kira::Properties{})->getImpl();
 
     sampler.startPixelSample({3U, 2U}, 7U, {16U, 9U});
     auto const first = sampler.get2D(flux::SampleUse::Pixel, 0);
@@ -235,11 +235,10 @@ TEST(SamplerTests, DispatchesDeterministicPixelSequences) {
 
     auto context = flux::Context::create();
     auto const sampler = context->create<flux::Sampler>(kira::Properties{});
-    auto const resolution = flux::Vec2u{16U, 9U};
     flux::DeviceBuffer<SamplerResult> deviceResult(cudaStreamPerThread);
     deviceResult.resize(1);
     sampleIndependentSampler<<<1, 1, 0, cudaStreamPerThread>>>(
-        sampler->getImpl(resolution), deviceResult.data()
+        sampler->getImpl(), deviceResult.data()
     );
     flux::cudaCheck(cudaGetLastError());
 
@@ -379,7 +378,7 @@ TEST(SamplerTests, CreatesTheSobolSamplerThroughTheBaseType) {
 
     EXPECT_TRUE(properties.is_all_used());
     EXPECT_NE(sampler.dynamicCast<flux::SobolSampler>(), nullptr);
-    EXPECT_EQ(sampler->getImpl({16U, 9U}).type, flux::SamplerType::Sobol);
+    EXPECT_EQ(sampler->getImpl().type, flux::SamplerType::Sobol);
 }
 
 TEST(SamplerTests, SobolPrefixesAreNets) {

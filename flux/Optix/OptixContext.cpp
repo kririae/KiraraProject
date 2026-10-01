@@ -97,9 +97,9 @@ OptixContext::Impl OptixContext::getImpl() const noexcept {
 }
 
 void OptixContext::pImpl::sync() try {
-    // Rebuild the pipeline first because the SBT packs its program-group headers.
+    // Rebuild the pipeline first because the SBT packs its program-group headers. Build the new
+    // program before dropping the old one, so a failed build keeps the old program.
     auto const spec = OptixProgram::makeSpec(context);
-    program.reset();
     program = std::make_unique<OptixProgram>(deviceContext, modulePath, spec);
 
     table.build(context);

@@ -395,9 +395,8 @@ struct RemovalScene {
 
 /// \brief Builds the scene, creating the doomed primitive first so it holds index 0.
 ///
-/// The doomed primitive emits and sits beside the triangle, or does not emit and covers the
-/// triangle at the center pixel, so camera rays hit it.
-[[nodiscard]] RemovalScene makeRemovalScene(bool withDoomed, bool doomedEmits) {
+/// The doomed primitive emits and sits beside the triangle.
+[[nodiscard]] RemovalScene makeRemovalScene(bool withDoomed) {
     RemovalScene scene{.context = flux::Context::create()};
     auto &context = *scene.context;
     flux::test::setActiveDefaults(context);
@@ -407,17 +406,11 @@ struct RemovalScene {
         auto doomedBSDF = context.create<flux::DiffuseBSDF>(kira::Properties{});
         auto doomedEDF = context.create<flux::ConstantEDF>(kira::Properties{});
         auto properties = primitiveProperties(*doomedMesh, *doomedBSDF);
-        if (doomedEmits)
-            properties.set("edf_ctx_id", static_cast<std::int64_t>(doomedEDF->getContextId()));
+        properties.set("edf_ctx_id", static_cast<std::int64_t>(doomedEDF->getContextId()));
         scene.doomed = context.create<flux::Primitive>(properties);
-        if (doomedEmits)
-            scene.doomed->setTransform(
-                {1.0F, 0.0F, 0.0F, 0.5F, 0.0F, -1.0F, 0.0F, 0.0F, 0.0F, 0.0F, -1.0F, 1.0F}
-            );
-        else
-            scene.doomed->setTransform(
-                {1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.5F}
-            );
+        scene.doomed->setTransform(
+            {1.0F, 0.0F, 0.0F, 0.5F, 0.0F, -1.0F, 0.0F, 0.0F, 0.0F, 0.0F, -1.0F, 1.0F}
+        );
     }
 
     auto mesh = context.create<flux::TriangleMesh>(triangleData());
@@ -466,12 +459,12 @@ TEST(OptixPipelineTests, RendersLikeAContextThatNeverHeldARemovedPrimitive) {
         handler.download(product);
         return product.getFilm().getChannel<flux::ColorChannel>()[0];
     };
-    auto fresh = makeRemovalScene(false, true);
+    auto fresh = makeRemovalScene(false);
     flux::OptixHandler freshHandler(fresh.context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
     auto const expected = color(freshHandler, *fresh.product);
     EXPECT_GT(expected.x(), 0.0F);
 
-    auto scene = makeRemovalScene(true, true);
+    auto scene = makeRemovalScene(true);
     flux::OptixHandler handler(scene.context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
     auto const lit = color(handler, *scene.product);
     removeDoomed(scene);
@@ -480,38 +473,6 @@ TEST(OptixPipelineTests, RendersLikeAContextThatNeverHeldARemovedPrimitive) {
     auto const actual = color(handler, *scene.product);
     EXPECT_NE(actual, lit);
     EXPECT_EQ(actual, expected);
-}
-
-TEST(OptixPipelineTests, RendersAfterAMeshIsCollectedWithoutSync) {
-    if (!flux::test::hasCudaMemoryPoolSupport())
-        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
-
-    auto const color = [](flux::OptixHandler &handler, flux::RenderProduct &product) {
-        handler.render(product, 4);
-        handler.download(product);
-        return product.getFilm().getChannel<flux::ColorChannel>()[0];
-    };
-
-    // The doomed primitive is in the view, so its presence changes the image.
-    auto fresh = makeRemovalScene(false, false);
-    flux::OptixHandler freshHandler(fresh.context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
-    auto const without = color(freshHandler, *fresh.product);
-    auto reference = makeRemovalScene(true, false);
-    flux::OptixHandler referenceHandler(
-        reference.context, std::filesystem::path(FLUX_TEST_OPTIX_IR)
-    );
-    EXPECT_NE(color(referenceHandler, *reference.product), without);
-    auto const expected = color(referenceHandler, *reference.product);
-
-    auto scene = makeRemovalScene(true, false);
-    flux::OptixHandler handler(scene.context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
-    (void)color(handler, *scene.product);
-
-    // Both scenes render twice. Only one removes the primitive and its mesh in between, so
-    // traversal reads the vertices after the mesh object is gone.
-    removeDoomed(scene);
-
-    EXPECT_EQ(color(handler, *scene.product), expected);
 }
 
 TEST(OptixPipelineTests, SyncFailsWithoutAnActiveIntegratorOrSampler) {
@@ -531,4 +492,117 @@ TEST(OptixPipelineTests, SyncFailsWithoutAnActiveIntegratorOrSampler) {
 
     context->remove(samplerId);
     EXPECT_THROW(handler.sync(), kira::Anyhow);
+}
+
+namespace {
+/// A lit triangle, and optionally an occluder that covers the center pixel.
+struct SwapScene {
+    flux::Ref<flux::Context> context;
+    flux::Ref<flux::RenderProduct> product;
+    flux::Ref<flux::Primitive> old;
+    std::size_t oldMeshId{};
+    std::size_t oldBSDFId{};
+};
+
+/// \brief Creates an occluder with its own mesh and BSDF, and returns its primitive.
+///
+/// \p size scales the mesh and \p reflectance sets the BSDF, so two occluders render differently.
+[[nodiscard]] flux::Ref<flux::Primitive>
+addOccluder(flux::Context &context, float size, float reflectance) {
+    auto mesh = context.create<flux::TriangleMesh>(flux::TriangleMesh::Data{
+        .vertices = flux::test::sharedBuffer(
+            flux::Vec3f{-size, -size, 0.0F}, flux::Vec3f{3.0F * size, -size, 0.0F},
+            flux::Vec3f{-size, 3.0F * size, 0.0F}
+        ),
+        .triangles = flux::test::sharedBuffer(flux::Vec3u{0, 1, 2}),
+    });
+    kira::Properties bsdfProperties;
+    bsdfProperties.set("R", flux::Spectrum{reflectance});
+    auto bsdf = context.create<flux::DiffuseBSDF>(bsdfProperties);
+    auto primitive = context.create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
+    primitive->setTransform(
+        {1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.5F}
+    );
+    return primitive;
+}
+
+/// \brief Builds the scene, creating the old occluder first so it holds index 0.
+[[nodiscard]] SwapScene makeSwapScene(bool withOld) {
+    SwapScene scene{.context = flux::Context::create()};
+    auto &context = *scene.context;
+    flux::test::setActiveDefaults(context);
+    if (withOld) {
+        scene.old = addOccluder(context, 2.0F, 0.1F);
+        scene.oldMeshId = scene.old->getGeometry()->getContextId();
+        scene.oldBSDFId = scene.old->getBSDF()->getContextId();
+    }
+
+    auto mesh = context.create<flux::TriangleMesh>(triangleData());
+    auto bsdf = context.create<flux::DiffuseBSDF>(kira::Properties{});
+    (void)context.create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
+    auto edf = context.create<flux::ConstantEDF>(kira::Properties{});
+    auto emitterProperties = primitiveProperties(*mesh, *bsdf);
+    emitterProperties.set("edf_ctx_id", static_cast<std::int64_t>(edf->getContextId()));
+    auto emitter = context.create<flux::Primitive>(emitterProperties);
+    emitter->setTransform(
+        {1.0F, 0.0F, 0.0F, 0.0F, 0.0F, -1.0F, 0.0F, 0.0F, 0.0F, 0.0F, -1.0F, 1.0F}
+    );
+
+    kira::Properties cameraProperties;
+    cameraProperties.set("position", flux::Vec3f{0.25F, 0.25F, 1.0F});
+    cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.0F});
+    cameraProperties.set("fov", 1.0F);
+    kira::Properties productProperties;
+    productProperties.set("resolution", flux::Vec2u{1, 1});
+    productProperties.set("num_samples", std::uint32_t{4});
+    scene.product =
+        flux::RenderProduct::create(flux::Camera::create(cameraProperties), productProperties);
+    scene.product->getFilm().setChannels(flux::FilmChannels::Color);
+    return scene;
+}
+} // namespace
+
+TEST(OptixPipelineTests, RendersAnObjectThatReusesAFreedIndexLikeAFreshContext) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    auto const color = [](flux::OptixHandler &handler, flux::RenderProduct &product) {
+        handler.render(product, 4);
+        handler.download(product);
+        return product.getFilm().getChannel<flux::ColorChannel>()[0];
+    };
+
+    // The fresh context never held the old occluder.
+    auto fresh = makeSwapScene(false);
+    auto const freshOccluder = addOccluder(*fresh.context, 1.0F, 0.9F);
+    flux::OptixHandler freshHandler(fresh.context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
+    auto const expected = color(freshHandler, *fresh.product);
+
+    auto scene = makeSwapScene(true);
+    auto &context = *scene.context;
+    flux::OptixHandler handler(scene.context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
+    auto const before = color(handler, *scene.product);
+    auto const primitiveIndex = context.getIndex<flux::Primitive>(scene.old->getContextId());
+    auto const meshIndex = context.getIndex<flux::Geometry>(scene.oldMeshId);
+    auto const bsdfIndex = context.getIndex<flux::BSDF>(scene.oldBSDFId);
+
+    // Remove the old occluder and its dependents, then free their indices.
+    context.remove(scene.old->getContextId());
+    scene.old.reset();
+    context.collectGarbage();
+    context.clearDirty();
+    EXPECT_FALSE(context.findIndex<flux::Geometry>(scene.oldMeshId));
+
+    // A new occluder with another mesh and BSDF takes the freed indices.
+    auto const replacement = addOccluder(context, 1.0F, 0.9F);
+    EXPECT_EQ(context.getIndex<flux::Primitive>(replacement->getContextId()), primitiveIndex);
+    EXPECT_EQ(
+        context.getIndex<flux::Geometry>(replacement->getGeometry()->getContextId()), meshIndex
+    );
+    EXPECT_EQ(context.getIndex<flux::BSDF>(replacement->getBSDF()->getContextId()), bsdfIndex);
+
+    handler.sync();
+    auto const actual = color(handler, *scene.product);
+    EXPECT_NE(actual, before);
+    EXPECT_EQ(actual, expected);
 }

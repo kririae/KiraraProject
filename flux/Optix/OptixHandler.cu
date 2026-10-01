@@ -180,6 +180,10 @@ struct OptixHandler::pImpl final {
     OptixDeviceContextHandle deviceContext;
 
     OptixContext optixContext;
+
+    /// Active sampler and integrator as of the last sync.
+    Sampler::Impl sampler{};
+    PathIntegrator::Impl integrator;
     OptixRenderProductPool renderProducts{getStream()};
     DeviceBuffer<OptixLaunchParams> launchParams{getStream()};
 
@@ -211,6 +215,10 @@ void OptixHandler::pImpl::sync() {
     // Clear accumulation before rebuilding the OptiX scene.
     renderProducts.resetAccumulation();
     optixContext.sync();
+
+    // Keep the values that render reads, since render does not touch the Context.
+    sampler = context->getActiveSampler()->getImpl();
+    integrator = context->getActiveIntegrator()->getImpl();
 }
 
 void OptixHandler::pImpl::launch(OptixLaunchParams const &params, std::uint32_t size) {
@@ -232,19 +240,7 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
         throw std::invalid_argument("OptixHandler: sample batch must be nonzero");
 
     auto const &film = product.getFilm();
-    auto const resolution = Vec2u{film.getWidth(), film.getHeight()};
-    auto const sampler = pImpl_->context->getActiveSampler();
-    auto const integrator = pImpl_->context->getActiveIntegrator();
-    if (!sampler || !integrator)
-        throw kira::Anyhow("OptixHandler: context has no active sampler or integrator");
     auto const camera = product.getCamera().getImpl();
-
-    // The module contains bound values. A changed Context spec requires sync
-    // before launch.
-    if (pImpl_->optixContext.getProgramSpec() != OptixProgram::makeSpec(*pImpl_->context))
-        throw kira::Anyhow(
-            "OptixHandler: program specialization changed; call sync before rendering"
-        );
 
     // One path per pixel sample, with each pixel's samples consecutive. The launch is capped at
     // the resident thread count, so a lane whose path ends claims another rather than retiring
@@ -296,8 +292,8 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
         auto const params = OptixLaunchParams{
             .scene = pImpl_->optixContext.getImpl(),
             .camera = camera,
-            .sampler = sampler->getImpl(resolution),
-            .integrator = integrator->getImpl(),
+            .sampler = pImpl_->sampler,
+            .integrator = pImpl_->integrator,
             .bsdfDispatcher =
                 {
                     .types = programSpec.bsdfTypes, // (2)

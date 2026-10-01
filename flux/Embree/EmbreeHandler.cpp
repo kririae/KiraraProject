@@ -43,10 +43,18 @@ struct EmbreeHandler::pImpl {
             throw kira::Anyhow("EmbreeHandler: context has no active sampler");
         renderProducts.resetAccumulation();
         embreeContext.sync();
+
+        // Keep the values that render reads, since render does not touch the Context.
+        sampler = context->getActiveSampler()->getImpl();
+        integrator = context->getActiveIntegrator()->getImpl();
     }
 
     Ref<Context> context;
     EmbreeContext embreeContext;
+
+    /// Active sampler and integrator as of the last sync.
+    Sampler::Impl sampler{};
+    PathIntegrator::Impl integrator;
     EmbreeRenderProductPool renderProducts;
     std::uint64_t sampleOffset{};
 };
@@ -70,10 +78,6 @@ RenderStats EmbreeHandler::render(RenderProduct const &product, std::uint32_t sa
     if (pixelCount != 0 && samples > std::numeric_limits<std::uint64_t>::max() / pixelCount)
         throw std::invalid_argument("EmbreeHandler: render batch path count overflows");
     auto const batchPaths = static_cast<std::uint64_t>(pixelCount) * samples;
-    auto const sampler = pImpl_->context->getActiveSampler();
-    auto const integrator = pImpl_->context->getActiveIntegrator();
-    if (!sampler || !integrator)
-        throw kira::Anyhow("EmbreeHandler: context has no active sampler or integrator");
     auto const camera = product.getCamera().getImpl();
 
     // Film changes resize the product entry. A matching Camera::Impl keeps its
@@ -93,8 +97,8 @@ RenderStats EmbreeHandler::render(RenderProduct const &product, std::uint32_t sa
     auto const params = EmbreeLaunchParams{
         .scene = pImpl_->embreeContext.getImpl(),
         .camera = camera,
-        .sampler = sampler->getImpl({film.getWidth(), film.getHeight()}),
-        .integrator = integrator->getImpl(),
+        .sampler = pImpl_->sampler,
+        .integrator = pImpl_->integrator,
         .accumulatedSamples = accumulatedSamples,
         .sampleOffset = pImpl_->sampleOffset,
         .film = entry.film,

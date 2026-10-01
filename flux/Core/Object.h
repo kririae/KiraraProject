@@ -220,6 +220,11 @@ protected:
     ///
     /// An object whose context was destroyed records nothing.
     template <typename Bits> void markDirty(Bits bits) {
+        static_assert(std::is_enum_v<Bits>, "Dirty bits must be an enumeration");
+        static_assert(
+            sizeof(std::underlying_type_t<Bits>) <= sizeof(std::uint32_t),
+            "Dirty bits must fit the object's 32-bit mask"
+        );
         auto const mask = static_cast<std::uint32_t>(bits);
         if (mask == 0 || !context_)
             return;

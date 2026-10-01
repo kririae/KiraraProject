@@ -52,7 +52,7 @@ public:
 
     [[nodiscard]] SamplerType getType() const noexcept { return type_; }
     [[nodiscard]] bool isRoot() const noexcept override { return true; }
-    [[nodiscard]] Impl getImpl(Vec2u const &resolution) const;
+    [[nodiscard]] Impl getImpl() const;
 
 private:
     [[nodiscard]] static Ref<Sampler> create(TXContext &tx, kira::Properties const &props);
@@ -67,10 +67,8 @@ class IndependentSampler final : public Sampler {
 public:
     struct Impl;
 
-    /// \brief Creates the concrete sampler for \p resolution.
-    ///
-    /// \param resolution Nonzero image resolution for the launch.
-    [[nodiscard]] Impl getImpl(Vec2u const &resolution) const noexcept;
+    /// \brief Creates the concrete sampler.
+    [[nodiscard]] Impl getImpl() const noexcept;
 
 private:
     IndependentSampler(TXContext &tx, kira::Properties const &props);
@@ -127,7 +125,7 @@ public:
     struct Impl;
 
     /// \copydoc IndependentSampler::getImpl
-    [[nodiscard]] Impl getImpl(Vec2u const &resolution) const noexcept;
+    [[nodiscard]] Impl getImpl() const noexcept;
 
 private:
     SobolSampler(TXContext &tx, kira::Properties const &props);
