@@ -10,13 +10,14 @@
 #include "flux/Core/MathUtils.h"
 #include "flux/Sampling/Distribution2D.h"
 #include "flux/Scene/Context.h"
+#include "flux/Scene/SceneTableData.h"
 #include "flux/Shading/Texture.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
 void EmbreeLightSampler::build(
-    Context const &context, std::span<Primitive::Impl> primImpls,
-    EmbreeImageTexturePool::Impl imageTextures, float sceneRadius
+    SceneTableData const &scene, Context const &context, EmbreeImageTexturePool::Impl imageTextures,
+    float sceneRadius
 ) {
     envMapCDF_.clear();
     envMapRows_.clear();
@@ -26,8 +27,7 @@ void EmbreeLightSampler::build(
     if (envMap)
         envMapPower = buildEnvMap(*envMap, imageTextures, sceneRadius);
 
-    tableData_.build(context, primImpls, envMapPower);
-    powerCDF_ = buildLightPowerCDF(tableData_.powers);
+    tableData_.build(scene, context, envMapPower);
 }
 
 float EmbreeLightSampler::buildEnvMap(
@@ -81,7 +81,6 @@ float EmbreeLightSampler::buildEnvMap(
 
 void EmbreeLightSampler::clear() noexcept {
     tableData_.clear();
-    powerCDF_.clear();
     envMapCDF_.clear();
     envMapRows_.clear();
     envMap_.reset();
@@ -91,19 +90,17 @@ EmbreeLightSampler::Impl EmbreeLightSampler::getImpl() const noexcept {
     return {
         .table =
             {
-                .pointLights = tableData_.pointLights.data(),
-                .primIndices = tableData_.primIndices.data(),
-                .primAreaScales = tableData_.primAreaScales.data(),
+                .points = tableData_.lights.points.data(),
+                .primAreaScales = tableData_.lights.primAreaScales.data(),
                 .envMap = envMap_ ? &*envMap_ : nullptr,
             },
-        .lights = tableData_.handles.data(),
-        .pointSlots = tableData_.pointSlots.data(),
-        .primSlots = tableData_.primSlots.data(),
-        .envMapSlot = tableData_.envMapSlot,
+        .handles = tableData_.slots.handles.data(),
+        .primSlots = tableData_.slots.primSlots.data(),
+        .envMapSlot = tableData_.slots.envMapSlot,
         .power = {
-            .cdf = powerCDF_.data(),
-            .sum = powerCDF_.empty() ? 0.0F : powerCDF_.back(),
-            .numLights = static_cast<std::uint32_t>(tableData_.handles.size()),
+            .cdf = tableData_.slots.cdf.data(),
+            .sum = tableData_.slots.cdf.empty() ? 0.0F : tableData_.slots.cdf.back(),
+            .numLights = static_cast<std::uint32_t>(tableData_.slots.handles.size()),
         },
     };
 }

@@ -18,9 +18,10 @@ void SceneTableData::build(Context const &context) {
     auto const contextPrimitives = context.getObjects<Primitive>();
     auto const contextBSDFs = context.getObjects<BSDF>();
     auto const contextEDFs = context.getObjects<EDF>();
+    objects.primitives.reserve(contextPrimitives.size());
+    objects.meshes.reserve(contextPrimitives.size());
     primitives.reserve(contextPrimitives.size());
     transforms.reserve(contextPrimitives.size());
-    meshes.reserve(contextPrimitives.size());
 
     // Unused indices hold the first implementation, so every index below a limit
     // addresses valid storage.
@@ -38,16 +39,18 @@ void SceneTableData::build(Context const &context) {
     // Shared geometries use one dense geometry index.
     std::unordered_map<std::size_t, std::uint32_t> geometryIndexByContextId;
     geometryIndexByContextId.reserve(contextPrimitives.size());
+
     auto const getOrAddGeometryIndex = [&](Ref<Geometry const> const &geometry) {
         auto const contextId = geometry->getContextId();
         if (auto const iterator = geometryIndexByContextId.find(contextId);
             iterator != geometryIndexByContextId.end())
             return iterator->second;
 
-        if (meshes.size() >= std::numeric_limits<std::uint32_t>::max())
+        if (objects.meshes.size() >= std::numeric_limits<std::uint32_t>::max())
             throw kira::Anyhow("SceneTableData: geometry count exceeds the dense index range");
 
-        auto const index = static_cast<std::uint32_t>(meshes.size());
+        auto const index = static_cast<std::uint32_t>(objects.meshes.size());
+        // Record the mesh at its dense geometry index.
         switch (geometry->getType()) {
         case GeometryType::TriangleMesh: {
             auto mesh = geometry.dynamicCast<TriangleMesh const>();
@@ -55,11 +58,12 @@ void SceneTableData::build(Context const &context) {
                 throw kira::Anyhow(
                     "SceneTableData: geometry type does not match its host implementation"
                 );
-            meshes.push_back(std::move(mesh));
+            objects.meshes.push_back(std::move(mesh));
             break;
         }
         case GeometryType::Count: throw kira::Anyhow("SceneTableData: unsupported geometry type");
         }
+
         geometryIndexByContextId.emplace(contextId, index);
         return index;
     };
@@ -70,16 +74,23 @@ void SceneTableData::build(Context const &context) {
         if (primitives.size() >= std::numeric_limits<std::uint32_t>::max())
             throw kira::Anyhow("SceneTableData: primitive count exceeds the dense index range");
 
+        // Resolve the dense geometry index.
         auto const geometryIndex = getOrAddGeometryIndex(primitive->getGeometry());
+
+        // Resolve the BSDF index assigned by Context.
         auto const bsdf = primitive->getBSDF();
         auto bsdfIndex = Primitive::Impl::invalidBSDFIndex;
         if (bsdf)
             bsdfIndex = context.getBSDFIndex(bsdf->getContextId());
+
+        // Resolve the EDF index assigned by Context.
         auto const edf = primitive->getEDF();
         auto edfIndex = Primitive::Impl::invalidEDFIndex;
         if (edf)
             edfIndex = context.getEDFIndex(edf->getContextId());
 
+        // Write the primitive at its dense index in every segment.
+        objects.primitives.push_back(primitive);
         primitives.push_back({
             .geometryIndex = geometryIndex,
             .bsdfIndex = bsdfIndex,
@@ -90,9 +101,10 @@ void SceneTableData::build(Context const &context) {
 }
 
 void SceneTableData::clear() noexcept {
+    objects.primitives.clear();
+    objects.meshes.clear();
     primitives.clear();
     transforms.clear();
-    meshes.clear();
     bsdfs.clear();
     edfs.clear();
 }

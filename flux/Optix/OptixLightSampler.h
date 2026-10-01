@@ -1,6 +1,5 @@
 #pragma once
 
-#include <span>
 #include <vector>
 
 #include "flux/Core/Object.h"
@@ -10,6 +9,7 @@
 
 namespace flux {
 class Context;
+struct SceneTableData;
 
 /// \brief Owns the light table and power distribution used by OptiX.
 class OptixLightSampler final : private Noncopyable, private CudaStreamMixin {
@@ -18,9 +18,9 @@ public:
 
     explicit OptixLightSampler(cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
 
-    /// \brief Rebuilds the sampler and assigns primitive-light indices.
+    /// \brief Rebuilds the sampler from \p scene and the lights of \p context.
     void build(
-        Context const &context, std::span<Primitive::Impl> primImpls,
+        SceneTableData const &scene, Context const &context,
         OptixImageTexturePool::Impl imageTextures, float sceneRadius
     );
 
@@ -35,24 +35,27 @@ private:
     );
 
     LightTableData staging_;
-    std::vector<float> powerCDFStaging_;
-    DeviceBuffer<LightHandle> lights_{getStream()};
-    DeviceBuffer<PointLight::Impl> pointLights_{getStream()};
-    DeviceBuffer<std::uint32_t> pointSlots_{getStream()};
-    DeviceBuffer<std::uint32_t> primIndices_{getStream()};
+
+    // Per-light data.
+    DeviceBuffer<PointLight::Impl> points_{getStream()};
     DeviceBuffer<float> primAreaScales_{getStream()};
-    DeviceBuffer<std::uint32_t> primSlots_{getStream()};
+    DeviceBuffer<EnvMapLight::Impl> envMap_{getStream()};
     DeviceBuffer<float> envMapCDF_{getStream()};
     DeviceBuffer<float> envMapRows_{getStream()};
-    DeviceBuffer<EnvMapLight::Impl> envMap_{getStream()};
-    DeviceBuffer<float> powerCDF_{getStream()};
+
+    // The selection distribution.
+    DeviceBuffer<LightHandle> handles_{getStream()};
+    DeviceBuffer<float> cdf_{getStream()};
+    DeviceBuffer<std::uint32_t> primSlots_{getStream()};
 };
 
 /// \brief OptiX light table and selection distribution used during rendering.
 struct OptixLightSampler::Impl {
     LightTable table{};
-    LightHandle const *lights{};
-    std::uint32_t const *pointSlots{};
+
+    /// Light at each slot.
+    LightHandle const *handles{};
+    /// Slot of each primitive by dense primitive index.
     std::uint32_t const *primSlots{};
     std::uint32_t envMapSlot{LightTableData::invalidSlot};
     LightPowerDistribution power{};
@@ -65,16 +68,17 @@ public:
         auto const slot = power.sample(u, pmfValue);
         if (pmfValue <= 0.0F)
             return {};
-        return {.light = lights[slot], .pmf = pmfValue};
+        return {.light = handles[slot], .pmf = pmfValue};
     }
 
+    /// \brief Returns the probability that \c sample selects \p light, or zero for a
+    ///        point light.
     [[nodiscard]] KIRA_DEVICE inline float
     pmf(LightSamplingContext const &ctx, LightHandle light) const noexcept {
         (void)ctx;
+        // No ray hits a point light, so nothing asks for its probability.
         auto slot = LightTableData::invalidSlot;
-        if (light.type == LightType::Point)
-            slot = pointSlots[light.index];
-        else if (light.type == LightType::Primitive)
+        if (light.type == LightType::Primitive)
             slot = primSlots[light.index];
         else if (light.type == LightType::EnvMap)
             slot = envMapSlot;

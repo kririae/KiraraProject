@@ -48,8 +48,9 @@ void expectSameTables(flux::SceneTableData const &actual, flux::SceneTableData c
         EXPECT_EQ(actual.primitives[index].bsdfIndex, expected.primitives[index].bsdfIndex);
         EXPECT_EQ(actual.primitives[index].edfIndex, expected.primitives[index].edfIndex);
     }
+    EXPECT_EQ(actual.objects.primitives.size(), expected.objects.primitives.size());
     EXPECT_EQ(actual.transforms, expected.transforms);
-    EXPECT_EQ(actual.meshes.size(), expected.meshes.size());
+    EXPECT_EQ(actual.objects.meshes.size(), expected.objects.meshes.size());
     EXPECT_EQ(actual.bsdfs.size(), expected.bsdfs.size());
     EXPECT_EQ(actual.edfs.size(), expected.edfs.size());
 }
@@ -61,9 +62,10 @@ TEST(SceneTableTests, BuildsEmptyTablesFromAnEmptyContext) {
     auto table = flux::SceneTableData{};
     table.build(*context);
 
+    EXPECT_TRUE(table.objects.primitives.empty());
     EXPECT_TRUE(table.primitives.empty());
     EXPECT_TRUE(table.transforms.empty());
-    EXPECT_TRUE(table.meshes.empty());
+    EXPECT_TRUE(table.objects.meshes.empty());
     EXPECT_TRUE(table.bsdfs.empty());
     EXPECT_TRUE(table.edfs.empty());
 }
@@ -82,6 +84,9 @@ TEST(SceneTableTests, SkipsInvisiblePrimitivesAndKeepsTheDenseOrder) {
     table.build(*context);
 
     ASSERT_EQ(table.primitives.size(), 2);
+    ASSERT_EQ(table.objects.primitives.size(), 2);
+    EXPECT_EQ(table.objects.primitives[0], first);
+    EXPECT_EQ(table.objects.primitives[1], third);
     EXPECT_EQ(table.transforms[0], identity);
     EXPECT_EQ(table.transforms[1], translated(1.0F, 2.0F, 3.0F));
 }
@@ -97,9 +102,9 @@ TEST(SceneTableTests, GivesOneGeometryIndexToEveryPrimitiveThatSharesAMesh) {
     auto table = flux::SceneTableData{};
     table.build(*context);
 
-    ASSERT_EQ(table.meshes.size(), 2);
-    EXPECT_EQ(table.meshes[0], firstMesh);
-    EXPECT_EQ(table.meshes[1], secondMesh);
+    ASSERT_EQ(table.objects.meshes.size(), 2);
+    EXPECT_EQ(table.objects.meshes[0], firstMesh);
+    EXPECT_EQ(table.objects.meshes[1], secondMesh);
 
     ASSERT_EQ(table.primitives.size(), 3);
     EXPECT_EQ(table.primitives[0].geometryIndex, 0);
@@ -118,8 +123,8 @@ TEST(SceneTableTests, ExcludesAMeshThatNoVisiblePrimitiveUses) {
     auto table = flux::SceneTableData{};
     table.build(*context);
 
-    ASSERT_EQ(table.meshes.size(), 1);
-    EXPECT_EQ(table.meshes[0], visibleMesh);
+    ASSERT_EQ(table.objects.meshes.size(), 1);
+    EXPECT_EQ(table.objects.meshes[0], visibleMesh);
 }
 
 TEST(SceneTableTests, CopiesEveryBsdfAndEdfTheContextHolds) {

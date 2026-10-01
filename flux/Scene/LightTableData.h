@@ -2,55 +2,64 @@
 
 #include <cstdint>
 #include <optional>
-#include <span>
 #include <vector>
 
 #include "flux/Core/Object.h"
 #include "flux/Sampling/LightPowerDistribution.h"
 #include "flux/Scene/EnvMapLight.h"
 #include "flux/Scene/Light.h"
-#include "flux/Scene/Primitive.h"
 
 namespace flux {
 class Context;
+struct SceneTableData;
 
-/// \brief Light data used during rendering.
+/// \brief Per-light data read while rendering.
 struct LightTable {
-    PointLight::Impl const *pointLights{};
-    std::uint32_t const *primIndices{};
+    /// Point lights by point-light index.
+    PointLight::Impl const *points{};
+    /// World-area scale of each primitive, by dense primitive index.
     float const *primAreaScales{};
     EnvMapLight::Impl const *envMap{};
 };
 
-/// \brief Owns the host light data packed by backend samplers.
-///
-/// A slot indexes matching entries in \c handles, \c powers, and the sampler
-/// CDF.
+/// \brief Host light data derived from a scene table.
 struct LightTableData final : private Noncopyable {
     static constexpr std::uint32_t invalidSlot = LightPowerDistribution::invalidSlot;
 
-    std::vector<LightHandle> handles;
-    std::vector<PointLight::Impl> pointLights;
-    /// Slot for each point-light index.
-    std::vector<std::uint32_t> pointSlots;
-    /// Backend scene primitive index for each primitive-light index.
-    std::vector<std::uint32_t> primIndices;
-    /// World-area scale for each primitive-light index.
-    std::vector<float> primAreaScales;
-    /// Slot for each primitive-light index.
-    std::vector<std::uint32_t> primSlots;
-    std::vector<float> powers;
-    /// Slot for the environment map, or \c invalidSlot when it is not selectable.
-    std::uint32_t envMapSlot{invalidSlot};
+    /// What each light is, by light identity.
+    struct {
+        /// Point lights in Context ID order.
+        std::vector<PointLight::Impl> points;
+
+        /// World-area scale of each primitive's transform, in dense primitive order.
+        std::vector<float> primAreaScales;
+    } lights;
+
+    /// How a light is selected. A slot is a position in the selection distribution.
+    struct {
+        /// Light at each slot. A primitive's handle index is its dense index.
+        std::vector<LightHandle> handles;
+
+        /// Cumulative selection weight at each slot.
+        std::vector<float> cdf;
+
+        /// Slot of each primitive in dense primitive order, or \c invalidSlot.
+        std::vector<std::uint32_t> primSlots;
+
+        /// Slot of the environment map, or \c invalidSlot.
+        std::uint32_t envMapSlot{invalidSlot};
+    } slots;
 
 public:
-    /// \brief Rebuilds the light data and assigns primitive-light indices.
+    /// \brief Rebuilds the light data from \p scene and the lights of \p context.
     ///
-    /// \p primImpls follows the visible primitive order in \p context.
-    /// \p envMapPower is empty when no environment map is active.
+    /// Every primitive with an EDF is a light. At most \p maxSlots lights get a
+    /// slot, and emitting primitives lose theirs first. \p maxSlots is bounded by
+    /// \c LightPowerDistribution::maxLightCount. \p envMapPower is empty when no
+    /// environment map is active.
     void build(
-        Context const &context, std::span<Primitive::Impl> primImpls,
-        std::optional<float> envMapPower
+        SceneTableData const &scene, Context const &context, std::optional<float> envMapPower,
+        std::uint32_t maxSlots = LightPowerDistribution::maxLightCount
     );
 
     void clear() noexcept;

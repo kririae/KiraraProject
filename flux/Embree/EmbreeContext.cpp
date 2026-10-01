@@ -111,9 +111,9 @@ void EmbreeContext::sync() try {
 
     // Geometry data is heap allocated, so growing triangleData_ leaves these
     // pointers valid.
-    geometryImpls_.reserve(table_.meshes.size());
-    triangleData_.reserve(table_.meshes.size());
-    for (auto const &mesh : table_.meshes) {
+    geometryImpls_.reserve(table_.objects.meshes.size());
+    triangleData_.reserve(table_.objects.meshes.size());
+    for (auto const &mesh : table_.objects.meshes) {
         auto impl = mesh->getImpl();
         auto &data = triangleData_.emplace_back();
         data.areaCDF.resize_for_overwrite(impl.numTriangles);
@@ -134,8 +134,8 @@ void EmbreeContext::sync() try {
 
     // Embree borrows the mesh arrays the tables retain until the next sync. The
     // scenes are immutable, so they favor traversal over build time.
-    meshScenes_.reserve(table_.meshes.size());
-    for (auto const &mesh : table_.meshes) {
+    meshScenes_.reserve(table_.objects.meshes.size());
+    for (auto const &mesh : table_.objects.meshes) {
         RTCScene childScene = rtcNewScene(device_);
         embreeCheck(device_);
         meshScenes_.push_back(childScene);
@@ -204,10 +204,10 @@ void EmbreeContext::sync() try {
                 .norm() *
             0.5F;
     }
-    lightSampler_.build(context_, table_.primitives, imageTexturePool_.getImpl(), sceneRadius);
+    lightSampler_.build(table_, context_, imageTexturePool_.getImpl(), sceneRadius);
     LogDebug(
-        "EmbreeContext: built {} geometries and {} visible primitives", table_.meshes.size(),
-        table_.primitives.size()
+        "EmbreeContext: built {} geometries and {} visible primitives",
+        table_.objects.meshes.size(), table_.primitives.size()
     );
 } catch (...) {
     reset();
@@ -291,9 +291,9 @@ EmbreeContext::Impl::makeSurfaceInteraction(Ray const &ray, Hit const &hit) cons
 }
 
 float EmbreeContext::Impl::pdfDirectLight(
-    LightSamplingContext const &ctx, Primitive::Impl const &prim, SurfaceInteraction const &isect
+    LightSamplingContext const &ctx, SurfaceInteraction const &isect
 ) const noexcept {
-    return flux::pdfDirectLight(*this, ctx, prim, isect);
+    return flux::pdfDirectLight(*this, ctx, isect);
 }
 
 } // namespace flux

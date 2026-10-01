@@ -203,7 +203,7 @@ public:
 
             auto weight = 1.0F;
             if (state.depth > 0 && !state.prevDelta) {
-                auto const lightPdf = backend.pdfDirectLight(state.prevLightCtx, prim, isect);
+                auto const lightPdf = backend.pdfDirectLight(state.prevLightCtx, isect);
                 weight = misWeight(state.prevBSDFPdf, lightPdf);
             }
 

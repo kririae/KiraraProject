@@ -14,22 +14,25 @@
 namespace flux {
 class Context;
 
-/// \brief Owns the host scene tables built from a Context.
+/// \brief Host scene tables built from a Context.
 ///
-/// \c primitives and \c transforms share one dense primitive order: the visible
-/// primitives of the Context ordered by Context ID. That order is the dense
-/// primitive index, so it selects entries of every array indexed by primitive.
-///
-/// The dense geometry and primitive indices are assigned here.
+/// The dense primitive order is the visible primitives in Context ID order. Every
+/// array indexed by primitive uses it.
 struct SceneTableData final : private Noncopyable {
-    /// Visible primitives in dense primitive order.
+    /// Context object at each dense index. Host only; not read while rendering.
+    struct {
+        /// Visible primitives in dense primitive order.
+        kira::SmallVector<Ref<Primitive const>> primitives;
+
+        /// Unique meshes in dense geometry order.
+        kira::SmallVector<Ref<TriangleMesh const>> meshes;
+    } objects;
+
+    /// Entry of each visible primitive in dense primitive order.
     std::vector<Primitive::Impl> primitives;
 
     /// Row-major object-to-world transforms in dense primitive order.
     std::vector<std::array<float, 12>> transforms;
-
-    /// Unique meshes in dense geometry order.
-    kira::SmallVector<Ref<TriangleMesh const>> meshes;
 
     /// BSDFs indexed by the indices assigned by Context.
     std::vector<BSDF::Impl> bsdfs;

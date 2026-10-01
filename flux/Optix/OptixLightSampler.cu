@@ -11,6 +11,7 @@
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Sampling/Distribution2D.h"
 #include "flux/Scene/Context.h"
+#include "flux/Scene/SceneTableData.h"
 #include "flux/Shading/Texture.h"
 #include "kira/Anyhow.h"
 #include "kira/SmallVector.h"
@@ -42,34 +43,29 @@ struct SampleEnvMapWeights {
 } // namespace
 
 void OptixLightSampler::build(
-    Context const &context, std::span<Primitive::Impl> primImpls,
-    OptixImageTexturePool::Impl imageTextures, float sceneRadius
+    SceneTableData const &scene, Context const &context, OptixImageTexturePool::Impl imageTextures,
+    float sceneRadius
 ) {
-    lights_.clear();
-    pointLights_.clear();
-    pointSlots_.clear();
-    primIndices_.clear();
+    points_.clear();
     primAreaScales_.clear();
-    primSlots_.clear();
+    envMap_.clear();
     envMapCDF_.clear();
     envMapRows_.clear();
-    envMap_.clear();
-    powerCDF_.clear();
+    handles_.clear();
+    cdf_.clear();
+    primSlots_.clear();
 
     auto const envMap = context.getActiveEnvMap();
     std::optional<float> envMapPower;
     if (envMap)
         envMapPower = buildEnvMap(*envMap, imageTextures, sceneRadius);
 
-    staging_.build(context, primImpls, envMapPower);
-    powerCDFStaging_ = buildLightPowerCDF(staging_.powers);
-    lights_.copyFromHost(staging_.handles);
-    pointLights_.copyFromHost(staging_.pointLights);
-    pointSlots_.copyFromHost(staging_.pointSlots);
-    primIndices_.copyFromHost(staging_.primIndices);
-    primAreaScales_.copyFromHost(staging_.primAreaScales);
-    primSlots_.copyFromHost(staging_.primSlots);
-    powerCDF_.copyFromHost(powerCDFStaging_);
+    staging_.build(scene, context, envMapPower);
+    points_.copyFromHost(staging_.lights.points);
+    primAreaScales_.copyFromHost(staging_.lights.primAreaScales);
+    handles_.copyFromHost(staging_.slots.handles);
+    cdf_.copyFromHost(staging_.slots.cdf);
+    primSlots_.copyFromHost(staging_.slots.primSlots);
 }
 
 float OptixLightSampler::buildEnvMap(
@@ -133,19 +129,17 @@ OptixLightSampler::Impl OptixLightSampler::getImpl() const noexcept {
     return {
         .table =
             {
-                .pointLights = pointLights_.data(),
-                .primIndices = primIndices_.data(),
+                .points = points_.data(),
                 .primAreaScales = primAreaScales_.data(),
                 .envMap = envMap_.data(),
             },
-        .lights = lights_.data(),
-        .pointSlots = pointSlots_.data(),
+        .handles = handles_.data(),
         .primSlots = primSlots_.data(),
-        .envMapSlot = staging_.envMapSlot,
+        .envMapSlot = staging_.slots.envMapSlot,
         .power = {
-            .cdf = powerCDF_.data(),
-            .sum = powerCDFStaging_.empty() ? 0.0F : powerCDFStaging_.back(),
-            .numLights = static_cast<std::uint32_t>(lights_.size()),
+            .cdf = cdf_.data(),
+            .sum = staging_.slots.cdf.empty() ? 0.0F : staging_.slots.cdf.back(),
+            .numLights = static_cast<std::uint32_t>(handles_.size()),
         },
     };
 }

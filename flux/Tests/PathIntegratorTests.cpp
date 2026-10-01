@@ -31,8 +31,7 @@ struct EmitterHitContext {
     } table;
 
     [[nodiscard]] float pdfDirectLight(
-        flux::LightSamplingContext const &, flux::Primitive::Impl const &,
-        flux::SurfaceInteraction const &
+        flux::LightSamplingContext const &, flux::SurfaceInteraction const &
     ) const noexcept {
         return 0.5F;
     }
@@ -149,7 +148,7 @@ TEST(PathIntegratorTests, WeightsBsdfSampledEmitterHits) {
     auto const context = EmitterHitContext{
         .table = {.edf = flux::ConstantEDF::Impl{.radiance = {2.0F, 2.0F, 2.0F}}},
     };
-    auto const prim = flux::Primitive::Impl{.edfIndex = 0, .primLightIndex = 0};
+    auto const prim = flux::Primitive::Impl{.edfIndex = 0};
     auto state = flux::PathState{
         .prevLightCtx = {.position = {0.0F, 0.0F, 0.0F}},
         .prevBSDFPdf = 0.5F,

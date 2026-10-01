@@ -52,22 +52,21 @@ struct OptixContext::Storage : private CudaStreamMixin {
                                                       : BSDFType::Diffuse;
             instanceDescs.push_back({
                 .geometryIndex = geometryIndex,
-                .sbtOffset =
-                    OptixSbt::getInstanceOffset(bsdfType, table.meshes[geometryIndex]->getType()),
+                .sbtOffset = OptixSbt::getInstanceOffset(
+                    bsdfType, table.objects.meshes[geometryIndex]->getType()
+                ),
                 .transform = table.transforms[index],
             });
         }
 
         // Rebuild in dependency order. GAS consumes the geometry buffers; IAS
         // then consumes the GAS handles and the matching primitive layout.
-        geometryPool.build(table.meshes);
+        geometryPool.build(table.objects.meshes);
         imageTexturePool.build(context);
         auto const buildInputs = geometryPool.getBuildInputs();
         accel.buildGas(deviceContext, buildInputs);
         accel.buildIas(deviceContext, instanceDescs);
-        lightSampler.build(
-            context, table.primitives, imageTexturePool.getImpl(), accel.getSceneRadius()
-        );
+        lightSampler.build(table, context, imageTexturePool.getImpl(), accel.getSceneRadius());
         primitives.copyFromHost({table.primitives.data(), table.primitives.size()});
         bsdfs.copyFromHost({table.bsdfs.data(), table.bsdfs.size()});
         edfs.copyFromHost({table.edfs.data(), table.edfs.size()});
@@ -77,8 +76,8 @@ struct OptixContext::Storage : private CudaStreamMixin {
         cudaCheck(cudaStreamSynchronize(getStream()));
         geometryPool.releaseHostStaging();
         LogDebug(
-            "OptixContext: built {} geometries and {} visible primitives", table.meshes.size(),
-            table.primitives.size()
+            "OptixContext: built {} geometries and {} visible primitives",
+            table.objects.meshes.size(), table.primitives.size()
         );
     } catch (...) {
         cudaCheck<false>(cudaStreamSynchronize(getStream()));

@@ -115,6 +115,11 @@ krr_add_test(
     HARD_DEPENDENCIES flux)
 
 krr_add_test(
+    flux Scene LightTableTests
+    SOURCES LightTableTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
     flux Scene FilmTests
     SOURCES FilmTests.cu
     HARD_DEPENDENCIES flux)

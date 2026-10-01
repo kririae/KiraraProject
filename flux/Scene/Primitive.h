@@ -94,8 +94,6 @@ struct Primitive::Impl {
     /// Sentinel used when this primitive has no BSDF.
     static constexpr std::uint32_t invalidBSDFIndex = std::numeric_limits<std::uint32_t>::max();
     static constexpr std::uint32_t invalidEDFIndex = std::numeric_limits<std::uint32_t>::max();
-    static constexpr std::uint32_t invalidPrimLightIndex =
-        std::numeric_limits<std::uint32_t>::max();
 
     /// Dense index of the bound geometry.
     std::uint32_t geometryIndex{};
@@ -105,9 +103,6 @@ struct Primitive::Impl {
 
     /// EDF index assigned by Context, or \c invalidEDFIndex.
     std::uint32_t edfIndex{invalidEDFIndex};
-
-    /// Dense primitive-light index, or \c invalidPrimLightIndex.
-    std::uint32_t primLightIndex{invalidPrimLightIndex};
 
 public:
     /// \brief Returns the dense geometry index in this backend scene.
@@ -130,14 +125,6 @@ public:
     }
 
     [[nodiscard]] KIRA_HOST_DEVICE std::uint32_t getEDFIndex() const noexcept { return edfIndex; }
-
-    [[nodiscard]] KIRA_HOST_DEVICE bool isLight() const noexcept {
-        return primLightIndex != invalidPrimLightIndex;
-    }
-
-    [[nodiscard]] KIRA_HOST_DEVICE std::uint32_t getPrimLightIndex() const noexcept {
-        return primLightIndex;
-    }
 };
 
 static_assert(std::is_standard_layout_v<Primitive::Impl>);

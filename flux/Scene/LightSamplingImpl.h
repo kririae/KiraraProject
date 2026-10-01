@@ -12,11 +12,10 @@ namespace flux {
 namespace detail {
 template <typename Scene>
 [[nodiscard]] KIRA_HOST_DEVICE KIRA_FORCEINLINE DirectLightSample samplePrimLight(
-    Scene const &scene, LightSamplingContext const &ctx, std::uint32_t index, Vec2f const &u
+    Scene const &scene, LightSamplingContext const &ctx, std::uint32_t primIndex, Vec2f const &u
 ) noexcept {
-    auto const primIndex = scene.lightSampler.table.primIndices[index];
     auto const &prim = scene.table.getPrimitive(primIndex);
-    auto const areaScale = scene.lightSampler.table.primAreaScales[index];
+    auto const areaScale = scene.lightSampler.table.primAreaScales[primIndex];
     if (!(areaScale > 0.0F))
         return {};
 
@@ -63,7 +62,7 @@ template <typename Evaluator, typename Scene>
 
     auto const light = selected.light;
     if (light.type == LightType::Point) {
-        auto sample = scene.lightSampler.table.pointLights[light.index].sampleDirect(ctx);
+        auto sample = scene.lightSampler.table.points[light.index].sampleDirect(ctx);
         sample.pdf *= selected.pmf;
         return sample;
     }
@@ -84,14 +83,15 @@ template <typename Evaluator, typename Scene>
 
 template <typename Scene>
 [[nodiscard]] KIRA_HOST_DEVICE KIRA_FORCEINLINE float pdfDirectLight(
-    Scene const &scene, LightSamplingContext const &ctx, Primitive::Impl const &prim,
-    SurfaceInteraction const &isect
+    Scene const &scene, LightSamplingContext const &ctx, SurfaceInteraction const &isect
 ) noexcept {
-    if (!prim.isLight())
+    auto const primIndex = isect.primitiveIndex;
+    auto const selectPmf =
+        scene.lightSampler.pmf(ctx, {.type = LightType::Primitive, .index = primIndex});
+    if (!(selectPmf > 0.0F))
         return 0.0F;
 
-    auto const lightIndex = prim.getPrimLightIndex();
-    auto const areaScale = scene.lightSampler.table.primAreaScales[lightIndex];
+    auto const areaScale = scene.lightSampler.table.primAreaScales[primIndex];
     if (!(areaScale > 0.0F))
         return 0.0F;
 
@@ -106,10 +106,10 @@ template <typename Scene>
         return 0.0F;
 
     // Convert the geometry-space area density to world-space solid angle.
+    auto const &prim = scene.table.getPrimitive(primIndex);
     auto const condPdf = scene.table.getGeometry(prim.getGeometryIndex()).pdf(isect.elementIndex) /
                          areaScale * dist2 / cosLight;
-    return scene.lightSampler.pmf(ctx, {.type = LightType::Primitive, .index = lightIndex}) *
-           condPdf;
+    return selectPmf * condPdf;
 }
 
 } // namespace flux

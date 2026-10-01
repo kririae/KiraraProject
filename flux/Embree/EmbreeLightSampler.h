@@ -1,8 +1,6 @@
 #pragma once
 
 #include <optional>
-#include <span>
-#include <vector>
 
 #include "flux/Core/Object.h"
 #include "flux/Embree/EmbreeImageTexturePool.h"
@@ -11,15 +9,16 @@
 
 namespace flux {
 class Context;
+struct SceneTableData;
 
 /// \brief Owns the light table and power distribution used by Embree.
 class EmbreeLightSampler final : private Noncopyable {
 public:
     struct Impl;
 
-    /// \brief Rebuilds the sampler and assigns primitive-light indices.
+    /// \brief Rebuilds the sampler from \p scene and the lights of \p context.
     void build(
-        Context const &context, std::span<Primitive::Impl> primImpls,
+        SceneTableData const &scene, Context const &context,
         EmbreeImageTexturePool::Impl imageTextures, float sceneRadius
     );
 
@@ -36,7 +35,6 @@ private:
     );
 
     LightTableData tableData_;
-    std::vector<float> powerCDF_;
     kira::SmallVector<float, 0> envMapCDF_;
     kira::SmallVector<float, 0> envMapRows_;
     std::optional<EnvMapLight::Impl> envMap_;
@@ -45,8 +43,10 @@ private:
 /// \brief Embree light table and selection distribution used during rendering.
 struct EmbreeLightSampler::Impl {
     LightTable table{};
-    LightHandle const *lights{};
-    std::uint32_t const *pointSlots{};
+
+    /// Light at each slot.
+    LightHandle const *handles{};
+    /// Slot of each primitive by dense primitive index.
     std::uint32_t const *primSlots{};
     std::uint32_t envMapSlot{LightTableData::invalidSlot};
     LightPowerDistribution power{};
@@ -58,15 +58,16 @@ public:
         auto const slot = power.sample(u, pmfValue);
         if (pmfValue <= 0.0F)
             return {};
-        return {.light = lights[slot], .pmf = pmfValue};
+        return {.light = handles[slot], .pmf = pmfValue};
     }
 
+    /// \brief Returns the probability that \c sample selects \p light, or zero for a
+    ///        point light.
     [[nodiscard]] float pmf(LightSamplingContext const &ctx, LightHandle light) const noexcept {
         (void)ctx;
+        // No ray hits a point light, so nothing asks for its probability.
         auto slot = LightTableData::invalidSlot;
-        if (light.type == LightType::Point)
-            slot = pointSlots[light.index];
-        else if (light.type == LightType::Primitive)
+        if (light.type == LightType::Primitive)
             slot = primSlots[light.index];
         else if (light.type == LightType::EnvMap)
             slot = envMapSlot;

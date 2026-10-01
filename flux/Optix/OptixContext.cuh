@@ -96,9 +96,9 @@ KIRA_DEVICE inline Vec3f OptixContext::Impl::transformNormalToWorld(
 }
 
 KIRA_DEVICE inline float OptixContext::Impl::pdfDirectLight(
-    LightSamplingContext const &ctx, Primitive::Impl const &prim, SurfaceInteraction const &isect
+    LightSamplingContext const &ctx, SurfaceInteraction const &isect
 ) const noexcept {
-    return flux::pdfDirectLight(*this, ctx, prim, isect);
+    return flux::pdfDirectLight(*this, ctx, isect);
 }
 
 } // namespace flux

@@ -1,31 +1,50 @@
 #include "flux/Scene/LightTableData.h"
 
+#include <algorithm>
 #include <cstddef>
 
 #include "flux/Core/Logging.h"
 #include "flux/Scene/Context.h"
-#include "flux/Shading/EDF.h"
+#include "flux/Scene/SceneTableData.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
 void LightTableData::build(
-    Context const &context, std::span<Primitive::Impl> primImpls, std::optional<float> envMapPower
+    SceneTableData const &scene, Context const &context, std::optional<float> envMapPower,
+    std::uint32_t maxSlots
 ) {
     clear();
-    auto const lights = context.getObjects<Light>();
-    auto const prims = context.getObjects<Primitive>();
-    handles.reserve(lights.size() + prims.size());
-    pointLights.reserve(lights.size());
-    pointSlots.reserve(lights.size());
-    primIndices.reserve(prims.size());
-    primAreaScales.reserve(prims.size());
-    primSlots.reserve(prims.size());
-    powers.reserve(lights.size() + prims.size());
 
-    for (auto const &light : lights) {
-        if (handles.size() >= LightPowerDistribution::maxLightCount)
-            break;
+    // Bound the cap. A larger one would break the CDF precision.
+    maxSlots = std::min(maxSlots, LightPowerDistribution::maxLightCount);
 
+    // Size the arrays.
+    auto const contextLights = context.getObjects<Light>();
+    auto const numPrimitives = scene.primitives.size();
+    lights.points.reserve(contextLights.size());
+    lights.primAreaScales.reserve(numPrimitives);
+    slots.handles.reserve(contextLights.size() + numPrimitives);
+    slots.primSlots.assign(numPrimitives, invalidSlot);
+
+    // Give a light the next slot, or none past the cap. Powers only feed the CDF.
+    std::vector<float> powers;
+    powers.reserve(contextLights.size() + numPrimitives);
+    std::size_t numDropped = 0;
+    auto const addSlot = [&](LightHandle handle, float power) {
+        if (slots.handles.size() >= maxSlots) {
+            ++numDropped;
+            return invalidSlot;
+        }
+
+        auto const slot = static_cast<std::uint32_t>(slots.handles.size());
+        slots.handles.push_back(handle);
+        powers.push_back(power);
+        return slot;
+    };
+
+    // Assign slots to point lights first. BSDF sampling never hits a point light,
+    // so the cap must drop an emitter instead.
+    for (auto const &light : contextLights) {
         switch (light->getType()) {
         case LightType::Point: {
             auto point = light.dynamicCast<PointLight const>();
@@ -34,11 +53,9 @@ void LightTableData::build(
                     "LightTableData: light type does not match its host implementation"
                 );
 
-            auto const pointIndex = static_cast<std::uint32_t>(pointLights.size());
-            pointSlots.push_back(static_cast<std::uint32_t>(handles.size()));
-            handles.push_back({.type = LightType::Point, .index = pointIndex});
-            pointLights.push_back(point->getImpl());
-            powers.push_back(point->estimatePower());
+            auto const pointIndex = static_cast<std::uint32_t>(lights.points.size());
+            lights.points.push_back(point->getImpl());
+            (void)addSlot({.type = LightType::Point, .index = pointIndex}, point->estimatePower());
             break;
         }
         case LightType::EnvMap: break;
@@ -47,53 +64,47 @@ void LightTableData::build(
         }
     }
 
-    std::size_t primIndex = 0;
-    for (auto const &prim : prims) {
-        if (!prim->isVisible())
+    // Assign a slot to the environment map. A ray miss finds it, so it ranks before
+    // emitters for the same reason.
+    if (envMapPower)
+        slots.envMapSlot = addSlot({.type = LightType::EnvMap, .index = 0}, *envMapPower);
+
+    // Assign slots to primitives with an EDF, in dense order. An emitter past the
+    // cap stays reachable by BSDF sampling, where MIS weights it one.
+    for (std::size_t index = 0; index < numPrimitives; ++index) {
+        auto const &primitive = scene.objects.primitives[index];
+        lights.primAreaScales.push_back(primitive->estimateAreaScale());
+        if (!scene.primitives[index].hasEDF())
             continue;
-        if (primIndex >= primImpls.size())
-            throw kira::Anyhow("LightTableData: primitive tables do not match");
-        auto const densePrimIndex = primIndex++;
-        auto &primImpl = primImpls[densePrimIndex];
-        primImpl.primLightIndex = Primitive::Impl::invalidPrimLightIndex;
-        if (!prim->getEDF())
-            continue;
-        if (handles.size() >= LightPowerDistribution::maxLightCount)
-            continue;
-        if (prim->hasNonUniformScale())
+
+        if (primitive->hasNonUniformScale())
             LogWarn(
                 "LightTableData: emissive primitive {} has non-uniform scale; using its average "
                 "scale for light sampling",
-                prim->getContextId()
+                primitive->getContextId()
             );
-
-        auto const lightIndex = static_cast<std::uint32_t>(primIndices.size());
-        primImpl.primLightIndex = lightIndex;
-        primSlots.push_back(static_cast<std::uint32_t>(handles.size()));
-        handles.push_back({.type = LightType::Primitive, .index = lightIndex});
-        primIndices.push_back(static_cast<std::uint32_t>(densePrimIndex));
-        primAreaScales.push_back(prim->estimateAreaScale());
-        powers.push_back(prim->estimatePower());
+        auto const primIndex = static_cast<std::uint32_t>(index);
+        slots.primSlots[index] =
+            addSlot({.type = LightType::Primitive, .index = primIndex}, primitive->estimatePower());
     }
-    if (primIndex != primImpls.size())
-        throw kira::Anyhow("LightTableData: primitive tables do not match");
 
-    if (envMapPower && handles.size() < LightPowerDistribution::maxLightCount) {
-        envMapSlot = static_cast<std::uint32_t>(handles.size());
-        handles.push_back({.type = LightType::EnvMap, .index = 0});
-        powers.push_back(*envMapPower);
-    }
+    // Report lights past the cap.
+    if (numDropped > 0)
+        LogWarn(
+            "LightTableData: {} lights exceed the limit of {} and cannot be sampled directly",
+            numDropped, maxSlots
+        );
+
+    // Build the CDF over the assigned slots.
+    slots.cdf = buildLightPowerCDF(powers);
 }
 
 void LightTableData::clear() noexcept {
-    handles.clear();
-    pointLights.clear();
-    pointSlots.clear();
-    primIndices.clear();
-    primAreaScales.clear();
-    primSlots.clear();
-    powers.clear();
-    envMapSlot = invalidSlot;
+    lights.points.clear();
+    lights.primAreaScales.clear();
+    slots.handles.clear();
+    slots.cdf.clear();
+    slots.primSlots.clear();
+    slots.envMapSlot = invalidSlot;
 }
-
 } // namespace flux

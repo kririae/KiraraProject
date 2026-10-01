@@ -149,10 +149,8 @@ public:
     /// \brief Returns the PDF of sampling \p isect from \p ctx.
     ///
     /// The PDF includes light selection.
-    [[nodiscard]] float pdfDirectLight(
-        LightSamplingContext const &ctx, Primitive::Impl const &prim,
-        SurfaceInteraction const &isect
-    ) const noexcept;
+    [[nodiscard]] float
+    pdfDirectLight(LightSamplingContext const &ctx, SurfaceInteraction const &isect) const noexcept;
 };
 
 static_assert(std::is_standard_layout_v<EmbreeContext::Impl>);
