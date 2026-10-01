@@ -76,6 +76,7 @@ add_library(
     Scene/Primitive.cpp
     Scene/RenderObject.cpp
     Scene/RenderProduct.cpp
+    Scene/SceneTableData.cpp
     Scene/TriangleMesh.cpp
     Scene/TXContext.cpp
     Shading/BSDF.cpp

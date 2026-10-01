@@ -16,6 +16,7 @@
 #include "flux/Optix/OptixLightSampler.h"
 #include "flux/Scene/GeometryImpl.h"
 #include "flux/Scene/Primitive.h"
+#include "flux/Scene/SceneTable.h"
 #include "flux/Shading/BSDF.h"
 #include "flux/Shading/EDF.h"
 #include "flux/Shading/Interaction.h"
@@ -77,26 +78,12 @@ struct OptixContext::Impl {
     /// Top-level instance acceleration structure.
     OptixTraversableHandle traversable{};
 
-    /// Device array of unique geometries.
-    Geometry::Impl const *geometries{};
-
-    /// Device array of visible primitives.
-    Primitive::Impl const *primitives{};
-
-    /// Device array of BSDFs registered in the host \c Context.
-    BSDF::Impl const *bsdfs{};
-
-    /// Device array of EDFs registered in the host \c Context.
-    EDF::Impl const *edfs{};
+    /// Dense scene tables in device memory.
+    SceneTable table{};
 
     OptixImageTexturePool::Impl imageTexturePool{};
 
     OptixLightSampler::Impl lightSampler{};
-
-    std::uint32_t numGeometries{};  // *geometries
-    std::uint32_t numPrimitives{};  // *primitives
-    std::uint32_t bsdfIndexLimit{}; // *bsdfs
-    std::uint32_t edfIndexLimit{};  // *edfs
 
 public:
     /// \brief Finds the closest surface hit for \p ray.
@@ -120,34 +107,6 @@ public:
     /// \brief Maps a geometry-space normal through primitive \p primitiveIndex.
     [[nodiscard]] KIRA_DEVICE Vec3f
     transformNormalToWorld(std::uint32_t primitiveIndex, Vec3f const &normal) const noexcept;
-
-    /// \brief Returns texture coordinates and gradients for \p isect.
-    ///
-    /// Reads only \p isect and \p footprint, so callers may invoke it after a later
-    /// traversal. \p footprint must already be propagated to the hit distance.
-    [[nodiscard]] KIRA_DEVICE TextureEvalContext getTextureEvalContext(
-        SurfaceInteraction const &isect, Vec3f const &direction, RayFootprint const &footprint
-    ) const noexcept;
-
-    /// \brief Returns the primitive at dense \p instanceIndex.
-    ///
-    /// \pre \p instanceIndex is less than \c numPrimitives.
-    [[nodiscard]] KIRA_DEVICE inline Primitive::Impl const &
-    getPrimitive(std::uint32_t instanceIndex) const noexcept;
-
-    /// \brief Returns the geometry at dense \p geometryIndex.
-    ///
-    /// \pre \p geometryIndex is less than \c numGeometries.
-    [[nodiscard]] KIRA_DEVICE inline Geometry::Impl const &
-    getGeometry(std::uint32_t geometryIndex) const noexcept;
-
-    /// \brief Returns the BSDF at \p bsdfIndex.
-    ///
-    /// \pre \p bsdfIndex is less than \c bsdfIndexLimit.
-    [[nodiscard]] KIRA_DEVICE inline BSDF::Impl const &
-    getBSDF(std::uint32_t bsdfIndex) const noexcept;
-
-    [[nodiscard]] KIRA_DEVICE inline EDF::Impl const &getEDF(std::uint32_t edfIndex) const noexcept;
 
     /// \brief Returns the PDF of sampling \p isect from \p ctx.
     ///

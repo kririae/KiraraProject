@@ -7,7 +7,6 @@
 #include "flux/Sampling/SamplerImpl.h"
 #include "flux/Scene/CameraImpl.h"
 #include "flux/Scene/FilmImpl.h"
-#include "flux/Scene/PrimitiveImpl.h"
 #include "flux/Shading/BSDFImpl.h"
 #include "flux/Shading/Frame.h"
 
@@ -64,7 +63,7 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
             }
 
             auto const isect = params.scene.makeSurfaceInteraction(traced, hit);
-            auto const &primitive = params.scene.getPrimitive(hit.primitiveIndex);
+            auto const &primitive = params.scene.table.getPrimitive(hit.primitiveIndex);
             auto const isPrimary = state.depth == 0;
             auto const wo = -traced.direction;
             if (writesColor)
@@ -103,11 +102,10 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
                 auto const u = state.sampler.get3D(SampleUse::Bsdf, state.depth);
                 auto const uLobe = u.x();
                 auto const uDirection = Vec2f{u.y(), u.z()};
-                auto const &bsdf = params.scene.getBSDF(primitive.getBSDFIndex());
+                auto const &bsdf = params.scene.table.getBSDF(primitive.getBSDFIndex());
                 auto footprint = state.footprint.unpack();
                 footprint.propagate(hit.preliminary.distance);
-                auto const texCtx =
-                    params.scene.getTextureEvalContext(isect, traced.direction, footprint);
+                auto const texCtx = makeTextureEvalContext(isect, traced.direction, footprint);
                 auto const result = bsdfDispatcher.execute<EmbreeImageTextureEvaluator>(
                     bsdf, texCtx, localWo, localLightWi, directLight.pdf > 0.0F, uLobe, uDirection
                 );

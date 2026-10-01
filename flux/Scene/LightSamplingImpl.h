@@ -5,7 +5,7 @@
 
 #include "flux/Scene/EnvMapLightImpl.h"
 #include "flux/Scene/GeometryImpl.h"
-#include "flux/Scene/PrimitiveImpl.h"
+#include "flux/Scene/Primitive.h"
 #include "flux/Shading/EDF.h"
 
 namespace flux {
@@ -15,12 +15,12 @@ template <typename Scene>
     Scene const &scene, LightSamplingContext const &ctx, std::uint32_t index, Vec2f const &u
 ) noexcept {
     auto const primIndex = scene.lightSampler.table.primIndices[index];
-    auto const &prim = scene.getPrimitive(primIndex);
+    auto const &prim = scene.table.getPrimitive(primIndex);
     auto const areaScale = scene.lightSampler.table.primAreaScales[index];
     if (!(areaScale > 0.0F))
         return {};
 
-    auto const geomSample = scene.getGeometry(prim.getGeometryIndex()).sample(u);
+    auto const geomSample = scene.table.getGeometry(prim.getGeometryIndex()).sample(u);
     if (geomSample.pdf <= 0.0F)
         return {};
 
@@ -39,7 +39,7 @@ template <typename Scene>
 
     // Convert the geometry-space area density to world-space solid angle.
     return {
-        .radiance = scene.getEDF(prim.getEDFIndex())
+        .radiance = scene.table.getEDF(prim.getEDFIndex())
                         .evaluate({
                             .geometricNormal = n,
                             .wo = -wi,
@@ -106,7 +106,7 @@ template <typename Scene>
         return 0.0F;
 
     // Convert the geometry-space area density to world-space solid angle.
-    auto const condPdf = scene.getGeometry(prim.getGeometryIndex()).pdf(isect.elementIndex) /
+    auto const condPdf = scene.table.getGeometry(prim.getGeometryIndex()).pdf(isect.elementIndex) /
                          areaScale * dist2 / cosLight;
     return scene.lightSampler.pmf(ctx, {.type = LightType::Primitive, .index = lightIndex}) *
            condPdf;

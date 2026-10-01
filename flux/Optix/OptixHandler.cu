@@ -147,9 +147,9 @@ struct ScaleFilmChannels {
 };
 } // namespace
 
-struct OptixHandler::Impl final {
-    Impl(Ref<Context> hostContext, std::filesystem::path const &modulePath);
-    ~Impl();
+struct OptixHandler::pImpl final {
+    pImpl(Ref<Context> hostContext, std::filesystem::path const &modulePath);
+    ~pImpl();
 
     /// \brief Rebuilds the OptiX scene from the host \c Context.
     void sync();
@@ -192,20 +192,20 @@ struct OptixHandler::Impl final {
     double launchWaves{2.0};
 };
 
-OptixHandler::Impl::Impl(Ref<Context> hostContext, std::filesystem::path const &modulePath)
+OptixHandler::pImpl::pImpl(Ref<Context> hostContext, std::filesystem::path const &modulePath)
     : context(requireContext(std::move(hostContext))),
       optixContext(*context, deviceContext.get(), getStream(), modulePath) {
     pathCounter.resize(1);
     sync();
 }
 
-OptixHandler::Impl::~Impl() {
+OptixHandler::pImpl::~pImpl() {
     // Member destruction may enqueue releases, so restore their owning device
     // before C++ begins destroying them in reverse declaration order.
     deviceContext.selectDevice<false>();
 }
 
-void OptixHandler::Impl::sync() {
+void OptixHandler::pImpl::sync() {
     deviceContext.selectDevice();
 
     // Clear accumulation before rebuilding the OptiX scene.
@@ -213,7 +213,7 @@ void OptixHandler::Impl::sync() {
     optixContext.sync();
 }
 
-void OptixHandler::Impl::launch(OptixLaunchParams const &params, std::uint32_t size) {
+void OptixHandler::pImpl::launch(OptixLaunchParams const &params, std::uint32_t size) {
     launchParams.copyFromHost({&params, 1}, getStream());
     optixContext.launch(
         getStream(), devicePointer(launchParams.data()), sizeof(OptixLaunchParams), size
@@ -221,11 +221,11 @@ void OptixHandler::Impl::launch(OptixLaunchParams const &params, std::uint32_t s
 }
 
 OptixHandler::OptixHandler(Ref<Context> context, std::filesystem::path const &modulePath)
-    : impl_(std::make_unique<Impl>(std::move(context), modulePath)) {}
+    : pImpl_(std::make_unique<pImpl>(std::move(context), modulePath)) {}
 
 OptixHandler::~OptixHandler() = default;
 
-void OptixHandler::sync() { impl_->sync(); }
+void OptixHandler::sync() { pImpl_->sync(); }
 
 RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
     if (samples == 0)
@@ -233,13 +233,13 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
 
     auto const &film = product.getFilm();
     auto const resolution = Vec2u{film.getWidth(), film.getHeight()};
-    auto const sampler = impl_->context->getActiveSampler();
-    auto const integrator = impl_->context->getActiveIntegrator();
+    auto const sampler = pImpl_->context->getActiveSampler();
+    auto const integrator = pImpl_->context->getActiveIntegrator();
     auto const camera = product.getCamera().getImpl();
 
     // The module contains bound values. A changed Context spec requires sync
     // before launch.
-    if (impl_->optixContext.getProgramSpec() != OptixProgram::makeSpec(*impl_->context))
+    if (pImpl_->optixContext.getProgramSpec() != OptixProgram::makeSpec(*pImpl_->context))
         throw kira::Anyhow(
             "OptixHandler: program specialization changed; call sync before rendering"
         );
@@ -252,21 +252,21 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
     if (pixelCount > maxOptixLaunchDimension || samples > maxOptixLaunchDimension / pixelCount)
         throw std::invalid_argument("OptixHandler: render batch exceeds the OptiX launch limit");
     auto const pathCount = static_cast<std::uint32_t>(pixelCount * samples);
-    auto const launchSize = impl_->getLaunchSize(pathCount);
+    auto const launchSize = pImpl_->getLaunchSize(pathCount);
 
-    impl_->deviceContext.selectDevice();
+    pImpl_->deviceContext.selectDevice();
 
     // Film changes resize the product entry. A matching Camera::Impl keeps its
     // accumulation.
-    auto &entry = impl_->renderProducts.getOrCreate(product);
+    auto &entry = pImpl_->renderProducts.getOrCreate(product);
     auto const accumulatedSamples = entry.accumulation && entry.accumulation->camera == camera
                                         ? entry.accumulation->samples
                                         : 0;
     if (accumulatedSamples > std::numeric_limits<std::uint64_t>::max() - samples)
         throw std::invalid_argument("OptixHandler: accumulated sample count overflows");
     auto const lastBatchIndex = static_cast<std::uint64_t>(samples - 1);
-    if (accumulatedSamples > std::numeric_limits<std::uint64_t>::max() - impl_->sampleOffset ||
-        accumulatedSamples + impl_->sampleOffset >
+    if (accumulatedSamples > std::numeric_limits<std::uint64_t>::max() - pImpl_->sampleOffset ||
+        accumulatedSamples + pImpl_->sampleOffset >
             std::numeric_limits<std::uint64_t>::max() - lastBatchIndex)
         throw std::invalid_argument("OptixHandler: sample sequence index overflows");
 
@@ -274,7 +274,7 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
         // Clear accumulation before starting work. The next batch clears
         // partial pixels after a backend failure.
         entry.accumulation.reset();
-        impl_->timer.start();
+        pImpl_->timer.start();
         auto const totalSamples = accumulatedSamples + samples;
         if (accumulatedSamples == 0) {
             entry.storage.forEach([](auto &channel) { channel.buffer.zero(); });
@@ -283,16 +283,16 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
                 static_cast<float>(accumulatedSamples) / static_cast<float>(totalSamples);
             launchLinearKernel(
                 pixelCount, ScaleFilmChannels{.film = entry.film, .factor = factor},
-                impl_->getStream()
+                pImpl_->getStream()
             );
         }
 
         // The stream orders normalization, parameter upload, and OptiX work.
         // Synchronization below also closes the host lifetime of launch data.
-        impl_->pathCounter.zero();
-        auto const &programSpec = impl_->optixContext.getProgramSpec();
+        pImpl_->pathCounter.zero();
+        auto const &programSpec = pImpl_->optixContext.getProgramSpec();
         auto const params = OptixLaunchParams{
-            .scene = impl_->optixContext.getImpl(),
+            .scene = pImpl_->optixContext.getImpl(),
             .camera = camera,
             .sampler = sampler->getImpl(resolution),
             .integrator = integrator->getImpl(),
@@ -301,16 +301,16 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
                     .types = programSpec.bsdfTypes, // (2)
                 },
             .accumulatedSamples = accumulatedSamples,
-            .sampleOffset = impl_->sampleOffset,
-            .nextPath = impl_->pathCounter.data(),
+            .sampleOffset = pImpl_->sampleOffset,
+            .nextPath = pImpl_->pathCounter.data(),
             .film = entry.film,
             .batchSize = samples,
             .pathCount = pathCount,
             .shaderReorder = programSpec.shaderReorder, // (3)
             .hasEnvMap = programSpec.hasEnvMap,         // (4)
         };
-        impl_->launch(params, launchSize);
-        auto const elapsed = impl_->timer.stop();
+        pImpl_->launch(params, launchSize);
+        auto const elapsed = pImpl_->timer.stop();
 
         // Publish accumulation after all Film writes complete.
         entry.accumulation = OptixRenderProductPool::AccumulationState{
@@ -323,7 +323,7 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
         };
     } catch (...) {
         entry.accumulation.reset();
-        cudaCheck<false>(cudaStreamSynchronize(impl_->getStream()));
+        cudaCheck<false>(cudaStreamSynchronize(pImpl_->getStream()));
         throw;
     }
 }
@@ -332,19 +332,19 @@ void OptixHandler::download(RenderProduct &product) {
     if (getAccumulatedSamples(product) == 0)
         throw kira::Anyhow("OptixHandler: render product has no valid accumulation");
 
-    impl_->deviceContext.selectDevice();
-    auto *entry = impl_->renderProducts.find(product);
+    pImpl_->deviceContext.selectDevice();
+    auto *entry = pImpl_->renderProducts.find(product);
     assert(entry);
     auto destination = product.getFilm().prepareDownload();
     try {
         entry->storage.forEach([&](auto &channel) {
             using Channel = typename std::remove_reference_t<decltype(channel)>::ChannelType;
             auto *output = destination.channels.template get<Channel>().data;
-            channel.buffer.copyToHost({output, channel.buffer.size()}, impl_->getStream());
+            channel.buffer.copyToHost({output, channel.buffer.size()}, pImpl_->getStream());
         });
-        cudaCheck(cudaStreamSynchronize(impl_->getStream()));
+        cudaCheck(cudaStreamSynchronize(pImpl_->getStream()));
     } catch (...) {
-        cudaCheck<false>(cudaStreamSynchronize(impl_->getStream()));
+        cudaCheck<false>(cudaStreamSynchronize(pImpl_->getStream()));
         throw;
     }
 }
@@ -352,22 +352,22 @@ void OptixHandler::download(RenderProduct &product) {
 void OptixHandler::setLaunchWaves(double waves) {
     if (!(waves > 0.0))
         throw kira::Anyhow("OptixHandler: launch waves must be positive, got {}", waves);
-    impl_->launchWaves = waves;
+    pImpl_->launchWaves = waves;
 }
 
 std::uint32_t OptixHandler::getEstimatedResidentThreads() const {
-    return impl_->deviceContext.getEstimatedResidentThreads();
+    return pImpl_->deviceContext.getEstimatedResidentThreads();
 }
 
 void OptixHandler::setSampleOffset(std::uint64_t offset) {
-    if (impl_->sampleOffset == offset)
+    if (pImpl_->sampleOffset == offset)
         return;
-    impl_->sampleOffset = offset;
-    impl_->renderProducts.resetAccumulation();
+    pImpl_->sampleOffset = offset;
+    pImpl_->renderProducts.resetAccumulation();
 }
 
 std::uint64_t OptixHandler::getAccumulatedSamples(RenderProduct const &product) const {
-    auto const *entry = impl_->renderProducts.find(product);
+    auto const *entry = pImpl_->renderProducts.find(product);
     auto const &film = product.getFilm();
     if (!entry || entry->film.width != film.getWidth() || entry->film.height != film.getHeight() ||
         entry->requestedChannels != film.getChannels() || !entry->accumulation)
@@ -382,9 +382,9 @@ bool OptixHandler::isConverged(RenderProduct const &product) const {
 }
 
 void OptixHandler::release(RenderProduct const &product) noexcept {
-    impl_->deviceContext.selectDevice<false>();
-    impl_->renderProducts.erase(product);
+    pImpl_->deviceContext.selectDevice<false>();
+    pImpl_->renderProducts.erase(product);
 }
 
-Ref<Context> OptixHandler::getContext() const { return impl_->context; }
+Ref<Context> OptixHandler::getContext() const { return pImpl_->context; }
 } // namespace flux

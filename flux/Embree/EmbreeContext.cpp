@@ -1,10 +1,11 @@
 #include "flux/Embree/EmbreeContext.h"
 
+#include <Eigen/Core>
+#include <Eigen/LU>
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <limits>
-#include <unordered_map>
-#include <utility>
 
 #include "flux/Core/Logging.h"
 #include "flux/Core/MathUtils.h"
@@ -12,7 +13,6 @@
 #include "flux/Scene/Context.h"
 #include "flux/Scene/GeometryImpl.h"
 #include "flux/Scene/LightSamplingImpl.h"
-#include "flux/Scene/PrimitiveImpl.h"
 #include "flux/Scene/TriangleMeshImpl.h"
 #include "flux/Shading/EDF.h"
 #include "kira/Anyhow.h"
@@ -52,6 +52,24 @@ public:
 private:
     RTCGeometry geometry_;
 };
+
+/// \brief Returns the inverse-transpose of the linear part of \p transform.
+///
+/// \throw kira::Anyhow If \p transform is singular.
+[[nodiscard]] std::array<float, 9> makeNormalTransform(std::array<float, 12> const &transform) {
+    using AffineTransform = Eigen::Matrix<float, 3, 4, Eigen::RowMajor>;
+    using NormalMatrix = Eigen::Matrix<float, 3, 3, Eigen::RowMajor>;
+
+    Eigen::Map<AffineTransform const> objectToWorld(transform.data());
+    Eigen::Matrix3f const linear = objectToWorld.leftCols<3>();
+    if (linear.determinant() == 0.0F)
+        throw kira::Anyhow("EmbreeContext: transform is singular");
+
+    std::array<float, 9> result{};
+    Eigen::Map<NormalMatrix> normalTransform(result.data());
+    normalTransform = linear.inverse().transpose();
+    return result;
+}
 } // namespace
 
 EmbreeContext::EmbreeContext(EmptyState, Context &context) noexcept : context_(context) {}
@@ -76,14 +94,10 @@ void EmbreeContext::reset() noexcept {
     for (RTCScene const scene : meshScenes_)
         rtcReleaseScene(scene);
     meshScenes_.clear();
-    retainedMeshes_.clear();
     geometryImpls_.clear();
     triangleData_.clear();
-    primitives_.clear();
-    transforms_.clear();
+    table_.clear();
     normalTransforms_.clear();
-    bsdfs_.clear();
-    edfs_.clear();
     imageTexturePool_.clear();
     lightSampler_.clear();
 }
@@ -92,46 +106,14 @@ void EmbreeContext::sync() try {
     reset();
     context_.commit();
 
-    auto const contextPrimitives = context_.getObjects<Primitive>();
-    auto const contextBSDFs = context_.getObjects<BSDF>();
-    auto const contextEDFs = context_.getObjects<EDF>();
-    std::unordered_map<std::size_t, std::uint32_t> geometryIndexByContextId;
-    geometryIndexByContextId.reserve(contextPrimitives.size());
-    retainedMeshes_.reserve(contextPrimitives.size());
-    geometryImpls_.reserve(contextPrimitives.size());
-    triangleData_.reserve(contextPrimitives.size());
-    primitives_.reserve(contextPrimitives.size());
-    transforms_.reserve(contextPrimitives.size());
-    normalTransforms_.reserve(contextPrimitives.size());
-
-    // Use a live implementation for unused indices. Primitive indices select
-    // the live entries filled below.
-    if (!contextBSDFs.empty()) {
-        bsdfs_.assign(context_.getBSDFIndexLimit(), contextBSDFs.front()->getImpl());
-        for (auto const &bsdf : contextBSDFs)
-            bsdfs_[context_.getBSDFIndex(bsdf->getContextId())] = bsdf->getImpl();
-    }
-    if (!contextEDFs.empty()) {
-        edfs_.assign(context_.getEDFIndexLimit(), contextEDFs.front()->getImpl());
-        for (auto const &edf : contextEDFs)
-            edfs_[context_.getEDFIndex(edf->getContextId())] = edf->getImpl();
-    }
+    table_.build(context_);
     imageTexturePool_.build(context_);
 
-    auto const getOrAddGeometryIndex = [&](Ref<Geometry const> const &geometry) {
-        auto const contextId = geometry->getContextId();
-        if (auto const iterator = geometryIndexByContextId.find(contextId);
-            iterator != geometryIndexByContextId.end())
-            return iterator->second;
-
-        if (retainedMeshes_.size() >= std::numeric_limits<std::uint32_t>::max())
-            throw kira::Anyhow("EmbreeContext: geometry count exceeds Embree index limits");
-
-        auto mesh = geometry.dynamicCast<TriangleMesh const>();
-        if (!mesh || geometry->getType() != GeometryType::TriangleMesh)
-            throw kira::Anyhow("EmbreeContext: unsupported geometry implementation");
-
-        auto const index = static_cast<std::uint32_t>(retainedMeshes_.size());
+    // Geometry data is heap allocated, so growing triangleData_ leaves these
+    // pointers valid.
+    geometryImpls_.reserve(table_.meshes.size());
+    triangleData_.reserve(table_.meshes.size());
+    for (auto const &mesh : table_.meshes) {
         auto impl = mesh->getImpl();
         auto &data = triangleData_.emplace_back();
         data.areaCDF.resize_for_overwrite(impl.numTriangles);
@@ -144,43 +126,16 @@ void EmbreeContext::sync() try {
         impl.triangleAreaPDF = data.areaPDF.data();
         impl.surfaceArea = data.areaCDF.empty() ? impl.surfaceArea : data.areaCDF.back();
         geometryImpls_.emplace_back(impl);
-        retainedMeshes_.push_back(std::move(mesh));
-        geometryIndexByContextId.emplace(contextId, index);
-        return index;
-    };
-
-    // Pack visible primitives into dense Embree arrays. All arrays use the same
-    // primitive order.
-    for (auto const &primitive : contextPrimitives) {
-        if (!primitive->isVisible())
-            continue;
-        if (primitives_.size() >= std::numeric_limits<std::uint32_t>::max())
-            throw kira::Anyhow("EmbreeContext: primitive count exceeds Embree index limits");
-
-        auto const geometry = primitive->getGeometry();
-        auto const edf = primitive->getEDF();
-        auto const geometryIndex = getOrAddGeometryIndex(geometry);
-        auto const bsdf = primitive->getBSDF();
-        auto bsdfIndex = Primitive::Impl::invalidBSDFIndex;
-        if (bsdf)
-            bsdfIndex = context_.getBSDFIndex(bsdf->getContextId());
-
-        auto edfIndex = Primitive::Impl::invalidEDFIndex;
-        if (edf)
-            edfIndex = context_.getEDFIndex(edf->getContextId());
-
-        primitives_.push_back({
-            .geometryIndex = geometryIndex,
-            .bsdfIndex = bsdfIndex,
-            .edfIndex = edfIndex,
-        });
-        transforms_.push_back(primitive->getTransform());
-        normalTransforms_.push_back(primitive->getNormalTransform());
     }
-    // Embree borrows retained mesh arrays until the next sync. A sync builds
-    // immutable final-frame scenes, so favor traversal over build time.
-    meshScenes_.reserve(retainedMeshes_.size());
-    for (auto const &mesh : retainedMeshes_) {
+
+    normalTransforms_.reserve(table_.primitives.size());
+    for (auto const &transform : table_.transforms)
+        normalTransforms_.push_back(makeNormalTransform(transform));
+
+    // Embree borrows the mesh arrays the tables retain until the next sync. The
+    // scenes are immutable, so they favor traversal over build time.
+    meshScenes_.reserve(table_.meshes.size());
+    for (auto const &mesh : table_.meshes) {
         RTCScene childScene = rtcNewScene(device_);
         embreeCheck(device_);
         meshScenes_.push_back(childScene);
@@ -216,15 +171,15 @@ void EmbreeContext::sync() try {
     embreeCheck(device_);
     rtcSetSceneBuildQuality(scene_, RTC_BUILD_QUALITY_HIGH);
     embreeCheck(device_);
-    for (std::size_t index = 0; index < primitives_.size(); ++index) {
+    for (std::size_t index = 0; index < table_.primitives.size(); ++index) {
         EmbreeGeometryHandle instance(rtcNewGeometry(device_, RTC_GEOMETRY_TYPE_INSTANCE));
         embreeCheck(device_);
         rtcSetGeometryInstancedScene(
-            instance.get(), meshScenes_[primitives_[index].getGeometryIndex()]
+            instance.get(), meshScenes_[table_.primitives[index].getGeometryIndex()]
         );
         embreeCheck(device_);
         rtcSetGeometryTransform(
-            instance.get(), 0, RTC_FORMAT_FLOAT3X4_ROW_MAJOR, transforms_[index].data()
+            instance.get(), 0, RTC_FORMAT_FLOAT3X4_ROW_MAJOR, table_.transforms[index].data()
         );
         embreeCheck(device_);
         rtcCommitGeometry(instance.get());
@@ -236,7 +191,7 @@ void EmbreeContext::sync() try {
     embreeCheck(device_);
 
     auto sceneRadius = 1.0F;
-    if (!primitives_.empty()) {
+    if (!table_.primitives.empty()) {
         RTCBounds bounds{};
         rtcGetSceneBounds(scene_, &bounds);
         embreeCheck(device_);
@@ -249,10 +204,10 @@ void EmbreeContext::sync() try {
                 .norm() *
             0.5F;
     }
-    lightSampler_.build(context_, primitives_, imageTexturePool_.getImpl(), sceneRadius);
+    lightSampler_.build(context_, table_.primitives, imageTexturePool_.getImpl(), sceneRadius);
     LogDebug(
-        "EmbreeContext: built {} geometries and {} visible primitives", retainedMeshes_.size(),
-        primitives_.size()
+        "EmbreeContext: built {} geometries and {} visible primitives", table_.meshes.size(),
+        table_.primitives.size()
     );
 } catch (...) {
     reset();
@@ -262,18 +217,17 @@ void EmbreeContext::sync() try {
 EmbreeContext::Impl EmbreeContext::getImpl() const noexcept {
     return {
         .scene = scene_,
-        .geometries = geometryImpls_.data(),
-        .primitives = primitives_.data(),
-        .transforms = transforms_.data(),
+        .table =
+            {
+                .geometries = geometryImpls_.data(),
+                .primitives = table_.primitives.data(),
+                .bsdfs = table_.bsdfs.data(),
+                .edfs = table_.edfs.data(),
+            },
+        .transforms = table_.transforms.data(),
         .normalTransforms = normalTransforms_.data(),
-        .bsdfs = bsdfs_.data(),
-        .edfs = edfs_.data(),
         .imageTexturePool = imageTexturePool_.getImpl(),
         .lightSampler = lightSampler_.getImpl(),
-        .numGeometries = static_cast<std::uint32_t>(geometryImpls_.size()),
-        .numPrimitives = static_cast<std::uint32_t>(primitives_.size()),
-        .bsdfIndexLimit = static_cast<std::uint32_t>(bsdfs_.size()),
-        .edfIndexLimit = static_cast<std::uint32_t>(edfs_.size()),
     };
 }
 
@@ -314,8 +268,8 @@ bool EmbreeContext::Impl::isVisible(Ray const &ray) const noexcept {
 
 SurfaceInteraction
 EmbreeContext::Impl::makeSurfaceInteraction(Ray const &ray, Hit const &hit) const noexcept {
-    auto const &primitive = primitives[hit.primitiveIndex];
-    auto const &geometry = geometries[primitive.getGeometryIndex()];
+    auto const &primitive = table.getPrimitive(hit.primitiveIndex);
+    auto const &geometry = table.getGeometry(primitive.getGeometryIndex());
     auto const geometryInteraction = geometry.computeInteraction(hit.preliminary);
     auto const shadingNormal =
         geometry.interpolateShadingNormal(hit.preliminary, hit.geometricNormal);
@@ -333,19 +287,6 @@ EmbreeContext::Impl::makeSurfaceInteraction(Ray const &ray, Hit const &hit) cons
         .uvGradV = uvGradV,
         .primitiveIndex = hit.primitiveIndex,
         .elementIndex = hit.preliminary.elementIndex,
-    };
-}
-
-TextureEvalContext EmbreeContext::Impl::getTextureEvalContext(
-    SurfaceInteraction const &isect, Vec3f const &direction, RayFootprint const &footprint
-) const noexcept {
-    auto dpdx = Vec3f{};
-    auto dpdy = Vec3f{};
-    footprint.project(direction, isect.geometricNormal, dpdx, dpdy);
-    return TextureEvalContext{
-        .uv = isect.uv,
-        .duvdx = {dpdx.dot(isect.uvGradU), dpdx.dot(isect.uvGradV)},
-        .duvdy = {dpdy.dot(isect.uvGradU), dpdy.dot(isect.uvGradV)},
     };
 }
 

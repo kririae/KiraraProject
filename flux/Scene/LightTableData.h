@@ -25,7 +25,7 @@ struct LightTable {
 /// \brief Owns the host light data packed by backend samplers.
 ///
 /// A slot indexes matching entries in \c handles, \c powers, and the sampler
-/// CDF. The next \c build or \c clear invalidates the returned table.
+/// CDF.
 struct LightTableData final : private Noncopyable {
     static constexpr std::uint32_t invalidSlot = LightPowerDistribution::invalidSlot;
 
@@ -54,8 +54,6 @@ public:
     );
 
     void clear() noexcept;
-
-    [[nodiscard]] LightTable getTable(EnvMapLight::Impl const *envMap) const noexcept;
 };
 
 static_assert(std::is_standard_layout_v<LightTable>);

@@ -9,7 +9,7 @@
 #include "flux/Sampling/SamplerImpl.h"
 #include "flux/Scene/Light.h"
 #include "flux/Scene/LightSamplingImpl.h"
-#include "flux/Scene/PrimitiveImpl.h"
+#include "flux/Scene/Primitive.h"
 #include "flux/Scene/RenderObject.h"
 #include "flux/Shading/BSDF.h"
 #include "flux/Shading/EDF.h"
@@ -207,7 +207,7 @@ public:
                 weight = misWeight(state.prevBSDFPdf, lightPdf);
             }
 
-            auto const emission = backend.getEDF(prim.getEDFIndex())
+            auto const emission = backend.table.getEDF(prim.getEDFIndex())
                                       .evaluate({
                                           .geometricNormal = isect.geometricNormal,
                                           .wo = wo,

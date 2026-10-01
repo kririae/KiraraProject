@@ -7,7 +7,6 @@
 #include "flux/Sampling/SamplerImpl.h"
 #include "flux/Scene/CameraImpl.h"
 #include "flux/Scene/FilmImpl.h"
-#include "flux/Scene/PrimitiveImpl.h"
 #include "flux/Scene/TriangleMeshImpl.h"
 #include "flux/Shading/BSDFImpl.h"
 #include "flux/Shading/Frame.h"
@@ -84,7 +83,7 @@ struct ShadowQuery {
     // NVCC generates a faster path when the unpacked footprint stays in this scope.
     auto footprint = state.footprint.unpack();
     footprint.propagate(optixHitObjectGetRayTmax());
-    auto const &primitive = optixLaunchParams.scene.getPrimitive(isect.primitiveIndex);
+    auto const &primitive = optixLaunchParams.scene.table.getPrimitive(isect.primitiveIndex);
     auto const isPrimary = state.depth == 0;
     auto const wo = -state.rayDirection;
     if (writesColor)
@@ -128,9 +127,8 @@ struct ShadowQuery {
     auto const u = state.sampler.get3D(flux::SampleUse::Bsdf, state.depth);
     auto const uLobe = u.x();
     auto const uDirection = flux::Vec2f{u.y(), u.z()};
-    auto const &bsdf = optixLaunchParams.scene.getBSDF(primitive.getBSDFIndex());
-    auto const texCtx =
-        optixLaunchParams.scene.getTextureEvalContext(isect, state.rayDirection, footprint);
+    auto const &bsdf = optixLaunchParams.scene.table.getBSDF(primitive.getBSDFIndex());
+    auto const texCtx = flux::makeTextureEvalContext(isect, state.rayDirection, footprint);
     auto const result = optixLaunchParams.bsdfDispatcher.execute<OptixImageTextureEvaluator>(
         bsdf, texCtx, localWo, localLightWi, directLight.pdf > 0.0F, uLobe, uDirection
     );

@@ -24,9 +24,11 @@ class ThrowingIntegratorOwner final : public flux::RenderObject {
 };
 
 struct EmitterHitContext {
-    flux::EDF::Impl edf;
+    struct Table {
+        flux::EDF::Impl edf;
 
-    [[nodiscard]] flux::EDF::Impl const &getEDF(std::uint32_t) const noexcept { return edf; }
+        [[nodiscard]] flux::EDF::Impl const &getEDF(std::uint32_t) const noexcept { return edf; }
+    } table;
 
     [[nodiscard]] float pdfDirectLight(
         flux::LightSamplingContext const &, flux::Primitive::Impl const &,
@@ -145,7 +147,7 @@ TEST(PathIntegratorTests, EnablesShaderReorderingFromProperties) {
 
 TEST(PathIntegratorTests, WeightsBsdfSampledEmitterHits) {
     auto const context = EmitterHitContext{
-        .edf = flux::ConstantEDF::Impl{.radiance = {2.0F, 2.0F, 2.0F}},
+        .table = {.edf = flux::ConstantEDF::Impl{.radiance = {2.0F, 2.0F, 2.0F}}},
     };
     auto const prim = flux::Primitive::Impl{.edfIndex = 0, .primLightIndex = 0};
     auto state = flux::PathState{

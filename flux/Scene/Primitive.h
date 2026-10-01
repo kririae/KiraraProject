@@ -60,11 +60,6 @@ public:
     /// \brief Returns the row-major object-to-world affine transform.
     [[nodiscard]] std::array<float, 12> const &getTransform() const noexcept { return transform_; }
 
-    /// \brief Returns the row-major object-to-world normal transform.
-    ///
-    /// \throw kira::Anyhow If the affine transform is singular.
-    [[nodiscard]] std::array<float, 9> getNormalTransform() const;
-
     /// \brief Replaces the object-to-world affine transform.
     void setTransform(std::array<float, 12> const &transform) noexcept { transform_ = transform; }
 
@@ -116,20 +111,33 @@ struct Primitive::Impl {
 
 public:
     /// \brief Returns the dense geometry index in this backend scene.
-    [[nodiscard]] KIRA_HOST_DEVICE inline std::uint32_t getGeometryIndex() const noexcept;
+    [[nodiscard]] KIRA_HOST_DEVICE std::uint32_t getGeometryIndex() const noexcept {
+        return geometryIndex;
+    }
 
     /// \brief Returns whether this primitive has a BSDF.
-    [[nodiscard]] KIRA_HOST_DEVICE inline bool hasBSDF() const noexcept;
+    [[nodiscard]] KIRA_HOST_DEVICE bool hasBSDF() const noexcept {
+        return bsdfIndex != invalidBSDFIndex;
+    }
 
     /// \brief Returns the bound BSDF index assigned by Context.
     ///
     /// \pre \c hasBSDF() is true.
-    [[nodiscard]] KIRA_HOST_DEVICE inline std::uint32_t getBSDFIndex() const noexcept;
+    [[nodiscard]] KIRA_HOST_DEVICE std::uint32_t getBSDFIndex() const noexcept { return bsdfIndex; }
 
-    [[nodiscard]] KIRA_HOST_DEVICE inline bool hasEDF() const noexcept;
-    [[nodiscard]] KIRA_HOST_DEVICE inline std::uint32_t getEDFIndex() const noexcept;
-    [[nodiscard]] KIRA_HOST_DEVICE inline bool isLight() const noexcept;
-    [[nodiscard]] KIRA_HOST_DEVICE inline std::uint32_t getPrimLightIndex() const noexcept;
+    [[nodiscard]] KIRA_HOST_DEVICE bool hasEDF() const noexcept {
+        return edfIndex != invalidEDFIndex;
+    }
+
+    [[nodiscard]] KIRA_HOST_DEVICE std::uint32_t getEDFIndex() const noexcept { return edfIndex; }
+
+    [[nodiscard]] KIRA_HOST_DEVICE bool isLight() const noexcept {
+        return primLightIndex != invalidPrimLightIndex;
+    }
+
+    [[nodiscard]] KIRA_HOST_DEVICE std::uint32_t getPrimLightIndex() const noexcept {
+        return primLightIndex;
+    }
 };
 
 static_assert(std::is_standard_layout_v<Primitive::Impl>);

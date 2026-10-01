@@ -1,7 +1,5 @@
 #include "flux/Scene/Primitive.h"
 
-#include <Eigen/Core>
-#include <Eigen/LU>
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -95,21 +93,6 @@ void Primitive::setEDF(Ref<EDF const> edf) {
     if (edf_ == edf)
         return;
     edf_ = std::move(edf);
-}
-
-std::array<float, 9> Primitive::getNormalTransform() const {
-    using AffineTransform = Eigen::Matrix<float, 3, 4, Eigen::RowMajor>;
-    using NormalMatrix = Eigen::Matrix<float, 3, 3, Eigen::RowMajor>;
-
-    Eigen::Map<AffineTransform const> objectToWorld(transform_.data());
-    Eigen::Matrix3f const linear = objectToWorld.leftCols<3>();
-    if (linear.determinant() == 0.0F)
-        throw kira::Anyhow("Primitive: transform is singular");
-
-    std::array<float, 9> result{};
-    Eigen::Map<NormalMatrix> normalTransform(result.data());
-    normalTransform = linear.inverse().transpose();
-    return result;
 }
 
 float Primitive::estimateAreaScale() const noexcept {

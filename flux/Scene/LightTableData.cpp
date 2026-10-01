@@ -96,13 +96,4 @@ void LightTableData::clear() noexcept {
     envMapSlot = invalidSlot;
 }
 
-LightTable LightTableData::getTable(EnvMapLight::Impl const *envMap) const noexcept {
-    return {
-        .pointLights = pointLights.data(),
-        .primIndices = primIndices.data(),
-        .primAreaScales = primAreaScales.data(),
-        .envMap = envMap,
-    };
-}
-
 } // namespace flux

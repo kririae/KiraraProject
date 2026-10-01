@@ -89,7 +89,13 @@ void EmbreeLightSampler::clear() noexcept {
 
 EmbreeLightSampler::Impl EmbreeLightSampler::getImpl() const noexcept {
     return {
-        .table = tableData_.getTable(envMap_ ? &*envMap_ : nullptr),
+        .table =
+            {
+                .pointLights = tableData_.pointLights.data(),
+                .primIndices = tableData_.primIndices.data(),
+                .primAreaScales = tableData_.primAreaScales.data(),
+                .envMap = envMap_ ? &*envMap_ : nullptr,
+            },
         .lights = tableData_.handles.data(),
         .pointSlots = tableData_.pointSlots.data(),
         .primSlots = tableData_.primSlots.data(),

@@ -6,6 +6,7 @@
 #include <type_traits>
 
 #include "flux/Core/Math.h"
+#include "flux/Core/RayFootprint.h"
 #include "flux/Scene/ImageAsset.h"
 #include "flux/Scene/RenderObject.h"
 #include "flux/Shading/Interaction.h"
@@ -18,6 +19,22 @@ struct TextureEvalContext {
     Vec2f duvdx{};
     Vec2f duvdy{};
 };
+
+/// \brief Returns the texture coordinates and gradients at \p isect.
+///
+/// \p footprint is projected to the plane of \p isect.
+[[nodiscard]] KIRA_HOST_DEVICE inline TextureEvalContext makeTextureEvalContext(
+    SurfaceInteraction const &isect, Vec3f const &direction, RayFootprint const &footprint
+) noexcept {
+    auto dpdx = Vec3f{};
+    auto dpdy = Vec3f{};
+    footprint.project(direction, isect.geometricNormal, dpdx, dpdy);
+    return {
+        .uv = isect.uv,
+        .duvdx = {dpdx.dot(isect.uvGradU), dpdx.dot(isect.uvGradV)},
+        .duvdy = {dpdy.dot(isect.uvGradU), dpdy.dot(isect.uvGradV)},
+    };
+}
 
 enum class TextureType : std::uint8_t {
     Constant,

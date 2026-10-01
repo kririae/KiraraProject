@@ -30,8 +30,8 @@ namespace {
 }
 } // namespace
 
-struct EmbreeHandler::Impl {
-    explicit Impl(Ref<Context> hostContext)
+struct EmbreeHandler::pImpl {
+    explicit pImpl(Ref<Context> hostContext)
         : context(requireContext(std::move(hostContext))), embreeContext(*context) {
         sync();
     }
@@ -50,11 +50,11 @@ struct EmbreeHandler::Impl {
 };
 
 EmbreeHandler::EmbreeHandler(Ref<Context> context)
-    : impl_(std::make_unique<Impl>(std::move(context))) {}
+    : pImpl_(std::make_unique<pImpl>(std::move(context))) {}
 
 EmbreeHandler::~EmbreeHandler() = default;
 
-void EmbreeHandler::sync() { impl_->sync(); }
+void EmbreeHandler::sync() { pImpl_->sync(); }
 
 RenderStats EmbreeHandler::render(RenderProduct const &product, std::uint32_t samples) {
     if (samples == 0)
@@ -68,31 +68,31 @@ RenderStats EmbreeHandler::render(RenderProduct const &product, std::uint32_t sa
     if (pixelCount != 0 && samples > std::numeric_limits<std::uint64_t>::max() / pixelCount)
         throw std::invalid_argument("EmbreeHandler: render batch path count overflows");
     auto const batchPaths = static_cast<std::uint64_t>(pixelCount) * samples;
-    auto const sampler = impl_->context->getActiveSampler();
-    auto const integrator = impl_->context->getActiveIntegrator();
+    auto const sampler = pImpl_->context->getActiveSampler();
+    auto const integrator = pImpl_->context->getActiveIntegrator();
     auto const camera = product.getCamera().getImpl();
 
     // Film changes resize the product entry. A matching Camera::Impl keeps its
     // accumulation.
-    auto &entry = impl_->renderProducts.getOrCreate(product);
+    auto &entry = pImpl_->renderProducts.getOrCreate(product);
     auto const accumulatedSamples = entry.accumulation && entry.accumulation->camera == camera
                                         ? entry.accumulation->samples
                                         : 0;
     if (accumulatedSamples > std::numeric_limits<std::uint64_t>::max() - samples)
         throw std::invalid_argument("EmbreeHandler: accumulated sample count overflows");
     auto const lastBatchIndex = static_cast<std::uint64_t>(samples - 1);
-    if (accumulatedSamples > std::numeric_limits<std::uint64_t>::max() - impl_->sampleOffset ||
-        accumulatedSamples + impl_->sampleOffset >
+    if (accumulatedSamples > std::numeric_limits<std::uint64_t>::max() - pImpl_->sampleOffset ||
+        accumulatedSamples + pImpl_->sampleOffset >
             std::numeric_limits<std::uint64_t>::max() - lastBatchIndex)
         throw std::invalid_argument("EmbreeHandler: sample sequence index overflows");
 
     auto const params = EmbreeLaunchParams{
-        .scene = impl_->embreeContext.getImpl(),
+        .scene = pImpl_->embreeContext.getImpl(),
         .camera = camera,
         .sampler = sampler->getImpl({film.getWidth(), film.getHeight()}),
         .integrator = integrator->getImpl(),
         .accumulatedSamples = accumulatedSamples,
-        .sampleOffset = impl_->sampleOffset,
+        .sampleOffset = pImpl_->sampleOffset,
         .film = entry.film,
         .batchSize = samples,
     };
@@ -137,7 +137,7 @@ void EmbreeHandler::download(RenderProduct &product) {
     if (getAccumulatedSamples(product) == 0)
         throw kira::Anyhow("EmbreeHandler: render product has no valid accumulation");
 
-    auto *entry = impl_->renderProducts.find(product);
+    auto *entry = pImpl_->renderProducts.find(product);
     assert(entry);
     auto destination = product.getFilm().prepareDownload();
     entry->storage.forEach([&](auto const &channel) {
@@ -151,14 +151,14 @@ void EmbreeHandler::download(RenderProduct &product) {
 }
 
 void EmbreeHandler::setSampleOffset(std::uint64_t offset) {
-    if (impl_->sampleOffset == offset)
+    if (pImpl_->sampleOffset == offset)
         return;
-    impl_->sampleOffset = offset;
-    impl_->renderProducts.resetAccumulation();
+    pImpl_->sampleOffset = offset;
+    pImpl_->renderProducts.resetAccumulation();
 }
 
 std::uint64_t EmbreeHandler::getAccumulatedSamples(RenderProduct const &product) const {
-    auto const *entry = impl_->renderProducts.find(product);
+    auto const *entry = pImpl_->renderProducts.find(product);
     if (!entry || !entry->accumulation)
         return 0;
     auto const &film = product.getFilm();
@@ -174,8 +174,8 @@ bool EmbreeHandler::isConverged(RenderProduct const &product) const {
 }
 
 void EmbreeHandler::release(RenderProduct const &product) noexcept {
-    impl_->renderProducts.erase(product);
+    pImpl_->renderProducts.erase(product);
 }
 
-Ref<Context> EmbreeHandler::getContext() const { return impl_->context; }
+Ref<Context> EmbreeHandler::getContext() const { return pImpl_->context; }
 } // namespace flux

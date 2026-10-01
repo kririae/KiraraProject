@@ -95,7 +95,7 @@ public:
     [[nodiscard]] Ref<Context> getContext() const;
 
 private:
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
+    struct pImpl;
+    std::unique_ptr<pImpl> pImpl_;
 };
 } // namespace flux

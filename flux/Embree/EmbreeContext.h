@@ -14,6 +14,8 @@
 #include "flux/Embree/EmbreeLightSampler.h"
 #include "flux/Scene/GeometryImpl.h"
 #include "flux/Scene/Primitive.h"
+#include "flux/Scene/SceneTable.h"
+#include "flux/Scene/SceneTableData.h"
 #include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
 #include "flux/Shading/EDF.h"
@@ -25,9 +27,10 @@ class Context;
 
 /// \brief Owns the Embree scene built from one host \c Context.
 ///
-/// The Embree scene shares immutable mesh arrays with retained meshes and owns
-/// its acceleration structures, scene tables, and instance normal transforms.
-/// Call \c sync from one thread. Traversal supports concurrent calls after sync.
+/// The Embree scene shares immutable mesh arrays with the scene tables and owns
+/// its acceleration structures, triangle sampling distributions, and instance
+/// normal transforms. Call \c sync from one thread. Traversal supports
+/// concurrent calls after sync.
 class EmbreeContext final : private Noncopyable {
 public:
     struct Impl;
@@ -72,6 +75,9 @@ private:
     /// Host \c Context borrowed from the owning handler.
     Context &context_;
 
+    /// Dense scene tables built from the host \c Context.
+    SceneTableData table_;
+
     /// Embree device retained across scene rebuilds.
     RTCDevice device_{};
 
@@ -81,29 +87,14 @@ private:
     /// One instanced child scene per unique mesh.
     std::vector<RTCScene> meshScenes_;
 
-    /// Host meshes retained for the lifetime of their shared Embree buffers.
-    std::vector<Ref<TriangleMesh const>> retainedMeshes_;
-
-    /// Geometry-space views of retained mesh arrays.
+    /// Geometry-space views of the mesh arrays the tables retain.
     std::vector<Geometry::Impl> geometryImpls_;
 
     /// Per-triangle data for each geometry.
     std::vector<TriangleData> triangleData_;
 
-    /// Visible primitives indexed by top-level Embree instance ID.
-    std::vector<Primitive::Impl> primitives_;
-
-    /// Object-to-world transforms indexed by top-level instance ID.
-    std::vector<std::array<float, 12>> transforms_;
-
-    /// World-space normal transforms indexed by top-level instance ID.
+    /// World-space normal transforms indexed by dense primitive index.
     std::vector<std::array<float, 9>> normalTransforms_;
-
-    /// BSDF implementations indexed by the indices assigned by Context.
-    std::vector<BSDF::Impl> bsdfs_;
-
-    /// EDF implementations indexed by the indices assigned by Context.
-    std::vector<EDF::Impl> edfs_;
 
     /// Image textures used by BSDFs.
     EmbreeImageTexturePool imageTexturePool_;
@@ -119,32 +110,18 @@ struct EmbreeContext::Impl {
     /// Current top-level Embree scene.
     RTCScene scene{};
 
-    /// Geometry-space views.
-    Geometry::Impl const *geometries{};
+    /// Dense scene tables in host memory.
+    SceneTable table{};
 
-    /// Visible primitives indexed by Embree instance ID.
-    Primitive::Impl const *primitives{};
-
-    /// Row-major object-to-world transforms indexed by primitive.
+    /// Object-to-world transforms indexed by dense primitive index.
     std::array<float, 12> const *transforms{};
 
-    /// Inverse-transpose normal transforms indexed by primitive.
+    /// World-space normal transforms indexed by dense primitive index.
     std::array<float, 9> const *normalTransforms{};
-
-    /// BSDF implementations indexed by the indices assigned by Context.
-    BSDF::Impl const *bsdfs{};
-
-    /// EDF implementations indexed by the indices assigned by Context.
-    EDF::Impl const *edfs{};
 
     EmbreeImageTexturePool::Impl imageTexturePool{};
 
     EmbreeLightSampler::Impl lightSampler{};
-
-    std::uint32_t numGeometries{};  // *geometries
-    std::uint32_t numPrimitives{};  // *primitives
-    std::uint32_t bsdfIndexLimit{}; // *bsdfs
-    std::uint32_t edfIndexLimit{};  // *edfs
 
 public:
     /// \brief Finds the closest intersection of \p ray.
@@ -167,35 +144,6 @@ public:
     [[nodiscard]] Vec3f
     transformNormalToWorld(std::uint32_t primitiveIndex, Vec3f const &normal) const noexcept {
         return transformVec(normalTransforms[primitiveIndex].data(), normal);
-    }
-
-    [[nodiscard]] TextureEvalContext getTextureEvalContext(
-        SurfaceInteraction const &isect, Vec3f const &direction, RayFootprint const &footprint
-    ) const noexcept;
-
-    /// \brief Returns the primitive at dense \p index.
-    ///
-    /// \pre \p index is less than \c numPrimitives.
-    [[nodiscard]] Primitive::Impl const &getPrimitive(std::uint32_t index) const noexcept {
-        return primitives[index];
-    }
-
-    /// \brief Returns the geometry at dense \p index.
-    ///
-    /// \pre \p index is less than \c numGeometries.
-    [[nodiscard]] Geometry::Impl const &getGeometry(std::uint32_t index) const noexcept {
-        return geometries[index];
-    }
-
-    /// \brief Returns the BSDF at \p index.
-    ///
-    /// \pre \p index is less than \c bsdfIndexLimit.
-    [[nodiscard]] BSDF::Impl const &getBSDF(std::uint32_t index) const noexcept {
-        return bsdfs[index];
-    }
-
-    [[nodiscard]] EDF::Impl const &getEDF(std::uint32_t index) const noexcept {
-        return edfs[index];
     }
 
     /// \brief Returns the PDF of sampling \p isect from \p ctx.

@@ -9,7 +9,6 @@
 #include "flux/Optix/OptixInteraction.cuh"
 #include "flux/Scene/GeometryImpl.h"
 #include "flux/Scene/LightSamplingImpl.h"
-#include "flux/Scene/PrimitiveImpl.h"
 #include "flux/Shading/EDF.h"
 
 namespace flux {
@@ -42,8 +41,8 @@ OptixContext::Impl::intersect(Ray const &ray, Hit &hit, bool shaderReorder) cons
 
     // Capture the world-space interaction while the outgoing hit object provides its transform.
     auto const primitiveIndex = optixHitObjectGetInstanceId();
-    auto const &primitive = getPrimitive(primitiveIndex);
-    auto const &geometry = getGeometry(primitive.getGeometryIndex());
+    auto const &primitive = table.getPrimitive(primitiveIndex);
+    auto const &geometry = table.getGeometry(primitive.getGeometryIndex());
     auto const barycentrics = optixHitObjectGetTriangleBarycentrics();
     auto const preliminary = PreliminaryIntersection{
         .distance = optixHitObjectGetRayTmax(),
@@ -94,39 +93,6 @@ KIRA_DEVICE inline Vec3f OptixContext::Impl::transformNormalToWorld(
     auto const instance = optixGetInstanceTraversableFromIAS(traversable, primitiveIndex);
     auto const *transform = optixGetInstanceInverseTransformFromHandle(instance);
     return transformTransposeVec(transform, normal);
-}
-
-KIRA_DEVICE inline TextureEvalContext OptixContext::Impl::getTextureEvalContext(
-    SurfaceInteraction const &isect, Vec3f const &direction, RayFootprint const &footprint
-) const noexcept {
-    auto dpdx = Vec3f{};
-    auto dpdy = Vec3f{};
-    footprint.project(direction, isect.geometricNormal, dpdx, dpdy);
-    return TextureEvalContext{
-        .uv = isect.uv,
-        .duvdx = {dpdx.dot(isect.uvGradU), dpdx.dot(isect.uvGradV)},
-        .duvdy = {dpdy.dot(isect.uvGradU), dpdy.dot(isect.uvGradV)},
-    };
-}
-
-KIRA_DEVICE inline Primitive::Impl const &
-OptixContext::Impl::getPrimitive(std::uint32_t instanceIndex) const noexcept {
-    return primitives[instanceIndex];
-}
-
-KIRA_DEVICE inline Geometry::Impl const &
-OptixContext::Impl::getGeometry(std::uint32_t geometryIndex) const noexcept {
-    return geometries[geometryIndex];
-}
-
-KIRA_DEVICE inline BSDF::Impl const &
-OptixContext::Impl::getBSDF(std::uint32_t bsdfIndex) const noexcept {
-    return bsdfs[bsdfIndex];
-}
-
-KIRA_DEVICE inline EDF::Impl const &
-OptixContext::Impl::getEDF(std::uint32_t edfIndex) const noexcept {
-    return edfs[edfIndex];
 }
 
 KIRA_DEVICE inline float OptixContext::Impl::pdfDirectLight(
