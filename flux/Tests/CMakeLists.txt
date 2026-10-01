@@ -187,6 +187,16 @@ target_link_libraries(flux.Optix.PipelineTests PRIVATE CUDA::cudart)
 add_dependencies(flux.Optix.PipelineTests flux_megakernel_ir)
 
 krr_add_test(
+    flux Optix UpdateTests
+    SOURCES OptixUpdateTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(
+    flux.Optix.UpdateTests PRIVATE FLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/OptixUpdateTests"
+                                   FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
+target_link_libraries(flux.Optix.UpdateTests PRIVATE CUDA::cudart)
+add_dependencies(flux.Optix.UpdateTests flux_megakernel_ir)
+
+krr_add_test(
     flux Optix LaunchParamsTests
     SOURCES OptixLaunchParamsTests.cpp
     HARD_DEPENDENCIES flux)
