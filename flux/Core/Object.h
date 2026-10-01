@@ -152,6 +152,11 @@ public:
 /// \brief Identifies a kind of context object that has its own index map.
 ///
 /// A \c Context assigns every object of a kind an index in that kind's map.
+///
+/// A kind needs a map exactly when something outside the table that stores its
+/// objects holds their indices: a primitive, BSDF, or EDF entry holds them, and
+/// a ray hit holds a primitive index. A point light is not a kind. Only the light
+/// table's own slots hold a point index, so that table orders point lights itself.
 enum class IndexedKind : std::uint8_t {
     ImageTexture,
     BSDF,
