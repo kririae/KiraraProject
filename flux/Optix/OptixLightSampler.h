@@ -55,7 +55,7 @@ struct OptixLightSampler::Impl {
 
     /// Light at each slot.
     LightHandle const *handles{};
-    /// Slot of each primitive by dense primitive index.
+    /// Slot of each primitive by primitive index.
     std::uint32_t const *primSlots{};
     std::uint32_t envMapSlot{LightTableData::invalidSlot};
     LightPowerDistribution power{};

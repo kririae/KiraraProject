@@ -85,7 +85,7 @@ private:
     /// Host \c Context borrowed from the owning handler.
     Context &context_;
 
-    /// Dense scene tables built from the host \c Context.
+    /// Scene tables built from the host \c Context.
     SceneTableData table_;
 
     /// Embree device retained across scene rebuilds.

@@ -46,14 +46,14 @@ struct OptixContext::Storage : private CudaStreamMixin {
         // Instance each visible primitive. Its instance ID is its primitive index, and
         // its instance index is its position among the visible primitives.
         std::vector<OptixAccel::InstanceDesc> instanceDescs;
-        std::vector<std::uint32_t> indices(table.primitives.size());
+        std::vector<std::uint32_t> iasIndices(table.primitives.size());
         instanceDescs.reserve(table.primitives.size());
         for (std::size_t index = 0; index < table.primitives.size(); ++index) {
             auto const &primitive = table.primitives[index];
             if (primitive.isHole())
                 continue;
 
-            indices[index] = static_cast<std::uint32_t>(instanceDescs.size());
+            iasIndices[index] = static_cast<std::uint32_t>(instanceDescs.size());
             auto const geometryIndex = primitive.getGeometryIndex();
             auto const bsdfType = primitive.hasBSDF() ? table.bsdfs[primitive.getBSDFIndex()].type
                                                       : BSDFType::Diffuse;
@@ -76,7 +76,7 @@ struct OptixContext::Storage : private CudaStreamMixin {
         accel.buildIas(deviceContext, instanceDescs);
         lightSampler.build(table, context, imageTexturePool.getImpl(), accel.getSceneRadius());
         primitives.copyFromHost({table.primitives.data(), table.primitives.size()});
-        instanceIndices.copyFromHost({indices.data(), indices.size()});
+        instanceIndices.copyFromHost({iasIndices.data(), iasIndices.size()});
         bsdfs.copyFromHost({table.bsdfs.data(), table.bsdfs.size()});
         edfs.copyFromHost({table.edfs.data(), table.edfs.size()});
         sbt.build(*program);

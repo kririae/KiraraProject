@@ -149,7 +149,7 @@ public:
     virtual ~Object() = default;
 };
 
-/// \brief Identifies a kind of context object that has its own dense index map.
+/// \brief Identifies a kind of context object that has its own index map.
 ///
 /// A \c Context assigns every object of a kind an index in that kind's map.
 enum class IndexedKind : std::uint8_t {

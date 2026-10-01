@@ -20,7 +20,7 @@ enum class LightType : std::uint8_t {
 /// \brief Identifies one concrete light in a backend scene.
 struct LightHandle {
     LightType type{};
-    /// Point-light index, dense primitive index, or zero for the environment map.
+    /// Point-light index, primitive index, or zero for the environment map.
     std::uint32_t index{};
 
     [[nodiscard]] friend bool operator==(LightHandle const &, LightHandle const &) = default;

@@ -37,7 +37,7 @@ struct SurfaceInteraction {
     /// coordinates.
     Vec3f uvGradV{};
 
-    /// Dense primitive index in the current backend scene.
+    /// Primitive index assigned by Context.
     std::uint32_t primitiveIndex{};
 
     /// Element index within the primitive's geometry.

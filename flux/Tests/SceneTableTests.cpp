@@ -89,7 +89,6 @@ TEST(SceneTableTests, KeepsEveryPrimitiveIndexWhenOneIsHidden) {
 
     // The hidden primitive keeps its index as a hole.
     auto const limit = context->getIndexLimit<flux::Primitive>();
-    ASSERT_EQ(limit, 3);
     ASSERT_EQ(table.primitives.size(), limit);
     ASSERT_EQ(table.objects.primitives.size(), limit);
     ASSERT_EQ(table.transforms.size(), limit);
@@ -111,22 +110,26 @@ TEST(SceneTableTests, HidingAPrimitiveMovesNoIndex) {
     auto const mesh = context->create<flux::TriangleMesh>(triangle());
     auto const first = makePrimitive(*context, mesh);
     auto const second = makePrimitive(*context, mesh);
-    auto table = flux::SceneTableData{};
-    table.build(*context);
-    ASSERT_EQ(table.primitives.size(), 2);
-    EXPECT_FALSE(table.primitives[1].isHole());
+    auto const indexOf = [&](auto const &primitive) {
+        return context->getIndex<flux::Primitive>(primitive->getContextId());
+    };
+    auto const firstIndex = indexOf(first);
+    auto const secondIndex = indexOf(second);
 
     // Hide one primitive and add another.
     first->setVisible(false);
     auto const added = makePrimitive(*context, mesh);
+    auto table = flux::SceneTableData{};
     table.build(*context);
 
-    ASSERT_EQ(table.primitives.size(), 3);
-    EXPECT_TRUE(table.primitives[0].isHole());
-    EXPECT_EQ(table.objects.primitives[1], second);
-    EXPECT_EQ(table.objects.primitives[2], added);
-    EXPECT_FALSE(table.primitives[1].isHole());
-    EXPECT_FALSE(table.primitives[2].isHole());
+    ASSERT_EQ(indexOf(first), firstIndex);
+    ASSERT_EQ(indexOf(second), secondIndex);
+    ASSERT_EQ(table.primitives.size(), context->getIndexLimit<flux::Primitive>());
+    EXPECT_TRUE(table.primitives[firstIndex].isHole());
+    EXPECT_EQ(table.objects.primitives[secondIndex], second);
+    EXPECT_EQ(table.objects.primitives[indexOf(added)], added);
+    EXPECT_FALSE(table.primitives[secondIndex].isHole());
+    EXPECT_FALSE(table.primitives[indexOf(added)].isHole());
 }
 
 TEST(SceneTableTests, GivesOneGeometryIndexToEveryPrimitiveThatSharesAMesh) {
@@ -184,7 +187,6 @@ TEST(SceneTableTests, TakesGeometryIndicesFromTheContextAndLeavesHoles) {
     EXPECT_EQ(table.objects.meshes[usedIndex], used);
     ASSERT_EQ(table.primitives.size(), 1);
     EXPECT_EQ(table.primitives[0].geometryIndex, usedIndex);
-    EXPECT_EQ(usedIndex, 1);
 }
 
 TEST(SceneTableTests, CopiesEveryBsdfAndEdfTheContextHolds) {

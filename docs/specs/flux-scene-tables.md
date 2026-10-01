@@ -108,18 +108,18 @@ holds:
 
 ```cpp
 struct SceneTableData final : private Noncopyable {
-    /// Context objects at each dense index this table assigns. Host only; read
-    /// while building runtime state, never while rendering.
+    /// Context objects at each index. Host only; read while building runtime
+    /// state, never while rendering.
     struct {
-        /// Visible primitives in dense primitive order.
+        /// Visible primitives by primitive index, or null at a hole.
         kira::SmallVector<Ref<Primitive const>> primitives;
-        /// Unique meshes in dense geometry order.
+        /// Meshes by geometry index, or null at a hole.
         kira::SmallVector<Ref<TriangleMesh const>> meshes;
     } objects;
 
-    /// Visible primitives in dense primitive order.
+    /// Entry of each primitive by primitive index. A hole is a default entry.
     std::vector<Primitive::Impl> primitives;
-    /// Row-major object-to-world transforms in dense primitive order.
+    /// Row-major object-to-world transforms by primitive index.
     std::vector<std::array<float, 12>> transforms;
     /// BSDFs indexed by the indices assigned by Context.
     std::vector<BSDF::Impl> bsdfs;
@@ -237,17 +237,17 @@ struct LightTableData final : private Noncopyable {
     struct {
         /// Point lights in Context ID order.
         std::vector<PointLight::Impl> points;
-        /// World-area scale of each primitive's transform, in dense primitive order.
+        /// World-area scale of each primitive's transform, by primitive index.
         std::vector<float> primAreaScales;
     } lights;
 
     /// The selection distribution. A slot is a position in it.
     struct {
-        /// Light at each slot. A primitive's handle index is its dense index.
+        /// Light at each slot. A primitive's handle index is its primitive index.
         std::vector<LightHandle> handles;
         /// Cumulative selection weight at each slot.
         std::vector<float> cdf;
-        /// Slot of each primitive in dense primitive order, or invalidSlot.
+        /// Slot of each primitive by primitive index, or invalidSlot.
         std::vector<std::uint32_t> primSlots;
         /// Slot of the environment map, or invalidSlot.
         std::uint32_t envMapSlot{invalidSlot};
@@ -276,7 +276,7 @@ the computation the test question assigns to the table. Powers are a local of
 `build`, and the table has no host-only field.
 
 `primAreaScales` is indexed by primitive rather than by slot so that replacing the
-selection structure leaves it in place. It costs four bytes per visible primitive,
+selection structure leaves it in place. It costs four bytes per primitive index,
 the same as the removed `primLightIndex`. Computing the scale from
 `transforms[primIndex]` on use would remove it, and is deferred.
 
@@ -286,12 +286,13 @@ the same as the removed `primLightIndex`. Computing the scale from
 
 1. Point lights from the `Context`, in Context ID order.
 2. The environment map, when `envMapPower` is present.
-3. Primitives in dense order, for each `i` with `scene.primitives[i].hasEDF()`.
+3. Primitives in index order, for each `i` with `scene.primitives[i].hasEDF()`.
    Power and area scale come from `scene.objects.primitives[i]`, which is also
    where the non-uniform-scale warning reads the Context ID.
 
 Every other `primSlots[i]` is `invalidSlot`, and `primSlots` and
-`primAreaScales` have one entry per visible primitive.
+`primAreaScales` have one entry per primitive index. A hole has `invalidSlot` and
+an area scale of zero.
 
 ### The cap
 
@@ -385,11 +386,12 @@ Host tests, no GPU:
 1. A rebuild after hiding a primitive equals a build from scratch.
 2. An empty context produces empty tables.
 3. Two primitives sharing a mesh share one geometry index, and a mesh used only by
-   invisible primitives is absent.
-4. The dense order follows Context ID order, and
-   `objects.primitives[i]` is the primitive whose entry is `primitives[i]`.
-5. `slots.primSlots` and `lights.primAreaScales` have one entry per visible
-   primitive. `primSlots[i]` is valid only if `primitives[i].hasEDF()`, and then
+   invisible primitives is a hole.
+4. Each visible primitive sits at the index `Context` assigned it,
+   `objects.primitives[i]` is the primitive whose entry is `primitives[i]`, and
+   hiding a primitive or adding another moves no index.
+5. `slots.primSlots` and `lights.primAreaScales` have one entry per primitive
+   index. `primSlots[i]` is valid only if `primitives[i].hasEDF()`, and then
    `handles[primSlots[i]] == {Primitive, i}`. Every primitive handle at slot `s`
    has `primSlots[handle.index] == s`.
 6. An emitter with zero radiance has a slot and zero selection probability.

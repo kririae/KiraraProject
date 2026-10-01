@@ -212,13 +212,16 @@ from a `ContextIndexMap`, as it does for BSDFs and EDFs:
 
 - An index stays unchanged while its primitive is registered.
 - A released index can be reused.
-- Visibility is a bit of the entry, not membership in the table. Hiding a
-  primitive changes no index.
-- Tables are sized by `getPrimitiveIndexLimit()`. An unused index is an entry
-  with no instance and no light slot.
-- The light table walks the Context's primitives during sync and asks
-  `getPrimitiveIndex(id)`. There is one source of the index, so there is nothing
-  to keep in step.
+- Tables are sized by `getIndexLimit<Primitive>()` and written at
+  `getIndex<Primitive>(id)`.
+- An index without a visible primitive is a hole: a default `Primitive::Impl`,
+  whose `geometryIndex` is `invalidGeometryIndex`. A hidden primitive keeps its
+  index as a hole, so hiding a primitive changes no index. No instance and no
+  light slot refers to a hole.
+- The light table will walk the Context's primitives during sync and ask
+  `getIndex<Primitive>(id)`, so there is one source of the index and nothing to
+  keep in step. Until stage 2 ends, it reads `SceneTableData::objects.primitives`
+  at the same index.
 
 This replaces "visible primitives in Context ID order" in
 [FLux Scene and Light Tables](flux-scene-tables.md). It also makes incremental
@@ -229,8 +232,10 @@ Geometry indices follow the same rule. `Context` assigns a mesh's index from a
 `ContextIndexMap` when it absorbs the mesh, and `SceneTableData` no longer ranks
 meshes in each build. Adding a mesh moves no other mesh's index.
 
-`SceneTableData` keeps no context object after `build` returns. The meshes it
-visits are a local of `build`, and each runtime takes the buffers it needs.
+When stage 2 ends, `SceneTableData` keeps no context object after `build`
+returns. The meshes it visits are a local of `build`, and each runtime takes the
+buffers it needs. Until then, `objects` holds them, with a null entry at each
+hole.
 
 ## Rejected alternatives
 

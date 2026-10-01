@@ -10,13 +10,13 @@
 #include "kira/Compiler.h"
 
 namespace flux {
-/// \brief Dense tables of the geometries, primitives, BSDFs, and EDFs of one
+/// \brief Tables of the geometries, primitives, BSDFs, and EDFs of one
 ///        scene.
 ///
 /// An index selects an entry of a table here. Pointers address host or device
 /// memory.
 struct SceneTable {
-    /// Unique geometries indexed by dense geometry index.
+    /// Geometries indexed by geometry index.
     Geometry::Impl const *geometries{};
 
     /// Primitives indexed by the indices assigned by Context. An index without a
@@ -38,7 +38,7 @@ public:
         return primitives[index];
     }
 
-    /// \brief Returns the geometry at dense \p index.
+    /// \brief Returns the geometry at \p index.
     ///
     /// \pre \p index addresses a geometry of the scene.
     [[nodiscard]] KIRA_HOST_DEVICE Geometry::Impl const &

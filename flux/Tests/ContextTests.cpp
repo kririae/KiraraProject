@@ -7,6 +7,8 @@
 
 #include "flux/Scene/Context.h"
 #include "flux/Scene/ContextIndexMap.h"
+#include "flux/Scene/Geometry.h"
+#include "flux/Scene/Primitive.h"
 #include "flux/Scene/RenderObject.h"
 #include "flux/Scene/TXContext.h"
 #include "flux/Shading/BSDF.h"
@@ -206,6 +208,8 @@ TEST(ContextTests, ObjectsReportTheirIndexedKind) {
     static_assert(flux::BSDF::indexedKind == flux::IndexedKind::BSDF);
     static_assert(flux::EDF::indexedKind == flux::IndexedKind::EDF);
     static_assert(flux::ImageTexture::indexedKind == flux::IndexedKind::ImageTexture);
+    static_assert(flux::Geometry::indexedKind == flux::IndexedKind::Geometry);
+    static_assert(flux::Primitive::indexedKind == flux::IndexedKind::Primitive);
     static_assert(flux::IsIndexedObject<flux::DiffuseBSDF>);
     static_assert(!flux::IsIndexedObject<TestRenderObject>);
 
