@@ -278,6 +278,8 @@ public:
 
     [[nodiscard]] Impl getImpl() const noexcept { return impl_; }
 
+    [[nodiscard]] bool isRoot() const noexcept override { return true; }
+
     /// \brief Returns whether OptiX radiance traversal requests shader execution reordering.
     [[nodiscard]] bool usesShaderReorder() const noexcept { return shaderReorder_; }
 

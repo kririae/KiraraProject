@@ -206,6 +206,13 @@ public:
         return std::nullopt;
     }
 
+    /// \brief Returns whether the host removes this object explicitly.
+    ///
+    /// A root leaves its context only through \c Context::remove. A dependent leaves
+    /// when the context holds its only reference, so a type is a dependent unless it
+    /// overrides this.
+    [[nodiscard]] virtual bool isRoot() const noexcept { return false; }
+
 protected:
     /// \brief Records \p bits as changed, and lists this object with its context
     ///        when it was clean.

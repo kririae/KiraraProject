@@ -496,3 +496,125 @@ TEST(EmbreePipelineTests, HoldsNoContextObjectAfterSync) {
     EXPECT_EQ(edf->getRefCount(), counts[2]);
     EXPECT_EQ(primitive->getRefCount(), counts[3]);
 }
+
+namespace {
+/// A lit triangle and, optionally, a doomed primitive that has its own mesh and BSDF.
+struct RemovalScene {
+    flux::Ref<flux::Context> context;
+    flux::Ref<flux::RenderProduct> product;
+    flux::Ref<flux::Primitive> doomed;
+};
+
+/// \brief Builds the scene, creating the doomed primitive first so it holds index 0.
+///
+/// The doomed primitive emits and sits beside the triangle, or does not emit and covers the
+/// triangle at the center pixel, so camera rays hit it.
+[[nodiscard]] RemovalScene makeRemovalScene(bool withDoomed, bool doomedEmits) {
+    RemovalScene scene{.context = flux::Context::create()};
+    auto &context = *scene.context;
+    (void)context.create<flux::PathIntegrator>(kira::Properties{});
+    (void)context.create<flux::IndependentSampler>(kira::Properties{});
+
+    if (withDoomed) {
+        auto doomedMesh = context.create<flux::TriangleMesh>(triangleData());
+        auto doomedBSDF = context.create<flux::DiffuseBSDF>(kira::Properties{});
+        auto doomedEDF = context.create<flux::ConstantEDF>(kira::Properties{});
+        auto properties = primitiveProperties(*doomedMesh, *doomedBSDF);
+        if (doomedEmits)
+            properties.set("edf_ctx_id", static_cast<std::int64_t>(doomedEDF->getContextId()));
+        scene.doomed = context.create<flux::Primitive>(properties);
+        if (doomedEmits)
+            scene.doomed->setTransform(
+                {1.0F, 0.0F, 0.0F, 0.5F, 0.0F, -1.0F, 0.0F, 0.0F, 0.0F, 0.0F, -1.0F, 1.0F}
+            );
+        else
+            scene.doomed->setTransform(
+                {1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.5F}
+            );
+    }
+
+    auto mesh = context.create<flux::TriangleMesh>(triangleData());
+    auto bsdf = context.create<flux::DiffuseBSDF>(kira::Properties{});
+    (void)context.create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
+    auto edf = context.create<flux::ConstantEDF>(kira::Properties{});
+    auto emitterProperties = primitiveProperties(*mesh, *bsdf);
+    emitterProperties.set("edf_ctx_id", static_cast<std::int64_t>(edf->getContextId()));
+    auto emitter = context.create<flux::Primitive>(emitterProperties);
+    emitter->setTransform(
+        {1.0F, 0.0F, 0.0F, 0.0F, 0.0F, -1.0F, 0.0F, 0.0F, 0.0F, 0.0F, -1.0F, 1.0F}
+    );
+
+    kira::Properties cameraProperties;
+    cameraProperties.set("position", flux::Vec3f{0.25F, 0.25F, 1.0F});
+    cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.0F});
+    cameraProperties.set("fov", 1.0F);
+    kira::Properties productProperties;
+    productProperties.set("resolution", flux::Vec2u{1, 1});
+    productProperties.set("num_samples", std::uint32_t{4});
+    scene.product =
+        flux::RenderProduct::create(flux::Camera::create(cameraProperties), productProperties);
+    scene.product->getFilm().setChannels(flux::FilmChannels::Color);
+    return scene;
+}
+
+/// \brief Removes the doomed primitive and collects its dependents.
+void removeDoomed(RemovalScene &scene) {
+    auto &context = *scene.context;
+    auto const geometries = context.getObjects<flux::Geometry>().size();
+    context.remove(scene.doomed->getContextId());
+    scene.doomed.reset();
+    context.collectGarbage();
+
+    // The doomed mesh and BSDF leave with the primitive.
+    EXPECT_EQ(context.getObjects<flux::Geometry>().size(), geometries - 1);
+}
+} // namespace
+
+TEST(EmbreePipelineTests, RendersLikeAContextThatNeverHeldARemovedPrimitive) {
+    auto const color = [](flux::EmbreeHandler &handler, flux::RenderProduct &product) {
+        handler.render(product, 4);
+        handler.download(product);
+        return product.getFilm().getChannel<flux::ColorChannel>()[0];
+    };
+    auto fresh = makeRemovalScene(false, true);
+    flux::EmbreeHandler freshHandler(fresh.context);
+    auto const expected = color(freshHandler, *fresh.product);
+    EXPECT_GT(expected.x(), 0.0F);
+
+    auto scene = makeRemovalScene(true, true);
+    flux::EmbreeHandler handler(scene.context);
+    auto const lit = color(handler, *scene.product);
+    removeDoomed(scene);
+    handler.sync();
+
+    auto const actual = color(handler, *scene.product);
+    EXPECT_NE(actual, lit);
+    EXPECT_EQ(actual, expected);
+}
+
+TEST(EmbreePipelineTests, RendersAfterAMeshIsCollectedWithoutSync) {
+    auto const color = [](flux::EmbreeHandler &handler, flux::RenderProduct &product) {
+        handler.render(product, 4);
+        handler.download(product);
+        return product.getFilm().getChannel<flux::ColorChannel>()[0];
+    };
+
+    // The doomed primitive is in the view, so its presence changes the image.
+    auto fresh = makeRemovalScene(false, false);
+    flux::EmbreeHandler freshHandler(fresh.context);
+    auto const without = color(freshHandler, *fresh.product);
+    auto reference = makeRemovalScene(true, false);
+    flux::EmbreeHandler referenceHandler(reference.context);
+    EXPECT_NE(color(referenceHandler, *reference.product), without);
+    auto const expected = color(referenceHandler, *reference.product);
+
+    auto scene = makeRemovalScene(true, false);
+    flux::EmbreeHandler handler(scene.context);
+    (void)color(handler, *scene.product);
+
+    // Both scenes render twice. Only one removes the primitive and its mesh in between, so
+    // traversal reads the vertices after the mesh object is gone.
+    removeDoomed(scene);
+
+    EXPECT_EQ(color(handler, *scene.product), expected);
+}

@@ -67,6 +67,7 @@ protected:
 
 public:
     [[nodiscard]] LightType getType() const noexcept { return type_; }
+    [[nodiscard]] bool isRoot() const noexcept override { return true; }
 
 private:
     LightType type_;

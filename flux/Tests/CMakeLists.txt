@@ -79,6 +79,11 @@ krr_add_test(
 target_compile_definitions(flux.Scene.DirtyTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures")
 
 krr_add_test(
+    flux Scene RemovalTests
+    SOURCES RemovalTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
     flux Core ConcurrentPoolTests
     SOURCES ConcurrentPoolTests.cpp
     HARD_DEPENDENCIES flux)

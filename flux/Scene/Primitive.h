@@ -56,6 +56,8 @@ public:
         return indexedKind;
     }
 
+    [[nodiscard]] bool isRoot() const noexcept override { return true; }
+
     /// \brief Returns the bound geometry.
     [[nodiscard]] Ref<Geometry const> getGeometry() const noexcept;
 

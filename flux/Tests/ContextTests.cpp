@@ -165,6 +165,7 @@ TEST(ContextIndexMapTests, KeepsAndReusesIndices) {
 
     auto const retainedIndex = indices.getIndex(20);
     auto const releasedIndex = indices.erase(10);
+    indices.recycle();
     flux::ContextIndexMap::Transaction second;
     second.insert(30);
     indices.merge(std::move(second));
@@ -172,6 +173,25 @@ TEST(ContextIndexMapTests, KeepsAndReusesIndices) {
     EXPECT_EQ(indices.getIndex(20), retainedIndex);
     EXPECT_EQ(indices.getIndex(30), releasedIndex);
     EXPECT_EQ(indices.getIndexLimit(), 2);
+}
+
+TEST(ContextIndexMapTests, ReusesAnErasedIndexOnlyAfterRecycle) {
+    flux::ContextIndexMap indices;
+    flux::ContextIndexMap::Transaction first;
+    first.insert(10);
+    indices.merge(std::move(first));
+    auto const releasedIndex = indices.erase(10);
+
+    flux::ContextIndexMap::Transaction second;
+    second.insert(20);
+    indices.merge(std::move(second));
+    EXPECT_NE(indices.getIndex(20), releasedIndex);
+
+    indices.recycle();
+    flux::ContextIndexMap::Transaction third;
+    third.insert(30);
+    indices.merge(std::move(third));
+    EXPECT_EQ(indices.getIndex(30), releasedIndex);
 }
 
 TEST(ContextIndexMapTests, RejectsConflictingTransactionAtomically) {

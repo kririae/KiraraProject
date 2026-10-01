@@ -30,9 +30,9 @@ class EnvMapLight;
 
 /// \brief Owns the host-side objects in a Flux scene.
 ///
-/// Context mutation is single-threaded. Callers must serialize \c create,
-/// \c commit, \c clearDirty, and the setters of its objects, which list changed
-/// objects with the context.
+/// Context mutation is single-threaded. Callers must serialize \c create, \c remove,
+/// \c collectGarbage, \c commit, \c clearDirty, and the setters of its objects, which
+/// list changed objects with the context.
 class Context final : public Object {
     friend class TXContext;
     friend class ContextObject;
@@ -44,9 +44,16 @@ public:
     enum class DirtyBits : std::uint32_t {
         None = 0,
         Added = 1U << 0U,
-        ActiveIntegrator = 1U << 1U,
-        ActiveSampler = 1U << 2U,
-        ActiveEnvMap = 1U << 3U,
+        Removed = 1U << 1U,
+        ActiveIntegrator = 1U << 2U,
+        ActiveSampler = 1U << 3U,
+        ActiveEnvMap = 1U << 4U,
+    };
+
+    /// Index that a removed indexed object held in its kind's map.
+    struct Removal {
+        IndexedKind kind;
+        ContextIndexMap::Index index;
     };
 
     /// \brief Creates an empty context.
@@ -171,6 +178,22 @@ public:
         return result;
     }
 
+    /// \brief Removes root object \p contextId from this context.
+    ///
+    /// The object keeps living while the host holds a reference, but it no longer has
+    /// an owner. Its index is not reused before \c clearDirty. An exception leaves the
+    /// context unchanged.
+    ///
+    /// \throw std::out_of_range If the ID is unknown.
+    /// \throw kira::Anyhow If the object is a dependent.
+    void remove(std::size_t contextId);
+
+    /// \brief Removes every dependent that only this context references.
+    ///
+    /// Repeats until a round removes nothing, because removing a dependent releases its
+    /// references to other dependents.
+    void collectGarbage();
+
     /// \brief Commits changes owned by this context.
     void commit() noexcept;
 
@@ -182,6 +205,9 @@ public:
     /// The IDs are ascending.
     [[nodiscard]] std::span<std::size_t const> getAddedIds() const noexcept { return addedIds_; }
 
+    /// \brief Returns the indices released since the last \c clearDirty, in removal order.
+    [[nodiscard]] std::span<Removal const> getRemovals() const noexcept { return removals_; }
+
     /// \brief Returns the IDs of objects changed since the last \c clearDirty.
     ///
     /// Each ID is listed once, in the order its object first changed.
@@ -192,8 +218,9 @@ public:
     /// \brief Returns the number of times \c clearDirty was called.
     [[nodiscard]] std::uint64_t getEpoch() const noexcept { return epoch_; }
 
-    /// \brief Zeroes the context bits and the bits of every changed object, empties the added and
-    ///        changed lists, and starts the next epoch.
+    /// \brief Zeroes the context bits and the bits of every changed object, empties the added,
+    ///        changed, and removal lists, makes released indices reusable, and starts the next
+    ///        epoch.
     void clearDirty() noexcept;
 
 private:
@@ -201,6 +228,14 @@ private:
 
     [[nodiscard]] std::size_t allocateId() noexcept { return nextId_++; }
     void absorb(TXContext &&tx);
+
+    /// \brief Drops object \p contextId from every record of this context.
+    ///
+    /// Shared by \c remove and \c collectGarbage. Every allocation precedes the first
+    /// mutation, so an exception leaves the context unchanged.
+    ///
+    /// \pre The object is in \c objects_.
+    void release(std::size_t contextId);
 
     /// \brief Replaces \p slot with \p id and records \p bits when the active object changes.
     void setActive(std::optional<std::size_t> &slot, std::optional<std::size_t> id, DirtyBits bits);
@@ -233,12 +268,16 @@ private:
     std::size_t nextId_{0};
 
     /// IDs of objects changed this epoch. An object is listed when its first bit is recorded, so
-    /// it is listed once. Every listed ID is in \c objects_.
+    /// it is listed once. Every listed ID is in \c objects_, so \c release unlists an object.
     std::vector<std::size_t> changedIds_;
 
     /// IDs of objects added this epoch, ascending. An added object is born clean, so it is listed
-    /// here and not in \c changedIds_.
+    /// here and not in \c changedIds_. Every listed ID is in \c objects_.
     std::vector<std::size_t> addedIds_;
+
+    /// Indices of the indexed objects removed this epoch. A removed object appears here and in
+    /// no other list.
+    std::vector<Removal> removals_;
     DirtyBits dirtyBits_{DirtyBits::None};
     std::uint64_t epoch_{0};
 };

@@ -54,6 +54,7 @@ public:
     struct Impl;
 
     [[nodiscard]] SamplerType getType() const noexcept { return type_; }
+    [[nodiscard]] bool isRoot() const noexcept override { return true; }
     [[nodiscard]] Impl getImpl(Vec2u const &resolution) const;
 
 private:
