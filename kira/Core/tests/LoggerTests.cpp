@@ -111,48 +111,51 @@ TEST_F(LoggerTests, LogToFileAndConsole) {
     LoggerBuilder{}.to_console(true).to_file(tempLogPath).init();
     EXPECT_NE(spdlog::get(defaultLoggerName.value).get(), nullptr);
 
-    ::testing::internal::CaptureStdout();
+    ::testing::internal::CaptureStderr();
     LogInfo("test message");
     LogFlush();
-    auto const &output = ::testing::internal::GetCapturedStdout();
+    auto const &output = ::testing::internal::GetCapturedStderr();
     EXPECT_TRUE(output.find("test message") != std::string::npos);
     EXPECT_TRUE(FileContainsLog("test message"));
 }
 
 TEST_F(LoggerTests, NoLogToConsole) {
     LoggerBuilder{}.to_console(false).init();
-    ::testing::internal::CaptureStdout();
+    ::testing::internal::CaptureStderr();
     LogInfo("test message");
     LogFlush();
-    auto const &output = ::testing::internal::GetCapturedStdout();
+    auto const &output = ::testing::internal::GetCapturedStderr();
     EXPECT_TRUE(output.find("test message") == std::string::npos);
 }
 
-TEST_F(LoggerTests, LogToConsole) {
+TEST_F(LoggerTests, LogToStderr) {
     LoggerBuilder{}.to_console(true).init();
     ::testing::internal::CaptureStdout();
+    ::testing::internal::CaptureStderr();
     LogInfo("test message");
     LogFlush();
-    auto const &output = ::testing::internal::GetCapturedStdout();
-    EXPECT_TRUE(output.find("test message") != std::string::npos);
+    auto const &stderrOutput = ::testing::internal::GetCapturedStderr();
+    auto const &stdoutOutput = ::testing::internal::GetCapturedStdout();
+    EXPECT_TRUE(stderrOutput.find("test message") != std::string::npos);
+    EXPECT_TRUE(stdoutOutput.find("test message") == std::string::npos);
 }
 
 TEST_F(LoggerTests, LogWithFormat) {
-    ::testing::internal::CaptureStdout();
+    ::testing::internal::CaptureStderr();
     LogInfo("test message {}", 42);
     LogFlush();
-    auto const &output = ::testing::internal::GetCapturedStdout();
+    auto const &output = ::testing::internal::GetCapturedStderr();
     EXPECT_TRUE(output.find("test message 42") != std::string::npos);
 }
 
 TEST_F(LoggerTests, LogWithFilterFromBuilder) {
     LoggerBuilder{}.to_console(true).filter_level(spdlog::level::warn).init();
-    ::testing::internal::CaptureStdout();
+    ::testing::internal::CaptureStderr();
     LogInfo("test info");
     LogFlush();
     LogWarn("test warn");
     LogFlush();
-    auto const &output = ::testing::internal::GetCapturedStdout();
+    auto const &output = ::testing::internal::GetCapturedStderr();
     EXPECT_TRUE(output.find("test info") == std::string::npos);
     EXPECT_TRUE(output.find("test warn") != std::string::npos);
 }
@@ -160,12 +163,12 @@ TEST_F(LoggerTests, LogWithFilterFromBuilder) {
 TEST_F(LoggerTests, LogWithFilterFromEnvironement) {
     setenv("KRR_LOG_LEVEL", "warn", 1);
     LoggerBuilder{}.to_console(true).init();
-    ::testing::internal::CaptureStdout();
+    ::testing::internal::CaptureStderr();
     LogInfo("test info");
     LogFlush();
     LogWarn("test warn");
     LogFlush();
-    auto const &output = ::testing::internal::GetCapturedStdout();
+    auto const &output = ::testing::internal::GetCapturedStderr();
     EXPECT_TRUE(output.find("test info") == std::string::npos);
     EXPECT_TRUE(output.find("test warn") != std::string::npos);
     unsetenv("KRR_LOG_LEVEL");
@@ -174,12 +177,12 @@ TEST_F(LoggerTests, LogWithFilterFromEnvironement) {
 TEST_F(LoggerTests, LogWithFilterIgnoreEnvironment) {
     setenv("KRR_LOG_LEVEL", "error", 1);
     LoggerBuilder{}.to_console(true).filter_level(spdlog::level::warn).init();
-    ::testing::internal::CaptureStdout();
+    ::testing::internal::CaptureStderr();
     LogInfo("test info");
     LogFlush();
     LogWarn("test warn");
     LogFlush();
-    auto const &output = ::testing::internal::GetCapturedStdout();
+    auto const &output = ::testing::internal::GetCapturedStderr();
     EXPECT_TRUE(output.find("test info") == std::string::npos);
     EXPECT_TRUE(output.find("test warn") != std::string::npos);
     unsetenv("KRR_LOG_LEVEL");

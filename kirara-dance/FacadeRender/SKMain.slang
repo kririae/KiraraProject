@@ -35,10 +35,10 @@ VertexStageOutput vertexMain(AssembledVertex assembledVertex) {
 [shader("fragment")]
 float4 fragmentMain(CoarseVertex coarseVertex: CoarseVertex) : SV_Target {
     uint lineSegmentID = coarseVertex.vertexID / 2;
-    
+
     float r = frac(float(lineSegmentID) * 0.157);
     float g = frac(float(lineSegmentID) * 0.264);
     float b = frac(float(lineSegmentID) * 0.372);
-    
+
     return float4(r, g, b, 1.0);
 }

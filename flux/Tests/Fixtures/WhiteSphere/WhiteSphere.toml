@@ -1,0 +1,27 @@
+[camera]
+position = [0.0, 0.0, 3.0]
+look_at = [0.0, 0.0, 0.0]
+ref_up = [0.0, 1.0, 0.0]
+fov = 32.0
+
+[film]
+resolution = [64, 64]
+num_samples = 256
+
+[integrator]
+type = "path"
+max_depth = 2
+rr_depth = 8
+
+[envmap]
+scale = [1.0, 1.0, 1.0]
+
+[[bsdf]]
+name = "white"
+type = "diffuse"
+R = [1.0, 1.0, 1.0]
+
+[[primitive]]
+type = "trimesh"
+path = "../Shared/Geometry/UnitSphere.ply"
+bsdf = "white"

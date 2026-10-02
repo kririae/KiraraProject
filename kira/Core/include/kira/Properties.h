@@ -57,6 +57,12 @@ public:
     Properties &operator=(Properties const &) = default;
     Properties &operator=(Properties &&) noexcept = default;
 
+    /// \brief Parses TOML source and preserves it for diagnostics.
+    ///
+    /// \throw Anyhow If \p source is invalid TOML.
+    [[nodiscard]] static Properties
+    parse(std::string_view source, std::filesystem::path const &path);
+
     /// \brief Constructs a root handle from a TOML table and source text.
     ///
     /// \param table Table moved into the new root.
@@ -289,8 +295,8 @@ private:
     Properties(std::shared_ptr<detail::PropertiesRoot> root, toml::table &table)
         : root_{std::move(root)}, table_{&table} {}
 
-    [[nodiscard]] std::optional<std::string> get_diagnostic_(toml::source_region const &region
-    ) const;
+    [[nodiscard]] std::optional<std::string>
+    get_diagnostic_(toml::source_region const &region) const;
 
     std::shared_ptr<detail::PropertiesRoot> root_;
     toml::table *table_{nullptr};

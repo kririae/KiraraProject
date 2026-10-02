@@ -1,0 +1,168 @@
+#pragma once
+
+#include <cmath>
+#include <cstdint>
+#include <type_traits>
+
+#include "flux/Core/EnumFlags.h"
+#include "flux/Core/Math.h"
+#include "flux/Scene/RenderObject.h"
+#include "kira/Compiler.h"
+
+namespace flux {
+/// \brief Identifies a concrete light implementation.
+enum class LightType : std::uint8_t {
+    Point,
+    Primitive,
+    EnvMap,
+    Count,
+};
+
+/// \brief Identifies one concrete light in a backend scene.
+struct LightHandle {
+    LightType type{};
+    /// Point-light index, primitive index, or zero for the environment map.
+    std::uint32_t index{};
+
+    [[nodiscard]] friend bool operator==(LightHandle const &, LightHandle const &) = default;
+};
+
+/// \brief Result of selecting one light.
+struct SampledLight {
+    LightHandle light{};
+    /// A zero PMF marks an invalid selection.
+    float pmf{};
+};
+
+/// \brief Path vertex data used to select and sample lights.
+struct LightSamplingContext {
+    /// World-space receiving position.
+    Vec3f position{};
+    /// World-space geometric normal at a surface vertex.
+    Vec3f normal{};
+};
+
+/// \brief Result of sampling incident radiance from one selected light.
+///
+/// \c wi points from the surface toward the light. A zero PDF marks an invalid
+/// sample. Scene sampling includes light selection in \c pdf.
+struct DirectLightSample {
+    /// Incident radiance along \c wi.
+    Spectrum radiance{};
+    /// World-space direction from the surface toward the light.
+    Vec3f wi{};
+    /// World-space target for Point and Primitive samples.
+    Vec3f position{};
+    /// Solid-angle density, or discrete mass for a delta light.
+    float pdf{};
+    /// Whether the sampled light has a discrete directional distribution.
+    bool delta{};
+    LightType type{LightType::Point};
+};
+
+/// \brief Host-side base for lights.
+class Light : public RenderObject {
+protected:
+    Light(TXContext &tx, LightType type);
+
+public:
+    [[nodiscard]] LightType getType() const noexcept { return type_; }
+    [[nodiscard]] bool isRoot() const noexcept override { return true; }
+
+private:
+    LightType type_;
+};
+
+/// \brief Isotropic point light with RGB radiant intensity.
+///
+/// \par Properties
+/// - \c position: optional world-space Vec3f position; defaults to zero.
+/// - \c intensity: optional nonnegative RGB radiant intensity; defaults to one.
+class PointLight final : public Light {
+    friend class TXContext;
+
+public:
+    struct Impl;
+
+    /// \brief Properties of a point light that a setter can change.
+    ///
+    /// One bit per setter. A setter records its bit only when the value changes.
+    enum class DirtyBits : std::uint32_t {
+        None = 0,
+        Position = 1U << 0U,
+        Intensity = 1U << 1U,
+    };
+
+    /// World-space light position.
+    [[nodiscard]] Vec3f const &getPosition() const noexcept { return position_; }
+
+    /// \brief Sets the world-space light position.
+    ///
+    /// All coordinates must be finite.
+    void setPosition(Vec3f const &position);
+
+    /// RGB radiant intensity.
+    [[nodiscard]] Spectrum const &getIntensity() const noexcept { return intensity_; }
+
+    /// \brief Sets the RGB radiant intensity.
+    ///
+    /// All components must be finite and nonnegative.
+    void setIntensity(Spectrum const &intensity);
+
+    [[nodiscard]] Impl getImpl() const noexcept;
+    [[nodiscard]] float estimatePower() const noexcept;
+
+private:
+    PointLight(TXContext &tx, kira::Properties const &props);
+
+    Vec3f position_{};
+    Spectrum intensity_{1.0F, 1.0F, 1.0F};
+};
+
+struct PointLight::Impl {
+    /// World-space light position.
+    Vec3f position{};
+    /// RGB radiant intensity.
+    Spectrum intensity{};
+
+public:
+    /// \brief Samples incident radiance at \p ctx.
+    ///
+    /// A point light has one discrete direction, so a valid sample has unit
+    /// conditional mass and \c delta set. A coincident receiving position
+    /// produces an invalid sample.
+    [[nodiscard]] KIRA_HOST_DEVICE DirectLightSample
+    sampleDirect(LightSamplingContext const &ctx) const noexcept;
+};
+
+KIRA_HOST_DEVICE inline DirectLightSample
+PointLight::Impl::sampleDirect(LightSamplingContext const &ctx) const noexcept {
+    auto const d = position - ctx.position;
+    auto const dist2 = d.norm2();
+    if (!(dist2 > 0.0F))
+        return {};
+
+    auto const dist = std::sqrt(dist2);
+    return {
+        .radiance = intensity / dist2,
+        .wi = d / dist,
+        .position = position,
+        .pdf = 1.0F,
+        .delta = true,
+        .type = LightType::Point,
+    };
+}
+
+template <> inline constexpr bool isEnumFlags<PointLight::DirtyBits> = true;
+
+static_assert(std::is_standard_layout_v<DirectLightSample>);
+static_assert(std::is_trivially_copyable_v<DirectLightSample>);
+static_assert(std::is_standard_layout_v<LightHandle>);
+static_assert(std::is_trivially_copyable_v<LightHandle>);
+static_assert(std::is_standard_layout_v<SampledLight>);
+static_assert(std::is_trivially_copyable_v<SampledLight>);
+static_assert(std::is_standard_layout_v<LightSamplingContext>);
+static_assert(std::is_trivially_copyable_v<LightSamplingContext>);
+static_assert(std::is_standard_layout_v<PointLight::Impl>);
+static_assert(std::is_trivially_copyable_v<PointLight::Impl>);
+} // namespace flux

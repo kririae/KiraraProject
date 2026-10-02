@@ -1,0 +1,70 @@
+# Paths are relative to Fixtures. Thresholds apply to linear RGB components.
+[[case]]
+id = "white_sphere"
+scene = "WhiteSphere/WhiteSphere.toml"
+reference = "WhiteSphere/WhiteSphere.xml"
+spp = 1024
+expected = [1.0, 1.0, 1.0]
+mae = 0.02
+rmse = 0.025
+
+[[case]]
+id = "checker"
+scene = "TextureFootprint/Checker.toml"
+reference = "TextureFootprint/Checker.xml"
+spp = 1024
+expected = [0.5, 0.5, 0.5]
+mae = 0.0045
+rmse = 0.0055
+
+[[case]]
+id = "cbox"
+scene = "Cbox/Cbox.toml"
+reference = "Cbox/Cbox.xml"
+spp = 1024
+mae = 0.01
+rmse = 0.015
+
+[[case]]
+id = "principled_cbox"
+scene = "Cbox/PrincipledCbox.toml"
+reference = "Cbox/PrincipledCbox.xml"
+spp = 1024
+mae = 0.01
+rmse = 0.02
+
+[[case]]
+id = "transmission"
+scene = "Principled/Transmission.toml"
+reference = "Principled/Transmission.xml"
+spp = 1024
+mae = 0.01
+rmse = 0.03
+
+# The Sobol cases use the references and thresholds above at fewer samples, which an unbiased
+# sampler meets only if it stratifies.
+[[case]]
+id = "sobol_cbox"
+scene = "Cbox/SobolCbox.toml"
+reference = "Cbox/Cbox.xml"
+spp = 64
+mae = 0.01
+rmse = 0.015
+
+[[case]]
+id = "sobol_transmission"
+scene = "Principled/SobolTransmission.toml"
+reference = "Principled/Transmission.xml"
+spp = 128
+mae = 0.01
+rmse = 0.03
+
+# The spheres are lit by light and BSDF sampling in different proportions, so a wrong MIS weight
+# changes the highlights on the plates.
+[[case]]
+id = "veach_mis"
+scene = "VeachMIS/VeachMIS.toml"
+reference = "VeachMIS/VeachMIS.xml"
+spp = 2048
+mae = 0.011
+rmse = 0.3

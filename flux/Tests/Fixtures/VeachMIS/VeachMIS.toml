@@ -1,0 +1,101 @@
+# Plates of increasing roughness lit by spheres of decreasing size and increasing radiance.
+# Light and BSDF sampling each dominate on different plate and sphere pairs, so a wrong MIS
+# weight shows as a brightness error in the highlights.
+#
+# FLux has no conductor BSDF, so each plate is a metallic principled BSDF whose base color is
+# the 0.3-scaled normal-incidence Fresnel reflectance of the original conductor, and its
+# roughness is the square root of the original GGX alpha. The spheres are icospheres, because
+# FLux renders triangle meshes only.
+[camera]
+position = [28.2792, 3.5, 0.0]
+look_at = [27.2792, 3.5, 0.0]
+ref_up = [0.0, 1.0, 0.0]
+fov = 20.11429322446647
+
+[film]
+resolution = [640, 360]
+num_samples = 256
+
+[integrator]
+type = "path"
+max_depth = 16
+rr_depth = 8
+rr_prob = 0.95
+
+[[bsdf]]
+name = "diffuse"
+type = "diffuse"
+R = [0.5, 0.5, 0.5]
+
+[[bsdf]]
+name = "smooth"
+type = "principled"
+base_color = [0.286, 0.186, 0.153]
+roughness = 0.03162
+metallic = 1.0
+
+[[bsdf]]
+name = "glossy"
+type = "principled"
+base_color = [0.286, 0.186, 0.153]
+roughness = 0.2
+metallic = 1.0
+
+[[bsdf]]
+name = "rough"
+type = "principled"
+base_color = [0.286, 0.186, 0.153]
+roughness = 0.3
+metallic = 1.0
+
+[[bsdf]]
+name = "superrough"
+type = "principled"
+base_color = [0.286, 0.186, 0.153]
+roughness = 0.5
+metallic = 1.0
+
+[[primitive]]
+type = "trimesh"
+path = "geometry/LightLarge.ply"
+light = { type = "area", emission = [7.59909, 7.59909, 7.59909] }
+
+[[primitive]]
+type = "trimesh"
+path = "geometry/LightMedium.ply"
+light = { type = "area", emission = [30.3964, 30.3964, 30.3964] }
+
+[[primitive]]
+type = "trimesh"
+path = "geometry/LightSmall.ply"
+light = { type = "area", emission = [3039.64, 3039.64, 3039.64] }
+
+[[primitive]]
+type = "trimesh"
+path = "geometry/DiffuseRectangle0.ply"
+bsdf = "diffuse"
+
+[[primitive]]
+type = "trimesh"
+path = "geometry/DiffuseRectangle1.ply"
+bsdf = "diffuse"
+
+[[primitive]]
+type = "trimesh"
+path = "geometry/SmoothCube0.ply"
+bsdf = "smooth"
+
+[[primitive]]
+type = "trimesh"
+path = "geometry/GlossyCube1.ply"
+bsdf = "glossy"
+
+[[primitive]]
+type = "trimesh"
+path = "geometry/RoughCube2.ply"
+bsdf = "rough"
+
+[[primitive]]
+type = "trimesh"
+path = "geometry/SuperRoughCube3.ply"
+bsdf = "superrough"
