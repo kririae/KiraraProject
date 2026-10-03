@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstddef>
+#include <optional>
+
 #include "flux/Core/Object.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/OptixImageTexture.h"
@@ -15,17 +18,51 @@ public:
 
     explicit OptixLightSampler(cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
 
-    /// \brief Rebuilds the sampler from the lights of \p context.
-    void build(Context const &context, OptixImageTextureTable imageTextures, float sceneRadius);
+    /// \brief Brings the sampler up to date with the lights of \p context.
+    ///
+    /// \p imageTextures is read only during the call.
+    /// \pre \p imageTextures holds the image textures of \p context at their indices.
+    /// \throw kira::Anyhow If CUDA fails. Then the sampler is valid only for destruction.
+    void sync(Context const &context, OptixImageTextureTable imageTextures, float sceneRadius);
 
     /// \brief Returns the sampler used for rendering.
     ///
-    /// The result remains valid until the next \c build.
+    /// The result remains valid until the next \c sync.
     [[nodiscard]] Impl getImpl() const noexcept;
 
 private:
-    [[nodiscard]] float
-    buildEnvMap(EnvMapLight const &envMap, OptixImageTextureTable imageTextures, float sceneRadius);
+    /// What the sampling distribution of an image environment map depends on. Equal keys give
+    /// equal distributions.
+    struct EnvMapKey {
+        std::size_t imageId{};
+        ImageComponentMapping componentMapping;
+        Spectrum scale;
+
+        friend bool operator==(EnvMapKey const &, EnvMapKey const &) = default;
+    };
+
+    /// The sampling distribution of an image environment map, and what it was built for. The CDFs
+    /// are empty when the weight sum is zero.
+    struct EnvMapDistribution {
+        EnvMapKey key;
+        Vec2u extent;
+        float weightSum{};
+        DeviceBuffer<float> cdf;
+        DeviceBuffer<float> rows;
+    };
+
+    /// \brief Builds the sampling distribution of \p image for \p key.
+    /// \pre \p key describes \p image.
+    [[nodiscard]] EnvMapDistribution buildEnvMapDistribution(
+        ImageTexture const &image, EnvMapKey const &key, OptixImageTextureTable imageTextures
+    ) const;
+
+    /// \brief Uploads the environment map light, and returns its power.
+    /// \param distribution The distribution of the image of \p envMap, or null if it has a
+    ///        constant texture.
+    [[nodiscard]] float uploadEnvMap(
+        EnvMapLight const &envMap, EnvMapDistribution const *distribution, float sceneRadius
+    );
 
     LightTableData staging_;
 
@@ -33,8 +70,10 @@ private:
     DeviceBuffer<PointLight::Impl> points_{getStream()};
     DeviceBuffer<float> primAreaScales_{getStream()};
     DeviceBuffer<EnvMapLight::Impl> envMap_{getStream()};
-    DeviceBuffer<float> envMapCDF_{getStream()};
-    DeviceBuffer<float> envMapRows_{getStream()};
+
+    // After each successful sync, set iff the active environment map has an image texture, and
+    // then built for its key.
+    std::optional<EnvMapDistribution> envMapDistribution_;
 
     // The selection distribution.
     DeviceBuffer<LightHandle> handles_{getStream()};

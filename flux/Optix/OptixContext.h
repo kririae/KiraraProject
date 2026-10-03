@@ -44,8 +44,7 @@ private:
 
     /// \brief Brings the OptiX scene up to date with the host \c Context, and waits for the work.
     ///
-    /// Reuses a GAS by mesh ID, an image by ImageAsset ID, and the program by specialization, and
-    /// rebuilds the rest. If sync throws, this context is valid only for destruction.
+    /// If sync throws, this context is valid only for destruction.
     /// \pre No launch that reads this context runs.
     void sync();
 

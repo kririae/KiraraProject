@@ -157,10 +157,12 @@ struct Spec {
         std::string mapping;
     };
 
-    /// An environment map with a constant color or an image, scaled by \c scale.
+    /// An environment map with a constant color or an image, scaled by \c scale and rotated by
+    /// \c rotation.
     struct Env {
         Spectrum scale;
         std::optional<Image> image;
+        Vec3f rotation{};
     };
 
     /// A diffuse or principled BSDF, whose color is \c color or, when set, \c image.
@@ -255,15 +257,22 @@ createMesh(flux::Context &context, Spec::Mesh const &mesh) {
     );
 }
 
-[[nodiscard]] kira::Properties textureProperties(Spec::Image const &image) {
+/// Returns the properties of an ImageTexture that reads \p image.
+[[nodiscard]] kira::Properties imageTextureProperties(Spec::Image const &image) {
     kira::Properties props;
-    props.set("type", "image");
     props.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / imageFiles[image.file].path);
     props.set("color_space", std::string(image.srgb ? "srgb" : "linear"));
     props.set("filter_mode", std::string(image.point ? "point" : "linear"));
     props.set("address_mode", std::string(addressModes[image.addressMode]));
     if (!image.mapping.empty())
         props.set("component_mapping", image.mapping);
+    return props;
+}
+
+/// Returns the properties of an inline texture that reads \p image.
+[[nodiscard]] kira::Properties textureProperties(Spec::Image const &image) {
+    auto props = imageTextureProperties(image);
+    props.set("type", "image");
     return props;
 }
 
@@ -318,6 +327,7 @@ createPoint(flux::Context &context, Spec::Point const &point) {
 [[nodiscard]] flux::Ref<flux::EnvMapLight> createEnv(flux::Context &context, Spec::Env const &env) {
     kira::Properties props;
     props.set("scale", env.scale);
+    props.set("rotation", env.rotation);
     if (env.image)
         props.set("texture", textureProperties(*env.image));
     return context.create<flux::EnvMapLight>(props);
@@ -667,13 +677,36 @@ public:
             ids.env = enroll(Kind::Env, *map);
         }
         context->setActiveEnvMap(map);
-        model.env = Spec::Env{scale, envImage};
+        model.env = Spec::Env{scale, envImage, map->getRotation()};
     }
 
     void scaleEnv(Spectrum const &scale) {
         note("set the environment scale to {}", text(scale));
         context->get<flux::EnvMapLight>(*ids.env)->setScale(scale);
         model.env->scale = scale;
+    }
+
+    /// Gives the active environment map a new texture that reads \p image, or a constant one.
+    void retextureEnv(std::optional<Spec::Image> const &image) {
+        note("retexture the environment map with {}", image ? text(*image) : "no image");
+        flux::Ref<flux::Texture const> texture;
+        if (image) {
+            texture = context->create<flux::ImageTexture>(imageTextureProperties(*image));
+        } else {
+            kira::Properties props;
+            props.set("value", Spectrum{1.0F});
+            texture = context->create<flux::ConstantTexture>(props);
+        }
+        trackTextures();
+        context->get<flux::EnvMapLight>(*ids.env)->setTexture(texture);
+        envImage = image;
+        model.env->image = image;
+    }
+
+    void rotateEnv(Vec3f const &rotation) {
+        note("set the environment rotation to {}", text(rotation));
+        context->get<flux::EnvMapLight>(*ids.env)->setRotation(rotation);
+        model.env->rotation = rotation;
     }
 
     /// Makes the environment map inactive, and removes its object when \p remove is set.
@@ -1174,6 +1207,15 @@ const std::array ops = {
        }},
     Op{"scale environment map", 1, [](Spec const &m) { return m.env.has_value(); },
        [](Rig &r, Gen &g) { r.scaleEnv(g.spectrum(0.05F, 1.0F)); }},
+    Op{"retexture environment map", 1, [](Spec const &m) { return m.env.has_value(); },
+       [](Rig &r, Gen &g) {
+           std::optional<Spec::Image> image;
+           if (g.chance(50))
+               image = g.image();
+           r.retextureEnv(image);
+       }},
+    Op{"rotate environment map", 1, [](Spec const &m) { return m.env.has_value(); },
+       [](Rig &r, Gen &g) { r.rotateEnv(g.point(-180.0F, 180.0F, -180.0F, 180.0F)); }},
     Op{"unset environment map", 1, [](Spec const &m) { return m.env.has_value(); },
        [](Rig &r, Gen &g) { r.unsetEnv(g.chance(50)); }},
     Op{"switch integrator", 1, [](Spec const &) { return true; },
@@ -1414,6 +1456,77 @@ TEST(OptixFuzzUpdateTests, TwoSyncsWithoutAClearMatchOne) {
     auto const two = twice.frame(2);
     EXPECT_TRUE(one == two);
     EXPECT_TRUE(once.ok && twice.ok);
+}
+
+// The environment map's sampling distribution depends on its image, component mapping, and
+// scale, and exists only while an image map is active. Each edit below changes one of them, or
+// none, as a rotation does.
+TEST(OptixFuzzUpdateTests, FollowsEveryInputOfTheEnvironmentDistribution) {
+    if (skipWithoutCuda())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    auto base = makeBase();
+    Rig rig(base.spec);
+    auto const image = Spec::Image{.file = 0, .srgb = false, .point = false, .addressMode = 0};
+    rig.setEnv(Spectrum{0.5F}, image);
+    auto const before = rig.frame();
+
+    // Another map of the same image, whose mapping swaps red and blue.
+    auto swapped = image;
+    swapped.mapping = "zyx1";
+    rig.unsetEnv(true);
+    rig.setEnv(Spectrum{0.5F}, swapped);
+    EXPECT_FALSE(rig.frame() == before);
+
+    auto const scale = Spectrum{0.2F, 0.6F, 0.9F};
+    rig.scaleEnv(scale);
+    (void)rig.frame();
+
+    rig.rotateEnv({30.0F, 90.0F, 0.0F});
+    (void)rig.frame();
+
+    // A zero scale leaves no distribution to sample, and a positive one brings it back.
+    rig.scaleEnv(Spectrum{0.0F});
+    (void)rig.frame();
+    rig.scaleEnv(scale);
+    (void)rig.frame();
+
+    // Another image, with the same mapping and scale.
+    auto other = swapped;
+    other.file = 4;
+    rig.unsetEnv(true);
+    rig.setEnv(scale, other);
+    (void)rig.frame();
+
+    // A constant map drops the distribution, and the same image builds it again.
+    rig.unsetEnv(true);
+    rig.setEnv(scale);
+    (void)rig.frame();
+    rig.unsetEnv(true);
+    rig.setEnv(scale, other);
+    (void)rig.frame();
+
+    // The same file in the other color space is another ImageAsset.
+    auto srgb = other;
+    srgb.srgb = true;
+    rig.unsetEnv(true);
+    rig.setEnv(scale, srgb);
+    (void)rig.frame();
+
+    // The same map with new textures: constant, the image in each filter and address mode, which
+    // keep its distribution, and another image.
+    rig.retextureEnv(std::nullopt);
+    (void)rig.frame();
+    for (std::size_t mode = 0; mode < addressModes.size(); ++mode) {
+        auto again = srgb;
+        again.point = mode % 2 == 0;
+        again.addressMode = mode;
+        rig.retextureEnv(again);
+        (void)rig.frame();
+    }
+    rig.retextureEnv(image);
+    (void)rig.frame();
+    EXPECT_TRUE(rig.ok);
 }
 
 TEST(OptixFuzzUpdateTests, ForgetsWhatASyncWithoutAClearCollects) {

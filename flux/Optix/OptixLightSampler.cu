@@ -12,7 +12,6 @@
 #include "flux/Sampling/Distribution2D.h"
 #include "flux/Scene/Context.h"
 #include "flux/Shading/Texture.h"
-#include "kira/Anyhow.h"
 #include "kira/SmallVector.h"
 
 namespace flux {
@@ -39,24 +38,42 @@ struct SampleEnvMapWeights {
         weights[index] = std::max(luminance(radiance), 0.0F) * std::sin(theta);
     }
 };
+
 } // namespace
 
-void OptixLightSampler::build(
+void OptixLightSampler::sync(
     Context const &context, OptixImageTextureTable imageTextures, float sceneRadius
 ) {
     points_.clear();
     primAreaScales_.clear();
     envMap_.clear();
-    envMapCDF_.clear();
-    envMapRows_.clear();
     handles_.clear();
     cdf_.clear();
     primSlots_.clear();
 
     auto const envMap = context.getActiveEnvMap();
+    auto const image = envMap ? envMap->getTexture().dynamicCast<ImageTexture const>() : nullptr;
+    std::optional<EnvMapKey> key;
+    // The weights read texel centers with point filtering, so the filter and address modes do not
+    // change them, and the rotation applies only when rendering. The extent, components, and color
+    // space belong to the ImageAsset, which is immutable and whose ID never repeats.
+    if (image)
+        key = EnvMapKey{
+            .imageId = image->getImageAsset()->getId(),
+            .componentMapping = image->getComponentMapping(),
+            .scale = envMap->getScale(),
+        };
+    // Reset before building, so that the old and the new distribution never coexist in memory.
+    if (envMapDistribution_ && envMapDistribution_->key != key)
+        envMapDistribution_.reset();
+    if (key && !envMapDistribution_)
+        envMapDistribution_ = buildEnvMapDistribution(*image, *key, imageTextures);
+
     std::optional<float> envMapPower;
     if (envMap)
-        envMapPower = buildEnvMap(*envMap, imageTextures, sceneRadius);
+        envMapPower = uploadEnvMap(
+            *envMap, envMapDistribution_ ? &*envMapDistribution_ : nullptr, sceneRadius
+        );
 
     staging_.build(context, envMapPower);
     points_.copyFromHost(staging_.lights.points);
@@ -66,59 +83,72 @@ void OptixLightSampler::build(
     primSlots_.copyFromHost(staging_.slots.primSlots);
 }
 
-float OptixLightSampler::buildEnvMap(
-    EnvMapLight const &envMap, OptixImageTextureTable imageTextures, float sceneRadius
+OptixLightSampler::EnvMapDistribution OptixLightSampler::buildEnvMapDistribution(
+    ImageTexture const &image, EnvMapKey const &key, OptixImageTextureTable imageTextures
+) const {
+    auto const extent = image.getImageAsset()->getExtent();
+    auto const numPixels = static_cast<std::size_t>(extent.x()) * extent.y();
+    DeviceBuffer<float> weights(getStream());
+    weights.resize(numPixels);
+    launchLinearKernel(
+        numPixels,
+        SampleEnvMapWeights{
+            .imageTextures = imageTextures,
+            .textureIndex = image.getImpl().storage.image.imageTextureIndex,
+            .scale = key.scale,
+            .weights = weights.data(),
+            .extent = extent,
+        },
+        getStream()
+    );
+
+    kira::SmallVector<float, 0> hostWeights;
+    kira::SmallVector<float, 0> hostRows;
+    hostWeights.resize_for_overwrite(numPixels);
+    hostRows.resize_for_overwrite(extent.y());
+    weights.copyToHost({hostWeights.data(), hostWeights.size()});
+    cudaCheck(cudaStreamSynchronize(getStream()));
+
+    auto distribution = EnvMapDistribution{
+        .key = key,
+        .extent = extent,
+        .weightSum = buildCDF2D(
+            extent, {hostWeights.data(), hostWeights.size()}, {hostRows.data(), hostRows.size()}
+        ),
+        .cdf = DeviceBuffer<float>(getStream()),
+        .rows = DeviceBuffer<float>(getStream()),
+    };
+    if (distribution.weightSum > 0.0F) {
+        distribution.cdf.copyFromHost({hostWeights.data(), hostWeights.size()});
+        distribution.rows.copyFromHost({hostRows.data(), hostRows.size()});
+    }
+    return distribution;
+}
+
+float OptixLightSampler::uploadEnvMap(
+    EnvMapLight const &envMap, EnvMapDistribution const *distribution, float sceneRadius
 ) {
-    auto const texture = envMap.getTexture()->getImpl();
     auto luminanceIntegral = 0.0F;
-    auto distribution = Distribution2D{};
-    if (texture.type == TextureType::Constant) {
+    auto view = Distribution2D{};
+    if (distribution) {
+        auto const numPixels =
+            static_cast<std::size_t>(distribution->extent.x()) * distribution->extent.y();
+        luminanceIntegral = distribution->weightSum * 2.0F * std::numbers::pi_v<float> *
+                            std::numbers::pi_v<float> / static_cast<float>(numPixels);
+        if (distribution->weightSum > 0.0F)
+            view = {
+                .condCDF = distribution->cdf.data(),
+                .rowCDF = distribution->rows.data(),
+                .extent = distribution->extent,
+            };
+    } else {
+        auto const texture = envMap.getTexture()->getImpl();
         luminanceIntegral =
             4.0F * std::numbers::pi_v<float> *
             std::max(luminance(texture.storage.constant.value * envMap.getScale()), 0.0F);
-    } else if (texture.type == TextureType::Image) {
-        auto image = envMap.getTexture().dynamicCast<ImageTexture const>();
-        if (!image)
-            throw kira::Anyhow("OptixLightSampler: image texture implementation mismatch");
-        auto const extent = image->getImageAsset()->getExtent();
-        auto const numPixels = static_cast<std::size_t>(extent.x()) * extent.y();
-        DeviceBuffer<float> weights(getStream());
-        weights.resize(numPixels);
-        launchLinearKernel(
-            numPixels,
-            SampleEnvMapWeights{
-                .imageTextures = imageTextures,
-                .textureIndex = texture.storage.image.imageTextureIndex,
-                .scale = envMap.getScale(),
-                .weights = weights.data(),
-                .extent = extent,
-            },
-            getStream()
-        );
-
-        kira::SmallVector<float, 0> hostWeights;
-        kira::SmallVector<float, 0> hostRows;
-        hostWeights.resize_for_overwrite(numPixels);
-        hostRows.resize_for_overwrite(extent.y());
-        weights.copyToHost({hostWeights.data(), hostWeights.size()});
-        cudaCheck(cudaStreamSynchronize(getStream()));
-        auto const weightSum = buildCDF2D(
-            extent, {hostWeights.data(), hostWeights.size()}, {hostRows.data(), hostRows.size()}
-        );
-        luminanceIntegral = weightSum * 2.0F * std::numbers::pi_v<float> *
-                            std::numbers::pi_v<float> / static_cast<float>(numPixels);
-        if (weightSum > 0.0F) {
-            envMapCDF_.copyFromHost({hostWeights.data(), hostWeights.size()});
-            envMapRows_.copyFromHost({hostRows.data(), hostRows.size()});
-            distribution = {
-                .condCDF = envMapCDF_.data(),
-                .rowCDF = envMapRows_.data(),
-                .extent = extent,
-            };
-        }
     }
 
-    auto const impl = envMap.getImpl(distribution);
+    auto const impl = envMap.getImpl(view);
     envMap_.copyFromHost({&impl, 1});
     return envMap.estimatePower(sceneRadius, luminanceIntegral);
 }

@@ -115,7 +115,7 @@ public:
     DeviceBuffer<std::uint32_t> instanceIndices{getStream()};
 
 public:
-    // Lights. Rebuilt on every sync.
+    // Lights.
     OptixLightSampler lightSampler{getStream()};
 };
 
@@ -166,14 +166,14 @@ OptixContext::Impl OptixContext::getImpl() const noexcept {
 }
 
 void OptixContext::pImpl::sync() {
-    // Meshes and images are memoized by ID, and the program by specialization. The rest is
-    // rebuilt in dependency order.
+    // Meshes and images are memoized by ID, and the program and the environment map's sampling
+    // distribution by key. The rest is rebuilt in dependency order.
     syncGeometry();
     buildTables();
     syncTextures();
     syncProgram();
     buildIas();
-    lightSampler.build(context, {.textures = imageTextures.data()}, ias.getSceneRadius());
+    lightSampler.sync(context, {.textures = imageTextures.data()}, ias.getSceneRadius());
 
     // Wait for the uploads, which read host arrays that the members own.
     cudaCheck(cudaStreamSynchronize(getStream()));
