@@ -242,3 +242,9 @@ krr_add_test(
     SOURCES KernelUtilsTests.cu
     HARD_DEPENDENCIES flux)
 target_link_libraries(flux.Optix.KernelUtilsTests PRIVATE CUDA::cudart)
+
+krr_add_test(
+    flux Optix DeletionQueueTests
+    SOURCES DeletionQueueTests.cpp
+    HARD_DEPENDENCIES flux)
+target_link_libraries(flux.Optix.DeletionQueueTests PRIVATE CUDA::cudart)

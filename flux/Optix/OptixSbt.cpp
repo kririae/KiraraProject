@@ -7,20 +7,21 @@
 
 namespace flux {
 void OptixSbt::build(OptixProgram const &program) {
-    optixCheck(optixSbtRecordPackHeader(program.getRaygenProgram(), &staging_[raygenRecord]));
-    optixCheck(optixSbtRecordPackHeader(program.getMissProgram(), &staging_[missRecord]));
+    std::array<Record, numRecords> records{};
+    optixCheck(optixSbtRecordPackHeader(program.getRaygenProgram(), &records[raygenRecord]));
+    optixCheck(optixSbtRecordPackHeader(program.getMissProgram(), &records[missRecord]));
 
     for (std::size_t bsdf = 0; bsdf < numBSDFTypes; ++bsdf) {
         auto const bsdfType = static_cast<BSDFType>(bsdf);
         for (std::size_t geometry = 0; geometry < numGeometryTypes; ++geometry) {
             auto const geometryType = static_cast<GeometryType>(geometry);
             auto &record =
-                staging_[hitgroupRecords + getHitgroupRecordIndex(bsdfType, geometryType)];
+                records[hitgroupRecords + getHitgroupRecordIndex(bsdfType, geometryType)];
             optixCheck(optixSbtRecordPackHeader(program.getHitgroupProgram(geometryType), &record));
         }
     }
 
-    records_.copyFromHost(staging_);
+    records_.copyFromHost(records, deletionQueue_);
 
     table_ = {
         .raygenRecord = devicePointer(records_.data() + raygenRecord),

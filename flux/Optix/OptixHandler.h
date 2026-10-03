@@ -30,8 +30,8 @@ public:
 
     /// \brief Updates the OptiX scene from the host \c Context.
     ///
-    /// Does nothing while the context version stays the same. Otherwise it waits for the
-    /// update and clears accumulation for every render product. If sync throws, render nothing
+    /// Does nothing while the context version stays the same. Otherwise it updates the OptiX
+    /// scene and clears accumulation for every render product. If sync throws, render nothing
     /// until a later sync succeeds. A failed update of the OptiX scene drops it, and the next
     /// sync builds a new one.
     void sync();

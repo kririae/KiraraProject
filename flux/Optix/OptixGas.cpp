@@ -69,7 +69,6 @@ std::vector<OptixGas> buildGas(
 
     std::vector<std::uint64_t> compactedBytes(inputs.size());
     compactedSizes.copyToHost({compactedBytes.data(), compactedBytes.size()});
-    cudaCheck(cudaStreamSynchronize(stream));
 
     // Compact every GAS that shrinks, and keep the rest as built.
     result.reserve(inputs.size());

@@ -4,12 +4,14 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <span>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "flux/Core/Object.h"
+#include "flux/Optix/DeletionQueue.h"
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Scene/ImageAsset.h"
 
@@ -29,17 +31,22 @@ struct OptixImage {
 ///
 /// The pool holds no ImageAsset, and knows no texture. Mutation is single-threaded, so callers
 /// provide external synchronization.
-class OptixImagePool final : private Noncopyable, private CudaStreamMixin {
+class OptixImagePool final : private Noncopyable {
 public:
-    explicit OptixImagePool(cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
+    explicit OptixImagePool(DeletionQueue &deletionQueue) noexcept
+        : deletionQueue_(deletionQueue) {}
+
+    /// \brief Deletes all images once the stream finishes its current work.
+    ~OptixImagePool();
 
     /// \brief Reads \p assets and uploads their mip chains.
     /// \pre No asset of \p assets is present, and their IDs are distinct.
     /// \throw kira::Anyhow If reading or uploading fails. Then nothing is added.
     void add(std::span<Ref<ImageAsset const> const> assets);
 
-    /// \brief Frees the images \p ids.
-    /// \pre Every ID of \p ids is present, and no texture object or launch reads them.
+    /// \brief Deletes images once the stream finishes its current work.
+    /// \param ids The IDs of the images. An absent ID is ignored.
+    /// \pre No texture object reads the images.
     void remove(std::span<std::size_t const> ids);
 
     /// \brief Returns whether the image \p id is present.
@@ -80,6 +87,7 @@ private:
         OptixImage image;
     };
 
-    std::unordered_map<std::size_t, Entry> entries_;
+    DeletionQueue &deletionQueue_;
+    std::unordered_map<std::size_t, std::shared_ptr<Entry const>> entries_;
 };
 } // namespace flux

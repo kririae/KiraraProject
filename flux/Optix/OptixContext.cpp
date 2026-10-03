@@ -4,7 +4,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "flux/Optix/DeviceBuffer.h"
@@ -30,14 +32,16 @@ namespace flux {
 struct OptixContext::pImpl final : private CudaStreamMixin {
 public:
     pImpl(
-        Context &context, OptixDeviceContext deviceContext, cudaStream_t stream,
+        Context &context, OptixDeviceContext deviceContext, DeletionQueue &deletionQueue,
         std::filesystem::path modulePath
     )
-        : CudaStreamMixin(stream), context(context), deviceContext(deviceContext),
+        : CudaStreamMixin(deletionQueue.getStream()), context(context),
+          deviceContext(deviceContext), deletionQueue(deletionQueue),
           modulePath(std::move(modulePath)) {}
 
     ~pImpl() {
-        // Queued copies read host arrays that the members own.
+        // Work on the stream may still use the texture objects and the program, and they are not
+        // deleted through the deletion queue.
         cudaCheck<false>(cudaStreamSynchronize(getStream()));
     }
 
@@ -46,6 +50,7 @@ public:
 
     Context &context;
     OptixDeviceContext deviceContext;
+    DeletionQueue &deletionQueue;
 
 public:
     // Geometry. Arrays and GASes are memoized by mesh ID. The table is rebuilt on every sync.
@@ -53,11 +58,8 @@ public:
     /// Makes the pool hold exactly the live meshes, then places each at its geometry index.
     void syncGeometry();
 
-    OptixGeometryPool geometryPool{deviceContext, getStream()};
+    OptixGeometryPool geometryPool{deviceContext, deletionQueue};
 
-    /// Device Impl of each geometry index, kept until the upload completes. An index without a
-    /// live mesh holds a default Impl.
-    std::vector<Geometry::Impl> geometryStaging;
     /// GAS of each geometry index, for the IAS. An index without a live mesh holds zero.
     std::vector<OptixTraversableHandle> gases;
     DeviceBuffer<Geometry::Impl> geometries{getStream()};
@@ -81,14 +83,12 @@ public:
     /// texture at its index.
     void syncTextures();
 
-    OptixImagePool imagePool{getStream()};
+    OptixImagePool imagePool{deletionQueue};
 
     /// Texture objects of the table. Declared after the pool, so they are destroyed before the
     /// arrays they sample.
     std::vector<CudaTextureObject> textureObjects;
 
-    /// Texture of each image-texture index, kept until the upload completes.
-    std::vector<OptixImageTexture> imageTextureStaging;
     DeviceBuffer<OptixImageTexture> imageTextures{getStream()};
 
 public:
@@ -99,7 +99,7 @@ public:
 
     std::filesystem::path modulePath;
     std::unique_ptr<OptixProgram> program;
-    OptixSbt sbt{getStream()};
+    OptixSbt sbt{deletionQueue};
 
 public:
     // IAS. Rebuilt on every sync.
@@ -107,23 +107,19 @@ public:
     /// Rebuilds the IAS over the visible primitives.
     void buildIas();
 
-    OptixIas ias{getStream()};
-
-    /// Instance index of each primitive by primitive index, kept until the upload
-    /// completes.
-    std::vector<std::uint32_t> instanceIndexStaging;
+    OptixIas ias{deletionQueue};
     DeviceBuffer<std::uint32_t> instanceIndices{getStream()};
 
 public:
     // Lights.
-    OptixLightSampler lightSampler{getStream()};
+    OptixLightSampler lightSampler{deletionQueue};
 };
 
 OptixContext::OptixContext(
-    Context &context, OptixDeviceContext deviceContext, cudaStream_t stream,
+    Context &context, OptixDeviceContext deviceContext, DeletionQueue &deletionQueue,
     std::filesystem::path const &modulePath
 )
-    : pImpl_(std::make_unique<pImpl>(context, deviceContext, stream, modulePath)) {}
+    : pImpl_(std::make_unique<pImpl>(context, deviceContext, deletionQueue, modulePath)) {}
 
 OptixContext::~OptixContext() = default;
 
@@ -174,9 +170,6 @@ void OptixContext::pImpl::sync() {
     syncProgram();
     buildIas();
     lightSampler.sync(context, {.textures = imageTextures.data()}, ias.getSceneRadius());
-
-    // Wait for the uploads, which read host arrays that the members own.
-    cudaCheck(cudaStreamSynchronize(getStream()));
 }
 
 void OptixContext::pImpl::syncGeometry() {
@@ -196,28 +189,33 @@ void OptixContext::pImpl::syncGeometry() {
     geometryPool.remove(removed);
     geometryPool.add({added.data(), added.size()});
 
-    // Place each live mesh at its geometry index. Indices are reused, so the table is rebuilt.
-    geometryStaging.assign(context.getIndexLimit<Geometry>(), {});
-    gases.assign(geometryStaging.size(), {});
+    // An index without a live mesh holds a default Impl. Indices are reused, so every sync rebuilds
+    // the table.
+    std::vector<Geometry::Impl> hostGeometries(context.getIndexLimit<Geometry>());
+    gases.assign(hostGeometries.size(), {});
     for (auto const &mesh : meshes) {
         auto const id = mesh->getContextId();
         auto const index = context.getIndex<Geometry>(id);
-        geometryStaging[index] = geometryPool.getImpl(id);
+        hostGeometries[index] = geometryPool.getImpl(id);
         gases[index] = geometryPool.getGas(id);
     }
-    geometries.copyFromHost({geometryStaging.data(), geometryStaging.size()});
+
+    geometries.copyFromHost({hostGeometries.data(), hostGeometries.size()}, deletionQueue);
 }
 
 void OptixContext::pImpl::buildTables() {
     table.build(context);
-    primitives.copyFromHost({table.primitives.data(), table.primitives.size()});
-    bsdfs.copyFromHost({table.bsdfs.data(), table.bsdfs.size()});
-    edfs.copyFromHost({table.edfs.data(), table.edfs.size()});
+    primitives.copyFromHost({table.primitives.data(), table.primitives.size()}, deletionQueue);
+    bsdfs.copyFromHost({table.bsdfs.data(), table.bsdfs.size()}, deletionQueue);
+    edfs.copyFromHost({table.edfs.data(), table.edfs.size()}, deletionQueue);
 }
 
 void OptixContext::pImpl::syncTextures() {
-    // Texture objects sample the arrays, so they go before any array does.
-    textureObjects.clear();
+    // Queued launches may still sample the old texture objects.
+    if (!textureObjects.empty())
+        deletionQueue.deleteLater(
+            std::make_shared<std::vector<CudaTextureObject>>(std::move(textureObjects))
+        );
 
     // Find the images that live textures sample and the pool lacks, and the pool's images that no
     // live texture samples.
@@ -238,7 +236,7 @@ void OptixContext::pImpl::syncTextures() {
 
     // Create the texture objects of each live texture, and place it at its index.
     textureObjects.reserve(2 * textures.size());
-    imageTextureStaging.assign(context.getIndexLimit<ImageTexture>(), {});
+    std::vector<OptixImageTexture> hostImageTextures(context.getIndexLimit<ImageTexture>());
     for (auto const &texture : textures) {
         auto const image = imagePool.getImpl(texture->getImageAsset()->getId());
         auto const addressMode = texture->getAddressMode();
@@ -253,14 +251,15 @@ void OptixContext::pImpl::syncTextures() {
                             createTextureObject(image, addressMode, ImageTextureFilterMode::Point)
                         )
                         .get();
-        imageTextureStaging[context.getIndex<ImageTexture>(texture->getContextId())] = {
+        hostImageTextures[context.getIndex<ImageTexture>(texture->getContextId())] = {
             .texture = filtered,
             .pointTexture = point,
             .componentMapping = texture->getComponentMapping(),
             .componentCount = image.componentCount,
         };
     }
-    imageTextures.copyFromHost({imageTextureStaging.data(), imageTextureStaging.size()});
+
+    imageTextures.copyFromHost({hostImageTextures.data(), hostImageTextures.size()}, deletionQueue);
 }
 
 void OptixContext::pImpl::syncProgram() {
@@ -268,8 +267,10 @@ void OptixContext::pImpl::syncProgram() {
     if (program && program->getSpec() == spec)
         return;
 
-    // The SBT packs the program-group headers, so it follows the program.
-    program.reset();
+    // Queued launches may still run the old program. The SBT packs the program-group headers, so it
+    // follows the program.
+    if (program)
+        deletionQueue.deleteLater(std::shared_ptr<OptixProgram const>(std::move(program)));
     program = std::make_unique<OptixProgram>(deviceContext, modulePath, spec);
     sbt.build(*program);
 }
@@ -279,13 +280,13 @@ void OptixContext::pImpl::buildIas() {
     // its instance index is its position among the visible primitives.
     std::vector<OptixIas::InstanceDesc> instanceDescs;
     instanceDescs.reserve(table.primitives.size());
-    instanceIndexStaging.assign(table.primitives.size(), 0);
+    std::vector<std::uint32_t> instanceIndexByPrimitive(table.primitives.size());
     for (std::size_t index = 0; index < table.primitives.size(); ++index) {
         auto const &primitive = table.primitives[index];
         if (primitive.isHole())
             continue;
 
-        instanceIndexStaging[index] = static_cast<std::uint32_t>(instanceDescs.size());
+        instanceIndexByPrimitive[index] = static_cast<std::uint32_t>(instanceDescs.size());
         auto const bsdfType =
             primitive.hasBSDF() ? table.bsdfs[primitive.getBSDFIndex()].type : BSDFType::Diffuse;
 
@@ -299,6 +300,9 @@ void OptixContext::pImpl::buildIas() {
     }
 
     ias.build(deviceContext, instanceDescs);
-    instanceIndices.copyFromHost({instanceIndexStaging.data(), instanceIndexStaging.size()});
+
+    instanceIndices.copyFromHost(
+        {instanceIndexByPrimitive.data(), instanceIndexByPrimitive.size()}, deletionQueue
+    );
 }
 } // namespace flux

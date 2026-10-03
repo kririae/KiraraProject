@@ -4,6 +4,7 @@
 #include <optional>
 
 #include "flux/Core/Object.h"
+#include "flux/Optix/DeletionQueue.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/OptixImageTexture.h"
 #include "flux/Scene/LightTableData.h"
@@ -16,7 +17,8 @@ class OptixLightSampler final : private Noncopyable, private CudaStreamMixin {
 public:
     struct Impl;
 
-    explicit OptixLightSampler(cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
+    explicit OptixLightSampler(DeletionQueue &deletionQueue) noexcept
+        : CudaStreamMixin(deletionQueue.getStream()), deletionQueue_(deletionQueue) {}
 
     /// \brief Brings the sampler up to date with the lights of \p context.
     ///
@@ -64,7 +66,10 @@ private:
         EnvMapLight const &envMap, EnvMapDistribution const *distribution, float sceneRadius
     );
 
-    LightTableData staging_;
+    DeletionQueue &deletionQueue_;
+
+    // Host light tables of the last sync.
+    LightTableData table_;
 
     // Per-light data.
     DeviceBuffer<PointLight::Impl> points_{getStream()};

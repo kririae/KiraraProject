@@ -6,10 +6,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
-#include <vector>
 
 #include "flux/Core/Math.h"
 #include "flux/Core/Object.h"
+#include "flux/Optix/DeletionQueue.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/OptixUtils.h"
 
@@ -37,7 +37,8 @@ public:
         };
     };
 
-    explicit OptixIas(cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
+    explicit OptixIas(DeletionQueue &deletionQueue) noexcept
+        : CudaStreamMixin(deletionQueue.getStream()), deletionQueue_(deletionQueue) {}
 
     /// \brief Rebuilds the IAS from \p instances.
     ///
@@ -59,7 +60,7 @@ private:
     /// \brief Releases the IAS.
     void clear() noexcept;
 
-    std::vector<OptixInstance> instanceStaging_;
+    DeletionQueue &deletionQueue_;
     DeviceBuffer<OptixInstance> instances_{getStream()};
     DeviceBuffer<std::byte> ias_{getStream()};
     DeviceBuffer<OptixAabb> iasBounds_{getStream()};

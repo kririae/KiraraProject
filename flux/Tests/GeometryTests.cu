@@ -539,8 +539,8 @@ TEST(GeometryTests, ReconstructsTriangleInteractionInGeometrySpace) {
     flux::DeviceBuffer<flux::Vec3f> deviceVertices(cudaStreamPerThread);
     flux::DeviceBuffer<flux::Vec3u> deviceTriangles(cudaStreamPerThread);
     flux::DeviceBuffer<flux::GeometryInteraction> deviceResult(cudaStreamPerThread);
-    deviceVertices.copyFromHost(vertices);
-    deviceTriangles.copyFromHost(triangles);
+    deviceVertices.copyFromHostAndWait(vertices);
+    deviceTriangles.copyFromHostAndWait(triangles);
     deviceResult.resize(1);
 
     flux::launchLinearKernel(
@@ -566,7 +566,6 @@ TEST(GeometryTests, ReconstructsTriangleInteractionInGeometrySpace) {
 
     std::array<flux::GeometryInteraction, 1> result{};
     deviceResult.copyToHost(result);
-    flux::cudaCheck(cudaStreamSynchronize(cudaStreamPerThread));
 
     EXPECT_EQ(result[0].position, (flux::Vec3f{0.5F, 2.0F, 0.0F}));
     EXPECT_EQ(result[0].geometricNormal, (flux::Vec3f{0.0F, 0.0F, 1.0F}));
@@ -606,12 +605,12 @@ TEST(GeometryTests, InterpolatesIndexedShadingAttributes) {
     flux::DeviceBuffer<flux::Vec2f> deviceTexCoords(cudaStreamPerThread);
     flux::DeviceBuffer<flux::Vec3u> deviceTexCoordIndices(cudaStreamPerThread);
     flux::DeviceBuffer<flux::GeometryInteraction> deviceResult(cudaStreamPerThread);
-    deviceVertices.copyFromHost(vertices);
-    deviceTriangles.copyFromHost(triangles);
-    deviceNormals.copyFromHost(normals);
-    deviceNormalIndices.copyFromHost(normalIndices);
-    deviceTexCoords.copyFromHost(texCoords);
-    deviceTexCoordIndices.copyFromHost(texCoordIndices);
+    deviceVertices.copyFromHostAndWait(vertices);
+    deviceTriangles.copyFromHostAndWait(triangles);
+    deviceNormals.copyFromHostAndWait(normals);
+    deviceNormalIndices.copyFromHostAndWait(normalIndices);
+    deviceTexCoords.copyFromHostAndWait(texCoords);
+    deviceTexCoordIndices.copyFromHostAndWait(texCoordIndices);
     deviceResult.resize(1);
 
     flux::launchLinearKernel(
@@ -641,7 +640,6 @@ TEST(GeometryTests, InterpolatesIndexedShadingAttributes) {
 
     std::array<flux::GeometryInteraction, 1> result{};
     deviceResult.copyToHost(result);
-    flux::cudaCheck(cudaStreamSynchronize(cudaStreamPerThread));
 
     EXPECT_EQ(result[0].geometricNormal, (flux::Vec3f{0.0F, 0.0F, 1.0F}));
     EXPECT_NEAR(result[0].shadingNormal.x(), 0.8164966F, 1.0e-6F);

@@ -84,8 +84,7 @@ protected:
             .componentMapping = texture->getComponentMapping(),
             .componentCount = image.componentCount,
         };
-        textures.copyFromHost({&entry, 1});
-        flux::cudaCheck(cudaStreamSynchronize(cudaStreamPerThread));
+        textures.copyFromHostAndWait({&entry, 1});
     }
 
     [[nodiscard]] std::vector<flux::Vec4f> sample(
@@ -94,7 +93,7 @@ protected:
     ) const {
         flux::DeviceBuffer<flux::Vec2f> deviceUVs(cudaStreamPerThread);
         flux::DeviceBuffer<flux::Vec4f> deviceSamples(cudaStreamPerThread);
-        deviceUVs.copyFromHost(uvs);
+        deviceUVs.copyFromHostAndWait(uvs);
         deviceSamples.resize(uvs.size());
         flux::launchLinearKernel(
             uvs.size(),
@@ -111,7 +110,6 @@ protected:
 
         auto result = std::vector<flux::Vec4f>(uvs.size());
         deviceSamples.copyToHost(result);
-        flux::cudaCheck(cudaStreamSynchronize(cudaStreamPerThread));
         return result;
     }
 
@@ -123,7 +121,8 @@ protected:
     }
 
     flux::Ref<flux::Context> context = flux::Context::create();
-    flux::OptixImagePool pool{cudaStreamPerThread};
+    flux::DeletionQueue deletionQueue{cudaStreamPerThread};
+    flux::OptixImagePool pool{deletionQueue};
     flux::CudaTextureObject filtered;
     flux::CudaTextureObject point;
     flux::DeviceBuffer<flux::OptixImageTexture> textures{cudaStreamPerThread};
@@ -462,7 +461,8 @@ TEST(OptixImagePoolTests, AddsAndRemovesImagesInBatches) {
     auto const kept = assets[0]->getId();
     auto const dropped = assets[1]->getId();
 
-    flux::OptixImagePool pool{cudaStreamPerThread};
+    flux::DeletionQueue deletionQueue{cudaStreamPerThread};
+    flux::OptixImagePool pool{deletionQueue};
     pool.add(assets);
     EXPECT_EQ(pool.getIds().size(), 2U);
     for (auto const &asset : assets) {
@@ -475,7 +475,8 @@ TEST(OptixImagePoolTests, AddsAndRemovesImagesInBatches) {
         EXPECT_EQ(image.numLevels, std::bit_width(std::max(extent.x(), extent.y())));
     }
 
-    auto const removed = std::array{dropped};
+    // The second ID is absent once the first removes the image.
+    auto const removed = std::array{dropped, dropped};
     pool.remove(removed);
     EXPECT_TRUE(pool.contains(kept));
     EXPECT_FALSE(pool.contains(dropped));

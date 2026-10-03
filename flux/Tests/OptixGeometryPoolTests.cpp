@@ -47,30 +47,40 @@ public:
 };
 
 /// Requires the device array \p got to hold the \p count elements of the host array \p want, and
-/// to be null exactly when \p want is.
+/// to be null exactly when \p want is. Reads \p got on \p stream.
 template <typename T>
-void expectArray(char const *name, T const *got, T const *want, std::size_t count) {
+void expectArray(
+    char const *name, T const *got, T const *want, std::size_t count, cudaStream_t stream
+) {
     SCOPED_TRACE(name);
     ASSERT_EQ(got == nullptr, want == nullptr);
     if (!want)
         return;
     std::vector<T> data(count);
-    flux::cudaCheck(cudaMemcpy(data.data(), got, count * sizeof(T), cudaMemcpyDeviceToHost));
+    flux::cudaCheck(
+        cudaMemcpyAsync(data.data(), got, count * sizeof(T), cudaMemcpyDeviceToHost, stream)
+    );
+    flux::cudaCheck(cudaStreamSynchronize(stream));
     EXPECT_EQ(std::memcmp(data.data(), want, count * sizeof(T)), 0);
 }
 
 /// Requires the device Impl to hold the arrays of \p mesh, paired as the host Impl pairs them.
-void expectSameMesh(flux::Geometry::Impl const &device, TriangleMesh const &mesh) {
+/// Reads the device arrays on \p stream.
+void expectSameMesh(
+    flux::Geometry::Impl const &device, TriangleMesh const &mesh, cudaStream_t stream
+) {
     auto const &got = cuda::std::get<TriangleMesh::Impl>(device);
     auto const want = mesh.getImpl();
     ASSERT_EQ(got.numVertices, want.numVertices);
     ASSERT_EQ(got.numTriangles, want.numTriangles);
-    expectArray("vertices", got.vertices, want.vertices, want.numVertices);
-    expectArray("triangles", got.triangles, want.triangles, want.numTriangles);
-    expectArray("normals", got.normals, want.normals, mesh.getNormals().size());
-    expectArray("normalIndices", got.normalIndices, want.normalIndices, want.numTriangles);
-    expectArray("texCoords", got.texCoords, want.texCoords, mesh.getTexCoords().size());
-    expectArray("texCoordIndices", got.texCoordIndices, want.texCoordIndices, want.numTriangles);
+    expectArray("vertices", got.vertices, want.vertices, want.numVertices, stream);
+    expectArray("triangles", got.triangles, want.triangles, want.numTriangles, stream);
+    expectArray("normals", got.normals, want.normals, mesh.getNormals().size(), stream);
+    expectArray("normalIndices", got.normalIndices, want.normalIndices, want.numTriangles, stream);
+    expectArray("texCoords", got.texCoords, want.texCoords, mesh.getTexCoords().size(), stream);
+    expectArray(
+        "texCoordIndices", got.texCoordIndices, want.texCoordIndices, want.numTriangles, stream
+    );
 
     // An attribute without its own indices shares the triangles.
     EXPECT_EQ(got.normalIndices == got.triangles, want.normalIndices == want.triangles);
@@ -78,8 +88,8 @@ void expectSameMesh(flux::Geometry::Impl const &device, TriangleMesh const &mesh
 
     std::vector<float> cdf(want.numTriangles), pdf(want.numTriangles);
     TriangleMesh::computeSamplingDistribution(want, cdf, pdf);
-    expectArray("triangleAreaCDF", got.triangleAreaCDF, cdf.data(), cdf.size());
-    expectArray("triangleAreaPDF", got.triangleAreaPDF, pdf.data(), pdf.size());
+    expectArray("triangleAreaCDF", got.triangleAreaCDF, cdf.data(), cdf.size(), stream);
+    expectArray("triangleAreaPDF", got.triangleAreaPDF, pdf.data(), pdf.size(), stream);
     EXPECT_FLOAT_EQ(got.surfaceArea, want.surfaceArea);
 }
 } // namespace
@@ -97,15 +107,16 @@ TEST(OptixGeometryPoolTests, AddsAndRemovesMeshesInBatches) {
     auto const plain = meshes[0]->getContextId();
     auto const indexed = meshes[1]->getContextId();
 
-    flux::OptixGeometryPool pool(device.context, device.stream);
+    flux::DeletionQueue deletionQueue(device.stream);
+    flux::OptixGeometryPool pool(device.context, deletionQueue);
     pool.add(meshes);
     EXPECT_TRUE(pool.contains(plain));
     EXPECT_TRUE(pool.contains(indexed));
     EXPECT_EQ(pool.getIds().size(), 2U);
     EXPECT_NE(pool.getGas(plain), OptixTraversableHandle{});
     EXPECT_NE(pool.getGas(indexed), OptixTraversableHandle{});
-    expectSameMesh(pool.getImpl(plain), *meshes[0]);
-    expectSameMesh(pool.getImpl(indexed), *meshes[1]);
+    expectSameMesh(pool.getImpl(plain), *meshes[0], device.stream);
+    expectSameMesh(pool.getImpl(indexed), *meshes[1], device.stream);
 
     std::array const removed{plain};
     pool.remove(removed);

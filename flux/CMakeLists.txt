@@ -54,6 +54,7 @@ add_library(
     Embree/EmbreeMegaKernel.cpp
     Embree/EmbreeRenderProductPool.cpp
     Integrator/PathIntegrator.cpp
+    Optix/DeletionQueue.cpp
     Optix/OptixContext.cpp
     Optix/OptixGas.cpp
     Optix/OptixGeometryPool.cpp

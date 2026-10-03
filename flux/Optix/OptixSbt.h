@@ -7,6 +7,7 @@
 #include <cstdint>
 
 #include "flux/Core/Object.h"
+#include "flux/Optix/DeletionQueue.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Scene/Geometry.h"
 #include "flux/Shading/BSDF.h"
@@ -17,8 +18,10 @@ class OptixProgram;
 /// \brief Owns the records for the current OptiX pipeline.
 class OptixSbt final : private Noncopyable {
 public:
-    /// \brief Creates an empty shader binding table bound to \p stream.
-    explicit OptixSbt(cudaStream_t stream) noexcept : records_(stream) {}
+    /// \brief Creates an empty shader binding table.
+    /// \param deletionQueue All copies run on its stream.
+    explicit OptixSbt(DeletionQueue &deletionQueue) noexcept
+        : deletionQueue_(deletionQueue), records_(deletionQueue.getStream()) {}
 
     /// \brief Rebuilds the fixed program-type SBT layout.
     void build(OptixProgram const &program);
@@ -58,7 +61,7 @@ private:
     };
     static_assert(sizeof(Record) % OPTIX_SBT_RECORD_ALIGNMENT == 0);
 
-    std::array<Record, numRecords> staging_{};
+    DeletionQueue &deletionQueue_;
     DeviceBuffer<Record> records_;
     OptixShaderBindingTable table_{};
 };

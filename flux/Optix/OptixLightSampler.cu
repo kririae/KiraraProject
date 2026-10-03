@@ -75,12 +75,12 @@ void OptixLightSampler::sync(
             *envMap, envMapDistribution_ ? &*envMapDistribution_ : nullptr, sceneRadius
         );
 
-    staging_.build(context, envMapPower);
-    points_.copyFromHost(staging_.lights.points);
-    primAreaScales_.copyFromHost(staging_.lights.primAreaScales);
-    handles_.copyFromHost(staging_.slots.handles);
-    cdf_.copyFromHost(staging_.slots.cdf);
-    primSlots_.copyFromHost(staging_.slots.primSlots);
+    table_.build(context, envMapPower);
+    points_.copyFromHost(table_.lights.points, deletionQueue_);
+    primAreaScales_.copyFromHost(table_.lights.primAreaScales, deletionQueue_);
+    handles_.copyFromHost(table_.slots.handles, deletionQueue_);
+    cdf_.copyFromHost(table_.slots.cdf, deletionQueue_);
+    primSlots_.copyFromHost(table_.slots.primSlots, deletionQueue_);
 }
 
 OptixLightSampler::EnvMapDistribution OptixLightSampler::buildEnvMapDistribution(
@@ -107,7 +107,6 @@ OptixLightSampler::EnvMapDistribution OptixLightSampler::buildEnvMapDistribution
     hostWeights.resize_for_overwrite(numPixels);
     hostRows.resize_for_overwrite(extent.y());
     weights.copyToHost({hostWeights.data(), hostWeights.size()});
-    cudaCheck(cudaStreamSynchronize(getStream()));
 
     auto distribution = EnvMapDistribution{
         .key = key,
@@ -119,8 +118,8 @@ OptixLightSampler::EnvMapDistribution OptixLightSampler::buildEnvMapDistribution
         .rows = DeviceBuffer<float>(getStream()),
     };
     if (distribution.weightSum > 0.0F) {
-        distribution.cdf.copyFromHost({hostWeights.data(), hostWeights.size()});
-        distribution.rows.copyFromHost({hostRows.data(), hostRows.size()});
+        distribution.cdf.copyFromHost({hostWeights.data(), hostWeights.size()}, deletionQueue_);
+        distribution.rows.copyFromHost({hostRows.data(), hostRows.size()}, deletionQueue_);
     }
     return distribution;
 }
@@ -149,7 +148,7 @@ float OptixLightSampler::uploadEnvMap(
     }
 
     auto const impl = envMap.getImpl(view);
-    envMap_.copyFromHost({&impl, 1});
+    envMap_.copyFromHost({&impl, 1}, deletionQueue_);
     return envMap.estimatePower(sceneRadius, luminanceIntegral);
 }
 
@@ -163,10 +162,10 @@ OptixLightSampler::Impl OptixLightSampler::getImpl() const noexcept {
             },
         .handles = handles_.data(),
         .primSlots = primSlots_.data(),
-        .envMapSlot = staging_.slots.envMapSlot,
+        .envMapSlot = table_.slots.envMapSlot,
         .power = {
             .cdf = cdf_.data(),
-            .sum = staging_.slots.cdf.empty() ? 0.0F : staging_.slots.cdf.back(),
+            .sum = table_.slots.cdf.empty() ? 0.0F : table_.slots.cdf.back(),
             .numLights = static_cast<std::uint32_t>(handles_.size()),
         },
     };

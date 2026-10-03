@@ -11,6 +11,7 @@
 
 #include "flux/Core/Object.h"
 #include "flux/Core/Ray.h"
+#include "flux/Optix/DeletionQueue.h"
 #include "flux/Optix/OptixImageTexture.h"
 #include "flux/Optix/OptixLightSampler.h"
 #include "flux/Scene/Primitive.h"
@@ -35,17 +36,17 @@ public:
 private:
     /// \brief Creates an empty OptiX scene for \p context.
     ///
-    /// The host \c Context, OptiX device context, and CUDA stream are borrowed
-    /// from the owning handler and must outlive this object.
+    /// The host \c Context, OptiX device context, and deletion queue are borrowed from the owning
+    /// handler and must outlive this object. All work runs on the stream of the deletion queue.
     OptixContext(
-        Context &context, OptixDeviceContext deviceContext, cudaStream_t stream,
+        Context &context, OptixDeviceContext deviceContext, DeletionQueue &deletionQueue,
         std::filesystem::path const &modulePath
     );
 
-    /// \brief Brings the OptiX scene up to date with the host \c Context, and waits for the work.
+    /// \brief Brings the OptiX scene up to date with the host \c Context.
     ///
     /// If sync throws, this context is valid only for destruction.
-    /// \pre No launch that reads this context runs.
+    /// \pre Launches that read this context run on the stream of the deletion queue.
     void sync();
 
     /// \brief Launches \p size ray-generation work items on \p stream.
@@ -64,8 +65,8 @@ private:
 
 /// \brief OptiX scene used by device programs.
 ///
-/// OptixContext keeps the referenced memory and handles valid until its next
-/// sync.
+/// OptixContext keeps the referenced memory and handles valid for work queued on its stream
+/// before its next sync.
 struct OptixContext::Impl {
     struct Hit {
         SurfaceInteraction surface;

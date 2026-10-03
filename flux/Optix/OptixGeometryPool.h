@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "flux/Core/Object.h"
+#include "flux/Optix/DeletionQueue.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/OptixGas.h"
 #include "flux/Optix/OptixUtils.h"
@@ -23,12 +24,11 @@ namespace flux {
 /// synchronization.
 class OptixGeometryPool final : private Noncopyable, private CudaStreamMixin {
 public:
-    OptixGeometryPool(OptixDeviceContext deviceContext, cudaStream_t stream) noexcept
-        : CudaStreamMixin(stream), deviceContext_(deviceContext) {}
+    OptixGeometryPool(OptixDeviceContext deviceContext, DeletionQueue &deletionQueue) noexcept
+        : CudaStreamMixin(deletionQueue.getStream()), deviceContext_(deviceContext),
+          deletionQueue_(deletionQueue) {}
 
     /// \brief Uploads \p meshes and builds their GASes in one batch.
-    ///
-    /// Returns once the GASes are built and the host arrays are no longer read.
     /// \pre No mesh of \p meshes is present, and their IDs are distinct.
     /// \throw kira::Anyhow If a mesh exceeds the device limit, or OptiX or CUDA fails. Then
     ///        nothing is added.
@@ -75,6 +75,7 @@ private:
     };
 
     OptixDeviceContext deviceContext_;
+    DeletionQueue &deletionQueue_;
     std::unordered_map<std::size_t, Entry> entries_;
 };
 } // namespace flux

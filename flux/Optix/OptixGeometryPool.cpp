@@ -12,36 +12,30 @@ void OptixGeometryPool::add(std::span<Ref<TriangleMesh const> const> meshes) {
     if (meshes.empty())
         return;
 
-    // Upload each mesh into a new entry. The sampling arrays must outlive their copies.
     std::vector<Entry> entries;
-    std::vector<kira::SmallVector<float, 0>> sampling;
     entries.reserve(meshes.size());
-    sampling.reserve(2 * meshes.size());
     for (auto const &mesh : meshes) {
         auto &entry = entries.emplace_back(getStream());
-        auto const vertices = mesh->getVertices();
-        auto const triangles = mesh->getTriangles();
-        auto const normals = mesh->getNormals();
-        auto const normalIndices = mesh->getNormalIndices();
-        auto const texCoords = mesh->getTexCoords();
-        auto const texCoordIndices = mesh->getTexCoordIndices();
-        entry.vertices.copyFromHost({vertices.data(), vertices.size()});
-        entry.triangles.copyFromHost({triangles.data(), triangles.size()});
-        entry.normals.copyFromHost({normals.data(), normals.size()});
-        entry.normalIndices.copyFromHost({normalIndices.data(), normalIndices.size()});
-        entry.texCoords.copyFromHost({texCoords.data(), texCoords.size()});
-        entry.texCoordIndices.copyFromHost({texCoordIndices.data(), texCoordIndices.size()});
+
+        auto const &data = mesh->getData();
+        entry.vertices.copyFromHost(data.vertices, deletionQueue_);
+        entry.triangles.copyFromHost(data.triangles, deletionQueue_);
+        entry.normals.copyFromHost(data.normals, deletionQueue_);
+        entry.normalIndices.copyFromHost(data.normalIndices, deletionQueue_);
+        entry.texCoords.copyFromHost(data.texCoords, deletionQueue_);
+        entry.texCoordIndices.copyFromHost(data.texCoordIndices, deletionQueue_);
 
         auto const hostImpl = mesh->getImpl();
-        auto &cdf = sampling.emplace_back();
-        auto &pdf = sampling.emplace_back();
+        kira::SmallVector<float, 0> cdf;
+        kira::SmallVector<float, 0> pdf;
         cdf.resize_for_overwrite(hostImpl.numTriangles);
         pdf.resize_for_overwrite(hostImpl.numTriangles);
         TriangleMesh::computeSamplingDistribution(
             hostImpl, {cdf.data(), cdf.size()}, {pdf.data(), pdf.size()}
         );
-        entry.triangleAreaCDF.copyFromHost({cdf.data(), cdf.size()});
-        entry.triangleAreaPDF.copyFromHost({pdf.data(), pdf.size()});
+
+        entry.triangleAreaCDF.copyFromHost({cdf.data(), cdf.size()}, deletionQueue_);
+        entry.triangleAreaPDF.copyFromHost({pdf.data(), pdf.size()}, deletionQueue_);
         entry.surfaceArea = cdf.empty() ? hostImpl.surfaceArea : cdf.back();
     }
 
@@ -70,9 +64,6 @@ void OptixGeometryPool::add(std::span<Ref<TriangleMesh const> const> meshes) {
         inputs.push_back(input);
     }
     auto gases = buildGas(deviceContext_, getStream(), inputs);
-
-    // Wait for the copies, which read the host arrays, before they go out of scope.
-    cudaCheck(cudaStreamSynchronize(getStream()));
 
     entries_.reserve(entries_.size() + entries.size());
     for (std::size_t i = 0; i < entries.size(); ++i) {

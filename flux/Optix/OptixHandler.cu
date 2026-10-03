@@ -14,6 +14,7 @@
 #include <utility>
 
 #include "flux/Core/Logging.h"
+#include "flux/Optix/DeletionQueue.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/KernelUtils.cuh"
 #include "flux/Optix/OptixContext.h"
@@ -181,6 +182,10 @@ struct OptixHandler::pImpl final {
     /// CUDA execution state destroyed after every dependent resource.
     OptixDeviceContextHandle deviceContext;
 
+    /// Deletes objects once the stream no longer uses them. Destroyed after every member that uses
+    /// it.
+    DeletionQueue deletionQueue{getStream()};
+
     std::filesystem::path modulePath;
 
     /// OptiX scene, or nothing after a failed update of it.
@@ -237,9 +242,11 @@ void OptixHandler::pImpl::sync() {
 
     // A failure here leaves the device state unknown, so a later sync builds a new OptiX scene.
     try {
+        deletionQueue.deleteFinished();
+
         if (!optixContext)
             optixContext.reset(
-                new OptixContext(*context, deviceContext.get(), getStream(), modulePath)
+                new OptixContext(*context, deviceContext.get(), deletionQueue, modulePath)
             );
         optixContext->sync();
     } catch (...) {
@@ -254,7 +261,7 @@ void OptixHandler::pImpl::sync() {
 }
 
 void OptixHandler::pImpl::launch(OptixLaunchParams const &params, std::uint32_t size) {
-    launchParams.copyFromHost({&params, 1}, getStream());
+    launchParams.copyFromHost({&params, 1}, deletionQueue);
     optixContext->launch(
         getStream(), devicePointer(launchParams.data()), sizeof(OptixLaunchParams), size
     );
@@ -287,6 +294,7 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
     auto const launchSize = pImpl_->getLaunchSize(pathCount);
 
     pImpl_->deviceContext.selectDevice();
+    pImpl_->deletionQueue.deleteFinished();
 
     // Film changes resize the product entry. A matching Camera::Impl keeps its
     // accumulation.
@@ -320,7 +328,6 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
         }
 
         // The stream orders normalization, parameter upload, and OptiX work.
-        // Synchronization below also closes the host lifetime of launch data.
         pImpl_->pathCounter.zero();
         auto const &programSpec = pImpl_->optixContext->getProgramSpec();
         auto const params = OptixLaunchParams{
@@ -355,7 +362,6 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
         };
     } catch (...) {
         entry.accumulation.reset();
-        cudaCheck<false>(cudaStreamSynchronize(pImpl_->getStream()));
         throw;
     }
 }
@@ -368,17 +374,11 @@ void OptixHandler::download(RenderProduct &product) {
     auto *entry = pImpl_->renderProducts.find(product);
     assert(entry);
     auto destination = product.getFilm().prepareDownload();
-    try {
-        entry->storage.forEach([&](auto &channel) {
-            using Channel = typename std::remove_reference_t<decltype(channel)>::ChannelType;
-            auto *output = destination.channels.template get<Channel>().data;
-            channel.buffer.copyToHost({output, channel.buffer.size()}, pImpl_->getStream());
-        });
-        cudaCheck(cudaStreamSynchronize(pImpl_->getStream()));
-    } catch (...) {
-        cudaCheck<false>(cudaStreamSynchronize(pImpl_->getStream()));
-        throw;
-    }
+    entry->storage.forEach([&](auto &channel) {
+        using Channel = typename std::remove_reference_t<decltype(channel)>::ChannelType;
+        auto *output = destination.channels.template get<Channel>().data;
+        channel.buffer.copyToHost({output, channel.buffer.size()}, pImpl_->getStream());
+    });
 }
 
 void OptixHandler::setLaunchWaves(double waves) {

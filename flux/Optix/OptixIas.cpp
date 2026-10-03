@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <vector>
 
 #include "flux/Core/Math.h"
 #include "flux/Optix/OptixUtils.h"
@@ -24,7 +25,8 @@ void OptixIas::build(OptixDeviceContext deviceContext, std::span<InstanceDesc co
     if (instances.size() > maxInstances)
         throw kira::Anyhow("OptixIas: instance count exceeds the device limit");
 
-    instanceStaging_.reserve(instances.size());
+    std::vector<OptixInstance> optixInstances;
+    optixInstances.reserve(instances.size());
     for (std::size_t index = 0; index < instances.size(); ++index) {
         auto const &description = instances[index];
         if (!description.gas)
@@ -41,10 +43,10 @@ void OptixIas::build(OptixDeviceContext deviceContext, std::span<InstanceDesc co
         instance.visibilityMask = 255;
         instance.flags = OPTIX_INSTANCE_FLAG_NONE;
         instance.traversableHandle = description.gas;
-        instanceStaging_.push_back(instance);
+        optixInstances.push_back(instance);
     }
 
-    instances_.copyFromHost({instanceStaging_.data(), instanceStaging_.size()});
+    instances_.copyFromHost({optixInstances.data(), optixInstances.size()}, deletionQueue_);
 
     OptixBuildInput input{
         .type = OPTIX_BUILD_INPUT_TYPE_INSTANCES,
@@ -89,11 +91,9 @@ void OptixIas::build(OptixDeviceContext deviceContext, std::span<InstanceDesc co
     // clang-format on
 
     iasBounds_.copyToHost({&iasBoundsStaging_, 1});
-    cudaCheck(cudaStreamSynchronize(getStream()));
 }
 
 void OptixIas::clear() noexcept {
-    instanceStaging_.clear();
     instances_.clear();
     ias_.clear();
     iasBounds_.clear();

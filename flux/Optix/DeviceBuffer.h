@@ -3,8 +3,10 @@
 #include <cuda_runtime_api.h>
 
 #include <cstddef>
+#include <cstring>
 #include <exception>
 #include <limits>
+#include <memory>
 #include <span>
 #include <stdexcept>
 #include <type_traits>
@@ -12,18 +14,22 @@
 
 #include "flux/Core/HostBuffer.h"
 #include "flux/Core/Object.h"
+#include "flux/Optix/DeletionQueue.h"
 #include "flux/Optix/OptixUtils.h"
 #include "kira/Assertions.h"
 
 namespace flux {
+namespace detail {
+/// \brief Returns a shared copy of host bytes.
+[[nodiscard]] inline std::shared_ptr<std::byte const[]>
+copyToShared(std::span<std::byte const> source) {
+    auto target = std::shared_ptr<std::byte[]>(new std::byte[source.size()]);
+    std::memcpy(target.get(), source.data(), source.size());
+    return target;
+}
+} // namespace detail
+
 /// \brief Owns a contiguous array in CUDA device memory.
-///
-/// Allocation, known uses, and release are ordered on the lifetime stream.
-/// Operations that access the existing allocation publish their explicit stream
-/// before error checking because CUDA may report an error from earlier
-/// asynchronous work. Replacement operations keep the old binding until the new
-/// state is ready. Callers must establish ordering before using or rebinding the
-/// allocation on another stream. The buffer does not own its stream.
 ///
 /// \tparam T Trivially copyable element type.
 template <typename T> class DeviceBuffer final : private Noncopyable, public CudaStreamMixin {
@@ -121,87 +127,68 @@ public:
         cudaCheck(cudaMemsetAsync(data_, 0, size_ * sizeof(T), stream));
     }
 
-    /// \brief Replaces the contents from host storage on the bound stream.
-    ///
-    /// The host storage must remain alive until the copy completes.
-    /// \param source Elements to copy.
-    /// \throw std::invalid_argument If the byte size overflows.
-    /// \throw kira::Anyhow If CUDA cannot enqueue the allocation or copy.
-    void copyFromHost(std::span<T const> source) { copyFromHost(source, getStream()); }
-
-    /// \brief Replaces the contents from host storage on \p stream.
-    ///
-    /// The host storage must remain alive until the copy completes.
-    /// \param source Elements to copy.
-    /// \param stream Stream ordered after the allocation and its prior uses.
-    /// \throw std::invalid_argument If the byte size overflows.
-    /// \throw kira::Anyhow If CUDA cannot enqueue the allocation or copy.
-    void copyFromHost(std::span<T const> source, cudaStream_t stream) {
-        if (source.size() == size_) {
-            if (source.empty())
-                return;
-            setStream(stream);
-            cudaCheck(cudaMemcpyAsync(
-                data_, source.data(), source.size_bytes(), cudaMemcpyHostToDevice, stream
-            ));
-            return;
-        }
+    /// \brief Replaces the contents with host elements.
+    /// \param source The elements. Not used after the call returns.
+    /// \param deletionQueue The copy runs on its stream. The buffer is then bound to that stream.
+    /// \throw kira::Anyhow If CUDA fails.
+    void copyFromHost(std::span<T const> source, DeletionQueue &deletionQueue) {
         if (source.empty()) {
-            clear(stream);
+            clear(deletionQueue.getStream());
             return;
         }
-        validateCount(source.size());
 
-        auto *replacement = allocate(source.size(), stream);
-        try {
-            cudaCheck(cudaMemcpyAsync(
-                replacement, source.data(), source.size_bytes(), cudaMemcpyHostToDevice, stream
-            ));
-        } catch (...) {
-            deallocate(replacement, stream);
-            throw;
+        auto shared = detail::copyToShared(std::as_bytes(source));
+        auto const error =
+            enqueueCopy({shared.get(), source.size_bytes()}, deletionQueue.getStream());
+
+        deletionQueue.deleteLater(std::move(shared));
+        cudaCheck(error);
+    }
+
+    /// \brief Replaces the contents with a shared host buffer.
+    /// \param source The elements. Kept alive until the copy finishes. Null clears the buffer.
+    /// \param deletionQueue The copy runs on its stream. The buffer is then bound to that stream.
+    /// \throw kira::Anyhow If CUDA fails.
+    void copyFromHost(Shared<HostBuffer<T>> source, DeletionQueue &deletionQueue) {
+        if (!source || source->empty()) {
+            clear(deletionQueue.getStream());
+            return;
         }
 
-        deallocate(data_, stream);
-        data_ = replacement;
-        size_ = source.size();
-        setStream(stream);
+        auto const error = enqueueCopy(std::as_bytes(source->span()), deletionQueue.getStream());
+
+        deletionQueue.deleteLater(std::move(source));
+        cudaCheck(error);
     }
 
-    /// \brief Replaces the contents from \p source on the bound stream.
-    ///
-    /// Copies size() elements. \p source must remain alive until the copy completes.
-    /// \param source Host buffer to copy.
-    /// \throw std::invalid_argument If the byte size overflows.
-    /// \throw kira::Anyhow If CUDA cannot enqueue the allocation or copy.
-    void copyFromHost(HostBuffer<T> const &source) { copyFromHost(source.span(), getStream()); }
+    /// \brief Replaces the contents with host elements, and waits until the copy finishes.
+    /// \param source The elements. Not used after the call returns.
+    /// \throw kira::Anyhow If CUDA fails.
+    void copyFromHostAndWait(std::span<T const> source) {
+        if (source.empty()) {
+            clear();
+            return;
+        }
 
-    /// \brief Replaces the contents from \p source on \p stream.
-    ///
-    /// Copies size() elements. \p source must remain alive until the copy completes.
-    /// \param source Host buffer to copy.
-    /// \param stream Stream ordered after the allocation and its prior uses.
-    /// \throw std::invalid_argument If the byte size overflows.
-    /// \throw kira::Anyhow If CUDA cannot enqueue the allocation or copy.
-    void copyFromHost(HostBuffer<T> const &source, cudaStream_t stream) {
-        copyFromHost(source.span(), stream);
+        auto const memcpyError = enqueueCopy(std::as_bytes(source), getStream());
+        auto const syncError = cudaStreamSynchronize(getStream());
+
+        cudaCheck(memcpyError);
+        cudaCheck(syncError);
     }
 
-    /// \brief Copies the contents to same-sized host storage on the bound stream.
-    ///
-    /// The host storage must remain alive until the copy completes.
-    /// \param destination Host storage that receives the elements.
-    /// \throw std::invalid_argument If \p destination has a different size.
-    /// \throw kira::Anyhow If CUDA cannot enqueue the copy.
+    /// \brief Copies the contents to host memory, and waits until the copy finishes.
+    /// \param destination Receives the elements. Its size must equal size().
+    /// \throw std::invalid_argument If the sizes differ.
+    /// \throw kira::Anyhow If CUDA fails.
     void copyToHost(std::span<T> destination) { copyToHost(destination, getStream()); }
 
-    /// \brief Copies the contents to same-sized host storage on \p stream.
-    ///
-    /// The host storage must remain alive until the copy completes.
-    /// \param destination Host storage that receives the elements.
-    /// \param stream Stream ordered after the allocation and its prior uses.
-    /// \throw std::invalid_argument If \p destination has a different size.
-    /// \throw kira::Anyhow If CUDA cannot enqueue the copy.
+    /// \brief Copies the contents to host memory, and waits until the copy finishes.
+    /// \param destination Receives the elements. Its size must equal size().
+    /// \param stream The copy runs on this stream. If the buffer is not empty, it is then bound to
+    ///        this stream.
+    /// \throw std::invalid_argument If the sizes differ.
+    /// \throw kira::Anyhow If CUDA fails.
     void copyToHost(std::span<T> destination, cudaStream_t stream) {
         if (destination.size() != size_)
             throw std::invalid_argument("DeviceBuffer: destination size does not match");
@@ -209,9 +196,13 @@ public:
             return;
 
         setStream(stream);
-        cudaCheck(cudaMemcpyAsync(
+        auto const memcpyError = cudaMemcpyAsync(
             destination.data(), data_, destination.size_bytes(), cudaMemcpyDeviceToHost, stream
-        ));
+        );
+        auto const syncError = cudaStreamSynchronize(stream);
+
+        cudaCheck(memcpyError);
+        cudaCheck(syncError);
     }
 
     /// \brief Returns the device pointer, or null when empty.
@@ -247,6 +238,38 @@ public:
     }
 
 private:
+    /// \brief Starts copying host bytes into the buffer.
+    /// \param source The bytes of the elements. Not empty. They must stay valid until the copy
+    ///        finishes.
+    /// \param stream The copy runs on this stream. On success, the buffer is then bound to it.
+    /// \return The CUDA error code.
+    [[nodiscard]] cudaError_t enqueueCopy(std::span<std::byte const> source, cudaStream_t stream) {
+        auto const count = source.size() / sizeof(T);
+
+        if (count == size_) {
+            setStream(stream);
+            return cudaMemcpyAsync(
+                data_, source.data(), source.size(), cudaMemcpyHostToDevice, stream
+            );
+        }
+
+        auto *replacement = allocate(count, stream);
+        auto const error = cudaMemcpyAsync(
+            replacement, source.data(), source.size(), cudaMemcpyHostToDevice, stream
+        );
+
+        if (error != cudaSuccess) {
+            deallocate(replacement, stream);
+            return error;
+        }
+
+        deallocate(data_, stream);
+        data_ = replacement;
+        size_ = count;
+        setStream(stream);
+        return cudaSuccess;
+    }
+
     [[nodiscard]] static T *allocate(std::size_t count, cudaStream_t stream) {
         void *storage = nullptr;
         cudaCheck(cudaMallocAsync(&storage, count * sizeof(T), stream));
