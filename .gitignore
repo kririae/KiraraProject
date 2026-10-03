@@ -41,6 +41,9 @@ compile_commands.json
 .vscode/
 .cache/
 .idea/
+.scratch/
+/docs/*
+!/docs/specs/
 
 *.gltf
 *.glb
