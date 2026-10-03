@@ -6,7 +6,7 @@
 
 #include "flux/Core/MathUtils.h"
 #include "flux/Optix/KernelUtils.cuh"
-#include "flux/Optix/OptixImageTexturePool.cuh"
+#include "flux/Optix/OptixImageTexture.cuh"
 #include "flux/Optix/OptixLightSampler.h"
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Sampling/Distribution2D.h"
@@ -18,7 +18,7 @@
 namespace flux {
 namespace {
 struct SampleEnvMapWeights {
-    OptixImageTexturePool::Impl imageTextures;
+    OptixImageTextureTable imageTextures;
     std::uint32_t textureIndex;
     Spectrum scale;
     float *weights;
@@ -31,7 +31,7 @@ struct SampleEnvMapWeights {
             (static_cast<float>(x) + 0.5F) / static_cast<float>(extent.x()),
             1.0F - (static_cast<float>(y) + 0.5F) / static_cast<float>(extent.y()),
         };
-        auto const &texture = imageTextures.get(textureIndex);
+        auto const &texture = imageTextures.getTexture(textureIndex);
         auto const value = texture.componentMapping.apply(texture.samplePoint(uv));
         auto const radiance = Spectrum{value.x(), value.y(), value.z()} * scale;
         auto const theta = std::numbers::pi_v<float> * (static_cast<float>(y) + 0.5F) /
@@ -42,7 +42,7 @@ struct SampleEnvMapWeights {
 } // namespace
 
 void OptixLightSampler::build(
-    Context const &context, OptixImageTexturePool::Impl imageTextures, float sceneRadius
+    Context const &context, OptixImageTextureTable imageTextures, float sceneRadius
 ) {
     points_.clear();
     primAreaScales_.clear();
@@ -67,7 +67,7 @@ void OptixLightSampler::build(
 }
 
 float OptixLightSampler::buildEnvMap(
-    EnvMapLight const &envMap, OptixImageTexturePool::Impl imageTextures, float sceneRadius
+    EnvMapLight const &envMap, OptixImageTextureTable imageTextures, float sceneRadius
 ) {
     auto const texture = envMap.getTexture()->getImpl();
     auto luminanceIntegral = 0.0F;

@@ -6,10 +6,12 @@
 namespace flux {
 ContextObject::ContextObject(TXContext &tx) : contextId_(tx.allocateId()) {}
 
-void ContextObject::recordChanged() {
+void ContextObject::recordDirtied() {
     std::scoped_lock const lock(context_->mutex_);
-    context_->changedIds_.insert(contextId_);
+    context_->dirtiedIds_.insert(contextId_);
 }
+
+void ContextObject::bumpContextVersion() noexcept { context_->bumpVersion(); }
 
 ConfigurableObject::ConfigurableObject(TXContext &tx) : ContextObject(tx) {}
 } // namespace flux

@@ -108,14 +108,13 @@ void EmbreeContext::sync() try {
     table_.build(context_);
     imageTexturePool_.build(context_);
 
-    // Size both arrays once, so no later step moves an entry. Holes keep their
-    // default entry and Impl.
-    geometries_.resize(table_.geometryTypes.size());
-    geometryImpls_.resize(table_.geometryTypes.size());
+    // Size both arrays once, so no later step moves an entry. Every live mesh
+    // gets an entry, whether or not a visible primitive references it. Holes keep
+    // their default entry and Impl.
+    geometries_.resize(context_.getIndexLimit<Geometry>());
+    geometryImpls_.resize(context_.getIndexLimit<Geometry>());
     for (auto const &mesh : context_.getObjects<TriangleMesh>()) {
         auto const index = context_.getIndex<Geometry>(mesh->getContextId());
-        if (!table_.geometryTypes[index])
-            continue;
 
         // Hold the arrays that the child scene and the Impl read.
         auto &entry = geometries_[index];
@@ -234,7 +233,7 @@ void EmbreeContext::sync() try {
     LogDebug(
         "EmbreeContext: built {} geometries and {} visible primitives",
         std::ranges::count_if(
-            table_.geometryTypes, [](auto const &type) { return type.has_value(); }
+            geometries_, [](auto const &entry) { return entry.scene != nullptr; }
         ),
         numVisible
     );

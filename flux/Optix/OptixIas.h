@@ -5,7 +5,6 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <optional>
 #include <span>
 #include <vector>
 
@@ -15,8 +14,8 @@
 #include "flux/Optix/OptixUtils.h"
 
 namespace flux {
-/// \brief Builds and owns triangle GASes and their top-level IAS.
-class OptixAccel final : private Noncopyable, private CudaStreamMixin {
+/// \brief Builds and owns the top-level IAS over the GASes of the scene.
+class OptixIas final : private Noncopyable, private CudaStreamMixin {
 public:
     /// \brief Describes one IAS instance.
     ///
@@ -26,8 +25,8 @@ public:
         /// Primitive index reported as the OptiX instance ID.
         std::uint32_t primitiveIndex{};
 
-        /// Index of the referenced GAS, which must not be a hole.
-        std::uint32_t geometryIndex{};
+        /// GAS of the instanced geometry. Zero is rejected.
+        OptixTraversableHandle gas{};
 
         /// Base hitgroup record selected for this instance.
         std::uint32_t sbtOffset{};
@@ -38,26 +37,15 @@ public:
         };
     };
 
-    explicit OptixAccel(cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
-
-    /// \brief Rebuilds and compacts one GAS for every input of \p inputs.
-    ///
-    /// Existing GAS and IAS storage is released before rebuilding. The GAS of
-    /// input \c i is the one that an instance with geometry index \c i references.
-    /// \param deviceContext OptiX context used for the build.
-    /// \param inputs Triangle build inputs whose device storage remains alive. An
-    ///        empty entry is a hole, which gets no GAS.
-    /// \throw kira::Anyhow If OptiX or CUDA setup fails.
-    void buildGas(
-        OptixDeviceContext deviceContext, std::span<std::optional<OptixBuildInput> const> inputs
-    );
+    explicit OptixIas(cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
 
     /// \brief Rebuilds the IAS from \p instances.
     ///
     /// \param deviceContext OptiX context used for the build.
     /// \param instances Complete visible primitive list. Primitive indices are unique.
-    /// \throw kira::Anyhow If an index is invalid or a hole, or OptiX setup fails.
-    void buildIas(OptixDeviceContext deviceContext, std::span<InstanceDesc const> instances);
+    /// \throw kira::Anyhow If an instance has no GAS or exceeds a device limit, or
+    ///        OptiX setup fails.
+    void build(OptixDeviceContext deviceContext, std::span<InstanceDesc const> instances);
 
     /// \brief Returns the current IAS handle, or zero when empty.
     [[nodiscard]] OptixTraversableHandle getHandle() const noexcept { return handle_; }
@@ -68,15 +56,9 @@ public:
     [[nodiscard]] float getSceneRadius() const noexcept;
 
 private:
-    /// GAS of one geometry index. A hole has a zero handle.
-    struct GasEntry {
-        explicit GasEntry(cudaStream_t stream) noexcept : storage(stream) {}
+    /// \brief Releases the IAS.
+    void clear() noexcept;
 
-        OptixTraversableHandle handle{};
-        DeviceBuffer<std::byte> storage;
-    };
-
-    std::vector<GasEntry> gasEntries_;
     std::vector<OptixInstance> instanceStaging_;
     DeviceBuffer<OptixInstance> instances_{getStream()};
     DeviceBuffer<std::byte> ias_{getStream()};

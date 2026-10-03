@@ -216,10 +216,11 @@ public:
     [[nodiscard]] virtual bool isRoot() const noexcept { return false; }
 
 protected:
-    /// \brief Records \p bits as changed, and lists this object with its context
-    ///        when it was clean.
+    /// \brief Records \p bits as dirtied, lists this object with its context when it was
+    ///        clean, and bumps the context's version.
     ///
-    /// An object without an owner records nothing.
+    /// Every call with nonzero bits bumps the version, so a handler sees each change. An object
+    /// without an owner records nothing.
     template <typename Bits> void markDirty(Bits bits) {
         static_assert(std::is_enum_v<Bits>, "Dirty bits must be an enumeration");
         static_assert(
@@ -230,10 +231,12 @@ protected:
         if (mask == 0 || !context_)
             return;
 
-        // List the object first, so a failed append leaves the mask unchanged.
+        // List the object first, so a failed append leaves the mask unchanged. Only the first
+        // bit lists it, but every change bumps the version.
         if (dirtyMask_ == 0)
-            recordChanged();
+            recordDirtied();
         dirtyMask_ |= mask;
+        bumpContextVersion();
     }
 
     /// \brief Assigns \p value to \p property and records \p bits when they differ.
@@ -250,18 +253,21 @@ protected:
 private:
     template <typename T> friend typename T::DirtyBits getDirtyBits(T const &object) noexcept;
 
-    /// \brief Inserts this object's ID into the context's changed set.
-    void recordChanged();
+    /// \brief Inserts this object's ID into the context's dirtied set.
+    void recordDirtied();
+
+    /// \brief Bumps the context's version.
+    void bumpContextVersion() noexcept;
 
     Context *context_{};
     std::size_t contextId_;
 
-    /// Bits of the properties changed since the last \c Context::clearDirty. The meaning of a
+    /// Bits of the properties dirtied since the last \c Context::clearDirty. The meaning of a
     /// bit belongs to the concrete type.
     std::uint32_t dirtyMask_{};
 };
 
-/// \brief Returns the properties of \p object changed since the last \c Context::clearDirty.
+/// \brief Returns the properties of \p object dirtied since the last \c Context::clearDirty.
 ///
 /// \c T is the concrete type that declares \c DirtyBits.
 template <typename T> [[nodiscard]] typename T::DirtyBits getDirtyBits(T const &object) noexcept {

@@ -6,6 +6,8 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string_view>
 #include <type_traits>
@@ -179,7 +181,13 @@ struct OptixHandler::pImpl final {
     /// CUDA execution state destroyed after every dependent resource.
     OptixDeviceContextHandle deviceContext;
 
-    OptixContext optixContext;
+    std::filesystem::path modulePath;
+
+    /// OptiX scene, or nothing after a failed update of it.
+    std::unique_ptr<OptixContext> optixContext;
+
+    /// Context version of the last successful sync, or nothing before the first.
+    std::optional<std::uint64_t> syncedVersion;
 
     /// Active sampler and integrator as of the last sync.
     Sampler::Impl sampler{};
@@ -197,8 +205,7 @@ struct OptixHandler::pImpl final {
 };
 
 OptixHandler::pImpl::pImpl(Ref<Context> hostContext, std::filesystem::path const &modulePath)
-    : context(requireContext(std::move(hostContext))),
-      optixContext(*context, deviceContext.get(), getStream(), modulePath) {
+    : context(requireContext(std::move(hostContext))), modulePath(modulePath) {
     pathCounter.resize(1);
     sync();
 }
@@ -212,8 +219,13 @@ OptixHandler::pImpl::~pImpl() {
 void OptixHandler::pImpl::sync() {
     deviceContext.selectDevice();
 
-    // Read what render needs before the device state changes, since render does not touch the
-    // Context.
+    // An equal version means an equal scene, so the device state and accumulation stand.
+    auto const version = context->getVersion();
+    if (optixContext && syncedVersion == version)
+        return;
+
+    // Render does not touch the Context, so read what it needs here. A failure here touches no
+    // device state, so the OptiX scene stays.
     auto const activeSampler = context->getActiveSampler();
     auto const activeIntegrator = context->getActiveIntegrator();
     if (!activeIntegrator)
@@ -223,16 +235,27 @@ void OptixHandler::pImpl::sync() {
     auto const nextSampler = activeSampler->getImpl();
     auto const nextIntegrator = activeIntegrator->getImpl();
 
-    // Clear accumulation before rebuilding the OptiX scene.
-    renderProducts.resetAccumulation();
-    optixContext.sync();
+    // A failure here leaves the device state unknown, so a later sync builds a new OptiX scene.
+    try {
+        if (!optixContext)
+            optixContext.reset(
+                new OptixContext(*context, deviceContext.get(), getStream(), modulePath)
+            );
+        optixContext->sync();
+    } catch (...) {
+        optixContext.reset();
+        throw;
+    }
+
     sampler = nextSampler;
     integrator = nextIntegrator;
+    renderProducts.resetAccumulation();
+    syncedVersion = version;
 }
 
 void OptixHandler::pImpl::launch(OptixLaunchParams const &params, std::uint32_t size) {
     launchParams.copyFromHost({&params, 1}, getStream());
-    optixContext.launch(
+    optixContext->launch(
         getStream(), devicePointer(launchParams.data()), sizeof(OptixLaunchParams), size
     );
 }
@@ -247,6 +270,8 @@ void OptixHandler::sync() { pImpl_->sync(); }
 RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
     if (samples == 0)
         throw std::invalid_argument("OptixHandler: sample batch must be nonzero");
+    if (!pImpl_->optixContext)
+        throw kira::Anyhow("OptixHandler: no scene, because the last sync failed");
 
     auto const &film = product.getFilm();
     auto const camera = product.getCamera().getImpl();
@@ -297,9 +322,9 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
         // The stream orders normalization, parameter upload, and OptiX work.
         // Synchronization below also closes the host lifetime of launch data.
         pImpl_->pathCounter.zero();
-        auto const &programSpec = pImpl_->optixContext.getProgramSpec();
+        auto const &programSpec = pImpl_->optixContext->getProgramSpec();
         auto const params = OptixLaunchParams{
-            .scene = pImpl_->optixContext.getImpl(),
+            .scene = pImpl_->optixContext->getImpl(),
             .camera = camera,
             .sampler = pImpl_->sampler,
             .integrator = pImpl_->integrator,

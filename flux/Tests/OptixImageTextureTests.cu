@@ -1,9 +1,12 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
+#include <bit>
 #include <cstdint>
 #include <filesystem>
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -12,7 +15,9 @@
 #include "flux/IO/ImageIO.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/KernelUtils.cuh"
-#include "flux/Optix/OptixImageTexturePool.cuh"
+#include "flux/Optix/OptixImagePool.h"
+#include "flux/Optix/OptixImageTexture.cuh"
+#include "flux/Optix/OptixTextureObject.h"
 #include "flux/Scene/Context.h"
 #include "flux/Shading/Texture.h"
 
@@ -22,7 +27,7 @@
 
 namespace {
 struct SampleImageTexture {
-    flux::OptixImageTexturePool::Impl pool;
+    flux::OptixImageTextureTable table;
     flux::Vec2f const *uvs;
     flux::Vec4f *samples;
     flux::Vec2f duvdx;
@@ -30,7 +35,7 @@ struct SampleImageTexture {
     bool point;
 
     KIRA_DEVICE void operator()(std::size_t index) const noexcept {
-        auto const &texture = pool.get(0);
+        auto const &texture = table.getTexture(0);
         auto const value =
             point ? texture.samplePoint(uvs[index]) : texture.sample(uvs[index], duvdx, duvdy);
         samples[index] = texture.componentMapping.apply(value);
@@ -62,7 +67,25 @@ protected:
         if (!componentMapping.empty())
             props.set("component_mapping", std::string{componentMapping});
         (void)context->create<flux::Texture>(props);
-        pool.build(*context);
+
+        // Place the one texture at index zero, as the texture stage of OptixContext does.
+        auto const texture = context->getObjects<flux::ImageTexture>().front();
+        auto const assets = std::array{texture->getImageAsset()};
+        pool.add(assets);
+        auto const image = pool.getImpl(texture->getImageAsset()->getId());
+        filtered =
+            flux::createTextureObject(image, texture->getAddressMode(), texture->getFilterMode());
+        point = flux::createTextureObject(
+            image, texture->getAddressMode(), flux::ImageTextureFilterMode::Point
+        );
+        auto const entry = flux::OptixImageTexture{
+            .texture = filtered.get(),
+            .pointTexture = point.get(),
+            .componentMapping = texture->getComponentMapping(),
+            .componentCount = image.componentCount,
+        };
+        textures.copyFromHost({&entry, 1});
+        flux::cudaCheck(cudaStreamSynchronize(cudaStreamPerThread));
     }
 
     [[nodiscard]] std::vector<flux::Vec4f> sample(
@@ -76,7 +99,7 @@ protected:
         flux::launchLinearKernel(
             uvs.size(),
             SampleImageTexture{
-                .pool = pool.getImpl(),
+                .table = {.textures = textures.data()},
                 .uvs = deviceUVs.data(),
                 .samples = deviceSamples.data(),
                 .duvdx = duvdx,
@@ -100,7 +123,10 @@ protected:
     }
 
     flux::Ref<flux::Context> context = flux::Context::create();
-    flux::OptixImageTexturePool pool{cudaStreamPerThread};
+    flux::OptixImagePool pool{cudaStreamPerThread};
+    flux::CudaTextureObject filtered;
+    flux::CudaTextureObject point;
+    flux::DeviceBuffer<flux::OptixImageTexture> textures{cudaStreamPerThread};
 };
 
 struct ImageStorageCase {
@@ -402,3 +428,56 @@ INSTANTIATE_TEST_SUITE_P(
     ),
     [](testing::TestParamInfo<ImageStorageCase> const &info) { return info.param.name; }
 );
+
+namespace {
+[[nodiscard]] flux::Ref<flux::ImageAsset const>
+createAsset(flux::Context &context, std::string_view filename) {
+    kira::Properties props;
+    props.set("type", "image");
+    props.set("path", std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / filename);
+    (void)context.create<flux::Texture>(props);
+    auto const textures = context.getObjects<flux::ImageTexture>();
+    return textures.back()->getImageAsset();
+}
+} // namespace
+
+TEST(OptixImagePoolTests, GivesEachAssetItsOwnId) {
+    auto context = flux::Context::create();
+    auto const first = createAsset(*context, "Texture2x2.ppm");
+    auto const second = createAsset(*context, "Texture3x3.ppm");
+    auto const shared = createAsset(*context, "Texture2x2.ppm");
+    EXPECT_NE(first->getId(), second->getId());
+    EXPECT_EQ(first->getId(), shared->getId());
+}
+
+TEST(OptixImagePoolTests, AddsAndRemovesImagesInBatches) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    auto context = flux::Context::create();
+    auto const assets = std::array{
+        createAsset(*context, "Texture2x2.ppm"),
+        createAsset(*context, "Texture3x3.ppm"),
+    };
+    auto const kept = assets[0]->getId();
+    auto const dropped = assets[1]->getId();
+
+    flux::OptixImagePool pool{cudaStreamPerThread};
+    pool.add(assets);
+    EXPECT_EQ(pool.getIds().size(), 2U);
+    for (auto const &asset : assets) {
+        // Each image keeps its full mip chain, down to one texel.
+        auto const image = pool.getImpl(asset->getId());
+        auto const extent = asset->getExtent();
+        EXPECT_NE(image.array, nullptr);
+        EXPECT_EQ(image.componentType, asset->getComponentType());
+        EXPECT_EQ(image.componentCount, asset->getComponentCount());
+        EXPECT_EQ(image.numLevels, std::bit_width(std::max(extent.x(), extent.y())));
+    }
+
+    auto const removed = std::array{dropped};
+    pool.remove(removed);
+    EXPECT_TRUE(pool.contains(kept));
+    EXPECT_FALSE(pool.contains(dropped));
+    EXPECT_THROW((void)pool.getImpl(dropped), std::out_of_range);
+}

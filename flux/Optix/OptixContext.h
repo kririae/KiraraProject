@@ -11,7 +11,7 @@
 
 #include "flux/Core/Object.h"
 #include "flux/Core/Ray.h"
-#include "flux/Optix/OptixImageTexturePool.h"
+#include "flux/Optix/OptixImageTexture.h"
 #include "flux/Optix/OptixLightSampler.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/SceneTable.h"
@@ -42,13 +42,11 @@ private:
         std::filesystem::path const &modulePath
     );
 
-    /// \brief Brings the OptiX scene up to date with the host \c Context.
+    /// \brief Brings the OptiX scene up to date with the host \c Context, and waits for the work.
     ///
-    /// Reads the records of the context's current epoch to decide what to rebuild. A sync with
-    /// no changes since the previous one rebuilds nothing. Any other sync, and the first one,
-    /// clears the current scene, rebuilds all of it, and waits for queued work. A failed sync
-    /// leaves this context unusable and forgets the previous sync, so the next one rebuilds
-    /// everything.
+    /// Reuses a GAS by mesh ID, an image by ImageAsset ID, and the program by specialization, and
+    /// rebuilds the rest. If sync throws, this context is valid only for destruction.
+    /// \pre No launch that reads this context runs.
     void sync();
 
     /// \brief Launches \p size ray-generation work items on \p stream.
@@ -84,7 +82,8 @@ struct OptixContext::Impl {
     /// Scene tables in device memory.
     SceneTable table{};
 
-    OptixImageTexturePool::Impl imageTexturePool{};
+    /// Image textures by image-texture index.
+    OptixImageTextureTable imageTextures{};
 
     OptixLightSampler::Impl lightSampler{};
 

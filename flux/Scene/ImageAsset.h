@@ -14,7 +14,7 @@
 
 namespace flux {
 class EmbreeImageTexturePool;
-class OptixImageTexturePool;
+class OptixImagePool;
 
 /// \brief Color space of the image color components.
 ///
@@ -88,10 +88,13 @@ struct ImageAssetRequest {
 class ImageAsset final : public RefCountedBase<ImageAsset> {
     friend class EmbreeImageTexturePool;
     friend class ImageAssetPool;
-    friend class OptixImageTexturePool;
+    friend class OptixImagePool;
 
 public:
     ~ImageAsset();
+
+    /// \brief Returns the ID of this asset. IDs only increase, so no other asset shares it.
+    [[nodiscard]] std::size_t getId() const noexcept { return id_; }
 
     /// Extent after applying the file orientation.
     [[nodiscard]] Vec2u getExtent() const noexcept;
@@ -117,6 +120,7 @@ private:
     [[nodiscard]] std::vector<ImageBuffer> readMipChain() const;
 
     std::unique_ptr<pImpl> pImpl_;
+    std::size_t id_;
 };
 
 /// \brief Shares ImageAsset objects by canonical path and color space.

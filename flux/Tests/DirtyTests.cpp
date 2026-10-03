@@ -55,8 +55,8 @@ TEST(DirtyTests, NewObjectsAreClean) {
     EXPECT_EQ(flux::getDirtyBits(*point), flux::PointLight::DirtyBits::None);
     EXPECT_EQ(flux::getDirtyBits(*env), flux::EnvMapLight::DirtyBits::None);
     EXPECT_EQ(flux::getDirtyBits(*edf), flux::ConstantEDF::DirtyBits::None);
-    EXPECT_TRUE(context->getChangedIds().empty());
-    EXPECT_EQ(context->getEpoch(), 0U);
+    EXPECT_TRUE(context->getDirtiedIds().empty());
+    EXPECT_EQ(context->getClearedVersion(), 0U);
 }
 
 TEST(DirtyTests, PrimitiveSettersRecordTheirBits) {
@@ -145,7 +145,7 @@ TEST(DirtyTests, ListsAnObjectOnceAfterSeveralSetters) {
 
     EXPECT_EQ(flux::getDirtyBits(*first), Bits::Transform | Bits::Visibility);
     EXPECT_EQ(flux::getDirtyBits(*second), Bits::Transform | Bits::Visibility);
-    auto const &ids = context->getChangedIds();
+    auto const &ids = context->getDirtiedIds();
     EXPECT_EQ(ids.size(), 2U);
     EXPECT_TRUE(ids.contains(first->getContextId()));
     EXPECT_TRUE(ids.contains(second->getContextId()));
@@ -171,7 +171,7 @@ TEST(DirtyTests, AssigningTheCurrentValueRecordsNothing) {
     env->setRotation(env->getRotation());
     edf->setRadiance(edf->getRadiance());
 
-    EXPECT_TRUE(context->getChangedIds().empty());
+    EXPECT_TRUE(context->getDirtiedIds().empty());
     EXPECT_EQ(flux::getDirtyBits(*primitive), flux::Primitive::DirtyBits::None);
     EXPECT_EQ(flux::getDirtyBits(*env), flux::EnvMapLight::DirtyBits::None);
 }
@@ -183,29 +183,29 @@ TEST(DirtyTests, ComparesTheClampedEnvironmentMapScale) {
     context->clearDirty();
 
     env->setScale({-2.0F, 1.0F, 1.0F});
-    EXPECT_TRUE(context->getChangedIds().empty());
+    EXPECT_TRUE(context->getDirtiedIds().empty());
 
     env->setScale({-2.0F, 1.0F, 1.0F});
     env->setScale({0.0F, 1.0F, 2.0F});
     EXPECT_EQ(flux::getDirtyBits(*env), flux::EnvMapLight::DirtyBits::Scale);
 }
 
-TEST(DirtyTests, ClearDirtyResetsBitsAndListAndAdvancesTheEpoch) {
+TEST(DirtyTests, ClearDirtyResetsBitsAndListsAndStoresTheVersion) {
     auto context = flux::Context::create();
     auto edf = context->create<flux::ConstantEDF>(kira::Properties{});
     edf->setRadiance({3.0F, 3.0F, 3.0F});
-    ASSERT_EQ(context->getChangedIds().size(), 1U);
+    ASSERT_EQ(context->getDirtiedIds().size(), 1U);
 
     context->clearDirty();
 
     EXPECT_EQ(flux::getDirtyBits(*edf), flux::ConstantEDF::DirtyBits::None);
-    EXPECT_TRUE(context->getChangedIds().empty());
-    EXPECT_EQ(context->getEpoch(), 1U);
+    EXPECT_TRUE(context->getDirtiedIds().empty());
+    EXPECT_EQ(context->getClearedVersion(), context->getVersion());
 
     edf->setRadiance({4.0F, 4.0F, 4.0F});
-    EXPECT_EQ(context->getChangedIds().size(), 1U);
+    EXPECT_EQ(context->getDirtiedIds().size(), 1U);
     context->clearDirty();
-    EXPECT_EQ(context->getEpoch(), 2U);
+    EXPECT_EQ(context->getClearedVersion(), context->getVersion());
 }
 
 TEST(DirtyTests, ObjectOutlivingItsContextRecordsNothing) {
@@ -229,7 +229,7 @@ TEST(DirtyTests, FailedValidationRecordsNothing) {
     EXPECT_THROW(primitive->setGeometry(nullptr), kira::Anyhow);
     EXPECT_THROW(point->setIntensity({-1.0F, 0.0F, 0.0F}), kira::Anyhow);
 
-    EXPECT_TRUE(context->getChangedIds().empty());
+    EXPECT_TRUE(context->getDirtiedIds().empty());
     EXPECT_EQ(flux::getDirtyBits(*primitive), flux::Primitive::DirtyBits::None);
     EXPECT_EQ(flux::getDirtyBits(*point), flux::PointLight::DirtyBits::None);
 }
@@ -245,7 +245,7 @@ TEST(DirtyTests, CreateListsNewObjectsAsAdded) {
     EXPECT_EQ(added.size(), 2U);
     EXPECT_TRUE(added.contains(mesh->getContextId()));
     EXPECT_TRUE(added.contains(primitive->getContextId()));
-    EXPECT_TRUE(context->getChangedIds().empty());
+    EXPECT_TRUE(context->getDirtiedIds().empty());
     EXPECT_EQ(flux::getDirtyBits(*primitive), flux::Primitive::DirtyBits::None);
     EXPECT_EQ(context->getDirtyBits(), ContextBits::None);
 }
@@ -265,7 +265,7 @@ TEST(DirtyTests, NestedCreationListsChildrenToo) {
     EXPECT_TRUE(added.contains(primitive->getGeometry()->getContextId()));
     EXPECT_TRUE(added.contains(primitive->getBSDF()->getContextId()));
     EXPECT_TRUE(added.contains(primitive->getContextId()));
-    EXPECT_TRUE(context->getChangedIds().empty());
+    EXPECT_TRUE(context->getDirtiedIds().empty());
 }
 
 TEST(DirtyTests, ActiveObjectsAreEmptyByDefault) {
@@ -318,7 +318,7 @@ TEST(DirtyTests, ActiveSettersRecordOnlyChanges) {
         context->getDirtyBits(),
         ContextBits::ActiveIntegrator | ContextBits::ActiveSampler | ContextBits::ActiveEnvMap
     );
-    EXPECT_TRUE(context->getChangedIds().empty());
+    EXPECT_TRUE(context->getDirtiedIds().empty());
 }
 
 TEST(DirtyTests, ActiveSettersAcceptNullAndRecordTheChange) {
@@ -359,15 +359,72 @@ TEST(DirtyTests, ClearDirtyEmptiesTheSetsAndContextBits) {
     context->setActiveEnvMap(env);
     env->setRotation({1.0F, 0.0F, 0.0F});
     ASSERT_FALSE(context->getAddedIds().empty());
-    ASSERT_FALSE(context->getChangedIds().empty());
+    ASSERT_FALSE(context->getDirtiedIds().empty());
 
     context->clearDirty();
 
     EXPECT_TRUE(context->getAddedIds().empty());
-    EXPECT_TRUE(context->getChangedIds().empty());
+    EXPECT_TRUE(context->getDirtiedIds().empty());
     EXPECT_TRUE(context->getRemovedIds().empty());
     EXPECT_EQ(context->getDirtyBits(), ContextBits::None);
     EXPECT_EQ(flux::getDirtyBits(*env), flux::EnvMapLight::DirtyBits::None);
+}
+
+TEST(DirtyTests, EveryChangeBumpsTheVersionAndClearDirtyKeepsIt) {
+    auto context = flux::Context::create();
+    auto bumped = [&, last = context->getVersion()]() mutable {
+        auto const version = context->getVersion();
+        auto const result = version > last;
+        last = version;
+        return result;
+    };
+
+    auto mesh = context->create<flux::TriangleMesh>(triangleProperties());
+    EXPECT_TRUE(bumped());
+    auto point = context->create<flux::PointLight>(kira::Properties{});
+    EXPECT_TRUE(bumped());
+
+    // Every change bumps, even one to an object already listed as dirtied.
+    point->setPosition({1.0F, 0.0F, 0.0F});
+    EXPECT_TRUE(bumped());
+    point->setPosition({2.0F, 0.0F, 0.0F});
+    EXPECT_TRUE(bumped());
+    point->setPosition({2.0F, 0.0F, 0.0F});
+    EXPECT_FALSE(bumped());
+
+    auto sampler = context->create<flux::IndependentSampler>(kira::Properties{});
+    EXPECT_TRUE(bumped());
+    context->setActiveSampler(sampler);
+    EXPECT_TRUE(bumped());
+    context->setActiveSampler(sampler);
+    EXPECT_FALSE(bumped());
+    auto integrator = context->create<flux::PathIntegrator>(kira::Properties{});
+    EXPECT_TRUE(bumped());
+    context->setActiveIntegrator(integrator);
+    EXPECT_TRUE(bumped());
+    context->setActiveIntegrator(integrator);
+    EXPECT_FALSE(bumped());
+    auto env = context->create<flux::EnvMapLight>(kira::Properties{});
+    EXPECT_TRUE(bumped());
+    context->setActiveEnvMap(env);
+    EXPECT_TRUE(bumped());
+    context->setActiveEnvMap(nullptr);
+    EXPECT_TRUE(bumped());
+
+    // A clear changes no scene state, and marks where the tracked changes start.
+    context->clearDirty();
+    EXPECT_FALSE(bumped());
+    EXPECT_EQ(context->getClearedVersion(), context->getVersion());
+
+    context->remove(point->getContextId());
+    EXPECT_TRUE(bumped());
+    context->remove(sampler->getContextId());
+    EXPECT_TRUE(bumped());
+    EXPECT_EQ(context->getActiveSampler(), nullptr);
+    mesh.reset();
+    context->collectGarbage();
+    EXPECT_TRUE(bumped());
+    EXPECT_LT(context->getClearedVersion(), context->getVersion());
 }
 
 TEST(DirtyTests, ForEachBitVisitsEverySetBitFromTheLowestUp) {

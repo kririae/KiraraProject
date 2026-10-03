@@ -447,6 +447,10 @@ TEST(EmbreePipelineTests, InvalidatesAccumulationForCameraFilmAndSync) {
     handler.download(*product);
     EXPECT_EQ(product->getFilm().getChannel<flux::NormalChannel>().size(), 2);
 
+    // A sync keeps accumulation while the scene stays the same, and clears it after an edit.
+    handler.sync();
+    EXPECT_EQ(handler.getAccumulatedSamples(*product), 1);
+    (void)context->create<flux::PointLight>(kira::Properties{});
     handler.sync();
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
     EXPECT_EQ(product->getFilm().getChannel<flux::NormalChannel>().size(), 2);

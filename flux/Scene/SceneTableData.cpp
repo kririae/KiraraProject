@@ -4,11 +4,8 @@
 #include <cstddef>
 
 #include "flux/Scene/Context.h"
-#include "flux/Scene/Geometry.h"
-#include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
 #include "flux/Shading/EDF.h"
-#include "kira/Anyhow.h"
 
 namespace flux {
 void SceneTableData::build(Context const &context) {
@@ -35,31 +32,9 @@ void SceneTableData::build(Context const &context) {
     edfs.assign(context.getIndexLimit<EDF>(), EDF::Impl{});
     for (auto const &edf : contextEDFs)
         edfs[context.getIndex<EDF>(edf->getContextId())] = edf->getImpl();
-
-    // Derive the geometry types from the primitives. No geometry can tell alone
-    // whether a visible primitive references it, so this pass is not per object.
-    geometryTypes.assign(context.getIndexLimit<Geometry>(), std::nullopt);
-    for (auto const &primitive : contextPrimitives) {
-        if (!primitive->isVisible())
-            continue;
-
-        auto const geometry = primitive->getGeometry();
-        auto &type = geometryTypes[context.getIndex<Geometry>(geometry->getContextId())];
-        switch (geometry->getType()) {
-        case GeometryType::TriangleMesh:
-            if (!dynamic_cast<TriangleMesh const *>(geometry.get()))
-                throw kira::Anyhow(
-                    "SceneTableData: geometry type does not match its host implementation"
-                );
-            type = GeometryType::TriangleMesh;
-            break;
-        case GeometryType::Count: throw kira::Anyhow("SceneTableData: unsupported geometry type");
-        }
-    }
 }
 
 void SceneTableData::clear() noexcept {
-    geometryTypes.clear();
     primitives.clear();
     transforms.clear();
     bsdfs.clear();

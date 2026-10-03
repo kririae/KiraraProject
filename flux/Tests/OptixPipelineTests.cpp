@@ -14,6 +14,7 @@
 #include "flux/Scene/Context.h"
 #include "flux/Scene/EnvMapLight.h"
 #include "flux/Scene/Geometry.h"
+#include "flux/Scene/Light.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/RenderProduct.h"
 #include "flux/Scene/TriangleMesh.h"
@@ -209,12 +210,46 @@ TEST(OptixPipelineTests, InvalidatesAccumulationAfterCameraChangeAndSync) {
     EXPECT_FALSE(handler.isConverged(*firstProduct));
     EXPECT_TRUE(handler.isConverged(*secondProduct));
 
+    // A sync after an edit clears every product.
     handler.render(*firstProduct, 1);
+    (void)context->create<flux::PointLight>(kira::Properties{});
     handler.sync();
     EXPECT_EQ(handler.getAccumulatedSamples(*firstProduct), 0);
     EXPECT_EQ(handler.getAccumulatedSamples(*secondProduct), 0);
     EXPECT_FALSE(handler.isConverged(*firstProduct));
     EXPECT_FALSE(handler.isConverged(*secondProduct));
+}
+
+TEST(OptixPipelineTests, KeepsAccumulationAcrossASyncThatChangesNothing) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    auto context = flux::Context::create();
+    flux::test::setActiveDefaults(*context);
+    kira::Properties productProperties;
+    productProperties.set("resolution", flux::Vec2u{1, 1});
+    productProperties.set("num_samples", std::uint32_t{4});
+    auto product = flux::RenderProduct::create(flux::Camera::create(), productProperties);
+    flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
+    context->clearDirty();
+
+    // Nothing changed since the handler's first sync.
+    handler.render(*product, 1);
+    handler.sync();
+    EXPECT_EQ(handler.getAccumulatedSamples(*product), 1);
+
+    // Another sampler of the same type keeps the program, but changes the samples.
+    handler.render(*product, 1);
+    context->setActiveSampler(context->create<flux::IndependentSampler>(kira::Properties{}));
+    handler.sync();
+    EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
+    context->clearDirty();
+
+    // An edit to the scene changes the samples too.
+    handler.render(*product, 1);
+    (void)context->create<flux::PointLight>(kira::Properties{});
+    handler.sync();
+    EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
 }
 
 TEST(OptixPipelineTests, TracksAccumulationAcrossFilmAndSampleTargetChanges) {

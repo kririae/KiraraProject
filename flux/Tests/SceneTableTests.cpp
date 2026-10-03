@@ -53,7 +53,6 @@ void expectSameTables(flux::SceneTableData const &actual, flux::SceneTableData c
         EXPECT_EQ(actual.primitives[index].edfIndex, expected.primitives[index].edfIndex);
     }
     EXPECT_EQ(actual.transforms, expected.transforms);
-    EXPECT_EQ(actual.geometryTypes, expected.geometryTypes);
     EXPECT_EQ(actual.bsdfs.size(), expected.bsdfs.size());
     EXPECT_EQ(actual.edfs.size(), expected.edfs.size());
 }
@@ -67,7 +66,6 @@ TEST(SceneTableTests, BuildsEmptyTablesFromAnEmptyContext) {
 
     EXPECT_TRUE(table.primitives.empty());
     EXPECT_TRUE(table.transforms.empty());
-    EXPECT_TRUE(table.geometryTypes.empty());
     EXPECT_TRUE(table.bsdfs.empty());
     EXPECT_TRUE(table.edfs.empty());
 }
@@ -135,33 +133,13 @@ TEST(SceneTableTests, GivesOneGeometryIndexToEveryPrimitiveThatSharesAMesh) {
     auto table = flux::SceneTableData{};
     table.build(*context);
 
-    ASSERT_EQ(table.geometryTypes.size(), 2);
-    EXPECT_EQ(table.geometryTypes[0], flux::GeometryType::TriangleMesh);
-    EXPECT_EQ(table.geometryTypes[1], flux::GeometryType::TriangleMesh);
-
     ASSERT_EQ(table.primitives.size(), 3);
     EXPECT_EQ(table.primitives[0].geometryIndex, 0);
     EXPECT_EQ(table.primitives[1].geometryIndex, 1);
     EXPECT_EQ(table.primitives[2].geometryIndex, 0);
 }
 
-TEST(SceneTableTests, ExcludesAMeshThatNoVisiblePrimitiveUses) {
-    auto context = flux::Context::create();
-    auto const visibleMesh = context->create<flux::TriangleMesh>(triangle());
-    auto const hiddenMesh = context->create<flux::TriangleMesh>(triangle());
-    (void)makePrimitive(*context, visibleMesh);
-    auto const hidden = makePrimitive(*context, hiddenMesh);
-    hidden->setVisible(false);
-
-    auto table = flux::SceneTableData{};
-    table.build(*context);
-
-    ASSERT_EQ(table.geometryTypes.size(), 2);
-    EXPECT_EQ(table.geometryTypes[0], flux::GeometryType::TriangleMesh);
-    EXPECT_FALSE(table.geometryTypes[1]);
-}
-
-TEST(SceneTableTests, TakesGeometryIndicesFromTheContextAndLeavesHoles) {
+TEST(SceneTableTests, TakesGeometryIndicesFromTheContext) {
     auto context = flux::Context::create();
     auto const unused = context->create<flux::TriangleMesh>(triangle());
     auto const used = context->create<flux::TriangleMesh>(triangle());
@@ -170,13 +148,10 @@ TEST(SceneTableTests, TakesGeometryIndicesFromTheContextAndLeavesHoles) {
     auto table = flux::SceneTableData{};
     table.build(*context);
 
-    // The unreferenced mesh keeps its index as a hole.
+    // The unreferenced mesh still holds the first index.
     auto const unusedIndex = context->getIndex<flux::Geometry>(unused->getContextId());
     auto const usedIndex = context->getIndex<flux::Geometry>(used->getContextId());
-    ASSERT_EQ(table.geometryTypes.size(), context->getIndexLimit<flux::Geometry>());
-    ASSERT_EQ(table.geometryTypes.size(), 2);
-    EXPECT_FALSE(table.geometryTypes[unusedIndex]);
-    EXPECT_EQ(table.geometryTypes[usedIndex], flux::GeometryType::TriangleMesh);
+    EXPECT_NE(unusedIndex, usedIndex);
     ASSERT_EQ(table.primitives.size(), 1);
     EXPECT_EQ(table.primitives[0].geometryIndex, usedIndex);
 }

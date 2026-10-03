@@ -15,16 +15,22 @@
 //   FLUX_FUZZ_FIRST_SEED  first seed; the others follow it (default 1)
 //   FLUX_FUZZ_VERBOSE     when set, print the operations of every seed
 //
-// Why the comparison is exact: a sync clears accumulation, and the sample offset of both
-// handlers stays zero, so both sides render sample batch index 0 of the same sequence. Light
-// slots follow Context ID order, so the model keeps primitives in creation order and the fresh
-// context creates them in that order. Indices differ between the sides (the live context has
-// holes and reused indices) and must not change the image.
+// Why the comparison is exact: the live product is released before it renders, and the sample
+// offset of both handlers stays zero, so both sides render sample batch index 0 of the same
+// sequence. Before the release, the live product shows whether the last sync cleared
+// accumulation, which it must exactly when the version changed. Emitting primitives take light
+// slots in Context ID order, after the point light and the environment map, so the model keeps
+// primitives in creation order and the fresh context creates them in that order. Indices differ
+// between the sides (the live context has holes and reused indices) and must not change the
+// image. This assumes that no two instances are hit at exactly the same distance, which holds
+// for random geometry. Image textures read fixture files, so the fresh side loads its own images
+// with the same pixels.
 
 #include <gtest/gtest.h>
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -68,12 +74,35 @@
 #error "FLUX_TEST_OUTPUT_DIR must name the test output directory"
 #endif
 
+#ifndef FLUX_TEST_FIXTURES_DIR
+#error "FLUX_TEST_FIXTURES_DIR must name the test fixtures directory"
+#endif
+
 namespace {
 using flux::Spectrum;
 using flux::Vec3f;
 using Xf = std::array<float, 12>;
 
 constexpr std::uint32_t imageSize = 8;
+
+/// An image file a texture may read, relative to the fixtures, and its color components.
+struct ImageFile {
+    char const *path;
+    std::size_t components;
+};
+
+/// Image files a texture may read. Two textures of one file and color space share an image.
+constexpr std::array imageFiles{
+    ImageFile{"Texture2x2.ppm", 3},
+    ImageFile{"Texture3x3.ppm", 3},
+    ImageFile{"SRGB.ppm", 3},
+    ImageFile{"SRGBFilter2x2.ppm", 3},
+    ImageFile{"Shared/Textures/Checker.png", 3},
+    ImageFile{"Gray2x2.pgm", 1},
+};
+
+/// Address modes a texture may use. Texture coordinates reach outside [0, 1].
+constexpr std::array addressModes{"wrap", "clamp", "mirror", "border"};
 
 /// The kind of a context object the rig created.
 enum class Kind : std::uint8_t {
@@ -85,6 +114,8 @@ enum class Kind : std::uint8_t {
     Env,
     Integrator,
     Sampler,
+    ImageTexture,
+    ConstantTexture,
 };
 
 /// Returns a row-major affine transform: rotation about Z, scale, optional flip about X, and
@@ -116,11 +147,28 @@ struct Spec {
         std::array<Vec3f, 3> vertices;
     };
 
-    /// A diffuse or principled BSDF.
+    /// An image texture: a file of \c imageFiles, its color space, and how it is read.
+    struct Image {
+        std::size_t file{};
+        bool srgb{};
+        bool point{};
+        std::size_t addressMode{};
+        /// Component mapping, such as "zyx1", or empty for the image's default.
+        std::string mapping;
+    };
+
+    /// An environment map with a constant color or an image, scaled by \c scale.
+    struct Env {
+        Spectrum scale;
+        std::optional<Image> image;
+    };
+
+    /// A diffuse or principled BSDF, whose color is \c color or, when set, \c image.
     struct Material {
         bool principled{};
         Spectrum color;
         float roughness{};
+        std::optional<Image> image;
     };
 
     struct Prim {
@@ -156,8 +204,8 @@ struct Spec {
     std::vector<std::pair<int, Prim>> prims;
     std::optional<Point> point;
 
-    /// Scale of the active environment map, or nothing.
-    std::optional<Spectrum> env;
+    /// The active environment map, or nothing.
+    std::optional<Env> env;
     Integrator integrator;
     bool sobol{false};
     int nextKey{0};
@@ -193,19 +241,45 @@ createMesh(flux::Context &context, Spec::Mesh const &mesh) {
     return context.create<flux::TriangleMesh>(flux::TriangleMesh::Data{
         .vertices = flux::test::sharedBuffer(mesh.vertices[0], mesh.vertices[1], mesh.vertices[2]),
         .triangles = flux::test::sharedBuffer(flux::Vec3u{0, 1, 2}),
+        .texCoords = flux::test::sharedBuffer(
+            flux::Vec2f{-0.5F, -0.5F}, flux::Vec2f{1.5F, -0.5F}, flux::Vec2f{-0.5F, 1.5F}
+        ),
     });
+}
+
+[[nodiscard]] std::string text(Spec::Image const &image) {
+    return std::format(
+        "{} {} {} {} {}", imageFiles[image.file].path, image.srgb ? "srgb" : "linear",
+        image.point ? "point" : "linear", addressModes[image.addressMode],
+        image.mapping.empty() ? "default" : image.mapping
+    );
+}
+
+[[nodiscard]] kira::Properties textureProperties(Spec::Image const &image) {
+    kira::Properties props;
+    props.set("type", "image");
+    props.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / imageFiles[image.file].path);
+    props.set("color_space", std::string(image.srgb ? "srgb" : "linear"));
+    props.set("filter_mode", std::string(image.point ? "point" : "linear"));
+    props.set("address_mode", std::string(addressModes[image.addressMode]));
+    if (!image.mapping.empty())
+        props.set("component_mapping", image.mapping);
+    return props;
 }
 
 [[nodiscard]] flux::Ref<flux::BSDF>
 createBSDF(flux::Context &context, Spec::Material const &material) {
     kira::Properties props;
+    auto const colorName = material.principled ? "base_color" : "R";
+    if (material.image)
+        props.set(colorName, textureProperties(*material.image));
+    else
+        props.set(colorName, material.color);
     if (material.principled) {
         props.set("type", "principled");
-        props.set("base_color", material.color);
         props.set("roughness", material.roughness);
     } else {
         props.set("type", "diffuse");
-        props.set("R", material.color);
     }
     return context.create<flux::BSDF>(props);
 }
@@ -241,10 +315,11 @@ createPoint(flux::Context &context, Spec::Point const &point) {
     return context.create<flux::PointLight>(props);
 }
 
-[[nodiscard]] flux::Ref<flux::EnvMapLight>
-createEnv(flux::Context &context, Spectrum const &scale) {
+[[nodiscard]] flux::Ref<flux::EnvMapLight> createEnv(flux::Context &context, Spec::Env const &env) {
     kira::Properties props;
-    props.set("scale", scale);
+    props.set("scale", env.scale);
+    if (env.image)
+        props.set("texture", textureProperties(*env.image));
     return context.create<flux::EnvMapLight>(props);
 }
 
@@ -304,7 +379,7 @@ struct Base {
     Spec spec;
     int floor{}, light{}, occluder{}, pillar{};
     int meshTri{}, meshFloor{}, meshOccluder{}, meshPillar{};
-    int gray{}, green{}, red{};
+    int gray{}, checker{}, green{}, red{};
     int lamp{};
 };
 
@@ -322,6 +397,8 @@ struct Base {
     s.meshes[b.meshPillar] = {{Vec3f{0, 0, 0}, Vec3f{1, 0, 0.1F}, Vec3f{0, 1, 0.2F}}};
     b.gray = s.nextKey++;
     s.bsdfs[b.gray] = {false, Spectrum{0.5F}, 0.0F};
+    b.checker = s.nextKey++;
+    s.bsdfs[b.checker] = {false, Spectrum{0.5F}, 0.0F, Spec::Image{0, false, true, 0}};
     b.green = s.nextKey++;
     s.bsdfs[b.green] = {false, Spectrum{0.2F, 0.7F, 0.3F}, 0.0F};
     b.red = s.nextKey++;
@@ -331,7 +408,8 @@ struct Base {
 
     b.floor = s.nextKey++;
     s.prims.push_back(
-        {b.floor, {b.meshFloor, b.gray, std::nullopt, makeTransform(1, 0, false, {0, 0, 0}), true}}
+        {b.floor,
+         {b.meshFloor, b.checker, std::nullopt, makeTransform(1, 0, false, {0, 0, 0}), true}}
     );
     b.light = s.nextKey++;
     s.prims.push_back(
@@ -421,6 +499,8 @@ public:
     explicit Rig(Spec initial, std::filesystem::path modulePath = FLUX_TEST_OPTIX_IR)
         : model(std::move(initial)), context(flux::Context::create()), product(makeProduct()) {
         ids = model.build(*context);
+        if (model.env)
+            envImage = model.env->image;
         track();
         handler = std::make_unique<flux::OptixHandler>(context, modulePath);
 
@@ -448,7 +528,10 @@ public:
     /// Assigns the current transform again, which must change nothing.
     void reassign(int key) {
         note("reassign the transform of prim {}", key);
+        auto const version = context->getVersion();
         prim(key)->setTransform(model.prim(key).transform);
+        if (context->getVersion() != version)
+            report(std::format("reassigning the transform of prim {} changed the version", key));
     }
 
     void rebindBSDF(int key, std::optional<int> bsdf) {
@@ -485,9 +568,7 @@ public:
     int addMesh(Spec::Mesh const &mesh) {
         auto const key = model.nextKey++;
         note("add mesh {} {} {}", key, text(mesh.vertices[0]), text(mesh.vertices[1]));
-        auto const object = createMesh(*context, mesh);
-        ids.meshes[key] = object->getContextId();
-        kinds[object->getContextId()] = Kind::Mesh;
+        ids.meshes[key] = enroll(Kind::Mesh, *createMesh(*context, mesh));
         model.meshes[key] = mesh;
         return key;
     }
@@ -496,11 +577,9 @@ public:
         auto const key = model.nextKey++;
         note(
             "add {} BSDF {} {}", material.principled ? "principled" : "diffuse", key,
-            text(material.color)
+            material.image ? text(*material.image) : text(material.color)
         );
-        auto const object = createBSDF(*context, material);
-        ids.bsdfs[key] = object->getContextId();
-        kinds[object->getContextId()] = Kind::BSDF;
+        ids.bsdfs[key] = enroll(Kind::BSDF, *createBSDF(*context, material));
         model.bsdfs[key] = material;
         return key;
     }
@@ -508,9 +587,7 @@ public:
     int addEDF(Spectrum const &radiance) {
         auto const key = model.nextKey++;
         note("add EDF {} {}", key, text(radiance));
-        auto const object = createEDF(*context, radiance);
-        ids.edfs[key] = object->getContextId();
-        kinds[object->getContextId()] = Kind::EDF;
+        ids.edfs[key] = enroll(Kind::EDF, *createEDF(*context, radiance));
         model.edfs[key] = radiance;
         return key;
     }
@@ -531,10 +608,10 @@ public:
             bsdfId = ids.bsdfs.at(*bsdf);
         if (edf)
             edfId = ids.edfs.at(*edf);
-        auto const object =
-            createPrimitive(*context, ids.meshes.at(mesh), bsdfId, edfId, transform, visible);
-        ids.prims[key] = object->getContextId();
-        kinds[object->getContextId()] = Kind::Primitive;
+        ids.prims[key] = enroll(
+            Kind::Primitive,
+            *createPrimitive(*context, ids.meshes.at(mesh), bsdfId, edfId, transform, visible)
+        );
         model.prims.push_back({key, {mesh, bsdf, edf, transform, visible}});
         return key;
     }
@@ -561,9 +638,7 @@ public:
 
     void addPoint(Spec::Point const &point) {
         note("add a point light at {}", text(point.position));
-        auto const object = createPoint(*context, point);
-        ids.point = object->getContextId();
-        kinds[object->getContextId()] = Kind::Point;
+        ids.point = enroll(Kind::Point, *createPoint(*context, point));
         model.point = point;
     }
 
@@ -574,26 +649,31 @@ public:
         model.point.reset();
     }
 
-    /// Makes an environment map with \p scale active. A parked map is reused.
-    void setEnv(Spectrum const &scale) {
-        note("activate the environment map with scale {}", text(scale));
+    /// Makes an environment map with \p scale active. A parked map is reused with its image.
+    /// Otherwise a new map reads \p image, or no image.
+    void setEnv(Spectrum const &scale, std::optional<Spec::Image> const &image = std::nullopt) {
         flux::Ref<flux::EnvMapLight> map;
         if (ids.env) {
+            note("activate the parked environment map with scale {}", text(scale));
             map = context->get<flux::EnvMapLight>(*ids.env);
             map->setScale(scale);
         } else {
-            map = createEnv(*context, scale);
-            ids.env = map->getContextId();
-            kinds[*ids.env] = Kind::Env;
+            note(
+                "activate a new environment map with scale {} and {}", text(scale),
+                image ? text(*image) : "no image"
+            );
+            envImage = image;
+            map = createEnv(*context, {scale, envImage});
+            ids.env = enroll(Kind::Env, *map);
         }
         context->setActiveEnvMap(map);
-        model.env = scale;
+        model.env = Spec::Env{scale, envImage};
     }
 
     void scaleEnv(Spectrum const &scale) {
         note("set the environment scale to {}", text(scale));
         context->get<flux::EnvMapLight>(*ids.env)->setScale(scale);
-        model.env = scale;
+        model.env->scale = scale;
     }
 
     /// Makes the environment map inactive, and removes its object when \p remove is set.
@@ -603,6 +683,7 @@ public:
         if (remove) {
             context->remove(*ids.env);
             ids.env.reset();
+            envImage.reset();
         }
         model.env.reset();
     }
@@ -613,11 +694,10 @@ public:
             integrator.reorder, removeOld ? ", remove the old one" : ""
         );
         auto const object = createIntegrator(*context, integrator);
-        kinds[object->getContextId()] = Kind::Integrator;
         context->setActiveIntegrator(object);
         if (removeOld)
             context->remove(ids.integrator);
-        ids.integrator = object->getContextId();
+        ids.integrator = enroll(Kind::Integrator, *object);
         model.integrator = integrator;
     }
 
@@ -627,24 +707,33 @@ public:
             removeOld ? ", remove the old one" : ""
         );
         auto const object = createSampler(*context, sobol);
-        kinds[object->getContextId()] = Kind::Sampler;
         context->setActiveSampler(object);
         if (removeOld)
             context->remove(ids.sampler);
-        ids.sampler = object->getContextId();
+        ids.sampler = enroll(Kind::Sampler, *object);
         model.sobol = sobol;
     }
 
 public:
     // Control.
 
-    /// Clears the epoch without a sync, so the runtime misses it.
+    /// Syncs without a clear, so the tracked changes keep the synced edits and gain later ones.
+    void syncOnly() {
+        note("sync without clearDirty");
+        context->collectGarbage();
+        model.collect();
+        prune();
+        checkObjects();
+        handler->sync();
+    }
+
+    /// Clears the tracked changes without a sync. A runtime must not depend on them.
     void clearOnly() {
         note("clearDirty without a sync");
         clearAndCheck();
     }
 
-    /// Collects, syncs \p syncs times, checks the context records, and clears.
+    /// Collects, syncs \p syncs times, checks the tracked changes, and clears.
     void settle(int syncs = 1) {
         note("frame with {} sync{}", syncs, syncs == 1 ? "" : "s");
         context->collectGarbage();
@@ -653,15 +742,29 @@ public:
         checkObjects();
         for (int i = 0; i < syncs; ++i)
             handler->sync();
-        checkRecords();
+        checkChanges();
         clearAndCheck();
     }
 
     /// Renders the live side and a fresh side built from the model, and requires them to match.
     ///
-    /// The sync before this render cleared accumulation, so the live batch is sample 0, as the
-    /// fresh one is.
+    /// The live product holds the one sample of the last compare. A sync that changed the
+    /// version must have cleared it, and a sync that did not must have kept it. The product is
+    /// then released, so its batch is sample 0, as the fresh one is.
     Image compare() {
+        auto const version = context->getVersion();
+        if (comparedVersion) {
+            auto const expected = version == *comparedVersion ? 1U : 0U;
+            if (handler->getAccumulatedSamples(*product) != expected)
+                report(
+                    std::format(
+                        "the live product holds {} samples, expected {}",
+                        handler->getAccumulatedSamples(*product), expected
+                    )
+                );
+        }
+        comparedVersion = version;
+        handler->release(*product);
         auto live = renderImage(*handler, *product);
 
         auto fresh = flux::Context::create();
@@ -705,6 +808,7 @@ private:
         return context->get<flux::Primitive>(ids.prims.at(key));
     }
 
+    /// Records the kinds of the objects of the built model.
     void track() {
         for (auto const &[key, id] : ids.prims)
             kinds[id] = Kind::Primitive;
@@ -720,6 +824,23 @@ private:
             kinds[*ids.env] = Kind::Env;
         kinds[ids.integrator] = Kind::Integrator;
         kinds[ids.sampler] = Kind::Sampler;
+        trackTextures();
+    }
+
+    /// Records the kind of \p object, and of the image textures created with it, and returns
+    /// its ID.
+    std::size_t enroll(Kind kind, flux::ContextObject const &object) {
+        kinds[object.getContextId()] = kind;
+        trackTextures();
+        return object.getContextId();
+    }
+
+    /// Records every texture that has no kind yet. BSDFs and maps create their own.
+    void trackTextures() {
+        for (auto const &texture : context->getObjects<flux::ImageTexture>())
+            kinds.try_emplace(texture->getContextId(), Kind::ImageTexture);
+        for (auto const &texture : context->getObjects<flux::ConstantTexture>())
+            kinds.try_emplace(texture->getContextId(), Kind::ConstantTexture);
     }
 
     /// Forgets the keys that the model collected.
@@ -750,6 +871,28 @@ private:
         checkSet<flux::Geometry>("geometry", ids.meshes);
         checkSet<flux::BSDF>("BSDF", ids.bsdfs);
         checkSet<flux::EDF>("EDF", ids.edfs);
+
+        // Each textured BSDF and environment map owns one image texture, which leaves with it.
+        // Textures of one file and color space share one image.
+        std::vector<Spec::Image const *> images;
+        for (auto const &[key, material] : model.bsdfs)
+            if (material.image)
+                images.push_back(&*material.image);
+        if (envImage)
+            images.push_back(&*envImage);
+        auto const textures = context->getObjects<flux::ImageTexture>().size();
+        if (textures != images.size())
+            report(
+                std::format(
+                    "the context holds {} image textures, the model {}", textures, images.size()
+                )
+            );
+        std::set<std::pair<std::size_t, bool>> files;
+        for (auto const *image : images)
+            files.emplace(image->file, image->srgb);
+        auto const assets = context->getImageAssetPool().size();
+        if (assets != files.size())
+            report(std::format("the context holds {} images, the model {}", assets, files.size()));
     }
 
     [[nodiscard]] bool inScene(std::size_t id) const {
@@ -765,52 +908,58 @@ private:
                context.findIndex<flux::ImageTexture>(id);
     }
 
-    /// Checks the epoch records before the clear.
-    void checkRecords() {
+    /// Checks the tracked changes before the clear.
+    void checkChanges() {
         for (auto const id : context->getAddedIds())
             if (!inScene(id))
                 report(std::format("added id {} is not in the scene", id));
-        for (auto const id : context->getChangedIds())
+        for (auto const id : context->getDirtiedIds())
             if (!inScene(id))
-                report(std::format("changed id {} is not in the scene", id));
+                report(std::format("dirtied id {} is not in the scene", id));
         for (auto const id : context->getRemovedIds()) {
             if (inScene(id))
                 report(std::format("removed id {} is still in the scene", id));
-            if (context->getAddedIds().contains(id) || context->getChangedIds().contains(id))
-                report(std::format("removed id {} is also added or changed", id));
+            if (context->getAddedIds().contains(id) || context->getDirtiedIds().contains(id))
+                report(std::format("removed id {} is also added or dirtied", id));
 
-            // The index stays reserved until the clear.
+            // An indexed object keeps its index until the clear, and other objects have none.
             auto const iterator = kinds.find(id);
-            if (iterator == kinds.end())
-                continue; // A texture made inside a BSDF transaction.
-            bool const has = [&] {
+            if (iterator == kinds.end()) {
+                report(std::format("removed id {} was never created by the rig", id));
+                continue;
+            }
+            auto const kept = [&]() -> std::optional<bool> {
                 switch (iterator->second) {
                 case Kind::Primitive: return context->findIndex<flux::Primitive>(id).has_value();
                 case Kind::Mesh: return context->findIndex<flux::Geometry>(id).has_value();
                 case Kind::BSDF: return context->findIndex<flux::BSDF>(id).has_value();
                 case Kind::EDF: return context->findIndex<flux::EDF>(id).has_value();
+                case Kind::ImageTexture:
+                    return context->findIndex<flux::ImageTexture>(id).has_value();
+                case Kind::ConstantTexture:
                 case Kind::Point:
                 case Kind::Env:
                 case Kind::Integrator:
-                case Kind::Sampler: return !hasIndex(*context, id);
+                case Kind::Sampler: return std::nullopt;
                 }
-                return false;
+                return std::nullopt;
             }();
-            if (!has)
+            if (kept && !*kept)
                 report(std::format("removed id {} lost its index before the clear", id));
+            if (!kept && hasIndex(*context, id))
+                report(std::format("removed id {} of an unindexed kind has an index", id));
         }
     }
 
     void clearAndCheck() {
         auto const removed = context->getRemovedIds();
-        auto const epoch = context->getEpoch();
         context->clearDirty();
-        if (context->getEpoch() != epoch + 1)
-            report("clearDirty did not advance the epoch");
-        if (!context->getAddedIds().empty() || !context->getChangedIds().empty() ||
+        if (context->getClearedVersion() != context->getVersion())
+            report("clearDirty did not store the version");
+        if (!context->getAddedIds().empty() || !context->getDirtiedIds().empty() ||
             !context->getRemovedIds().empty() ||
             context->getDirtyBits() != flux::Context::DirtyBits::None)
-            report("clearDirty left records behind");
+            report("clearDirty left changes behind");
         for (auto const id : removed)
             if (hasIndex(*context, id))
                 report(std::format("removed id {} kept its index after the clear", id));
@@ -820,6 +969,12 @@ private:
     }
 
     std::map<std::size_t, Kind> kinds;
+
+    /// Image of the environment map \c ids.env, active or parked.
+    std::optional<Spec::Image> envImage;
+
+    /// Context version at the last compare, or nothing before the first.
+    std::optional<std::uint64_t> comparedVersion;
 };
 
 [[nodiscard]] bool skipWithoutCuda() { return !flux::test::hasCudaMemoryPoolSupport(); }
@@ -861,8 +1016,30 @@ public:
              point(-0.3F, 1.0F, -0.05F, 0.05F)}
         };
     }
-    [[nodiscard]] Spec::Material material() {
-        return {chance(30), spectrum(0.1F, 0.9F), range(0.1F, 1.0F)};
+    [[nodiscard]] Spec::Material material(unsigned texturePercent = 50) {
+        auto const principled = chance(30);
+        auto const color = spectrum(0.1F, 0.9F);
+        auto const roughness = range(0.1F, 1.0F);
+        std::optional<Spec::Image> image;
+        if (chance(texturePercent))
+            image = this->image();
+        return {principled, color, roughness, image};
+    }
+    [[nodiscard]] Spec::Image image() {
+        // Only a color image may be sRGB.
+        auto const file = below(imageFiles.size());
+        auto const srgb = imageFiles[file].components >= 3 && chance(50);
+        auto const point = chance(30);
+        auto const addressMode = below(addressModes.size());
+
+        // Select only the components the file has, or a constant.
+        std::string mapping;
+        if (chance(40)) {
+            auto const selectors = std::string("xyz").substr(0, imageFiles[file].components) + "01";
+            for (int i = 0; i < 4; ++i)
+                mapping += selectors[below(selectors.size())];
+        }
+        return {file, srgb, point, addressMode, mapping};
     }
 
     template <typename Map> [[nodiscard]] int key(Map const &map) {
@@ -890,7 +1067,16 @@ struct Op {
     return std::ranges::any_of(m.prims, [&](auto const &e) { return e.second.visible == visible; });
 }
 
-[[nodiscard]] std::optional<int> pickBSDF(Rig &rig, Gen &gen) {
+/// Returns the keys of the primitives whose visibility is \p visible.
+[[nodiscard]] std::vector<int> primKeys(Spec const &m, bool visible) {
+    std::vector<int> keys;
+    for (auto const &[key, prim] : m.prims)
+        if (prim.visible == visible)
+            keys.push_back(key);
+    return keys;
+}
+
+[[nodiscard]] std::optional<int> pickOrAddBSDF(Rig &rig, Gen &gen) {
     // None, an existing BSDF, or a new one.
     auto const roll = gen.below(10);
     if (roll == 0)
@@ -900,7 +1086,7 @@ struct Op {
     return gen.key(rig.model.bsdfs);
 }
 
-[[nodiscard]] std::optional<int> pickEDF(Rig &rig, Gen &gen) {
+[[nodiscard]] std::optional<int> pickOrAddEDF(Rig &rig, Gen &gen) {
     auto const roll = gen.below(10);
     if (roll < 4)
         return std::nullopt;
@@ -912,35 +1098,41 @@ struct Op {
 // clang-format off
 const std::array ops = {
     Op{"move", 3, [](Spec const &m) { return !m.prims.empty(); },
-       [](Rig &r, Gen &g) { r.move(g.primKey(r.model), g.transform()); }},
+       [](Rig &r, Gen &g) {
+           auto const prim = g.primKey(r.model);
+           r.move(prim, g.transform());
+       }},
     Op{"reassign", 1, [](Spec const &m) { return !m.prims.empty(); },
        [](Rig &r, Gen &g) { r.reassign(g.primKey(r.model)); }},
     Op{"rebind BSDF", 2, [](Spec const &m) { return !m.prims.empty(); },
        [](Rig &r, Gen &g) {
            auto const prim = g.primKey(r.model);
-           r.rebindBSDF(prim, pickBSDF(r, g));
+           r.rebindBSDF(prim, pickOrAddBSDF(r, g));
        }},
     Op{"rebind EDF", 2, [](Spec const &m) { return !m.prims.empty(); },
        [](Rig &r, Gen &g) {
            auto const prim = g.primKey(r.model);
-           r.rebindEDF(prim, pickEDF(r, g));
+           r.rebindEDF(prim, pickOrAddEDF(r, g));
+       }},
+    Op{"retexture", 3, [](Spec const &m) { return !m.prims.empty(); },
+       [](Rig &r, Gen &g) {
+           // A new textured BSDF, so the old one's image may lose its last texture.
+           auto const prim = g.primKey(r.model);
+           r.rebindBSDF(prim, r.addBSDF(g.material(100)));
        }},
     Op{"set radiance", 2, [](Spec const &m) { return !m.edfs.empty(); },
-       [](Rig &r, Gen &g) { r.setRadiance(g.key(r.model.edfs), g.spectrum(0.5F, 6.0F)); }},
+       [](Rig &r, Gen &g) {
+           auto const edf = g.key(r.model.edfs);
+           r.setRadiance(edf, g.spectrum(0.5F, 6.0F));
+       }},
     Op{"hide", 2, [](Spec const &m) { return anyVisible(m, true); },
        [](Rig &r, Gen &g) {
-           std::vector<int> keys;
-           for (auto const &e : r.model.prims)
-               if (e.second.visible)
-                   keys.push_back(e.first);
+           auto const keys = primKeys(r.model, true);
            r.setVisible(keys[g.below(keys.size())], false);
        }},
     Op{"show", 2, [](Spec const &m) { return anyVisible(m, false); },
        [](Rig &r, Gen &g) {
-           std::vector<int> keys;
-           for (auto const &e : r.model.prims)
-               if (!e.second.visible)
-                   keys.push_back(e.first);
+           auto const keys = primKeys(r.model, false);
            r.setVisible(keys[g.below(keys.size())], true);
        }},
     Op{"remove primitive", 1, [](Spec const &m) { return !m.prims.empty(); },
@@ -950,24 +1142,36 @@ const std::array ops = {
            // A new mesh, or an instance of an existing one.
            auto const mesh = g.chance(75) || r.model.meshes.empty() ? r.addMesh(g.mesh())
                                                                     : g.key(r.model.meshes);
-           auto const bsdf = pickBSDF(r, g);
-           auto const edf = pickEDF(r, g);
-           (void)r.addPrimitive(mesh, bsdf, edf, g.transform(), g.chance(85));
+           auto const bsdf = pickOrAddBSDF(r, g);
+           auto const edf = pickOrAddEDF(r, g);
+           auto const transform = g.transform();
+           auto const visible = g.chance(85);
+           (void)r.addPrimitive(mesh, bsdf, edf, transform, visible);
        }},
     Op{"replace mesh", 2, [](Spec const &m) { return !m.prims.empty(); },
-       [](Rig &r, Gen &g) { r.replaceMesh(g.primKey(r.model), g.mesh()); }},
+       [](Rig &r, Gen &g) {
+           auto const prim = g.primKey(r.model);
+           r.replaceMesh(prim, g.mesh());
+       }},
     Op{"move point light", 1, [](Spec const &m) { return m.point.has_value(); },
        [](Rig &r, Gen &g) { r.movePoint(g.point(-0.5F, 1.2F, 0.2F, 1.2F)); }},
     Op{"set point intensity", 1, [](Spec const &m) { return m.point.has_value(); },
        [](Rig &r, Gen &g) { r.setIntensity(g.spectrum(0.5F, 4.0F)); }},
     Op{"add point light", 1, [](Spec const &m) { return !m.point; },
        [](Rig &r, Gen &g) {
-           r.addPoint({g.point(-0.5F, 1.2F, 0.2F, 1.2F), g.spectrum(0.5F, 4.0F)});
+           auto const position = g.point(-0.5F, 1.2F, 0.2F, 1.2F);
+           r.addPoint({position, g.spectrum(0.5F, 4.0F)});
        }},
     Op{"remove point light", 1, [](Spec const &m) { return m.point.has_value(); },
        [](Rig &r, Gen &) { r.removePoint(); }},
     Op{"set environment map", 1, [](Spec const &m) { return !m.env; },
-       [](Rig &r, Gen &g) { r.setEnv(g.spectrum(0.05F, 1.0F)); }},
+       [](Rig &r, Gen &g) {
+           auto const scale = g.spectrum(0.05F, 1.0F);
+           std::optional<Spec::Image> image;
+           if (g.chance(50))
+               image = g.image();
+           r.setEnv(scale, image);
+       }},
     Op{"scale environment map", 1, [](Spec const &m) { return m.env.has_value(); },
        [](Rig &r, Gen &g) { r.scaleEnv(g.spectrum(0.05F, 1.0F)); }},
     Op{"unset environment map", 1, [](Spec const &m) { return m.env.has_value(); },
@@ -975,10 +1179,15 @@ const std::array ops = {
     Op{"switch integrator", 1, [](Spec const &) { return true; },
        [](Rig &r, Gen &g) {
            constexpr std::array<std::uint32_t, 4> depths{1, 2, 4, 6};
-           r.switchIntegrator({depths[g.below(depths.size())], g.chance(50)}, g.chance(50));
+           auto const depth = depths[g.below(depths.size())];
+           auto const reorder = g.chance(50);
+           r.switchIntegrator({depth, reorder}, g.chance(50));
        }},
     Op{"switch sampler", 1, [](Spec const &) { return true; },
-       [](Rig &r, Gen &g) { r.switchSampler(g.chance(50), g.chance(50)); }},
+       [](Rig &r, Gen &g) {
+           auto const sobol = g.chance(50);
+           r.switchSampler(sobol, g.chance(50));
+       }},
 };
 // clang-format on
 
@@ -1000,7 +1209,8 @@ void applyRandomOp(Rig &rig, Gen &gen) {
     }
 }
 
-/// Runs one step: some edits, then a frame, a double-sync frame, or a missed epoch.
+/// Runs one step: some edits, then a frame, a double-sync frame, a sync on top of a sync, or a
+/// clear without a sync.
 void runStep(Rig &rig, Gen &gen, int index) {
     rig.beginStep(index);
     auto const kind = gen.below(10);
@@ -1017,46 +1227,79 @@ void runStep(Rig &rig, Gen &gen, int index) {
     } else if (kind == 7 || kind == 8) {
         (void)rig.frame();
     } else {
+        // Sometimes sync first, so the tracked changes keep the synced edits and gain later ones.
+        auto const synced = gen.chance(50);
+        if (synced)
+            rig.syncOnly();
         edits(1 + gen.below(2));
+
+        // Then either sync again on top of the last sync, or clear, which drops the edits made
+        // after the sync.
+        if (synced && gen.chance(50)) {
+            (void)rig.frame();
+            return;
+        }
         rig.clearOnly();
 
-        // Often sync right away, with no records in the new epoch.
+        // Often sync right away, with no tracked changes since the clear.
         if (gen.chance(60))
             (void)rig.frame();
     }
 }
 
+/// Returns the number in the environment variable \p name, or \p fallback when it is unset.
+/// \throw std::invalid_argument If the variable is not a number.
 [[nodiscard]] std::uint64_t envNumber(char const *name, std::uint64_t fallback) {
     auto const *value = std::getenv(name);
-    return value ? std::strtoull(value, nullptr, 10) : fallback;
+    if (!value)
+        return fallback;
+    std::uint64_t number{};
+    auto const end = value + std::strlen(value);
+    auto const [last, error] = std::from_chars(value, end, number);
+    if (error != std::errc{} || last != end)
+        throw std::invalid_argument(std::format("{} is not a number: '{}'", name, value));
+    return number;
 }
 } // namespace
 
-TEST(OptixUpdateTests, MatchesAFreshContextAfterRandomEdits) {
+TEST(OptixFuzzUpdateTests, MatchesAFreshContextAfterRandomEdits) {
     if (skipWithoutCuda())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto const seeds = envNumber("FLUX_FUZZ_SEEDS", 3);
     auto const steps = envNumber("FLUX_FUZZ_STEPS", 30);
     auto const first = envNumber("FLUX_FUZZ_FIRST_SEED", 1);
+    auto const verbose = std::getenv("FLUX_FUZZ_VERBOSE") != nullptr;
     for (std::uint64_t seed = first; seed < first + seeds; ++seed) {
+        // Name the seed first, so a crash still tells which one to replay.
+        std::cerr << std::format("fuzz: seed {}, steps {}", seed, steps) << std::endl;
         SCOPED_TRACE(std::format("seed {} steps {}", seed, steps));
-        Gen gen(static_cast<std::uint32_t>(seed));
-        Rig rig(makeBase().spec);
-        for (std::uint64_t step = 0; step < steps && rig.ok; ++step) {
-            try {
-                runStep(rig, gen, static_cast<int>(step));
-            } catch (std::exception const &e) { rig.report(std::string("exception: ") + e.what()); }
-        }
-        if (std::getenv("FLUX_FUZZ_VERBOSE"))
-            for (auto const &line : rig.log)
-                std::cerr << "seed " << seed << ": " << line << "\n";
-        if (!rig.ok)
+        auto ok = false;
+        try {
+            Gen gen(static_cast<std::uint32_t>(seed));
+            Rig rig(makeBase().spec);
+            std::size_t printed = 0;
+            for (std::uint64_t step = 0; step < steps && rig.ok; ++step) {
+                try {
+                    runStep(rig, gen, static_cast<int>(step));
+                } catch (std::exception const &e) {
+                    rig.report(std::string("exception: ") + e.what());
+                }
+                for (; verbose && printed < rig.log.size(); ++printed)
+                    std::cerr << "seed " << seed << ": " << rig.log[printed] << std::endl;
+            }
+            ok = rig.ok;
+        } catch (std::exception const &e) { ADD_FAILURE() << "exception: " << e.what(); }
+
+        // A failed seed may leave the device unusable, so later seeds would fail for no reason.
+        if (!ok) {
             ADD_FAILURE() << "failing run: seed " << seed << ", steps " << steps;
+            break;
+        }
     }
 }
 
-TEST(OptixUpdateTests, FollowsAHydraStyleEditSequence) {
+TEST(OptixFuzzUpdateTests, FollowsAHydraStyleEditSequence) {
     if (skipWithoutCuda())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
@@ -1124,7 +1367,7 @@ TEST(OptixUpdateTests, FollowsAHydraStyleEditSequence) {
     EXPECT_TRUE(rig.ok);
 }
 
-TEST(OptixUpdateTests, RebuildsAfterAMissedEpoch) {
+TEST(OptixFuzzUpdateTests, RebuildsAfterAClearWithoutASync) {
     if (skipWithoutCuda())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
@@ -1134,13 +1377,13 @@ TEST(OptixUpdateTests, RebuildsAfterAMissedEpoch) {
         Rig rig(base.spec);
         auto const before = rig.frame();
 
-        // The first edit's records are cleared without a sync.
+        // The first edit's changes are cleared without a sync.
         rig.move(base.occluder, makeTransform(0.6F, 1.1F, false, {0.3F, 0.2F, 0.5F}));
         rig.clearOnly();
         if (variant == 1)
             rig.setRadiance(base.lamp, Spectrum{1.0F});
         if (variant == 2) {
-            // Indices are released and reused across the missed epochs.
+            // Indices are released and reused across the clears that no sync saw.
             rig.removePrimitive(base.pillar);
             rig.clearOnly();
             auto const mesh = rig.addMesh({{Vec3f{0, 0, 0}, Vec3f{0.8F, 0, 0}, Vec3f{0, 0.8F, 0}}});
@@ -1155,7 +1398,7 @@ TEST(OptixUpdateTests, RebuildsAfterAMissedEpoch) {
     }
 }
 
-TEST(OptixUpdateTests, TwoSyncsInOneEpochMatchOne) {
+TEST(OptixFuzzUpdateTests, TwoSyncsWithoutAClearMatchOne) {
     if (skipWithoutCuda())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
@@ -1173,26 +1416,20 @@ TEST(OptixUpdateTests, TwoSyncsInOneEpochMatchOne) {
     EXPECT_TRUE(once.ok && twice.ok);
 }
 
-TEST(OptixUpdateTests, RecoversFromAFailedSync) {
+TEST(OptixFuzzUpdateTests, ForgetsWhatASyncWithoutAClearCollects) {
     if (skipWithoutCuda())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto base = makeBase();
     Rig rig(base.spec);
-    auto const before = rig.frame();
+    (void)rig.frame();
 
-    rig.move(base.occluder, makeTransform(0.6F, 1.1F, false, {0.3F, 0.2F, 0.5F}));
-    rig.context->setActiveSampler({});
-    EXPECT_THROW(rig.handler->sync(), kira::Anyhow);
-
-    // The records survive the failure.
-    EXPECT_TRUE(flux::any(rig.context->getDirtyBits() & flux::Context::DirtyBits::ActiveSampler));
-    EXPECT_TRUE(rig.context->getChangedIds().contains(rig.ids.prims.at(base.occluder)));
-    EXPECT_EQ(rig.context->getEpoch(), 2U);
-
-    rig.switchSampler(true, true);
-    auto const after = rig.frame();
-    EXPECT_FALSE(after == before);
+    // The green BSDF loses its only primitive, so the sync collects it.
+    rig.rebindBSDF(base.occluder, base.red);
+    rig.syncOnly();
+    EXPECT_FALSE(rig.model.bsdfs.contains(base.green));
+    EXPECT_FALSE(rig.ids.bsdfs.contains(base.green));
+    (void)rig.frame();
     EXPECT_TRUE(rig.ok);
 }
 
@@ -1209,9 +1446,38 @@ namespace {
 }
 } // namespace
 
-// A rebuild reads the module file, and a skipped sync does not. Deleting the file shows which one
-// a sync did.
-TEST(OptixUpdateTests, SkipsTheRebuildWhenNothingChanged) {
+// A sync that fails before the OptiX scene update touches no device state, so the scene and its
+// program stay. Without its module, the live handler can sync only while the program is kept.
+TEST(OptixFuzzUpdateTests, KeepsTheSceneAfterAHostSideFailure) {
+    if (skipWithoutCuda())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    auto base = makeBase();
+    auto const module = copyModule();
+    Rig rig(base.spec, module);
+    auto const before = rig.frame();
+
+    rig.move(base.occluder, makeTransform(0.6F, 1.1F, false, {0.3F, 0.2F, 0.5F}));
+    auto const sampler = rig.context->getActiveSampler();
+    rig.context->setActiveSampler({});
+    auto const cleared = rig.context->getClearedVersion();
+    EXPECT_THROW(rig.handler->sync(), kira::Anyhow);
+
+    // The tracked changes survive the failure.
+    EXPECT_TRUE(flux::any(rig.context->getDirtyBits() & flux::Context::DirtyBits::ActiveSampler));
+    EXPECT_TRUE(rig.context->getDirtiedIds().contains(rig.ids.prims.at(base.occluder)));
+    EXPECT_EQ(rig.context->getClearedVersion(), cleared);
+
+    std::filesystem::remove(module);
+    rig.context->setActiveSampler(sampler);
+    auto const after = rig.frame();
+    EXPECT_FALSE(after == before);
+    EXPECT_TRUE(rig.ok);
+}
+
+// Building the program reads the module file. Without its module, the live handler can sync only
+// while the program is kept.
+TEST(OptixFuzzUpdateTests, KeepsTheProgramUntilItsSpecializationChanges) {
     if (skipWithoutCuda())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
@@ -1221,7 +1487,7 @@ TEST(OptixUpdateTests, SkipsTheRebuildWhenNothingChanged) {
     auto const before = rig.frame();
     std::filesystem::remove(module);
 
-    // No records and a consecutive epoch: nothing to rebuild, twice in a row.
+    // The version stays the same, so the sync is skipped, twice in a row.
     EXPECT_NO_THROW((void)rig.frame());
     EXPECT_TRUE(rig.frame() == before);
 
@@ -1229,15 +1495,20 @@ TEST(OptixUpdateTests, SkipsTheRebuildWhenNothingChanged) {
     rig.reassign(base.occluder);
     EXPECT_NO_THROW((void)rig.frame());
 
-    // An edit needs a rebuild, which cannot read the module.
+    // A transform edit rebuilds the tables and the IAS, but keeps the specialization.
     rig.move(base.occluder, makeTransform(0.6F, 1.1F, false, {0.3F, 0.2F, 0.5F}));
+    EXPECT_NO_THROW((void)rig.frame());
+
+    // Another sampler type changes the specialization, which cannot read the module.
+    rig.switchSampler(true, false);
     rig.context->collectGarbage();
     EXPECT_THROW(rig.handler->sync(), kira::Anyhow);
     EXPECT_TRUE(rig.ok);
 }
 
-// A failed sync forgets the previous sync, so the next sync rebuilds even with no records.
-TEST(OptixUpdateTests, RebuildsAfterAFailedSyncEvenWithoutRecords) {
+// A failed update of the OptiX scene drops it, so the next sync rebuilds it, even after a clear
+// dropped the tracked changes of the failed edits.
+TEST(OptixFuzzUpdateTests, RebuildsTheSceneAfterAFailedSync) {
     if (skipWithoutCuda())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
@@ -1246,14 +1517,16 @@ TEST(OptixUpdateTests, RebuildsAfterAFailedSyncEvenWithoutRecords) {
     Rig rig(base.spec, module);
     auto const before = rig.frame();
 
-    // Succeed and then fail in one epoch, so the clear below leads to the next epoch.
+    // Succeed and then fail before a clear, so the clear below drops the failed edits. The
+    // sampler switch makes the failing sync rebuild the program after it rebuilt the tables.
     rig.handler->sync();
     auto const saved = module.string() + ".saved";
     std::filesystem::rename(module, saved);
     rig.move(base.occluder, makeTransform(0.6F, 1.1F, false, {0.3F, 0.2F, 0.5F}));
+    rig.switchSampler(true, false);
     EXPECT_THROW(rig.handler->sync(), kira::Anyhow);
 
-    // Drop the records, restore the module, and sync an epoch with no records.
+    // Drop the tracked changes, restore the module, and sync with none tracked.
     rig.clearOnly();
     std::filesystem::rename(saved, module);
     rig.context->collectGarbage();

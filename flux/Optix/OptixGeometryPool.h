@@ -2,61 +2,65 @@
 
 #include <optix_types.h>
 
-#include <cstdint>
-#include <optional>
+#include <cstddef>
 #include <span>
+#include <unordered_map>
 #include <vector>
 
 #include "flux/Core/Object.h"
 #include "flux/Optix/DeviceBuffer.h"
+#include "flux/Optix/OptixGas.h"
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Scene/GeometryImpl.h"
 #include "flux/Scene/TriangleMesh.h"
-#include "kira/SmallVector.h"
 
 namespace flux {
-/// \brief Owns the device storage used by OptiX triangle build inputs.
+/// \brief Device geometry of triangle meshes by Context ID: the arrays and the GAS of each.
 ///
-/// Uploads are ordered on one CUDA stream. Mutation is single-threaded;
-/// callers provide external synchronization.
+/// A mesh is immutable and an ID never repeats, so an entry stays valid until its mesh is
+/// removed. The pool knows no geometry index. Its owner places each mesh in a table. Work is
+/// ordered on one CUDA stream. Mutation is single-threaded, so callers provide external
+/// synchronization.
 class OptixGeometryPool final : private Noncopyable, private CudaStreamMixin {
 public:
-    explicit OptixGeometryPool(cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
+    OptixGeometryPool(OptixDeviceContext deviceContext, cudaStream_t stream) noexcept
+        : CudaStreamMixin(stream), deviceContext_(deviceContext) {}
 
-    /// \brief Builds the triangle meshes.
+    /// \brief Uploads \p meshes and builds their GASes in one batch.
     ///
-    /// Meshes omitted from \p meshes are released.
-    /// \param meshes Host meshes to upload at their geometry indices. A null
-    ///        mesh is a hole, which gets no device storage. The meshes need to
-    ///        stay alive only during this call.
-    /// \throw kira::Anyhow If CUDA cannot enqueue an allocation or copy.
-    void build(std::span<TriangleMesh const *const> meshes);
+    /// Returns once the GASes are built and the host arrays are no longer read.
+    /// \pre No mesh of \p meshes is present, and their IDs are distinct.
+    /// \throw kira::Anyhow If a mesh exceeds the device limit, or OptiX or CUDA fails. Then
+    ///        nothing is added.
+    void add(std::span<Ref<TriangleMesh const> const> meshes);
 
-    /// \brief Creates build inputs backed by the current device storage.
-    ///
-    /// The result is indexed like \c build's \c meshes, and a hole has no input.
-    /// The inputs remain valid until the next call to \c build.
-    [[nodiscard]] std::vector<std::optional<OptixBuildInput>> getBuildInputs() const;
+    /// \brief Drops the meshes \p ids with their arrays and GASes.
+    /// \pre Every ID of \p ids is present.
+    void remove(std::span<std::size_t const> ids);
 
-    /// \brief Releases host arrays after their queued copies complete.
-    /// \pre The build stream has completed.
-    void releaseHostStaging() noexcept;
+    /// \brief Returns whether the mesh \p id is present.
+    [[nodiscard]] bool contains(std::size_t id) const noexcept { return entries_.contains(id); }
 
-    /// \brief Returns the number of geometry indices, holes included.
-    [[nodiscard]] std::size_t size() const noexcept { return entries_.size(); }
+    /// \brief Returns the ID of every present mesh, in no particular order.
+    [[nodiscard]] std::vector<std::size_t> getIds() const;
 
-    ///
-    [[nodiscard]] Geometry::Impl const *getDeviceImpls() const noexcept {
-        return deviceImpls_.data();
+    /// \brief Assembles the device Impl of the mesh \p id from its arrays.
+    /// \throw std::out_of_range If the mesh is absent.
+    [[nodiscard]] Geometry::Impl getImpl(std::size_t id) const;
+
+    /// \brief Returns the GAS of the mesh \p id.
+    /// \throw std::out_of_range If the mesh is absent.
+    [[nodiscard]] OptixTraversableHandle getGas(std::size_t id) const {
+        return entries_.at(id).gas.handle;
     }
 
 private:
-    /// Device storage of one geometry index.
+    /// Device storage of one mesh.
     struct Entry {
         explicit Entry(cudaStream_t stream)
             : vertices(stream), triangles(stream), normals(stream), normalIndices(stream),
               texCoords(stream), texCoordIndices(stream), triangleAreaCDF(stream),
-              triangleAreaPDF(stream) {}
+              triangleAreaPDF(stream), gas(stream) {}
 
         DeviceBuffer<Vec3f> vertices;
         DeviceBuffer<Vec3u> triangles;
@@ -64,21 +68,13 @@ private:
         DeviceBuffer<Vec3u> normalIndices;
         DeviceBuffer<Vec2f> texCoords;
         DeviceBuffer<Vec3u> texCoordIndices;
-        kira::SmallVector<float, 0> triangleAreaCDFStaging;
-        kira::SmallVector<float, 0> triangleAreaPDFStaging;
         DeviceBuffer<float> triangleAreaCDF;
         DeviceBuffer<float> triangleAreaPDF;
-
-        /// Whether a mesh was uploaded, and false at a hole.
-        bool valid{};
-
-        CUdeviceptr vertexBuffer{};
-        unsigned int flags{OPTIX_GEOMETRY_FLAG_NONE};
+        float surfaceArea{};
+        OptixGas gas;
     };
 
-    std::vector<Entry> entries_;
-    /// Host copy of the device Impls. A hole holds a default Impl.
-    std::vector<Geometry::Impl> staging_;
-    DeviceBuffer<Geometry::Impl> deviceImpls_{getStream()};
+    OptixDeviceContext deviceContext_;
+    std::unordered_map<std::size_t, Entry> entries_;
 };
 } // namespace flux

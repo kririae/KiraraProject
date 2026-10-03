@@ -30,9 +30,10 @@ public:
 
     /// \brief Updates the OptiX scene from the host \c Context.
     ///
-    /// Sync clears accumulation for every render product, and waits for queued work when it
-    /// rebuilds. If sync throws, the device state is unspecified: render nothing
-    /// until a later sync succeeds.
+    /// Does nothing while the context version stays the same. Otherwise it waits for the
+    /// update and clears accumulation for every render product. If sync throws, render nothing
+    /// until a later sync succeeds. A failed update of the OptiX scene drops it, and the next
+    /// sync builds a new one.
     void sync();
 
     /// \brief Renders one sample batch into \p product and waits for completion.
@@ -41,6 +42,7 @@ public:
     /// \c sync after changing the host \c Context.
     /// A product with no requested channels still advances its sample count.
     /// If backend work fails, the product's accumulation is cleared.
+    /// \pre The last sync succeeded.
     /// \return Executed camera paths and backend execution time.
     RenderStats render(RenderProduct const &product, std::uint32_t samples);
 

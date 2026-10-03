@@ -2,7 +2,7 @@
 
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Optix/OptixContext.cuh"
-#include "flux/Optix/OptixImageTexturePool.cuh"
+#include "flux/Optix/OptixImageTexture.cuh"
 #include "flux/Optix/OptixLaunchParams.h"
 #include "flux/Sampling/SamplerImpl.h"
 #include "flux/Scene/CameraImpl.h"
@@ -20,7 +20,7 @@ struct OptixImageTextureEvaluator {
     [[nodiscard]] KIRA_DEVICE static flux::Vec4f eval4f(
         std::uint32_t index, flux::Vec2f uv, flux::Vec2f const &duvdx, flux::Vec2f const &duvdy
     ) noexcept {
-        auto const &texture = optixLaunchParams.scene.imageTexturePool.get(index);
+        auto const &texture = optixLaunchParams.scene.imageTextures.getTexture(index);
         return texture.componentMapping.apply(texture.sample(uv, duvdx, duvdy));
     }
 };

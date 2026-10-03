@@ -35,8 +35,10 @@ class EnvMapLight;
 /// root with \c remove. A dependent, such as \c BSDF, leaves when \c collectGarbage finds that
 /// only the context references it. A removed object keeps its index until \c clearDirty.
 ///
-/// An epoch is the interval between two \c clearDirty calls. The context records what changed in
-/// the epoch for the runtimes that sync from it.
+/// The version changes whenever the scene changes, so a runtime that synced a version has nothing
+/// to do while the version stays the same. The context also tracks the changes since the last
+/// \c clearDirty: the IDs of objects added, dirtied, and removed, and the dirty bits. They serve
+/// an incremental consumer, which must follow \c getClearedVersion.
 ///
 /// Edits may run concurrently: \c create, \c get, \c remove, the \c setActive functions, and
 /// the setters of the objects. \c collectGarbage, \c clearDirty, and every query and runtime
@@ -217,9 +219,9 @@ public:
         return addedIds_;
     }
 
-    /// \brief Returns the IDs of objects changed since the last \c clearDirty.
-    [[nodiscard]] std::unordered_set<std::size_t> const &getChangedIds() const noexcept {
-        return changedIds_;
+    /// \brief Returns the IDs of objects dirtied since the last \c clearDirty.
+    [[nodiscard]] std::unordered_set<std::size_t> const &getDirtiedIds() const noexcept {
+        return dirtiedIds_;
     }
 
     /// \brief Returns the IDs of objects removed since the last \c clearDirty.
@@ -227,16 +229,28 @@ public:
         return removedIds_;
     }
 
-    /// \brief Returns the number of times \c clearDirty was called.
-    [[nodiscard]] std::uint64_t getEpoch() const noexcept { return epoch_; }
+    /// \brief Returns the scene version.
+    ///
+    /// Every change to the scene increases it, so equal versions mean an equal scene. A change may
+    /// increase it more than once, and \c clearDirty does not change it.
+    [[nodiscard]] std::uint64_t getVersion() const noexcept {
+        return version_.load(std::memory_order_relaxed);
+    }
+
+    /// \brief Returns the version at the last \c clearDirty.
+    ///
+    /// The tracked changes cover every change made after this version. A consumer that last
+    /// synced an older version cannot rely on them, and must compare against the live objects.
+    [[nodiscard]] std::uint64_t getClearedVersion() const noexcept { return clearedVersion_; }
 
 public:
-    // Epoch boundary.
+    // Change tracking boundary.
 
-    /// \brief Zeroes the bits of every changed object, erases the index of every removed object,
-    ///        empties the three sets, clears the context bits, and starts the next epoch.
+    /// \brief Zeroes the bits of every dirtied object, erases the index of every removed object,
+    ///        empties the three sets, and clears the context bits.
     ///
-    /// An exception leaves the records in place, so a later call can finish the clear.
+    /// Stores the current version as the cleared version, and leaves the version unchanged. An
+    /// exception leaves the tracked changes in place, so a later call can finish the clear.
     void clearDirty();
 
 public:
@@ -257,6 +271,12 @@ private:
         return nextId_.fetch_add(1, std::memory_order_relaxed);
     }
     void absorb(TXContext &&tx);
+
+    /// \brief Records that the scene changed.
+    void bumpVersion() noexcept { version_.fetch_add(1, std::memory_order_relaxed); }
+
+    /// \brief Records a change to the context's own state, such as an active slot.
+    void markDirty(DirtyBits bits) noexcept;
 
     /// \brief Removes object \p contextId from the scene and records it as removed.
     ///
@@ -299,21 +319,27 @@ private:
     /// Next context ID. Transactions on different threads allocate IDs concurrently.
     std::atomic_size_t nextId_{0};
 
-    /// IDs of objects created this epoch and still in the scene. A created object is born clean,
-    /// so it enters \c changedIds_ only when a setter changes it.
+    /// IDs of objects created since the last \c clearDirty and still in the scene. A created object
+    /// is born clean, so it enters \c dirtiedIds_ only when a setter changes it.
     ///
-    /// Every ID in this set and in \c changedIds_ is in \c objects_. A removed ID appears only in
+    /// Every ID in this set and in \c dirtiedIds_ is in \c objects_. A removed ID appears only in
     /// \c removedIds_.
     std::unordered_set<std::size_t> addedIds_;
 
-    /// IDs of objects that recorded a bit this epoch and are still in the scene. An object enters
-    /// when its first bit is recorded.
-    std::unordered_set<std::size_t> changedIds_;
+    /// IDs of objects that recorded a bit since the last \c clearDirty and are still in the scene.
+    /// An object enters when its first bit is recorded.
+    std::unordered_set<std::size_t> dirtiedIds_;
 
-    /// IDs of objects removed this epoch. Each ID keeps its index entry until \c clearDirty.
+    /// IDs of objects removed since the last \c clearDirty. Each ID keeps its index entry until
+    /// then.
     std::unordered_set<std::size_t> removedIds_;
     DirtyBits dirtyBits_{DirtyBits::None};
-    std::uint64_t epoch_{0};
+
+    /// Scene version. Setters bump it concurrently without the lock.
+    std::atomic_uint64_t version_{0};
+
+    /// Version at the last \c clearDirty.
+    std::uint64_t clearedVersion_{0};
 };
 
 template <> inline constexpr bool isEnumFlags<Context::DirtyBits> = true;

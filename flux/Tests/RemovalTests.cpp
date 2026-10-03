@@ -59,7 +59,7 @@ TEST(RemovalTests, RemovesARootAtOnce) {
     EXPECT_EQ(context->getObjects<flux::Primitive>().size(), 1U);
     EXPECT_THROW((void)context->get<flux::Primitive>(first->getContextId()), std::out_of_range);
     EXPECT_EQ(context->getRemovedIds(), (std::unordered_set<std::size_t>{first->getContextId()}));
-    EXPECT_TRUE(context->getChangedIds().empty());
+    EXPECT_TRUE(context->getDirtiedIds().empty());
     EXPECT_EQ(second->getContext(), context.get());
 
     // The index stays reserved until the clear.
@@ -71,26 +71,26 @@ TEST(RemovalTests, RemovesARootAtOnce) {
     // The host's reference keeps the object alive, and its setters record nothing.
     first->setVisible(true);
     EXPECT_EQ(flux::getDirtyBits(*first), flux::Primitive::DirtyBits::None);
-    EXPECT_TRUE(context->getChangedIds().empty());
+    EXPECT_TRUE(context->getDirtiedIds().empty());
 }
 
-TEST(RemovalTests, RemovedIdsLeaveTheAddedAndChangedSets) {
+TEST(RemovalTests, RemovedIdsLeaveTheAddedAndDirtiedSets) {
     auto context = flux::Context::create();
     auto mesh = context->create<flux::TriangleMesh>(triangleData());
     auto added = context->create<flux::Primitive>(primitiveProperties(*mesh, nullptr, nullptr));
-    auto changed = context->create<flux::PointLight>(kira::Properties{});
+    auto dirtied = context->create<flux::PointLight>(kira::Properties{});
     context->clearDirty();
     auto fresh = context->create<flux::Primitive>(primitiveProperties(*mesh, nullptr, nullptr));
-    changed->setIntensity({2.0F, 2.0F, 2.0F});
+    dirtied->setIntensity({2.0F, 2.0F, 2.0F});
     fresh->setVisible(false);
 
     context->remove(fresh->getContextId());
-    context->remove(changed->getContextId());
+    context->remove(dirtied->getContextId());
 
     EXPECT_TRUE(context->getAddedIds().empty());
-    EXPECT_TRUE(context->getChangedIds().empty());
+    EXPECT_TRUE(context->getDirtiedIds().empty());
     EXPECT_EQ(context->getRemovedIds().size(), 2U);
-    EXPECT_EQ(flux::getDirtyBits(*changed), flux::PointLight::DirtyBits::None);
+    EXPECT_EQ(flux::getDirtyBits(*dirtied), flux::PointLight::DirtyBits::None);
     EXPECT_EQ(added->getContext(), context.get());
 }
 
@@ -107,7 +107,7 @@ TEST(RemovalTests, RejectsDependentsAndUnknownIds) {
 
     EXPECT_EQ(context->getNumContextObjects(), count);
     EXPECT_TRUE(context->getRemovedIds().empty());
-    EXPECT_EQ(context->getChangedIds().size(), 1U);
+    EXPECT_EQ(context->getDirtiedIds().size(), 1U);
     EXPECT_EQ(mesh->getContext(), context.get());
 }
 
@@ -285,7 +285,7 @@ TEST(RemovalTests, RejectsARemovedRootAsActive) {
     EXPECT_EQ(context->getDirtyBits(), ContextBits::None);
 }
 
-TEST(RemovalTests, ListsAChangedDependentOnlyAsRemoved) {
+TEST(RemovalTests, ListsADirtiedDependentOnlyAsRemoved) {
     auto context = flux::Context::create();
     auto mesh = context->create<flux::TriangleMesh>(triangleData());
     auto edf = context->create<flux::ConstantEDF>(kira::Properties{});
@@ -299,7 +299,7 @@ TEST(RemovalTests, ListsAChangedDependentOnlyAsRemoved) {
     context->collectGarbage();
 
     EXPECT_FALSE(context->getAddedIds().contains(edfId));
-    EXPECT_FALSE(context->getChangedIds().contains(edfId));
+    EXPECT_FALSE(context->getDirtiedIds().contains(edfId));
     EXPECT_TRUE(context->getRemovedIds().contains(edfId));
     EXPECT_FALSE(context->findIndex<flux::Primitive>(edfId));
     EXPECT_TRUE(context->findIndex<flux::EDF>(edfId));

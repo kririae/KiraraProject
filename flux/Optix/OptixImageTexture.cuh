@@ -2,7 +2,7 @@
 
 #include <cuda_runtime.h>
 
-#include "flux/Optix/OptixImageTexturePool.h"
+#include "flux/Optix/OptixImageTexture.h"
 
 namespace flux {
 KIRA_DEVICE inline Vec4f

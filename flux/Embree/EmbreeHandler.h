@@ -25,8 +25,8 @@ public:
 
     /// \brief Rebuilds the Embree scene from the host \c Context.
     ///
-    /// Sync also clears accumulation for every render product. If sync throws,
-    /// the device state is unspecified: render nothing until a later sync
+    /// Does nothing while the context version stays the same. Otherwise it also clears
+    /// accumulation for every render product. If sync throws, render nothing until a later sync
     /// succeeds.
     void sync();
 
@@ -35,6 +35,7 @@ public:
     /// \p samples is the nonzero number of samples assigned to each pixel.
     /// A product with no requested channels still advances its sample count.
     /// If backend work fails, the product's accumulation is cleared.
+    /// \pre The last sync succeeded.
     /// \return Executed camera paths and backend execution time.
     RenderStats render(RenderProduct const &product, std::uint32_t samples);
 

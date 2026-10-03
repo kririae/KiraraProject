@@ -2,7 +2,7 @@
 
 #include "flux/Core/Object.h"
 #include "flux/Optix/DeviceBuffer.h"
-#include "flux/Optix/OptixImageTexturePool.h"
+#include "flux/Optix/OptixImageTexture.h"
 #include "flux/Scene/LightTableData.h"
 
 namespace flux {
@@ -16,8 +16,7 @@ public:
     explicit OptixLightSampler(cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
 
     /// \brief Rebuilds the sampler from the lights of \p context.
-    void
-    build(Context const &context, OptixImageTexturePool::Impl imageTextures, float sceneRadius);
+    void build(Context const &context, OptixImageTextureTable imageTextures, float sceneRadius);
 
     /// \brief Returns the sampler used for rendering.
     ///
@@ -25,9 +24,8 @@ public:
     [[nodiscard]] Impl getImpl() const noexcept;
 
 private:
-    [[nodiscard]] float buildEnvMap(
-        EnvMapLight const &envMap, OptixImageTexturePool::Impl imageTextures, float sceneRadius
-    );
+    [[nodiscard]] float
+    buildEnvMap(EnvMapLight const &envMap, OptixImageTextureTable imageTextures, float sceneRadius);
 
     LightTableData staging_;
 

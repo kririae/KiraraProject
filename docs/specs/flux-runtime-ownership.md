@@ -12,7 +12,7 @@ This specification defines what a runtime may hold between two syncs, and how
 mesh arrays are shared between a `TriangleMesh` and a runtime without a copy.
 
 It does not define when a runtime rebuilds, or how removed objects are
-reclaimed. Those belong to [FLux Incremental Scene Updates](flux-scene-updates.md).
+reclaimed.
 It changes one definition in [FLux Scene and Light Tables](flux-scene-tables.md):
 where a primitive's index comes from.
 
@@ -236,10 +236,8 @@ Geometry indices follow the same rule. `Context` assigns a mesh's index from a
 `ContextIndexMap` when it absorbs the mesh, and `SceneTableData` no longer ranks
 meshes in each build. Adding a mesh moves no other mesh's index.
 
-`SceneTableData` keeps no context object after `build` returns. It records
-which geometry indices a visible primitive references in `geometryTypes`, and
-each runtime walks the Context's meshes during sync and takes the buffers it
-needs.
+`SceneTableData` keeps no context object after `build` returns. Each runtime
+walks the Context's meshes during sync and takes the buffers it needs.
 
 ## Rejected alternatives
 
@@ -296,4 +294,4 @@ it built from is reclaimed.
 2. Primitive and geometry indices from `Context`, visibility as an entry bit, the light table
    walking the `Context`, and `SceneTableData::objects` removed. The scene tables
    specification is amended in the same change.
-3. Removal and reclamation, per [FLux Incremental Scene Updates](flux-scene-updates.md).
+3. Removal and reclamation.

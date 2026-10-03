@@ -28,6 +28,19 @@ and the two orders are kept equal by comparing counts at run time.
 
 **View.** The pointer-only structure a runtime reads, named `<Table>`.
 
+**Pool.** A runtime cache of expensive resources, keyed by an identity that never
+repeats: a Context ID, or an `ImageAsset` ID. A pool knows no index and builds no
+table. Only batched `add` and `remove` change it. The stage that owns it derives
+both batches from the live objects, so their preconditions hold by construction.
+See [Tables and pools](#tables-and-pools).
+
+**Image, texture.** An image is pixels and their format: `ImageAsset`, a data
+resource. A texture is a function from uv to a value. `ImageTexture` is the
+texture that samples an image; `ConstantTexture` needs no runtime resource, so it
+appears in no table. Names with *Image* own or describe pixels. Names with
+*ImageTexture* belong to the image-backed texture. *Texture object* is CUDA's term,
+and appears only in the OptiX implementation of `ImageTexture`.
+
 **Primitive index, geometry index.** The index `Context` assigns to a primitive or
 a mesh from its `ContextIndexMap`. It stays unchanged while the object is
 registered. Tables are sized by the index limit.
@@ -102,28 +115,18 @@ Amendment: the light table first derived its data from the scene table, so that
 one walk defined the order. With indices from `Context`, both tables walk the
 `Context`. They agree because the index has one source, `getIndex<Primitive>`,
 and each decision has one source on the primitive: `Primitive::getImpl` decides
-a hole and `Primitive::isLight` decides a light. The `objects` segment below is
-removed; `geometryTypes` records which geometry indices a visible primitive
-references. See [FLux Runtime Data Ownership](flux-runtime-ownership.md).
+a hole and `Primitive::isLight` decides a light. The `objects` segment is
+removed. Each runtime takes geometry from the `Context`'s meshes, not from the
+table. See [FLux Runtime Data Ownership](flux-runtime-ownership.md).
 
 ## The scene table
 
-### Segments
+### Fields
 
-`SceneTableData` has two segments, and a field's segment is decided by what it
-holds:
+`SceneTableData` holds the address-independent entries read while rendering:
 
 ```cpp
 struct SceneTableData final : private Noncopyable {
-    /// Context objects at each index. Host only; read while building runtime
-    /// state, never while rendering.
-    struct {
-        /// Visible primitives by primitive index, or null at a hole.
-        kira::SmallVector<Ref<Primitive const>> primitives;
-        /// Meshes by geometry index, or null at a hole.
-        kira::SmallVector<Ref<TriangleMesh const>> meshes;
-    } objects;
-
     /// Entry of each primitive by primitive index. A hole is a default entry.
     std::vector<Primitive::Impl> primitives;
     /// Row-major object-to-world transforms by primitive index.
@@ -135,20 +138,9 @@ struct SceneTableData final : private Noncopyable {
 };
 ```
 
-- `objects` holds, for each index space the table assigns, the Context object at
-  each index. A consumer that needs host-side state of a primitive or mesh reads
-  it here at the same index, with no walk of the `Context` and no order to keep
-  equal.
-- The outer fields hold address-independent entries read while rendering.
-  `objects.primitives[i]` and `primitives[i]` are one primitive at two levels.
-- Index spaces assigned by `Context` have no `objects` array, because `Context`
-  already maps those indices to objects.
-- Geometry has no outer table, because its `Impl` carries addresses. The runtime
-  builds it from `objects.meshes`.
-
-`objects` is a member of unnamed struct type. A fully anonymous struct, whose
-fields are injected into the enclosing class, is a compiler extension and is not
-used.
+A consumer that needs the host object at an index asks `Context`, which maps
+every index it assigns to its object. Geometry has no table here, because its
+`Impl` carries addresses. Each runtime builds it from the `Context`'s meshes.
 
 ### The primitive entry is local
 
@@ -383,8 +375,26 @@ pointers is only correct for the runtime that reads host memory.
 A view holds what both runtimes read. An array only one runtime reads is a field
 of that runtime's own view, such as `EmbreeContext::Impl::normalTransforms`.
 
-`SceneTableData::objects` has no view. It is read while building runtime state and
-never while rendering.
+## Tables and pools
+
+A runtime keeps what is expensive in pools, and rebuilds its tables on every sync.
+The stage that owns a pool compares it with the live objects, removes the entries
+of dead objects, adds the live objects it lacks, and then places each live object
+at its index in the table. A pool is never keyed by index, because indices are
+reused; a table is never keyed by ID, because the device addresses it by index.
+
+What is cached follows what is expensive, and for textures that line is the line
+between image and texture:
+
+| | Image: what is stored | Image texture: how it is read |
+| --- | --- | --- |
+| Scene | `ImageAsset`, shared by `ImageAssetPool` | `ImageTexture` |
+| OptiX, host | `OptixImagePool`, by `ImageAsset` ID, gives an `OptixImage` | a `CudaTextureObject` per filter, created on every sync |
+| OptiX, device | none | `OptixImageTextureTable` of `OptixImageTexture`, by image-texture index |
+
+Geometry follows the same split: `OptixGeometryPool` holds each mesh's arrays and
+GAS by Context ID, and the geometry stage fills `SceneTable::geometries` by
+geometry index.
 
 ## Verification seam
 
@@ -392,11 +402,9 @@ Host tests, no GPU:
 
 1. A rebuild after hiding a primitive equals a build from scratch.
 2. An empty context produces empty tables.
-3. Two primitives sharing a mesh share one geometry index, and a mesh used only by
-   invisible primitives is a hole.
-4. Each visible primitive sits at the index `Context` assigned it,
-   `objects.primitives[i]` is the primitive whose entry is `primitives[i]`, and
-   hiding a primitive or adding another moves no index.
+3. Two primitives sharing a mesh share one geometry index.
+4. Each visible primitive sits at the index `Context` assigned it, and hiding a
+   primitive or adding another moves no index.
 5. `slots.primSlots` and `lights.primAreaScales` have one entry per primitive
    index. `primSlots[i]` is valid only if `primitives[i].hasEDF()`, and then
    `handles[primSlots[i]] == {Primitive, i}`. Every primitive handle at slot `s`

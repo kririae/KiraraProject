@@ -34,7 +34,7 @@ add_library(OptiX::OptiX ALIAS flux_optix_headers)
 target_include_directories(flux_optix_headers SYSTEM INTERFACE "${optix_SOURCE_DIR}/include")
 
 # Compile OIIO-backed image sources as host C++.
-add_library(flux_oiio STATIC Embree/EmbreeImageTexturePool.cpp IO/ImageIO.cpp Optix/OptixImageTexturePool.cpp
+add_library(flux_oiio STATIC Embree/EmbreeImageTexturePool.cpp IO/ImageIO.cpp Optix/OptixImagePool.cpp
                              Scene/ImageAsset.cpp)
 target_include_directories(flux_oiio PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(
@@ -54,14 +54,16 @@ add_library(
     Embree/EmbreeMegaKernel.cpp
     Embree/EmbreeRenderProductPool.cpp
     Integrator/PathIntegrator.cpp
-    Optix/OptixAccel.cpp
     Optix/OptixContext.cpp
+    Optix/OptixGas.cpp
     Optix/OptixGeometryPool.cpp
     Optix/OptixHandler.cu
+    Optix/OptixIas.cpp
     Optix/OptixLightSampler.cu
     Optix/OptixProgram.cpp
     Optix/OptixRenderProductPool.cpp
     Optix/OptixSbt.cpp
+    Optix/OptixTextureObject.cpp
     Sampling/Distribution2D.cpp
     Sampling/LightPowerDistribution.cpp
     Sampling/Sampler.cpp

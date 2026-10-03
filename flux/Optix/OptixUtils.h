@@ -142,4 +142,13 @@ inline void optixCheck(
     else
         LogError("{}", message);
 }
+
+/// \brief Returns the device limit \p property of \p context.
+/// \throw kira::Anyhow If OptiX cannot query it.
+[[nodiscard]] inline unsigned int
+getDeviceLimit(OptixDeviceContext context, OptixDeviceProperty property) {
+    unsigned int limit{};
+    optixCheck(optixDeviceContextGetProperty(context, property, &limit, sizeof(limit)));
+    return limit;
+}
 } // namespace flux

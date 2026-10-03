@@ -33,6 +33,7 @@ void Context::absorb(TXContext &&tx) {
         entry.second->context_ = this;
     objects_.merge(tx.objects_);
     addedIds_.merge(added);
+    bumpVersion();
 }
 
 void Context::remove(std::size_t contextId) {
@@ -52,16 +53,21 @@ void Context::remove(std::size_t contextId) {
     // Empty the active slots that held it. This cannot throw.
     if (isIntegrator) {
         activeIntegrator_.reset();
-        dirtyBits_ = dirtyBits_ | DirtyBits::ActiveIntegrator;
+        markDirty(DirtyBits::ActiveIntegrator);
     }
     if (isSampler) {
         activeSampler_.reset();
-        dirtyBits_ = dirtyBits_ | DirtyBits::ActiveSampler;
+        markDirty(DirtyBits::ActiveSampler);
     }
     if (isEnvMap) {
         activeEnvMap_.reset();
-        dirtyBits_ = dirtyBits_ | DirtyBits::ActiveEnvMap;
+        markDirty(DirtyBits::ActiveEnvMap);
     }
+}
+
+void Context::markDirty(DirtyBits bits) noexcept {
+    dirtyBits_ = dirtyBits_ | bits;
+    bumpVersion();
 }
 
 void Context::reclaim(std::size_t contextId) {
@@ -69,11 +75,12 @@ void Context::reclaim(std::size_t contextId) {
 
     // Record the removal first, which can throw.
     removedIds_.insert(contextId);
+    bumpVersion();
 
-    // Unlist the object, so the removed set is its only record this epoch. Its index entry stays
-    // until \c clearDirty.
+    // Unlist the object, so the removed set is the only change tracked for it. Its index entry
+    // stays until \c clearDirty.
     auto &object = *iterator->second;
-    changedIds_.erase(contextId);
+    dirtiedIds_.erase(contextId);
     addedIds_.erase(contextId);
     object.dirtyMask_ = 0;
     object.context_ = nullptr;
@@ -110,7 +117,7 @@ void Context::setActiveIntegrator(Ref<PathIntegrator const> integrator) {
     if (activeIntegrator_ == integrator)
         return;
     activeIntegrator_ = std::move(integrator);
-    dirtyBits_ = dirtyBits_ | DirtyBits::ActiveIntegrator;
+    markDirty(DirtyBits::ActiveIntegrator);
 }
 
 void Context::setActiveSampler(Ref<Sampler const> sampler) {
@@ -121,7 +128,7 @@ void Context::setActiveSampler(Ref<Sampler const> sampler) {
     if (activeSampler_ == sampler)
         return;
     activeSampler_ = std::move(sampler);
-    dirtyBits_ = dirtyBits_ | DirtyBits::ActiveSampler;
+    markDirty(DirtyBits::ActiveSampler);
 }
 
 void Context::setActiveEnvMap(Ref<EnvMapLight const> envMap) {
@@ -132,7 +139,7 @@ void Context::setActiveEnvMap(Ref<EnvMapLight const> envMap) {
     if (activeEnvMap_ == envMap)
         return;
     activeEnvMap_ = std::move(envMap);
-    dirtyBits_ = dirtyBits_ | DirtyBits::ActiveEnvMap;
+    markDirty(DirtyBits::ActiveEnvMap);
 }
 
 Ref<PathIntegrator const> Context::getActiveIntegrator() const { return activeIntegrator_; }
@@ -143,7 +150,7 @@ Ref<EnvMapLight const> Context::getActiveEnvMap() const { return activeEnvMap_; 
 
 void Context::clearDirty() {
     // Zero the masks. The sets are exact, so every ID is in the scene.
-    for (auto const id : changedIds_)
+    for (auto const id : dirtiedIds_)
         objects_.at(id)->dirtyMask_ = 0;
 
     // Erase the index of each removed object. The object is gone, so find the map that holds its
@@ -156,11 +163,11 @@ void Context::clearDirty() {
             if (indices.entries_.contains(id))
                 (void)indices.erase(id);
 
-    // Close the epoch.
-    changedIds_.clear();
+    // Drop the tracked changes.
+    dirtiedIds_.clear();
     addedIds_.clear();
     removedIds_.clear();
     dirtyBits_ = DirtyBits::None;
-    ++epoch_;
+    clearedVersion_ = getVersion();
 }
 } // namespace flux

@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -15,6 +16,9 @@
 
 namespace flux {
 namespace {
+/// ID of the next ImageAsset. Assets are created concurrently, so it is atomic.
+std::atomic_size_t nextImageAssetId{0};
+
 constexpr auto srgbRec709 = "srgb_rec709_scene";
 constexpr auto linearRec709 = "lin_rec709_scene";
 
@@ -227,7 +231,8 @@ ImageAsset::pImpl::pImpl(
         throw kira::Anyhow("ImageAsset: failed to create a texture handle for '{}'", path.string());
 }
 
-ImageAsset::ImageAsset(std::unique_ptr<pImpl> pImpl) noexcept : pImpl_(std::move(pImpl)) {}
+ImageAsset::ImageAsset(std::unique_ptr<pImpl> pImpl) noexcept
+    : pImpl_(std::move(pImpl)), id_(nextImageAssetId.fetch_add(1, std::memory_order_relaxed)) {}
 ImageAsset::~ImageAsset() = default;
 
 Vec2u ImageAsset::getExtent() const noexcept { return pImpl_->extent; }

@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 
@@ -37,6 +38,11 @@ struct EmbreeHandler::pImpl {
     }
 
     void sync() {
+        // An equal version means an equal scene, so the scene and accumulation stand.
+        auto const version = context->getVersion();
+        if (syncedVersion == version)
+            return;
+
         // Read what render needs before the device state changes, since render does not touch
         // the Context.
         auto const activeSampler = context->getActiveSampler();
@@ -49,13 +55,19 @@ struct EmbreeHandler::pImpl {
         auto const nextIntegrator = activeIntegrator->getImpl();
 
         renderProducts.resetAccumulation();
+        syncedVersion.reset();
         embreeContext.sync();
         sampler = nextSampler;
         integrator = nextIntegrator;
+        syncedVersion = version;
     }
 
     Ref<Context> context;
     EmbreeContext embreeContext;
+
+    /// Context version of the last successful sync, or nothing before the first and after a
+    /// failed rebuild of the Embree scene.
+    std::optional<std::uint64_t> syncedVersion;
 
     /// Active sampler and integrator as of the last sync.
     Sampler::Impl sampler{};
