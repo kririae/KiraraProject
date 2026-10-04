@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cuda.h>
 #include <cuda_runtime_api.h>
 #include <optix_stubs.h>
 
@@ -25,9 +26,6 @@ template <typename T> [[nodiscard]] CUdeviceptr devicePointer(T const *pointer) 
 /// stream alive and establish any required ordering before changing it.
 class CudaStreamMixin {
 public:
-    /// \brief Binds the object to the legacy default stream.
-    CudaStreamMixin() noexcept = default;
-
     /// \brief Binds the object to \p stream.
     /// \param stream Stream that orders the object's lifetime.
     explicit CudaStreamMixin(cudaStream_t stream) noexcept : stream_(stream) {}
@@ -47,7 +45,7 @@ public:
     }
 
 private:
-    cudaStream_t stream_{cudaStreamLegacy};
+    cudaStream_t stream_;
 };
 
 /// \brief Checks a CUDA Runtime API result.
@@ -67,6 +65,36 @@ inline void cudaCheck(
     auto const message = fmt::format(
         "cudaCheck(): CUDA API call error {} ({}): \"{}\" at {}:{}", static_cast<int>(result),
         cudaGetErrorName(result), cudaGetErrorString(result), location.file_name(), location.line()
+    );
+    if constexpr (ShouldThrow)
+        throw kira::Anyhow("{}", message);
+    else
+        LogError("{}", message);
+}
+
+/// \brief Checks a CUDA Driver API result.
+///
+/// \tparam ShouldThrow Whether an error should throw. Destructors pass
+/// \c false so cleanup remains non-throwing.
+/// \param result Driver result to check.
+/// \param location Call site reported on failure.
+/// \throw kira::Anyhow if \p result is an error and \c ShouldThrow is \c true.
+template <bool ShouldThrow = true>
+inline void cuCheck(
+    CUresult result, std::source_location location = std::source_location::current()
+) noexcept(!ShouldThrow) {
+    if (result == CUDA_SUCCESS)
+        return;
+
+    char const *name = nullptr;
+    char const *description = nullptr;
+    if (cuGetErrorName(result, &name) != CUDA_SUCCESS)
+        name = "unknown";
+    if (cuGetErrorString(result, &description) != CUDA_SUCCESS)
+        description = "unknown error";
+    auto const message = fmt::format(
+        "cuCheck(): CUDA driver API call error {} ({}): \"{}\" at {}:{}", static_cast<int>(result),
+        name, description, location.file_name(), location.line()
     );
     if constexpr (ShouldThrow)
         throw kira::Anyhow("{}", message);

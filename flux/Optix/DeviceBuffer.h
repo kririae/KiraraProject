@@ -41,15 +41,14 @@ template <typename T> class DeviceBuffer final : private Noncopyable, public Cud
 public:
     using value_type = T;
 
-    /// \brief Constructs an empty buffer bound to the legacy default stream.
-    DeviceBuffer() noexcept = default;
-
     /// \brief Constructs an empty buffer bound to \p stream.
     /// \param stream Stream that will order the buffer's lifetime.
     explicit DeviceBuffer(cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
 
     /// \brief Takes ownership of \p other without synchronizing its stream.
-    DeviceBuffer(DeviceBuffer &&other) noexcept { swap(*this, other); }
+    DeviceBuffer(DeviceBuffer &&other) noexcept : CudaStreamMixin(other.getStream()) {
+        swap(*this, other);
+    }
 
     /// \brief Replaces this allocation with the one owned by \p other.
     ///

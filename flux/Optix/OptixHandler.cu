@@ -1,3 +1,4 @@
+#include <cuda.h>
 #include <cuda_runtime_api.h>
 #include <optix_function_table_definition.h>
 #include <optix_stubs.h>
@@ -8,6 +9,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <new>
 #include <optional>
 #include <stdexcept>
 #include <string_view>
@@ -34,10 +36,6 @@
 namespace flux {
 namespace {
 /// \brief Estimates how many megakernel threads \p properties keeps resident.
-///
-/// OptiX exposes no occupancy query for a pipeline, so this derives the count from the register
-/// budget the module is compiled against. It reports the estimate alone; how a launch is sized
-/// against it is the caller's choice.
 [[nodiscard]] std::uint32_t estimateResidentThreads(cudaDeviceProp const &properties) noexcept {
     auto const perSM = std::min(
         properties.maxThreadsPerMultiProcessor,
@@ -47,25 +45,65 @@ namespace {
            static_cast<std::uint32_t>(std::max(perSM, 1));
 }
 
-/// \brief Owns the CUDA execution state used by one OptiX handler.
+/// \brief Makes a CUDA context current on the calling thread for the scope's lifetime.
 ///
-/// This object precedes every dependent handler member, so its stream and
-/// device context remain valid until those members have released their
-/// resources.
-class OptixDeviceContextHandle final : private Noncopyable {
+/// Leaving the scope makes current again exactly what the thread had current before, including no
+/// context or a context the caller created.
+class ContextScope final : private Noncopyable {
 public:
-    /// \brief Creates a non-blocking stream and an OptiX context on CUDA device 0.
-    OptixDeviceContextHandle() : OptixDeviceContextHandle(EmptyState{}) {
+    /// \brief Makes \p context current.
+    /// \throw kira::Anyhow If the driver cannot push \p context.
+    explicit ContextScope(CUcontext context) {
+        cuCheck(cuCtxPushCurrent(context));
+        pushed_ = true;
+    }
+
+    /// \brief Makes \p context current, or logs the failure and leaves the current context
+    /// unchanged.
+    ContextScope(CUcontext context, std::nothrow_t) noexcept {
+        auto const result = cuCtxPushCurrent(context);
+        cuCheck<false>(result);
+        pushed_ = result == CUDA_SUCCESS;
+    }
+
+    ~ContextScope() {
+        if (pushed_)
+            cuCheck<false>(cuCtxPopCurrent(nullptr));
+    }
+
+private:
+    /// Whether this scope pushed a context that it must still pop.
+    bool pushed_{};
+};
+
+/// \brief The CUDA device, stream, and OptiX device context that one handler runs on.
+///
+/// Never changes the calling thread's current context. A resource that uses the stream must be
+/// destroyed before the session, with \c getPrimaryContext() current.
+class CudaDeviceSession final : private Noncopyable {
+public:
+    /// \brief Opens a session on CUDA device \p deviceOrdinal.
+    /// \throw kira::Anyhow If \p deviceOrdinal is outside [0, device count) or CUDA fails.
+    explicit CudaDeviceSession(int deviceOrdinal) : CudaDeviceSession(EmptyState{}) {
+        cuCheck(cuInit(0));
         int deviceCount = 0;
-        cudaCheck(cudaGetDeviceCount(&deviceCount));
+        cuCheck(cuDeviceGetCount(&deviceCount));
         if (deviceCount == 0)
             throw kira::Anyhow("OptixHandler: no CUDA device is available");
+        if (deviceOrdinal < 0 || deviceOrdinal >= deviceCount)
+            throw kira::Anyhow(
+                "OptixHandler: CUDA device {} is outside [0, {})", deviceOrdinal, deviceCount
+            );
 
-        // ponytail: use device 0 until the renderer exposes multi-GPU selection.
-        selectDevice();
+        CUdevice device{};
+        cuCheck(cuDeviceGet(&device, deviceOrdinal));
+        cuCheck(cuDevicePrimaryCtxRetain(&primaryContext_, device));
+        device_ = device;
+
+        ContextScope const scope(primaryContext_);
         cudaDeviceProp deviceProperties{};
-        cudaCheck(cudaGetDeviceProperties(&deviceProperties, deviceId));
-        LogInfo("OptixHandler: using CUDA device {} ('{}')", deviceId, deviceProperties.name);
+        cudaCheck(cudaGetDeviceProperties(&deviceProperties, deviceOrdinal));
+        LogInfo("OptixHandler: using CUDA device {} ('{}')", deviceOrdinal, deviceProperties.name);
         estimatedResidentThreads_ = estimateResidentThreads(deviceProperties);
         cudaCheck(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
         optixCheck(optixInit());
@@ -80,7 +118,9 @@ public:
             if (text.empty())
                 return;
 
-            // OptiX build calls return compiler errors through their log buffer.
+            // A failed build call returns its compiler errors through its log buffer, and the
+            // exception it raises carries them, so logging them here would report them twice.
+            // Compiler warnings reach only this callback: a successful build discards the buffer.
             if (level <= 2 && std::string_view{tag} == "COMPILER")
                 return;
 
@@ -94,15 +134,21 @@ public:
         ));
     }
 
-    /// \brief Waits for dependent cleanup and releases the owned CUDA state.
-    ~OptixDeviceContextHandle() {
-        selectDevice<false>();
-        if (stream_)
-            cudaCheck<false>(cudaStreamSynchronize(stream_));
-        if (context_)
-            optixCheck<false>(optixDeviceContextDestroy(context_));
-        if (stream_)
-            cudaCheck<false>(cudaStreamDestroy(stream_));
+    /// \brief Waits for the work queued on the stream, then closes the session.
+    ~CudaDeviceSession() {
+        if (!primaryContext_)
+            return;
+
+        {
+            ContextScope const scope(primaryContext_, std::nothrow);
+            if (stream_)
+                cudaCheck<false>(cudaStreamSynchronize(stream_));
+            if (context_)
+                optixCheck<false>(optixDeviceContextDestroy(context_));
+            if (stream_)
+                cudaCheck<false>(cudaStreamDestroy(stream_));
+        }
+        cuCheck<false>(cuDevicePrimaryCtxRelease(device_));
     }
 
     /// \brief Returns the owned OptiX device context.
@@ -116,21 +162,24 @@ public:
         return estimatedResidentThreads_;
     }
 
-    /// \brief Selects the CUDA device that owns this handle.
-    template <bool ShouldThrow = true> void selectDevice() const noexcept(not ShouldThrow) {
-        cudaCheck<ShouldThrow>(cudaSetDevice(deviceId));
-    }
+    /// \brief Returns the retained primary context of the device.
+    [[nodiscard]] CUcontext getPrimaryContext() const noexcept { return primaryContext_; }
 
 private:
     struct EmptyState {};
 
     // Completing this target constructor makes the destructor responsible for
     // resources acquired before the public constructor body throws.
-    explicit OptixDeviceContextHandle(EmptyState) noexcept {}
+    explicit CudaDeviceSession(EmptyState) noexcept {}
 
-    static constexpr int deviceId = 0;
+    /// Null, or the primary context of \c device_ with one reference held by this session.
+    CUcontext primaryContext_{};
+    CUdevice device_{};
 
+    /// Null, or a non-blocking stream in \c primaryContext_.
     cudaStream_t stream_{};
+
+    /// Null, or an OptiX device context in \c primaryContext_ that reports through the FLux log.
     OptixDeviceContext context_{};
     std::uint32_t estimatedResidentThreads_{};
 };
@@ -152,22 +201,24 @@ struct ScaleFilmChannels {
 } // namespace
 
 struct OptixHandler::pImpl final {
-    pImpl(Ref<Context> hostContext, std::filesystem::path const &modulePath);
+    pImpl(Ref<Context> hostContext, std::filesystem::path const &modulePath, int deviceOrdinal);
     ~pImpl();
 
     /// \brief Updates the OptiX scene from the host \c Context.
+    /// \pre The session's primary context is current.
     void sync();
 
     /// \brief Uploads \p params and launches a one-dimensional grid.
+    /// \pre The session's primary context is current.
     void launch(OptixLaunchParams const &params, std::uint32_t size);
 
     /// \brief Returns the stream shared by this backend's device resources.
-    [[nodiscard]] cudaStream_t getStream() const noexcept { return deviceContext.getStream(); }
+    [[nodiscard]] cudaStream_t getStream() const noexcept { return deviceSession.getStream(); }
 
     /// \brief Returns how many threads to launch for \p chunkCount chunks.
     [[nodiscard]] std::uint32_t getLaunchSize(std::uint32_t chunkCount) const noexcept {
         auto const scaled =
-            static_cast<double>(deviceContext.getEstimatedResidentThreads()) * launchWaves;
+            static_cast<double>(deviceSession.getEstimatedResidentThreads()) * launchWaves;
         auto const threads = static_cast<std::uint32_t>(std::lround(std::max(scaled, 1.0)));
         return std::min(chunkCount, std::max(threads, 1U));
     }
@@ -176,7 +227,13 @@ struct OptixHandler::pImpl final {
     Ref<Context> context;
 
     /// CUDA execution state destroyed after every dependent resource.
-    OptixDeviceContextHandle deviceContext;
+    CudaDeviceSession deviceSession;
+
+    /// Holds the session's context current while the members declared after it are constructed
+    /// and destroyed, so their CUDA calls use that context. Empty whenever no \c pImpl
+    /// constructor or destructor is running, so the current context never outlives a call.
+    /// Destroyed before \c deviceSession releases the primary context.
+    std::optional<ContextScope> memberScope;
 
     /// Deletes objects once the stream no longer uses them. Destroyed after every member that uses
     /// it.
@@ -205,21 +262,24 @@ struct OptixHandler::pImpl final {
     double launchWaves{2.0};
 };
 
-OptixHandler::pImpl::pImpl(Ref<Context> hostContext, std::filesystem::path const &modulePath)
-    : context(requireContext(std::move(hostContext))), modulePath(modulePath) {
+OptixHandler::pImpl::pImpl(
+    Ref<Context> hostContext, std::filesystem::path const &modulePath, int deviceOrdinal
+)
+    : context(requireContext(std::move(hostContext))), deviceSession(deviceOrdinal),
+      memberScope(std::in_place, deviceSession.getPrimaryContext()), modulePath(modulePath) {
     chunkCounter.resize(1);
     sync();
+    memberScope.reset();
 }
 
 OptixHandler::pImpl::~pImpl() {
-    // Member destruction may enqueue releases, so restore their owning device
-    // before C++ begins destroying them in reverse declaration order.
-    deviceContext.selectDevice<false>();
+    // Member destruction enqueues stream releases that need the session's context current. C++
+    // destroys the members declared after memberScope first, then memberScope, which pops, and
+    // deviceSession last, which releases the primary context.
+    memberScope.emplace(deviceSession.getPrimaryContext(), std::nothrow);
 }
 
 void OptixHandler::pImpl::sync() {
-    deviceContext.selectDevice();
-
     // An equal version means an equal scene, so the device state and accumulation stand.
     auto const version = context->getVersion();
     if (optixContext && syncedVersion == version)
@@ -242,7 +302,7 @@ void OptixHandler::pImpl::sync() {
 
         if (!optixContext)
             optixContext.reset(
-                new OptixContext(*context, deviceContext.get(), deletionQueue, modulePath)
+                new OptixContext(*context, deviceSession.get(), deletionQueue, modulePath)
             );
         optixContext->sync();
     } catch (...) {
@@ -263,12 +323,17 @@ void OptixHandler::pImpl::launch(OptixLaunchParams const &params, std::uint32_t 
     );
 }
 
-OptixHandler::OptixHandler(Ref<Context> context, std::filesystem::path const &modulePath)
-    : pImpl_(std::make_unique<pImpl>(std::move(context), modulePath)) {}
+OptixHandler::OptixHandler(
+    Ref<Context> context, std::filesystem::path const &modulePath, int deviceOrdinal
+)
+    : pImpl_(std::make_unique<pImpl>(std::move(context), modulePath, deviceOrdinal)) {}
 
 OptixHandler::~OptixHandler() = default;
 
-void OptixHandler::sync() { pImpl_->sync(); }
+void OptixHandler::sync() {
+    ContextScope const scope(pImpl_->deviceSession.getPrimaryContext());
+    pImpl_->sync();
+}
 
 RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
     if (samples == 0)
@@ -291,7 +356,7 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
     auto const chunkSize = std::min(programSpec.chunkSize, samples);
     auto const launchSize = pImpl_->getLaunchSize((pathCount - 1) / chunkSize + 1);
 
-    pImpl_->deviceContext.selectDevice();
+    ContextScope const scope(pImpl_->deviceSession.getPrimaryContext());
     pImpl_->deletionQueue.deleteFinished();
 
     // Film changes resize the product entry. A matching Camera::Impl keeps its
@@ -368,7 +433,7 @@ void OptixHandler::download(RenderProduct &product) {
     if (getAccumulatedSamples(product) == 0)
         throw kira::Anyhow("OptixHandler: render product has no valid accumulation");
 
-    pImpl_->deviceContext.selectDevice();
+    ContextScope const scope(pImpl_->deviceSession.getPrimaryContext());
     auto *entry = pImpl_->renderProducts.find(product);
     assert(entry);
     auto destination = product.getFilm().prepareDownload();
@@ -386,7 +451,7 @@ void OptixHandler::setLaunchWaves(double waves) {
 }
 
 std::uint32_t OptixHandler::getEstimatedResidentThreads() const {
-    return pImpl_->deviceContext.getEstimatedResidentThreads();
+    return pImpl_->deviceSession.getEstimatedResidentThreads();
 }
 
 void OptixHandler::setSampleOffset(std::uint64_t offset) {
@@ -412,7 +477,7 @@ bool OptixHandler::isConverged(RenderProduct const &product) const {
 }
 
 void OptixHandler::release(RenderProduct const &product) noexcept {
-    pImpl_->deviceContext.selectDevice<false>();
+    ContextScope const scope(pImpl_->deviceSession.getPrimaryContext(), std::nothrow);
     pImpl_->renderProducts.erase(product);
 }
 

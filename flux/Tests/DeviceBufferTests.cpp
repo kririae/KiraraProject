@@ -130,7 +130,7 @@ TEST(DeviceBufferTests, MoveTransfersTheAllocationAndStream) {
         EXPECT_EQ(moved.data(), allocation);
         EXPECT_EQ(moved.getStream(), cudaStreamPerThread);
 
-        flux::DeviceBuffer<std::uint32_t> target;
+        flux::DeviceBuffer<std::uint32_t> target(cudaStreamLegacy);
         target.resize(1);
         target = std::move(moved);
         EXPECT_EQ(target.data(), allocation);

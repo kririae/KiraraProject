@@ -34,6 +34,8 @@ public:
 private:
     template <typename Channel> struct FilmChannelStorage {
         using ChannelType = Channel;
+        explicit FilmChannelStorage(cudaStream_t stream) noexcept : buffer(stream) {}
+
         DeviceBuffer<typename Channel::Value> buffer;
     };
 
@@ -46,9 +48,8 @@ private:
     };
 
     struct Entry {
-        Entry(RenderProduct const &product, cudaStream_t stream) noexcept : product(&product) {
-            storage.forEach([stream](auto &channel) { channel.buffer.setStream(stream); });
-        }
+        Entry(RenderProduct const &product, cudaStream_t stream) noexcept
+            : product(&product), storage(std::in_place, stream) {}
 
         /// Keeps the map key alive for the entry's lifetime.
         Ref<RenderProduct const> product;

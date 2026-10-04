@@ -11,11 +11,9 @@ namespace flux {
 class Context;
 class RenderProduct;
 
-/// \brief Schedules OptiX rendering and owns launch-time state.
+/// \brief Renders a host \c Context with OptiX on one CUDA device.
 ///
-/// The handler retains a host \c Context and owns the OptiX device context,
-/// CUDA stream, and launch-time state on CUDA device 0. Its \c OptixContext
-/// owns the persistent OptiX scene. Public operations select device 0. Call
+/// Public operations neither require nor change the calling thread's current CUDA context. Call
 /// \c sync after changing the host \c Context.
 ///
 /// \remark A handler is not thread-safe.
@@ -23,8 +21,12 @@ class OptixHandler final : private Noncopyable {
 public:
     /// \brief Creates a handler and builds its initial OptiX scene.
     ///
-    /// \p modulePath names the OptiX IR module used by the pipeline.
-    OptixHandler(Ref<Context> context, std::filesystem::path const &modulePath);
+    /// \p modulePath names the OptiX IR module used by the pipeline. \p deviceOrdinal is the CUDA
+    /// device ordinal the handler runs on.
+    /// \throw kira::Anyhow If \p deviceOrdinal is outside [0, device count).
+    OptixHandler(
+        Ref<Context> context, std::filesystem::path const &modulePath, int deviceOrdinal = 0
+    );
 
     ~OptixHandler();
 

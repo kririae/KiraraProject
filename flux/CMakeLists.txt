@@ -96,7 +96,8 @@ target_link_libraries(
            OptiX::OptiX)
 target_link_libraries(
     flux
-    PRIVATE Eigen3::Eigen
+    PRIVATE CUDA::cuda_driver
+            Eigen3::Eigen
             flux_oiio
             rapidobj::rapidobj
             TBB::tbb

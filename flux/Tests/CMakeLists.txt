@@ -248,3 +248,12 @@ krr_add_test(
     SOURCES DeletionQueueTests.cpp
     HARD_DEPENDENCIES flux)
 target_link_libraries(flux.Optix.DeletionQueueTests PRIVATE CUDA::cudart)
+
+krr_add_test(
+    flux Optix DeviceSessionTests
+    SOURCES OptixDeviceSessionTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(flux.Optix.DeviceSessionTests
+                           PRIVATE FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
+target_link_libraries(flux.Optix.DeviceSessionTests PRIVATE CUDA::cudart CUDA::cuda_driver)
+add_dependencies(flux.Optix.DeviceSessionTests flux_megakernel_ir)

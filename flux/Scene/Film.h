@@ -67,6 +67,10 @@ struct FilmChannelListOf;
 /// \brief Terminates a channel list.
 template <template <typename Channel> typename Element>
 struct FilmChannelListOf<Element, detail::TypeList<>> {
+    constexpr FilmChannelListOf() = default;
+    template <typename... Arguments>
+    constexpr explicit FilmChannelListOf(std::in_place_t, Arguments const &...) noexcept {}
+
     template <typename Function> KIRA_HOST_DEVICE constexpr void forEach(Function &&) {}
     template <typename Function> KIRA_HOST_DEVICE constexpr void forEach(Function &&) const {}
 
@@ -86,6 +90,13 @@ struct FilmChannelListOf<Element, detail::TypeList<Front, Tail...>> {
     FilmChannelListOf<Element, detail::TypeList<Tail...>> tail{};
 
 public:
+    constexpr FilmChannelListOf() = default;
+
+    /// \brief Constructs every element from \p arguments, which are copied to each.
+    template <typename... Arguments>
+    constexpr explicit FilmChannelListOf(std::in_place_t, Arguments const &...arguments)
+        : front(arguments...), tail(std::in_place, arguments...) {}
+
     /// \brief Applies \p function to every element in channel order.
     template <typename Function> KIRA_HOST_DEVICE constexpr void forEach(Function &&function) {
         std::forward<Function>(function)(front);
