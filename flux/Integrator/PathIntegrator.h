@@ -72,16 +72,6 @@ public:
 };
 
 /// \brief Estimates radiance with path tracing.
-///
-/// The first path integrator added to a context becomes active after its
-/// transaction succeeds.
-///
-/// \par Properties
-/// - \c max_depth: maximum path depth; defaults to 8.
-/// - \c rr_depth: first depth subject to Russian roulette; defaults to 2.
-/// - \c rr_prob: maximum Russian roulette continuation probability; defaults to 0.95.
-/// - \c shader_reorder: requests OptiX shader execution reordering; defaults to false, since
-///   claiming paths already keeps warps full and reordering then only adds its own cost.
 class PathIntegrator final : public RenderObject {
     friend class TXContext;
 
@@ -282,12 +272,15 @@ public:
 
     /// \brief Returns whether OptiX radiance traversal requests shader execution reordering.
     [[nodiscard]] bool usesShaderReorder() const noexcept { return shaderReorder_; }
+    ///
+    [[nodiscard]] std::uint32_t getChunkSize() const noexcept { return chunkSize_; }
 
 private:
     PathIntegrator(TXContext &tx, kira::Properties const &props);
 
     Impl impl_;
     bool shaderReorder_;
+    std::uint32_t chunkSize_;
 };
 
 static_assert(std::is_standard_layout_v<DirectLightCandidate>);

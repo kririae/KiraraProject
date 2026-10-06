@@ -2,6 +2,7 @@
 #include <optix_function_table_definition.h>
 #include <optix_stubs.h>
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstdint>
@@ -163,17 +164,12 @@ struct OptixHandler::pImpl final {
     /// \brief Returns the stream shared by this backend's device resources.
     [[nodiscard]] cudaStream_t getStream() const noexcept { return deviceContext.getStream(); }
 
-    /// \brief Returns how many threads to launch for \p pathCount paths.
-    ///
-    /// Lanes claim the paths the launch does not cover, so this only decides how many threads
-    /// share the work. Launching past the estimated residency keeps an underestimate from
-    /// leaving part of the device idle for the whole launch; launching under it trades threads
-    /// for a smaller resident set of continuation frames.
-    [[nodiscard]] std::uint32_t getLaunchSize(std::uint32_t pathCount) const noexcept {
+    /// \brief Returns how many threads to launch for \p chunkCount chunks.
+    [[nodiscard]] std::uint32_t getLaunchSize(std::uint32_t chunkCount) const noexcept {
         auto const scaled =
             static_cast<double>(deviceContext.getEstimatedResidentThreads()) * launchWaves;
         auto const threads = static_cast<std::uint32_t>(std::lround(std::max(scaled, 1.0)));
-        return std::min(pathCount, std::max(threads, 1U));
+        return std::min(chunkCount, std::max(threads, 1U));
     }
 
     /// Host \c Context retained for the lifetime of the backend.
@@ -200,8 +196,8 @@ struct OptixHandler::pImpl final {
     OptixRenderProductPool renderProducts{getStream()};
     DeviceBuffer<OptixLaunchParams> launchParams{getStream()};
 
-    /// Next path not yet claimed by any lane. Zeroed before each launch.
-    DeviceBuffer<std::uint32_t> pathCounter{getStream()};
+    /// Next chunk not yet claimed by any lane. Zeroed before each launch.
+    DeviceBuffer<std::uint32_t> chunkCounter{getStream()};
     CudaStreamTimer timer{getStream()};
     std::uint64_t sampleOffset{};
 
@@ -211,7 +207,7 @@ struct OptixHandler::pImpl final {
 
 OptixHandler::pImpl::pImpl(Ref<Context> hostContext, std::filesystem::path const &modulePath)
     : context(requireContext(std::move(hostContext))), modulePath(modulePath) {
-    pathCounter.resize(1);
+    chunkCounter.resize(1);
     sync();
 }
 
@@ -284,14 +280,16 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
     auto const camera = product.getCamera().getImpl();
 
     // One path per pixel sample, with each pixel's samples consecutive. The launch is capped at
-    // the resident thread count, so a lane whose path ends claims another rather than retiring
-    // and leaving its warp short.
+    // the resident thread count, so a lane whose chunk is done claims the next rather than
+    // retiring and leaving its warp short.
     auto const pixelCount =
         static_cast<std::uint64_t>(film.getWidth()) * static_cast<std::uint64_t>(film.getHeight());
     if (pixelCount > maxOptixLaunchDimension || samples > maxOptixLaunchDimension / pixelCount)
         throw std::invalid_argument("OptixHandler: render batch exceeds the OptiX launch limit");
     auto const pathCount = static_cast<std::uint32_t>(pixelCount * samples);
-    auto const launchSize = pImpl_->getLaunchSize(pathCount);
+    auto const &programSpec = pImpl_->optixContext->getProgramSpec();
+    auto const chunkSize = std::min(programSpec.chunkSize, samples);
+    auto const launchSize = pImpl_->getLaunchSize((pathCount - 1) / chunkSize + 1);
 
     pImpl_->deviceContext.selectDevice();
     pImpl_->deletionQueue.deleteFinished();
@@ -328,8 +326,7 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
         }
 
         // The stream orders normalization, parameter upload, and OptiX work.
-        pImpl_->pathCounter.zero();
-        auto const &programSpec = pImpl_->optixContext->getProgramSpec();
+        pImpl_->chunkCounter.zero();
         auto const params = OptixLaunchParams{
             .scene = pImpl_->optixContext->getImpl(),
             .camera = camera,
@@ -341,10 +338,11 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
                 },
             .accumulatedSamples = accumulatedSamples,
             .sampleOffset = pImpl_->sampleOffset,
-            .nextPath = pImpl_->pathCounter.data(),
+            .nextChunk = pImpl_->chunkCounter.data(),
             .film = entry.film,
             .batchSize = samples,
             .pathCount = pathCount,
+            .chunkSize = programSpec.chunkSize,         // (5)
             .shaderReorder = programSpec.shaderReorder, // (3)
             .hasEnvMap = programSpec.hasEnvMap,         // (4)
         };

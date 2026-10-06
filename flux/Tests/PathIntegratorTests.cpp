@@ -144,6 +144,18 @@ TEST(PathIntegratorTests, EnablesShaderReorderingFromProperties) {
     EXPECT_TRUE(integrator->usesShaderReorder());
 }
 
+TEST(PathIntegratorTests, ReadsChunkSizeFromProperties) {
+    auto context = flux::Context::create();
+    EXPECT_EQ(context->create<flux::PathIntegrator>(kira::Properties{})->getChunkSize(), 1U);
+
+    kira::Properties props;
+    props.set("chunk_size", std::uint32_t{32});
+    EXPECT_EQ(context->create<flux::PathIntegrator>(props)->getChunkSize(), 32U);
+
+    props.set("chunk_size", std::uint32_t{0});
+    EXPECT_EQ(context->create<flux::PathIntegrator>(props)->getChunkSize(), 1U);
+}
+
 TEST(PathIntegratorTests, WeightsBsdfSampledEmitterHits) {
     auto const context = EmitterHitContext{
         .table = {.edf = flux::ConstantEDF::Impl{.radiance = {2.0F, 2.0F, 2.0F}}},

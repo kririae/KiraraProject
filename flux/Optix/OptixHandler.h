@@ -58,7 +58,7 @@ public:
 public:
     /// \brief Sets how many threads later launches use, as a multiple of resident threads.
     ///
-    /// Lanes claim whatever paths the launch does not cover, so this changes how many threads
+    /// Lanes claim whatever chunks the launch does not cover, so this changes how many threads
     /// share a batch, not how much work it does. Values above one keep an underestimated
     /// residency from leaving part of the device idle; values below one shrink the resident set
     /// of continuation frames, which can pay off on a small L2.

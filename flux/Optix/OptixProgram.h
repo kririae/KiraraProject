@@ -3,6 +3,7 @@
 #include <optix_types.h>
 
 #include <array>
+#include <cstdint>
 #include <filesystem>
 
 #include "flux/Core/Object.h"
@@ -23,6 +24,7 @@ struct OptixProgramSpec {
     BSDFTypeMask bsdfTypes;  // (2)
     bool shaderReorder;      // (3)
     bool hasEnvMap;          // (4)
+    std::uint32_t chunkSize; // (5)
 
     [[nodiscard]] bool operator==(OptixProgramSpec const &) const = default;
 };

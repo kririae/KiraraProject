@@ -27,6 +27,9 @@ FluxCLIRequest parseFluxCLI(int argc, char **argv) {
             "OptiX megakernel threads as a multiple of the estimated resident thread count; "
             "lanes claim the rest, default: 2"
         );
+    program.add_argument("--chunk-size")
+        .scan<'u', std::uint32_t>()
+        .help("consecutive paths an OptiX thread renders in order, clamps to [1, --spp]");
     program.add_argument("--log-file").help("also append logs to this file");
     program.parse_args(argc, argv);
 
@@ -47,6 +50,8 @@ FluxCLIRequest parseFluxCLI(int argc, char **argv) {
             throw kira::Anyhow("--launch-waves must be greater than zero");
         request.launchWaves = waves;
     }
+
+    request.chunkSize = program.present<std::uint32_t>("--chunk-size");
 
     if (auto backend = program.present<std::string>("--backend")) {
         if (*backend == "optix")

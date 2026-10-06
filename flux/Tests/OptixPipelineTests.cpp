@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <filesystem>
+#include <vector>
 
 #include "SceneUtils.h"
 #include "TestUtils.h"
@@ -107,6 +108,69 @@ TEST(OptixPipelineTests, RendersAndDownloadsFilmChannels) {
 
     handler.release(*product);
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
+}
+
+TEST(OptixPipelineTests, RendersTheSameSamplesForAnyChunkSize) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    // A diffuse triangle under a constant environment fills every channel, and some pixels miss.
+    auto context = flux::Context::create();
+    flux::test::setActiveDefaults(*context);
+    context->setActiveEnvMap(context->create<flux::EnvMapLight>(kira::Properties{}));
+    auto mesh = context->create<flux::TriangleMesh>(triangleData());
+    auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
+    (void)context->create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
+    kira::Properties cameraProperties;
+    cameraProperties.set("position", flux::Vec3f{0.25F, 0.25F, 1.0F});
+    cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.0F});
+    cameraProperties.set("fov", 60.0F);
+    kira::Properties productProperties;
+    productProperties.set("resolution", flux::Vec2u{8, 8});
+    auto product =
+        flux::RenderProduct::create(flux::Camera::create(cameraProperties), productProperties);
+
+    struct Image {
+        std::vector<flux::Vec3f> color;
+        std::vector<flux::Vec3f> normal;
+        std::vector<flux::Vec3f> albedo;
+    };
+    flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
+    auto const render = [&](std::uint32_t chunkSize) {
+        kira::Properties props;
+        props.set("chunk_size", chunkSize);
+        context->setActiveIntegrator(context->create<flux::PathIntegrator>(props));
+        handler.sync();
+        handler.render(*product, 8);
+        handler.download(*product);
+        auto const &film = product->getFilm();
+        auto const copy = [](auto span) {
+            return std::vector<flux::Vec3f>(span.begin(), span.end());
+        };
+        return Image{
+            .color = copy(film.getChannel<flux::ColorChannel>()),
+            .normal = copy(film.getChannel<flux::NormalChannel>()),
+            .albedo = copy(film.getChannel<flux::AlbedoChannel>()),
+        };
+    };
+    // Equal samples differ only in the order the film adds them.
+    auto const expectNear = [](std::vector<flux::Vec3f> const &expected,
+                               std::vector<flux::Vec3f> const &actual) {
+        ASSERT_EQ(actual.size(), expected.size());
+        for (std::size_t pixel = 0; pixel < expected.size(); ++pixel)
+            for (int axis = 0; axis < 3; ++axis)
+                EXPECT_NEAR(actual[pixel][axis], expected[pixel][axis], 1e-5F) << pixel;
+    };
+
+    auto const expected = render(1);
+    // 3 does not divide the 8 samples per pixel. 0 and 64 lie outside them.
+    for (auto const chunkSize : {0U, 3U, 8U, 64U}) {
+        SCOPED_TRACE(chunkSize);
+        auto const actual = render(chunkSize);
+        expectNear(expected.color, actual.color);
+        expectNear(expected.normal, actual.normal);
+        expectNear(expected.albedo, actual.albedo);
+    }
 }
 
 TEST(OptixPipelineTests, ReleasesContextAfterConstructionFails) {

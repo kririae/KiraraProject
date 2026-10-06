@@ -131,6 +131,7 @@ OptixProgramSpec OptixProgram::makeSpec(Context const &context) {
         .bsdfTypes = bsdfTypes,                                    // (2)
         .shaderReorder = integrator->usesShaderReorder(),          // (3)
         .hasEnvMap = static_cast<bool>(context.getActiveEnvMap()), // (4)
+        .chunkSize = integrator->getChunkSize(),                   // (5)
     };
 }
 
@@ -173,6 +174,13 @@ void OptixProgram::buildModule(std::filesystem::path const &modulePath) {
             .sizeInBytes = sizeof(spec_.hasEnvMap),
             .boundValuePtr = &spec_.hasEnvMap,
             .annotation = "Active environment map presence",
+        },
+        OptixModuleCompileBoundValueEntry{
+            // (5)
+            .pipelineParamOffsetInBytes = offsetof(OptixLaunchParams, chunkSize),
+            .sizeInBytes = sizeof(spec_.chunkSize),
+            .boundValuePtr = &spec_.chunkSize,
+            .annotation = "Paths per chunk",
         },
     };
     moduleOptions.boundValues = boundValues.data();

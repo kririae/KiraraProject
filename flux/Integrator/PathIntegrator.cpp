@@ -1,5 +1,6 @@
 #include "flux/Integrator/PathIntegrator.h"
 
+#include <algorithm>
 #include <string>
 
 #include "flux/Scene/TXContext.h"
@@ -13,7 +14,8 @@ PathIntegrator::PathIntegrator(TXContext &tx, kira::Properties const &props)
           props.use_or<std::uint32_t>("rr_depth", 2),
           props.use_or<float>("rr_prob", 0.95F),
       },
-      shaderReorder_(props.use_or<bool>("shader_reorder", false)) {
+      shaderReorder_(props.use_or<bool>("shader_reorder", false)),
+      chunkSize_(std::max(props.use_or<std::uint32_t>("chunk_size", 1), 1U)) {
     auto const type = props.use_or<std::string>("type", "path");
     if (type != "path")
         throw kira::Anyhow("PathIntegrator: unsupported type '{}'", type);

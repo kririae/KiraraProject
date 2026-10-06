@@ -36,12 +36,12 @@ struct ShadowQuery {
     unsigned int mask;
 };
 
-/// \brief Claims the next path for a lane whose own path ended.
-///
-/// Launch index \c i owns path \c i, so claims begin past the launch size. An index at or beyond
-/// the path count means no work is left.
-[[nodiscard]] KIRA_DEVICE std::uint32_t claimPath() noexcept {
-    return optixGetLaunchDimensions().x + atomicAdd(optixLaunchParams.nextPath, 1U);
+/// \brief Claims the next chunk of \p chunkSize paths for a lane whose chunk is done, and returns
+/// its first path.
+[[nodiscard]] KIRA_DEVICE std::uint32_t claimChunk(std::uint32_t chunkSize) noexcept {
+    /// Launch index \c i renders chunk \c i, so claims begin past the launch size. A path at or
+    /// beyond the path count means no work is left.
+    return (optixGetLaunchDimensions().x + atomicAdd(optixLaunchParams.nextChunk, 1U)) * chunkSize;
 }
 
 /// \brief Builds the camera-ray state of path \p index.
@@ -171,7 +171,7 @@ KIRA_DEVICE __forceinline__ void step(flux::PathState &state, std::uint32_t inde
     flux::OptixContext::Impl::Hit hit;
     // Reorder on every hit, primary ones included. Guarding this on depth would give the shading
     // two static predecessors, one per continuation, so the compiler would emit a second copy of
-    // it, and the guard would stop being warp-uniform once lanes claim new paths.
+    // it, and the guard would stop being warp-uniform once lanes claim new chunks.
     if (optixLaunchParams.scene.intersect(state.getRay(), hit, optixLaunchParams.shaderReorder)) {
         query = shade(state, hit, index);
     } else if (
@@ -197,10 +197,9 @@ KIRA_DEVICE __forceinline__ void step(flux::PathState &state, std::uint32_t inde
 extern "C" __global__ void __miss__megakernel() {} // NOLINT
 
 extern "C" __global__ void __raygen__megakernel() { // NOLINT
-    // One outer iteration per path, one inner iteration per path vertex. A lane whose path ends
-    // claims another instead of retiring, which keeps the rest of its warp company.
-    for (auto index = optixGetLaunchIndex().x; index < optixLaunchParams.pathCount;
-         index = claimPath()) {
+    auto const chunkSize = std::min(optixLaunchParams.chunkSize, optixLaunchParams.batchSize);
+    auto index = optixGetLaunchIndex().x * chunkSize;
+    while (index < optixLaunchParams.pathCount) {
         auto state = startPath(index);
         do
             step(state, index);
@@ -209,5 +208,8 @@ extern "C" __global__ void __raygen__megakernel() { // NOLINT
             optixLaunchParams.getLaunchSample(index).pixel,
             state.radiance * optixLaunchParams.getSampleWeight()
         );
+
+        if (++index % chunkSize == 0)
+            index = claimChunk(chunkSize);
     }
 }

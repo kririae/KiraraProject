@@ -39,7 +39,10 @@ LoadedScene loadTomlScene(FluxCLIRequest const &request) {
     auto scene = kira::Properties::parse(source, request.scenePath);
     auto context = Context::create();
     context->getFileResolver().prepend(std::filesystem::absolute(request.scenePath).parent_path());
-    context->setActiveIntegrator(context->create<PathIntegrator>(scene.use_view("integrator")));
+    auto integratorProps = scene.use_view("integrator");
+    if (request.chunkSize)
+        integratorProps.set("chunk_size", *request.chunkSize);
+    context->setActiveIntegrator(context->create<PathIntegrator>(integratorProps));
     context->setActiveSampler(context->create<Sampler>(
         scene.contains("sampler") ? scene.use_view("sampler") : kira::Properties{}
     ));

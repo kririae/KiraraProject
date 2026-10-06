@@ -35,17 +35,21 @@ struct OptixLaunchParams {
     /// Number of sequence elements skipped before sample zero.
     std::uint64_t sampleOffset;
 
-    /// Next path not yet claimed by any lane, counted from the launch size. Zeroed per launch.
-    std::uint32_t *nextPath;
+    /// Next chunk not yet claimed by any lane, counted from the chunks the launch covers. Zeroed
+    /// per launch.
+    std::uint32_t *nextChunk;
 
     Film::Impl film;
 
     /// Number of samples assigned to each pixel in this batch.
     std::uint32_t batchSize;
 
-    /// Paths in this batch, one per pixel sample. The launch may be smaller, in which case lanes
-    /// claim the remaining paths through \c nextPath.
+    /// Paths in this batch, one per pixel sample. Launch index \c i renders chunk \c i. Lanes
+    /// claim the remaining chunks through \c nextChunk.
     std::uint32_t pathCount;
+
+    /// Consecutive paths in a chunk, before the batch bounds it.
+    std::uint32_t chunkSize;
 
     /// Whether radiance traversal uses shader execution reordering.
     bool shaderReorder;
