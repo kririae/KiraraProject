@@ -126,6 +126,10 @@ else()
 endif()
 target_compile_options(flux PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--use_fast_math>)
 
+if(KRR_BUILD_FLUX_HYDRA)
+    add_subdirectory(Hydra)
+endif()
+
 if(KRR_BUILD_TESTS)
     add_subdirectory(Tests)
 endif()

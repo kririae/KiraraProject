@@ -1,0 +1,22 @@
+{
+    "Plugins": [
+        {
+            "Info": {
+                "Types": {
+                    "HdFluxRendererPlugin": {
+                        "bases": [
+                            "HdRendererPlugin"
+                        ],
+                        "displayName": "FLux",
+                        "priority": 0
+                    }
+                }
+            },
+            "LibraryPath": "../../usd/$<TARGET_FILE_NAME:hdFlux>",
+            "Name": "hdFlux",
+            "ResourcePath": "resources",
+            "Root": "..",
+            "Type": "library"
+        }
+    ]
+}

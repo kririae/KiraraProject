@@ -1,0 +1,9 @@
+{
+    "HdFluxRendererPlugin": {
+        "menulabel": "FLux",
+        "aovsupport": true,
+        "defaultpurposes": [
+            "render"
+        ]
+    }
+}
