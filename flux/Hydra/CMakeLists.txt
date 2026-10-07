@@ -29,6 +29,15 @@ target_link_libraries(
 target_compile_definitions(hdFlux PRIVATE MFB_PACKAGE_NAME=hdFlux MFB_ALT_PACKAGE_NAME=hdFlux
                                           _GLIBCXX_PERMIT_BACKWARD_HASH)
 target_compile_options(hdFlux PRIVATE -Wall -Wextra)
+# The plugin exports no symbol. Plug registers it through static initializers and looks nothing up,
+# and an exported symbol could interpose on a library of the host or be preempted by one. Hidden
+# visibility also lets the compiler bind the plugin's calls to its own functions directly.
+set_target_properties(hdFlux PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
+set(exportMap "${CMAKE_CURRENT_SOURCE_DIR}/exports.map")
+target_link_options(hdFlux PRIVATE "LINKER:--version-script=${exportMap}")
+set_property(TARGET hdFlux APPEND PROPERTY LINK_DEPENDS "${exportMap}")
+# A symbol that no linked library defines fails the link, not the load.
+target_link_options(hdFlux PRIVATE "LINKER:--no-undefined")
 
 # A Houdini package: Houdini loads the plugin from dso/usd and finds its Plug resources under
 # dso/usd_plugins. The generator expression keeps a multi-config generator from adding a
