@@ -36,5 +36,12 @@
         "usd"
       ]
     }
-  }
+  },
+  "overrides": [
+    {
+      "$comment": "Houdini ships oneTBB 2022.1. Code built against newer TBB headers may not run on it.",
+      "name": "tbb",
+      "version": "2022.1.0"
+    }
+  ]
 }

@@ -2,6 +2,9 @@
   "overlay-ports": [
     "vcpkg/ports"
   ],
+  "overlay-triplets": [
+    "vcpkg/triplets"
+  ],
   "default-registry": {
     "kind": "git",
     "baseline": "1600ce2ba1b6b621bfc5a31a785c4963b817a1c7",
