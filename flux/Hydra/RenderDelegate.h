@@ -37,6 +37,8 @@ public:
 
     void CommitResources(pxr::HdChangeTracker *tracker) override;
 
+    pxr::HdAovDescriptor GetDefaultAovDescriptor(pxr::TfToken const &name) const override;
+
 private:
     pxr::HdResourceRegistrySharedPtr resourceRegistry_;
 };

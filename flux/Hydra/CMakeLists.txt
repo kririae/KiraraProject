@@ -9,7 +9,7 @@ endif()
 set(Houdini_DIR "$ENV{HFS}/toolkit/cmake")
 find_package(Houdini CONFIG REQUIRED)
 
-add_library(hdFlux SHARED RenderDelegate.cpp RendererPlugin.cpp)
+add_library(hdFlux SHARED RenderBuffer.cpp RenderDelegate.cpp RendererPlugin.cpp RenderPass.cpp)
 target_include_directories(hdFlux PRIVATE "${KRR_ROOT_DIR}")
 # Houdini's Houdini target serves HDK plugins. It forces -std=c++17, which overrides the C++20 the
 # delegate is written in, and adds HDK definitions that the USD headers on Linux do not read. The
@@ -18,8 +18,10 @@ target_include_directories(hdFlux SYSTEM
                            PRIVATE "$<TARGET_PROPERTY:Houdini,INTERFACE_INCLUDE_DIRECTORIES>")
 target_link_libraries(
     hdFlux
-    PRIVATE Houdini::Dep::pxr_hd
+    PRIVATE Houdini::Dep::pxr_gf
+            Houdini::Dep::pxr_hd
             Houdini::Dep::pxr_hf
+            Houdini::Dep::pxr_python
             Houdini::Dep::pxr_sdf
             Houdini::Dep::pxr_tf
             Houdini::Dep::pxr_vt

@@ -1,23 +1,17 @@
 #include "flux/Hydra/RenderDelegate.h"
 
+#include <pxr/base/gf/vec4f.h>
 #include <pxr/imaging/hd/bprim.h>
 #include <pxr/imaging/hd/instancer.h>
-#include <pxr/imaging/hd/renderPass.h>
 #include <pxr/imaging/hd/resourceRegistry.h>
 #include <pxr/imaging/hd/rprim.h>
 #include <pxr/imaging/hd/sprim.h>
+#include <pxr/imaging/hd/tokens.h>
 
 #include <memory>
 
-namespace {
-class HdFluxRenderPass final : public pxr::HdRenderPass {
-public:
-    using pxr::HdRenderPass::HdRenderPass;
-
-private:
-    void _Execute(pxr::HdRenderPassStateSharedPtr const &, pxr::TfTokenVector const &) override {}
-};
-} // namespace
+#include "flux/Hydra/RenderBuffer.h"
+#include "flux/Hydra/RenderPass.h"
 
 HdFluxRenderDelegate::HdFluxRenderDelegate()
     : resourceRegistry_(std::make_shared<pxr::HdResourceRegistry>()) {}
@@ -37,7 +31,7 @@ pxr::TfTokenVector const &HdFluxRenderDelegate::GetSupportedSprimTypes() const {
 }
 
 pxr::TfTokenVector const &HdFluxRenderDelegate::GetSupportedBprimTypes() const {
-    static auto const types = pxr::TfTokenVector{};
+    static auto const types = pxr::TfTokenVector{pxr::HdPrimTypeTokens->renderBuffer};
     return types;
 }
 
@@ -72,12 +66,24 @@ pxr::HdSprim *HdFluxRenderDelegate::CreateFallbackSprim(pxr::TfToken const &) { 
 
 void HdFluxRenderDelegate::DestroySprim(pxr::HdSprim *sprim) { delete sprim; }
 
-pxr::HdBprim *HdFluxRenderDelegate::CreateBprim(pxr::TfToken const &, pxr::SdfPath const &) {
+pxr::HdBprim *
+HdFluxRenderDelegate::CreateBprim(pxr::TfToken const &typeId, pxr::SdfPath const &bprimId) {
+    if (typeId == pxr::HdPrimTypeTokens->renderBuffer)
+        return new HdFluxRenderBuffer(bprimId);
     return nullptr;
 }
 
-pxr::HdBprim *HdFluxRenderDelegate::CreateFallbackBprim(pxr::TfToken const &) { return nullptr; }
+pxr::HdBprim *HdFluxRenderDelegate::CreateFallbackBprim(pxr::TfToken const &typeId) {
+    return CreateBprim(typeId, pxr::SdfPath::EmptyPath());
+}
 
 void HdFluxRenderDelegate::DestroyBprim(pxr::HdBprim *bprim) { delete bprim; }
 
 void HdFluxRenderDelegate::CommitResources(pxr::HdChangeTracker *) {}
+
+pxr::HdAovDescriptor HdFluxRenderDelegate::GetDefaultAovDescriptor(pxr::TfToken const &name) const {
+    // The renderer resolves its samples itself, so the buffer is not multisampled.
+    if (name == pxr::HdAovTokens->color)
+        return {pxr::HdFormatFloat32Vec4, false, pxr::VtValue(pxr::GfVec4f(0.0F))};
+    return {};
+}
