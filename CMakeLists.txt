@@ -67,6 +67,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_PCH_WARN_INVALID ON)
+# A static library may be linked into a shared library, such as a plugin that a host application
+# loads.
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set(KRR_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 

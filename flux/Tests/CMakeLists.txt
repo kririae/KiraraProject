@@ -140,7 +140,6 @@ krr_add_test(
     flux Scene FilmTests
     SOURCES FilmTests.cu
     HARD_DEPENDENCIES flux)
-target_link_libraries(flux.Scene.FilmTests PRIVATE CUDA::cudart)
 
 krr_add_test(
     flux Scene GeometryTests
@@ -148,19 +147,16 @@ krr_add_test(
     HARD_DEPENDENCIES flux)
 target_compile_definitions(flux.Scene.GeometryTests
                            PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures")
-target_link_libraries(flux.Scene.GeometryTests PRIVATE CUDA::cudart)
 
 krr_add_test(
     flux Shading ShadingTests
     SOURCES ShadingTests.cu
     HARD_DEPENDENCIES flux)
-target_link_libraries(flux.Shading.ShadingTests PRIVATE CUDA::cudart)
 
 krr_add_test(
     flux Sampling SamplerTests
     SOURCES SamplerTests.cu
     HARD_DEPENDENCIES flux)
-target_link_libraries(flux.Sampling.SamplerTests PRIVATE CUDA::cudart)
 
 krr_add_test(
     flux Integrator PathIntegratorTests
@@ -183,7 +179,6 @@ krr_add_test(
 target_compile_definitions(
     flux.Optix.PipelineTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
                                      FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
-target_link_libraries(flux.Optix.PipelineTests PRIVATE CUDA::cudart)
 add_dependencies(flux.Optix.PipelineTests flux_megakernel_ir)
 
 krr_add_test(
@@ -194,7 +189,6 @@ target_compile_definitions(
     flux.Optix.FuzzUpdateTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
                                        FLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/OptixFuzzUpdateTests"
                                        FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
-target_link_libraries(flux.Optix.FuzzUpdateTests PRIVATE CUDA::cudart)
 add_dependencies(flux.Optix.FuzzUpdateTests flux_megakernel_ir)
 
 krr_add_test(
@@ -211,7 +205,6 @@ target_compile_definitions(
     PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
             FLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/OptixGeometryTests"
             FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
-target_link_libraries(flux.Optix.GeometryTests PRIVATE CUDA::cudart)
 add_dependencies(flux.Optix.GeometryTests flux_megakernel_ir)
 
 krr_add_test(
@@ -220,7 +213,6 @@ krr_add_test(
     HARD_DEPENDENCIES flux)
 target_compile_definitions(
     flux.Optix.GeometryPoolTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures")
-target_link_libraries(flux.Optix.GeometryPoolTests PRIVATE CUDA::cudart)
 
 krr_add_test(
     flux Optix ImageTextureTests
@@ -229,25 +221,21 @@ krr_add_test(
 target_compile_definitions(
     flux.Optix.ImageTextureTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
                                          FLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/OptixImageTextureTests")
-target_link_libraries(flux.Optix.ImageTextureTests PRIVATE CUDA::cudart)
 
 krr_add_test(
     flux Optix DeviceBufferTests
     SOURCES DeviceBufferTests.cpp
     HARD_DEPENDENCIES flux)
-target_link_libraries(flux.Optix.DeviceBufferTests PRIVATE CUDA::cudart OptiX::OptiX)
 
 krr_add_test(
     flux Optix KernelUtilsTests
     SOURCES KernelUtilsTests.cu
     HARD_DEPENDENCIES flux)
-target_link_libraries(flux.Optix.KernelUtilsTests PRIVATE CUDA::cudart)
 
 krr_add_test(
     flux Optix DeletionQueueTests
     SOURCES DeletionQueueTests.cpp
     HARD_DEPENDENCIES flux)
-target_link_libraries(flux.Optix.DeletionQueueTests PRIVATE CUDA::cudart)
 
 krr_add_test(
     flux Optix DeviceSessionTests
@@ -255,5 +243,5 @@ krr_add_test(
     HARD_DEPENDENCIES flux)
 target_compile_definitions(flux.Optix.DeviceSessionTests
                            PRIVATE FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
-target_link_libraries(flux.Optix.DeviceSessionTests PRIVATE CUDA::cudart CUDA::cuda_driver)
+target_link_libraries(flux.Optix.DeviceSessionTests PRIVATE CUDA::cuda_driver)
 add_dependencies(flux.Optix.DeviceSessionTests flux_megakernel_ir)

@@ -1,4 +1,7 @@
 enable_language(CUDA)
+# With a static CUDA runtime, a plugin carries its own copy, which the runtime of a host application
+# can neither replace nor conflict with.
+set(CMAKE_CUDA_RUNTIME_LIBRARY Static)
 find_package(argparse CONFIG REQUIRED)
 find_package(CUDAToolkit REQUIRED)
 find_package(Eigen3 CONFIG REQUIRED)
@@ -39,7 +42,7 @@ add_library(flux_oiio STATIC Embree/EmbreeImageTexturePool.cpp IO/ImageIO.cpp Op
 target_include_directories(flux_oiio PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(
     flux_oiio
-    PRIVATE CUDA::cudart
+    PRIVATE CUDA::cudart_static
             kira::Core
             kira::Vecteur
             OpenImageIO::OpenImageIO
@@ -89,7 +92,7 @@ add_library(
 target_include_directories(flux PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(
     flux
-    PUBLIC CUDA::cudart
+    PUBLIC CUDA::cudart_static
            embree
            kira::Core
            kira::Vecteur
