@@ -2,11 +2,25 @@
 
 #include <pxr/imaging/hd/renderDelegate.h>
 
+#include <filesystem>
+
+#include "flux/Core/Object.h"
+#include "flux/Optix/OptixHandler.h"
+
+namespace flux {
+class Context;
+} // namespace flux
+
 /// \brief The FLux Hydra render delegate.
 class HdFluxRenderDelegate final : public pxr::HdRenderDelegate {
 public:
-    HdFluxRenderDelegate();
-    explicit HdFluxRenderDelegate(pxr::HdRenderSettingsMap const &settingsMap);
+    /// \brief Creates a delegate that renders with the OptiX IR module at \p modulePath.
+    ///
+    /// \throw std::exception If the OptiX backend cannot start.
+    HdFluxRenderDelegate(
+        std::filesystem::path const &modulePath, pxr::HdRenderSettingsMap const &settingsMap
+    );
+    ~HdFluxRenderDelegate() override;
 
     HdFluxRenderDelegate(HdFluxRenderDelegate const &) = delete;
     HdFluxRenderDelegate &operator=(HdFluxRenderDelegate const &) = delete;
@@ -41,4 +55,7 @@ public:
 
 private:
     pxr::HdResourceRegistrySharedPtr resourceRegistry_;
+    /// The scene that \c handler_ renders.
+    flux::Ref<flux::Context> context_;
+    flux::OptixHandler handler_;
 };

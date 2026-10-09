@@ -10,7 +10,6 @@ set(Houdini_DIR "$ENV{HFS}/toolkit/cmake")
 find_package(Houdini CONFIG REQUIRED)
 
 add_library(hdFlux SHARED RenderBuffer.cpp RenderDelegate.cpp RendererPlugin.cpp RenderPass.cpp)
-target_include_directories(hdFlux PRIVATE "${KRR_ROOT_DIR}")
 # Houdini's Houdini target serves HDK plugins. It forces -std=c++17, which overrides the C++20 the
 # delegate is written in, and adds HDK definitions that the USD headers on Linux do not read. The
 # delegate takes only the target's include directories and links the USD libraries it calls.
@@ -18,9 +17,11 @@ target_include_directories(hdFlux SYSTEM
                            PRIVATE "$<TARGET_PROPERTY:Houdini,INTERFACE_INCLUDE_DIRECTORIES>")
 target_link_libraries(
     hdFlux
-    PRIVATE Houdini::Dep::pxr_gf
+    PRIVATE flux
+            Houdini::Dep::pxr_gf
             Houdini::Dep::pxr_hd
             Houdini::Dep::pxr_hf
+            Houdini::Dep::pxr_plug
             Houdini::Dep::pxr_python
             Houdini::Dep::pxr_sdf
             Houdini::Dep::pxr_tf
@@ -55,3 +56,14 @@ file(GENERATE OUTPUT "${packageDir}/dso/usd_plugins/hdFlux/resources/plugInfo.js
 file(WRITE "${packageDir}/dso/usd_plugins/plugInfo.json" "{ \"Includes\": [ \"*/resources/\" ] }\n")
 configure_file(UsdRenderers.json "${packageDir}/UsdRenderers.json" COPYONLY)
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/packages/flux.json" "{ \"hpath\": \"${packageDir}\" }\n")
+
+# The delegate loads its OptiX IR module from the directory of its library.
+set(moduleName OptixMegaKernel.optixir)
+add_custom_command(
+    OUTPUT "${packageDir}/dso/usd/${moduleName}"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_OBJECTS:flux_megakernel_ir>"
+            "${packageDir}/dso/usd/${moduleName}"
+    DEPENDS flux_megakernel_ir "$<TARGET_OBJECTS:flux_megakernel_ir>"
+    VERBATIM)
+target_sources(hdFlux PRIVATE "${packageDir}/dso/usd/${moduleName}")
+target_compile_definitions(hdFlux PRIVATE FLUX_OPTIX_IR_NAME="${moduleName}")

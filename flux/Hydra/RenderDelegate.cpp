@@ -12,13 +12,28 @@
 
 #include "flux/Hydra/RenderBuffer.h"
 #include "flux/Hydra/RenderPass.h"
+#include "flux/Integrator/PathIntegrator.h"
+#include "flux/Sampling/Sampler.h"
+#include "flux/Scene/Context.h"
+#include "kira/Properties.h"
 
-HdFluxRenderDelegate::HdFluxRenderDelegate()
-    : resourceRegistry_(std::make_shared<pxr::HdResourceRegistry>()) {}
+namespace {
+flux::Ref<flux::Context> makeContext() {
+    auto context = flux::Context::create();
+    context->setActiveIntegrator(context->create<flux::PathIntegrator>(kira::Properties{}));
+    context->setActiveSampler(context->create<flux::IndependentSampler>(kira::Properties{}));
+    return context;
+}
+} // namespace
 
-HdFluxRenderDelegate::HdFluxRenderDelegate(pxr::HdRenderSettingsMap const &settingsMap)
+HdFluxRenderDelegate::HdFluxRenderDelegate(
+    std::filesystem::path const &modulePath, pxr::HdRenderSettingsMap const &settingsMap
+)
     : pxr::HdRenderDelegate(settingsMap),
-      resourceRegistry_(std::make_shared<pxr::HdResourceRegistry>()) {}
+      resourceRegistry_(std::make_shared<pxr::HdResourceRegistry>()), context_(makeContext()),
+      handler_(context_, modulePath) {}
+
+HdFluxRenderDelegate::~HdFluxRenderDelegate() = default;
 
 pxr::TfTokenVector const &HdFluxRenderDelegate::GetSupportedRprimTypes() const {
     static auto const types = pxr::TfTokenVector{};
