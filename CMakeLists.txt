@@ -70,6 +70,9 @@ set(CMAKE_PCH_WARN_INVALID ON)
 # A static library may be linked into a shared library, such as a plugin that a host application
 # loads.
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+# vcpkg's tiff installs no Tiff CMake package, so a Tiff package that CMake finds belongs to the
+# system. Without one, FindTIFF takes vcpkg's library.
+set(CMAKE_DISABLE_FIND_PACKAGE_Tiff ON)
 
 set(KRR_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
