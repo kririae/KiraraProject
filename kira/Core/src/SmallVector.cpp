@@ -12,8 +12,8 @@
 
 // NOTE(krr): this file is a modified version of llvm/ADT/SmallVector.cpp, with
 // the following modifications:
-// - llvm::safe_alloc -> std::malloc (because we do use exceptions)
-// - llvm::safe_realloc -> std::realloc
+// - llvm::safe_malloc and llvm::safe_realloc are the local safeMalloc and safeRealloc, which throw
+//   std::bad_alloc instead of reporting a fatal error
 // - removed LLVM_ENABLE_EXCEPTIONS
 // - suppresed warnings by [[maybe_unused]]
 // NOLINTBEGIN
@@ -21,6 +21,8 @@
 #include "kira/SmallVector.h"
 
 #include <cstdint>
+#include <cstdlib>
+#include <new>
 #include <stdexcept>
 #include <string>
 
@@ -72,6 +74,29 @@ static_assert(
     "1 byte elements have word-sized type for size and capacity"
 );
 
+// Like llvm::safe_malloc. A zero-size request is retried with size 1 because whether malloc(0)
+// returns null is implementation-defined (ISO/IEC 9899:2018 7.22.3).
+static void *safeMalloc(size_t Sz) {
+    void *Result = std::malloc(Sz);
+    if (Result == nullptr) {
+        if (Sz == 0)
+            return safeMalloc(1);
+        throw std::bad_alloc();
+    }
+    return Result;
+}
+
+// Like llvm::safe_realloc. On failure Ptr is still allocated and unchanged.
+static void *safeRealloc(void *Ptr, size_t Sz) {
+    void *Result = std::realloc(Ptr, Sz);
+    if (Result == nullptr) {
+        if (Sz == 0)
+            return safeRealloc(Ptr, 1);
+        throw std::bad_alloc();
+    }
+    return Result;
+}
+
 /// Report that MinSize doesn't fit into this vector's size type. Throws
 /// std::length_error or calls report_fatal_error.
 [[noreturn]] static void report_size_overflow(size_t MinSize, size_t MaxSize);
@@ -118,7 +143,7 @@ template <class Size_T>
 void *SmallVectorBase<Size_T>::replaceAllocation(
     void *NewElts, size_t TSize, size_t NewCapacity, size_t VSize
 ) {
-    void *NewEltsReplace = std::malloc(NewCapacity * TSize);
+    void *NewEltsReplace = safeMalloc(NewCapacity * TSize);
     if (VSize)
         memcpy(NewEltsReplace, NewElts, VSize * TSize);
     free(NewElts);
@@ -133,9 +158,16 @@ void *SmallVectorBase<Size_T>::mallocForGrow(
     NewCapacity = getNewCapacity<Size_T>(MinSize, TSize, this->capacity());
     // Even if capacity is not 0 now, if the vector was originally created with
     // capacity 0, it's possible for the malloc to return FirstEl.
-    void *NewElts = std::malloc(NewCapacity * TSize);
-    if (NewElts == FirstEl)
-        NewElts = replaceAllocation(NewElts, TSize, NewCapacity);
+    void *NewElts = safeMalloc(NewCapacity * TSize);
+    if (NewElts == FirstEl) {
+        // The vector does not own this block, so free it if the replacement cannot be allocated.
+        try {
+            NewElts = replaceAllocation(NewElts, TSize, NewCapacity);
+        } catch (...) {
+            free(NewElts);
+            throw;
+        }
+    }
     return NewElts;
 }
 
@@ -145,17 +177,33 @@ void SmallVectorBase<Size_T>::grow_pod(void *FirstEl, size_t MinSize, size_t TSi
     size_t NewCapacity = getNewCapacity<Size_T>(MinSize, TSize, this->capacity());
     void *NewElts;
     if (BeginX == FirstEl) {
-        NewElts = std::malloc(NewCapacity * TSize);
-        if (NewElts == FirstEl)
-            NewElts = replaceAllocation(NewElts, TSize, NewCapacity);
+        NewElts = safeMalloc(NewCapacity * TSize);
+        if (NewElts == FirstEl) {
+            // The vector does not own this block, so free it if the replacement cannot be
+            // allocated.
+            try {
+                NewElts = replaceAllocation(NewElts, TSize, NewCapacity);
+            } catch (...) {
+                free(NewElts);
+                throw;
+            }
+        }
 
         // Copy the elements over.  No need to run dtors on PODs.
         memcpy(NewElts, this->BeginX, size() * TSize);
     } else {
         // If this wasn't grown from the inline copy, grow the allocated space.
-        NewElts = std::realloc(this->BeginX, NewCapacity * TSize);
-        if (NewElts == FirstEl)
-            NewElts = replaceAllocation(NewElts, TSize, NewCapacity, size());
+        NewElts = safeRealloc(this->BeginX, NewCapacity * TSize);
+        if (NewElts == FirstEl) {
+            // A successful realloc already released the old block, so the vector must own this
+            // one before the replacement can throw.
+            try {
+                NewElts = replaceAllocation(NewElts, TSize, NewCapacity, size());
+            } catch (...) {
+                this->set_allocation_range(NewElts, NewCapacity);
+                throw;
+            }
+        }
     }
 
     this->set_allocation_range(NewElts, NewCapacity);

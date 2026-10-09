@@ -69,13 +69,15 @@ protected:
         : BeginX(FirstEl), Capacity(static_cast<Size_T>(TotalCapacity)) {}
 
     /// This is a helper for \a grow() that's out of line to reduce code
-    /// duplication.  This function will report a fatal error if it can't grow at
-    /// least to \p MinSize.
+    /// duplication.  This function throws std::length_error if it can't grow at
+    /// least to \p MinSize, and std::bad_alloc if the allocation fails.
+    /// The elements are kept then.
     void *mallocForGrow(void *FirstEl, size_t MinSize, size_t TSize, size_t &NewCapacity);
 
     /// This is an implementation of the grow() method which only works
     /// on POD-like data types and is out of line to reduce code duplication.
-    /// This function will report a fatal error if it cannot increase capacity.
+    /// This function throws std::length_error if it cannot increase capacity,
+    /// and std::bad_alloc if the allocation fails. The elements are kept then.
     void grow_pod(void *FirstEl, size_t MinSize, size_t TSize);
 
     /// If vector was first created with capacity 0, getFirstEl() points to the
