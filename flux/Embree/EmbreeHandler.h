@@ -12,62 +12,70 @@ class RenderProduct;
 
 /// \brief Schedules CPU rendering with an Embree scene.
 ///
-/// The handler retains its host \c Context. Call \c sync after changing that
-/// Context.
+/// The handler keeps its host \c Context.
+/// Call \c sync after you change that Context.
 ///
-/// \remark A handler is not thread-safe. Different handlers may render concurrently.
+/// \remark A handler is not thread-safe.
+/// Different handlers may render concurrently.
 class EmbreeHandler final : private Noncopyable {
 public:
-    /// \brief Creates a handler and builds its initial Embree scene.
+    /// \brief Creates a handler and builds its Embree scene.
     explicit EmbreeHandler(Ref<Context> context);
 
     ~EmbreeHandler();
 
     /// \brief Rebuilds the Embree scene from the host \c Context.
     ///
-    /// Does nothing while the context version stays the same. Otherwise it also clears
-    /// accumulation for every render product. If sync throws, render nothing until a later sync
-    /// succeeds.
+    /// Does nothing if the context version has not changed since the last sync that succeeded.
+    /// Otherwise it also clears the accumulation of every render product.
+    ///
+    /// If sync throws, do not render until a later sync succeeds.
     void sync();
 
-    /// \brief Renders one sample batch into \p product.
+    /// \brief Renders one batch of samples into \p product.
     ///
-    /// \p samples is the nonzero number of samples assigned to each pixel.
-    /// A product with no requested channels still advances its sample count.
-    /// If backend work fails, the product's accumulation is cleared.
+    /// \p samples is the number of samples for each pixel. It must not be 0.
+    /// A product with no requested channels still counts its samples.
+    ///
+    /// If the work fails, the accumulation of \p product is cleared.
+    ///
     /// \pre The last sync succeeded.
-    /// \return Executed camera paths and backend execution time.
+    /// \return The camera paths that ran, and the time that the backend took.
     RenderStats render(RenderProduct const &product, std::uint32_t samples);
 
     /// \brief Downloads every requested channel of \p product into its Film.
     ///
-    /// The call completes synchronously.
+    /// Waits until the copy is done.
+    ///
+    /// \warning If allocation or the copy fails, the Film in \p product is valid only for
+    /// destruction, swap, or move assignment.
+    ///
     /// \throw kira::Anyhow If \p product has no valid accumulation.
-    /// \warning An exception while allocating or copying channel data leaves
-    /// the Film in \p product valid only for destruction, swap, or move assignment.
     void download(RenderProduct &product);
 
 public:
-    /// \brief Sets the sequence offset used by later render batches.
+    /// \brief Sets the offset of the sample sequence for later renders.
     ///
-    /// Changing the offset clears accumulation for every render product.
+    /// Changing the offset clears the accumulation of every render product.
     void setSampleOffset(std::uint64_t offset);
 
-    /// \brief Returns the samples accumulated for \p product.
+    /// \brief Returns the number of samples accumulated for \p product.
     ///
-    /// A missing entry or changed Camera, Film resolution, or channel request
-    /// reports zero.
+    /// Returns 0 if \p product has no accumulation.
+    /// Returns 0 if its Camera, Film resolution, or channels changed since the last render.
     [[nodiscard]] std::uint64_t getAccumulatedSamples(RenderProduct const &product) const;
 
-    /// \brief Returns whether \p product reached its target sample count.
+    /// \brief Returns whether \p product has reached its target sample count.
     ///
-    /// Changing the target keeps valid accumulated samples.
+    /// Only valid accumulation counts.
+    /// Changing the target keeps the accumulated samples.
     [[nodiscard]] bool isConverged(RenderProduct const &product) const;
 
-    /// \brief Releases the film buffers and accumulation state for \p product.
+    /// \brief Releases the film storage and the accumulation of \p product.
     ///
-    /// Does nothing if no storage exists. The render product remains valid, and
-    /// a later render creates new storage.
+    /// Does nothing if there is no storage.
+    ///
+    /// \p product stays valid. A later render creates new storage.
     void release(RenderProduct const &product) noexcept;
     [[nodiscard]] Ref<Context> getContext() const;
 
