@@ -24,7 +24,7 @@ struct ScreenWindow {
     [[nodiscard]] bool operator==(ScreenWindow const &) const = default;
 };
 
-/// \brief Perspective camera selected by a render product.
+/// \brief Perspective camera.
 ///
 /// \par Properties
 /// - \c position: optional Vec3f camera position, defaults to \f$(0,0,0)\f$.

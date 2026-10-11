@@ -4,29 +4,28 @@
 #include <tbb/parallel_for.h>
 
 #include <algorithm>
-#include <cassert>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <optional>
+#include <ranges>
 #include <stdexcept>
 #include <utility>
 
+#include "flux/Embree/EmbreeAccumulationBufferPImpl.h"
 #include "flux/Embree/EmbreeContext.h"
 #include "flux/Embree/EmbreeLaunchParams.h"
 #include "flux/Embree/EmbreeMegaKernel.h"
-#include "flux/Embree/EmbreeRenderProductPool.h"
 #include "flux/Integrator/PathIntegrator.h"
+#include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
-#include "flux/Scene/RenderProduct.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
 namespace {
 [[nodiscard]] Ref<Context> requireContext(Ref<Context> context) {
     if (!context)
-        throw kira::Anyhow("EmbreeHandler: context must not be null");
+        throw std::invalid_argument("EmbreeHandler: context must not be null");
     return context;
 }
 } // namespace
@@ -38,7 +37,7 @@ struct EmbreeHandler::pImpl {
     }
 
     void sync() {
-        // An equal version means an equal scene, so the scene and accumulation stand.
+        // An equal version means an equal scene, so the Embree scene stands.
         auto const version = context->getVersion();
         if (syncedVersion == version)
             return;
@@ -55,7 +54,6 @@ struct EmbreeHandler::pImpl {
         auto const nextSampleOffset = activeSampler->getSampleOffset();
         auto const nextIntegrator = activeIntegrator->getImpl();
 
-        renderProducts.resetAccumulation();
         syncedVersion.reset();
         embreeContext.sync();
         sampler = nextSampler;
@@ -75,7 +73,6 @@ struct EmbreeHandler::pImpl {
     Sampler::Impl sampler{};
     std::uint64_t sampleOffset{};
     PathIntegrator::Impl integrator;
-    EmbreeRenderProductPool renderProducts;
 };
 
 EmbreeHandler::EmbreeHandler(Ref<Context> context)
@@ -85,43 +82,43 @@ EmbreeHandler::~EmbreeHandler() = default;
 
 void EmbreeHandler::sync() { pImpl_->sync(); }
 
-RenderStats EmbreeHandler::render(RenderProduct const &product, std::uint32_t samples) {
+RenderStats EmbreeHandler::render(
+    Camera const &camera, EmbreeAccumulationBuffer &buffer, std::uint32_t samples
+) {
     if (samples == 0)
         return {};
+    if (!pImpl_->syncedVersion)
+        throw std::invalid_argument("EmbreeHandler: no scene, because the last sync failed");
 
-    auto const &film = product.getFilm();
-    if (film.getHeight() > std::numeric_limits<std::size_t>::max() / film.getWidth())
-        throw std::invalid_argument("EmbreeHandler: film dimensions are too large");
+    auto &impl = *buffer.pImpl_;
     auto const pixelCount =
-        static_cast<std::size_t>(film.getWidth()) * static_cast<std::size_t>(film.getHeight());
-    auto const batchPaths = static_cast<std::uint64_t>(pixelCount) * samples;
-    auto const camera = product.getCamera().getImpl();
-
-    // Film changes resize the product entry. A matching Camera::Impl keeps its
-    // accumulation.
-    auto &entry = pImpl_->renderProducts.getOrCreate(product);
-    auto const accumulatedSamples = entry.accumulation && entry.accumulation->camera == camera
-                                        ? entry.accumulation->samples
-                                        : 0;
+        static_cast<std::uint64_t>(impl.film.width) * static_cast<std::uint64_t>(impl.film.height);
+    auto const accumulatedSamples = impl.samples;
 
     auto const params = EmbreeLaunchParams{
         .scene = pImpl_->embreeContext.getImpl(),
-        .camera = camera,
+        .camera = camera.getImpl(),
         .sampler = pImpl_->sampler,
         .integrator = pImpl_->integrator,
         .accumulatedSamples = accumulatedSamples,
         .sampleOffset = pImpl_->sampleOffset,
-        .film = entry.film,
+        .film = impl.film,
         .batchSize = samples,
     };
 
     try {
-        // Clear accumulation before starting work. The next batch clears
-        // partial pixels after a backend failure.
-        entry.accumulation.reset();
+        // Discard the samples before starting work. The next render zeroes partial pixels after a
+        // failure.
+        impl.samples = 0;
         auto const start = std::chrono::steady_clock::now();
         std::uint64_t renderedPaths = 0;
-        if (entry.requestedChannels != FilmChannels::None) {
+        if (accumulatedSamples == 0)
+            impl.storage.forEach([](auto &channel) {
+                std::ranges::fill(
+                    channel.values, std::ranges::range_value_t<decltype(channel.values)>{}
+                );
+            });
+        if (impl.getChannels() != FilmChannels::None) {
             tbb::parallel_for(
                 tbb::blocked_range<std::size_t>{0, pixelCount},
                 [&](tbb::blocked_range<std::size_t> const &range) {
@@ -130,62 +127,22 @@ RenderStats EmbreeHandler::render(RenderProduct const &product, std::uint32_t sa
                     embree::runMegaKernel(params, index);
             }
             );
-            renderedPaths = batchPaths;
+            renderedPaths = pixelCount * samples;
         }
         auto const elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now() - start
         );
 
-        // Publish accumulation after all Film writes complete.
-        entry.accumulation = EmbreeRenderProductPool::AccumulationState{
-            .camera = camera,
-            .samples = accumulatedSamples + samples,
-        };
+        // Count the samples after all Film writes complete.
+        impl.samples = accumulatedSamples + samples;
         return {
             .paths = renderedPaths,
             .elapsed = elapsed,
         };
     } catch (...) {
-        entry.accumulation.reset();
+        impl.samples = 0;
         throw;
     }
-}
-
-void EmbreeHandler::download(RenderProduct &product) {
-    if (getAccumulatedSamples(product) == 0)
-        throw kira::Anyhow("EmbreeHandler: render product has no valid accumulation");
-
-    auto *entry = pImpl_->renderProducts.find(product);
-    assert(entry);
-    auto destination = product.getFilm().getImpl();
-    entry->storage.forEach([&](auto const &channel) {
-        using Channel = typename std::remove_reference_t<decltype(channel)>::ChannelType;
-        if (!channel.values.empty()) {
-            auto *output = destination.channels.template get<Channel>().data;
-            assert(output);
-            std::ranges::copy(channel.values, output);
-        }
-    });
-}
-
-std::uint64_t EmbreeHandler::getAccumulatedSamples(RenderProduct const &product) const {
-    auto const *entry = pImpl_->renderProducts.find(product);
-    if (!entry || !entry->accumulation)
-        return 0;
-    auto const &film = product.getFilm();
-    if (entry->film.width != film.getWidth() || entry->film.height != film.getHeight() ||
-        entry->requestedChannels != film.getChannels())
-        return 0;
-    auto const camera = product.getCamera().getImpl();
-    return entry->accumulation->camera == camera ? entry->accumulation->samples : 0;
-}
-
-bool EmbreeHandler::isConverged(RenderProduct const &product) const {
-    return getAccumulatedSamples(product) >= product.getSamplesPerPixel();
-}
-
-void EmbreeHandler::release(RenderProduct const &product) noexcept {
-    pImpl_->renderProducts.erase(product);
 }
 
 Ref<Context> EmbreeHandler::getContext() const { return pImpl_->context; }

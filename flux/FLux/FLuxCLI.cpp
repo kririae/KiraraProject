@@ -39,11 +39,7 @@ FluxCLIRequest parseFluxCLI(int argc, char **argv) {
         request.outputPath = std::filesystem::path{std::move(*output)};
     if (auto path = program.present<std::string>("--log-file"))
         request.logFilePath = std::filesystem::path{std::move(*path)};
-    if (auto samples = program.present<std::uint32_t>("--spp")) {
-        if (*samples == 0)
-            throw kira::Anyhow("--spp must be greater than zero");
-        request.samplesPerPixel = samples;
-    }
+    request.samplesPerPixel = program.present<std::uint32_t>("--spp");
 
     if (auto waves = program.present<double>("--launch-waves")) {
         if (!(*waves > 0.0))

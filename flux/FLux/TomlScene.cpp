@@ -16,7 +16,6 @@
 #include "flux/Scene/Context.h"
 #include "flux/Scene/EnvMapLight.h"
 #include "flux/Scene/Primitive.h"
-#include "flux/Scene/RenderProduct.h"
 #include "flux/Shading/BSDF.h"
 #include "kira/Anyhow.h"
 
@@ -51,11 +50,9 @@ LoadedScene loadTomlScene(FluxCLIRequest const &request) {
 
     auto camera = Camera::create(scene.use_view("camera"));
     auto filmProps = scene.use_view("film");
-    if (request.samplesPerPixel)
-        filmProps.set("num_samples", *request.samplesPerPixel);
-    auto product = RenderProduct::create(std::move(camera), filmProps);
-    auto &film = product->getFilm();
-    film = Film{Vec2u{film.getWidth(), film.getHeight()}, FilmChannels::Color};
+    auto const resolution = filmProps.use<Vec2u>("resolution");
+    auto const samplesPerPixel =
+        request.samplesPerPixel.value_or(filmProps.use_or<std::uint32_t>("num_samples", 1));
 
     std::unordered_map<std::string, Ref<BSDF const>> bsdfs;
     if (scene.contains("bsdf")) {
@@ -102,7 +99,10 @@ LoadedScene loadTomlScene(FluxCLIRequest const &request) {
 
     return {
         .context = std::move(context),
-        .product = std::move(product),
+        .camera = std::move(camera),
+        .resolution = resolution,
+        .channels = FilmChannels::Color,
+        .samplesPerPixel = samplesPerPixel,
     };
 }
 } // namespace flux

@@ -5,16 +5,33 @@ krr_add_test(
     SOURCES FLuxCLITests.cpp ../FLux/FLuxCLI.cpp
     HARD_DEPENDENCIES argparse::argparse flux)
 
+krr_add_test(
+    flux CLI TomlSceneTests
+    SOURCES TomlSceneTests.cpp ../FLux/TomlScene.cpp
+    HARD_DEPENDENCIES flux)
+
 add_test(NAME flux.CLI.CboxSmoke
          COMMAND $<TARGET_FILE:flux_cli> ${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/Cbox/Cbox.toml --backend embree --spp 1
                  --output ${CMAKE_CURRENT_BINARY_DIR}/FluxCLISmoke/cbox.exr)
+
+add_test(NAME flux.CLI.WritesTheFilmForZeroSamples
+         COMMAND ${CMAKE_COMMAND} -DFLUX=$<TARGET_FILE:flux_cli>
+                 -DSCENE=${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/Cbox/Cbox.toml -DSPP=0
+                 -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/FluxCLIZeroSamples/cbox.exr -DEXPECT=exists
+                 -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckCLIOutput.cmake)
+
+add_test(NAME flux.CLI.WritesNothingForZeroResolution
+         COMMAND ${CMAKE_COMMAND} -DFLUX=$<TARGET_FILE:flux_cli>
+                 -DSCENE=${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/Cli/ZeroResolution.toml
+                 -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/FluxCLIZeroResolution/empty.exr -DEXPECT=absent
+                 -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckCLIOutput.cmake)
 
 option(KRR_FLUX_TEST_REFERENCES "Run image comparisons against generated Mitsuba references" OFF)
 find_program(FLUX_TEST_UV uv)
 if(FLUX_TEST_UV)
     set(flux_uv_python ${FLUX_TEST_UV} run --frozen --project ${CMAKE_CURRENT_SOURCE_DIR}/Integration python)
     set(flux_render_output ${CMAKE_CURRENT_BINARY_DIR}/Integration)
-    set(flux_analytic_cases white_sphere checker)
+    set(flux_analytic_cases white_sphere checker zero_samples)
     set(flux_reference_cases)
     if(KRR_FLUX_TEST_REFERENCES)
         set(flux_reference_cases
@@ -122,8 +139,8 @@ krr_add_test(
     HARD_DEPENDENCIES flux)
 
 krr_add_test(
-    flux Scene RenderProductTests
-    SOURCES RenderProductTests.cpp
+    flux Scene CameraTests
+    SOURCES CameraTests.cpp
     HARD_DEPENDENCIES flux)
 
 krr_add_test(
@@ -138,7 +155,7 @@ krr_add_test(
 
 krr_add_test(
     flux Scene FilmTests
-    SOURCES FilmTests.cu
+    SOURCES FilmTests.cpp FilmTests.cu
     HARD_DEPENDENCIES flux)
 
 krr_add_test(

@@ -13,7 +13,7 @@
 #include "kira/SmallVector.h"
 
 namespace flux {
-class EmbreeHandler;
+class EmbreeAccumulationBuffer;
 class OptixAccumulationBuffer;
 
 namespace detail {
@@ -220,7 +220,7 @@ public:
     }
 
 private:
-    friend class EmbreeHandler;
+    friend class EmbreeAccumulationBuffer;
     friend class OptixAccumulationBuffer;
 
     template <typename Channel> struct HostChannelStorage {

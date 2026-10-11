@@ -140,7 +140,8 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
         colorSum = colorSum + state.radiance;
     }
 
-    params.film.scale(linearIndex, params.getAccumulatedWeight());
+    if (params.accumulatedSamples != 0)
+        params.film.scale(linearIndex, params.getAccumulatedWeight());
     auto const sampleWeight = params.getSampleWeight();
     params.film.accumulate<ColorChannel>(pixel, colorSum * sampleWeight);
     params.film.accumulate<NormalChannel>(pixel, normalSum * sampleWeight);

@@ -51,11 +51,11 @@ target_link_libraries(
 add_library(
     flux STATIC
     Core/Object.cpp
+    Embree/EmbreeAccumulationBuffer.cpp
     Embree/EmbreeContext.cpp
     Embree/EmbreeHandler.cpp
     Embree/EmbreeLightSampler.cpp
     Embree/EmbreeMegaKernel.cpp
-    Embree/EmbreeRenderProductPool.cpp
     Integrator/PathIntegrator.cpp
     Optix/DeletionQueue.cpp
     Optix/OptixAccumulationBuffer.cu
@@ -82,7 +82,6 @@ add_library(
     Scene/LightTableData.cpp
     Scene/Primitive.cpp
     Scene/RenderObject.cpp
-    Scene/RenderProduct.cpp
     Scene/SceneTableData.cpp
     Scene/TriangleMesh.cpp
     Scene/TXContext.cpp

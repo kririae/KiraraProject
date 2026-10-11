@@ -13,9 +13,10 @@ cmake --build --preset developer
 ctest --test-dir build/developer -L integration --output-on-failure
 ```
 
-Install `uv` before configuring CMake. By default, CTest checks the white sphere
-and checker against analytical values on both backends. OptiX requires a
-supported NVIDIA GPU; add `-E '\.optix$'` to run Embree alone.
+Install `uv` before configuring CMake. By default, CTest checks the white
+sphere, the checker, and a render of zero samples against analytical values on
+both backends. OptiX requires a supported NVIDIA GPU; add `-E '\.optix$'` to run
+Embree alone.
 
 Enable the comparisons against Mitsuba references:
 

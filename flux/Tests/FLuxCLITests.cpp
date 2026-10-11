@@ -65,10 +65,6 @@ TEST(FLuxCLITests, RejectsUnknownBackend) {
     EXPECT_THROW((void)parse({"flux", "scene.toml", "--backend", "cuda"}), kira::Anyhow);
 }
 
-TEST(FLuxCLITests, RejectsZeroSamples) {
-    EXPECT_THROW((void)parse({"flux", "scene.toml", "--spp", "0"}), kira::Anyhow);
-}
-
 TEST(FLuxCLITests, RejectsUnknownLogLevel) {
     EXPECT_THROW((void)parse({"flux", "scene.toml", "--log-level", "verbose"}), kira::Anyhow);
 }
@@ -114,4 +110,8 @@ TEST(FLuxCLITests, ConfiguresLevelAndFile) {
     spdlog::drop("flux");
     (void)kira::detail::SinkManager::GetInstance().DropAllSinks();
     std::filesystem::remove_all(directory);
+}
+
+TEST(FLuxCLITests, ParsesAZeroSampleOverride) {
+    EXPECT_EQ(parse({"flux", "scene.toml", "--spp", "0"}).samplesPerPixel, 0);
 }
