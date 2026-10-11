@@ -9,6 +9,21 @@
 #include "kira/Compiler.h"
 
 namespace flux {
+/// \brief Part of the camera's view that a film shows.
+///
+/// The edges are in normalized device coordinates of the view.
+/// The vertical field of view and the aspect ratio of the film define that view.
+/// +x points right and +y points up.
+/// The default window shows the whole view.
+struct ScreenWindow {
+    float left{-1.0F};
+    float right{1.0F};
+    float bottom{-1.0F};
+    float top{1.0F};
+
+    [[nodiscard]] bool operator==(ScreenWindow const &) const = default;
+};
+
 /// \brief Perspective camera selected by a render product.
 ///
 /// \par Properties
@@ -49,6 +64,12 @@ public:
     /// \brief Sets the vertical field of view in degrees.
     void setVerticalFieldOfView(float degrees) noexcept;
 
+    /// \brief Returns the screen window.
+    [[nodiscard]] ScreenWindow const &getScreenWindow() const noexcept { return screenWindow_; }
+
+    /// \brief Sets the screen window.
+    void setScreenWindow(ScreenWindow const &window) noexcept { screenWindow_ = window; }
+
     /// \brief Returns the lens radius in world-space units.
     [[nodiscard]] float getLensRadius() const noexcept { return lensRadius_; }
 
@@ -71,6 +92,7 @@ private:
     Vec3f lookAt_{0.0F, 0.0F, -1.0F};
     Vec3f referenceUp_{0.0F, 1.0F, 0.0F};
     float verticalFieldOfView_{60.0F};
+    ScreenWindow screenWindow_;
     float lensRadius_{};
     float focalDistance_{};
 };
@@ -91,6 +113,8 @@ struct Camera::Impl {
 
     /// Half-height of the image plane at unit distance.
     float halfHeight{};
+
+    ScreenWindow screenWindow{};
 
     /// Radius of the thin lens, or zero for a pinhole camera.
     float lensRadius{};

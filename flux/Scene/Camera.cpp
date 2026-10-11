@@ -80,6 +80,7 @@ Camera::Impl Camera::getImpl() const noexcept {
         .right = right,
         .up = up,
         .halfHeight = halfHeight,
+        .screenWindow = screenWindow_,
         .lensRadius = hasLens ? lensRadius_ : 0.0F,
         .focalDistance = hasLens ? focalDistance_ : 0.0F,
     };

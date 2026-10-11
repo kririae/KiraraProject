@@ -5,9 +5,11 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <type_traits>
 #include <utility>
 
+#include "CropUtils.h"
 #include "flux/Core/MathUtils.h"
 #include "flux/Core/RenderStats.h"
 #include "flux/Scene/Camera.h"
@@ -46,6 +48,69 @@ TEST(RenderProductTests, BuildsPinholeCameraFrame) {
     auto const ray = impl.generateRay({320.0F, 240.0F}, {0.5F, 0.5F}, {640U, 480U});
     EXPECT_EQ(ray.origin, impl.position);
     EXPECT_EQ(ray.direction, impl.forward);
+}
+
+TEST(RenderProductTests, ShowsTheWholeViewByDefault) {
+    kira::Properties properties;
+    properties.set("fov", 50.0F);
+    properties.set("position", flux::Vec3f{1.0F, 2.0F, 3.0F});
+    auto camera = flux::Camera::create(properties);
+    EXPECT_EQ(camera->getScreenWindow(), (flux::ScreenWindow{-1.0F, 1.0F, -1.0F, 1.0F}));
+
+    // The default window maps the film to the whole view.
+    flux::Vec2u const resolution{640U, 480U};
+    auto const impl = camera->getImpl();
+    auto const inverseWidth = 1.0F / 640.0F;
+    auto const inverseHeight = 1.0F / 480.0F;
+    for (auto const raster : {flux::Vec2f{0.0F, 0.0F}, {320.0F, 240.0F}, {123.5F, 400.25F}}) {
+        auto const screenX = raster.x() * inverseWidth * 2.0F - 1.0F;
+        auto const screenY = 1.0F - raster.y() * inverseHeight * 2.0F;
+        auto const aspect = 640.0F * inverseHeight;
+        auto const direction = impl.forward + impl.right * (screenX * impl.halfHeight * aspect) +
+                               impl.up * (screenY * impl.halfHeight);
+        EXPECT_EQ(
+            impl.generateRay(raster, {0.5F, 0.5F}, resolution).direction,
+            direction / direction.norm()
+        );
+    }
+}
+
+TEST(RenderProductTests, GeneratesTheRaysOfACropWithAnOffCenterScreenWindow) {
+    flux::Vec2u const fullResolution{16U, 12U};
+    flux::Vec2u const offset{4U, 3U};
+    flux::Vec2u const size{8U, 6U};
+
+    kira::Properties properties;
+    properties.set("position", flux::Vec3f{0.5F, 0.25F, 2.0F});
+    properties.set("look_at", flux::Vec3f{0.0F, 0.0F, 0.0F});
+    properties.set("lens_radius", 0.1F);
+    properties.set("focal_distance", 3.0F);
+    auto full = flux::Camera::create(properties);
+    auto crop = flux::Camera::create(properties);
+    crop->setScreenWindow(flux::test::cropWindow(fullResolution, offset, size));
+    auto const fullImpl = full->getImpl();
+    auto const cropImpl = crop->getImpl();
+
+    for (std::uint32_t y = 0; y < size.y(); ++y) {
+        for (std::uint32_t x = 0; x < size.x(); ++x) {
+            SCOPED_TRACE(::testing::Message() << x << ", " << y);
+            auto const lensSample = flux::Vec2f{0.3F, 0.7F};
+            auto const expected = fullImpl.generateRay(
+                {static_cast<float>(offset.x() + x) + 0.25F,
+                 static_cast<float>(offset.y() + y) + 0.75F},
+                lensSample, fullResolution
+            );
+            auto const actual = cropImpl.generateRay(
+                {static_cast<float>(x) + 0.25F, static_cast<float>(y) + 0.75F}, lensSample, size
+            );
+            EXPECT_LT((actual.origin - expected.origin).norm(), 1.0e-6F);
+            EXPECT_LT((actual.direction - expected.direction).norm(), 1.0e-5F);
+        }
+    }
+
+    auto const expectedFootprint = fullImpl.getRayFootprint(fullImpl.forward, fullResolution);
+    auto const actualFootprint = cropImpl.getRayFootprint(fullImpl.forward, size);
+    EXPECT_NEAR(actualFootprint.cones[0].angle, expectedFootprint.cones[0].angle, 1.0e-7F);
 }
 
 TEST(RenderProductTests, FocusesThinLensFootprintsAtTheFocusPlane) {

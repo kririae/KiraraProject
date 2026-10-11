@@ -6,7 +6,8 @@
 namespace flux {
 KIRA_HOST_DEVICE inline RayFootprint
 Camera::Impl::getRayFootprint(Vec3f const &direction, Vec2u const &resolution) const noexcept {
-    auto const pixelWidth = halfHeight / static_cast<float>(resolution.y());
+    auto const pixelWidth = (screenWindow.top - screenWindow.bottom) * 0.5F * halfHeight /
+                            static_cast<float>(resolution.y());
     auto const pinhole = RayCone{
         .angle = 2.0F * direction.dot(forward) * pixelWidth,
         .width = 0.0F,
@@ -29,8 +30,14 @@ KIRA_HOST_DEVICE inline Ray Camera::Impl::generateRay(
     auto const screenX = rasterPosition.x() * inverseWidth * 2.0F - 1.0F;
     auto const screenY = 1.0F - rasterPosition.y() * inverseHeight * 2.0F;
     auto const aspect = static_cast<float>(resolution.x()) * inverseHeight;
+    auto const centerX = (screenWindow.left + screenWindow.right) * 0.5F;
+    auto const centerY = (screenWindow.bottom + screenWindow.top) * 0.5F;
+    auto const halfExtentX = (screenWindow.right - screenWindow.left) * 0.5F;
+    auto const halfExtentY = (screenWindow.top - screenWindow.bottom) * 0.5F;
+    auto const windowX = centerX + halfExtentX * screenX;
+    auto const windowY = centerY + halfExtentY * screenY;
     auto const unnormalizedDirection =
-        forward + right * (screenX * halfHeight * aspect) + up * (screenY * halfHeight);
+        forward + right * (windowX * halfHeight * aspect) + up * (windowY * halfHeight);
     auto const directionLength = unnormalizedDirection.norm();
     auto const direction = unnormalizedDirection / directionLength;
 
