@@ -123,6 +123,22 @@ TEST(OptixPipelineTests, RendersAndDownloadsFilmChannels) {
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
 }
 
+TEST(OptixPipelineTests, RejectsARenderBeyondThePathIndex) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    auto context = flux::Context::create();
+    flux::test::setActiveDefaults(*context);
+    flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
+
+    // 65535 pixels at 65538 samples are more paths than a 32-bit path index counts.
+    kira::Properties properties;
+    properties.set("resolution", flux::Vec2u{255, 257});
+    auto product = flux::RenderProduct::create(flux::Camera::create(), properties);
+    EXPECT_THROW(handler.render(*product, 65538), std::length_error);
+    EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
+}
+
 TEST(OptixPipelineTests, StartsTheSampleSequenceAtTheSamplerSampleOffset) {
     if (!flux::test::hasCudaMemoryPoolSupport())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";

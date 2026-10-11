@@ -53,6 +53,8 @@ public:
     /// If the device work fails, the accumulation of \p product is cleared.
     ///
     /// \pre The last sync succeeded.
+    /// \throw std::length_error If the pixel count of the film of \p product times \p samples is
+    /// more than 2^32 - 1.
     /// \return The camera paths that ran, and the time that the backend took.
     RenderStats render(RenderProduct const &product, std::uint32_t samples);
 

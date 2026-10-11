@@ -37,11 +37,11 @@ struct ShadowQuery {
 };
 
 /// \brief Claims the next chunk of \p chunkSize paths for a lane whose chunk is done, and returns
-/// its first path.
+/// its first path, or the path count if no chunk is left.
 [[nodiscard]] KIRA_DEVICE std::uint32_t claimChunk(std::uint32_t chunkSize) noexcept {
-    /// Launch index \c i renders chunk \c i, so claims begin past the launch size. A path at or
-    /// beyond the path count means no work is left.
-    return (optixGetLaunchDimensions().x + atomicAdd(optixLaunchParams.nextChunk, 1U)) * chunkSize;
+    auto const launchSize = optixGetLaunchDimensions().x;
+    auto const claimed = atomicAdd(optixLaunchParams.nextChunk, 1U);
+    return optixLaunchParams.getChunkBegin(claimed, launchSize, chunkSize);
 }
 
 /// \brief Builds the camera-ray state of path \p index.

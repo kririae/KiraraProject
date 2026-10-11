@@ -51,6 +51,9 @@ struct OptixLaunchParams {
     /// Consecutive paths in a chunk, before the batch bounds it.
     std::uint32_t chunkSize;
 
+    /// Number of chunks in the batch.
+    std::uint32_t chunkCount;
+
     /// Whether radiance traversal uses shader execution reordering.
     bool shaderReorder;
 
@@ -74,6 +77,19 @@ public:
             .pixel = {pixelIndex % film.width, pixelIndex / film.width},
             .sampleIndex = accumulatedSamples + sampleOffset + batchIndex,
         };
+    }
+
+    /// \brief Returns the first path of the chunk that a lane claims, or \c pathCount if none is
+    /// left.
+    ///
+    /// \p claimed is the number of earlier claims.
+    ///
+    /// \pre \c chunkCount is \c pathCount over \p chunkSize, rounded up.
+    /// \pre \p launchSize is at most \c chunkCount.
+    [[nodiscard]] KIRA_DEVICE std::uint32_t getChunkBegin(
+        std::uint32_t claimed, std::uint32_t launchSize, std::uint32_t chunkSize
+    ) const noexcept {
+        return claimed < chunkCount - launchSize ? (launchSize + claimed) * chunkSize : pathCount;
     }
 
     /// \brief Returns the contribution weight for one sample in this batch.

@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <new>
 #include <optional>
@@ -189,8 +190,6 @@ private:
     return context;
 }
 
-inline constexpr std::uint64_t maxOptixLaunchDimension = std::uint64_t{1} << 30U;
-
 struct ScaleFilmChannels {
     Film::Impl film;
     float factor;
@@ -350,12 +349,14 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
     // retiring and leaving its warp short.
     auto const pixelCount =
         static_cast<std::uint64_t>(film.getWidth()) * static_cast<std::uint64_t>(film.getHeight());
-    if (pixelCount > maxOptixLaunchDimension || samples > maxOptixLaunchDimension / pixelCount)
-        throw std::invalid_argument("OptixHandler: render batch exceeds the OptiX launch limit");
+    constexpr auto maxPaths = std::numeric_limits<decltype(OptixLaunchParams::pathCount)>::max();
+    if (pixelCount > maxPaths / samples)
+        throw std::length_error("OptixHandler: render has more paths than the path index counts");
     auto const pathCount = static_cast<std::uint32_t>(pixelCount * samples);
     auto const &programSpec = pImpl_->optixContext->getProgramSpec();
     auto const chunkSize = std::min(programSpec.chunkSize, samples);
-    auto const launchSize = pImpl_->getLaunchSize((pathCount - 1) / chunkSize + 1);
+    auto const chunkCount = (pathCount - 1) / chunkSize + 1;
+    auto const launchSize = pImpl_->getLaunchSize(chunkCount);
 
     ContextScope const scope(pImpl_->deviceSession.getPrimaryContext());
     pImpl_->deletionQueue.deleteFinished();
@@ -401,7 +402,8 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
             .film = entry.film,
             .batchSize = samples,
             .pathCount = pathCount,
-            .chunkSize = programSpec.chunkSize,         // (5)
+            .chunkSize = programSpec.chunkSize, // (5)
+            .chunkCount = chunkCount,
             .shaderReorder = programSpec.shaderReorder, // (3)
             .hasEnvMap = programSpec.hasEnvMap,         // (4)
         };

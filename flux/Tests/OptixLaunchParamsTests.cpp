@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <cstdint>
+#include <limits>
+
 #include "flux/Optix/OptixLaunchParams.h"
 
 TEST(OptixLaunchParamsTests, MapsConsecutiveSamplesToTheSamePixel) {
@@ -33,4 +36,40 @@ TEST(OptixLaunchParamsTests, WeightsTheNewBatchAgainstExistingSamples) {
     params.batchSize = 4;
 
     EXPECT_FLOAT_EQ(params.getSampleWeight(), 1.0F / 16.0F);
+}
+
+TEST(OptixLaunchParamsTests, ClaimsChunksPastTheLaunchInOrder) {
+    flux::OptixLaunchParams params{};
+    params.pathCount = 400;
+    params.chunkCount = 100;
+
+    EXPECT_EQ(params.getChunkBegin(0, 10, 4), 40);
+    EXPECT_EQ(params.getChunkBegin(1, 10, 4), 44);
+    EXPECT_EQ(params.getChunkBegin(89, 10, 4), 396);
+}
+
+TEST(OptixLaunchParamsTests, ClaimsNothingPastTheLastChunk) {
+    flux::OptixLaunchParams params{};
+    params.pathCount = 398;
+    params.chunkCount = 100;
+
+    EXPECT_EQ(params.getChunkBegin(90, 10, 4), 398);
+    EXPECT_EQ(params.getChunkBegin(1000, 10, 4), 398);
+    EXPECT_EQ(params.getChunkBegin(std::numeric_limits<std::uint32_t>::max(), 10, 4), 398);
+}
+
+TEST(OptixLaunchParamsTests, ClaimsNothingWhereThePathIndexWouldWrap) {
+    constexpr std::uint32_t chunkSize = 64;
+    constexpr std::uint32_t launchSize = 1000;
+    flux::OptixLaunchParams params{};
+    params.pathCount = std::numeric_limits<std::uint32_t>::max();
+    params.chunkCount = std::uint32_t{1} << 26U;
+
+    // The last chunk starts below the path count, and the chunk after it would start at 2^32.
+    auto const last = params.chunkCount - launchSize - 1;
+    EXPECT_EQ(
+        params.getChunkBegin(last, launchSize, chunkSize), (params.chunkCount - 1) * chunkSize
+    );
+    EXPECT_EQ(params.getChunkBegin(last + 1, launchSize, chunkSize), params.pathCount);
+    EXPECT_EQ(params.getChunkBegin(last + 500, launchSize, chunkSize), params.pathCount);
 }
