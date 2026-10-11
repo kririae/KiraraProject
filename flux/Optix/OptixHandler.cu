@@ -7,7 +7,6 @@
 #include <cassert>
 #include <cmath>
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <new>
 #include <optional>
@@ -337,7 +336,7 @@ void OptixHandler::sync() {
 
 RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
     if (samples == 0)
-        throw std::invalid_argument("OptixHandler: sample batch must be nonzero");
+        return {};
     if (!pImpl_->optixContext)
         throw kira::Anyhow("OptixHandler: no scene, because the last sync failed");
 
@@ -365,13 +364,6 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
     auto const accumulatedSamples = entry.accumulation && entry.accumulation->camera == camera
                                         ? entry.accumulation->samples
                                         : 0;
-    if (accumulatedSamples > std::numeric_limits<std::uint64_t>::max() - samples)
-        throw std::invalid_argument("OptixHandler: accumulated sample count overflows");
-    auto const lastBatchIndex = static_cast<std::uint64_t>(samples - 1);
-    if (accumulatedSamples > std::numeric_limits<std::uint64_t>::max() - pImpl_->sampleOffset ||
-        accumulatedSamples + pImpl_->sampleOffset >
-            std::numeric_limits<std::uint64_t>::max() - lastBatchIndex)
-        throw std::invalid_argument("OptixHandler: sample sequence index overflows");
 
     try {
         // Clear accumulation before starting work. The next batch clears

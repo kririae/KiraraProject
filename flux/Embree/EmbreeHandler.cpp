@@ -85,15 +85,13 @@ void EmbreeHandler::sync() { pImpl_->sync(); }
 
 RenderStats EmbreeHandler::render(RenderProduct const &product, std::uint32_t samples) {
     if (samples == 0)
-        throw std::invalid_argument("EmbreeHandler: sample batch must be nonzero");
+        return {};
 
     auto const &film = product.getFilm();
     if (film.getHeight() > std::numeric_limits<std::size_t>::max() / film.getWidth())
         throw std::invalid_argument("EmbreeHandler: film dimensions are too large");
     auto const pixelCount =
         static_cast<std::size_t>(film.getWidth()) * static_cast<std::size_t>(film.getHeight());
-    if (pixelCount != 0 && samples > std::numeric_limits<std::uint64_t>::max() / pixelCount)
-        throw std::invalid_argument("EmbreeHandler: render batch path count overflows");
     auto const batchPaths = static_cast<std::uint64_t>(pixelCount) * samples;
     auto const camera = product.getCamera().getImpl();
 
@@ -103,13 +101,6 @@ RenderStats EmbreeHandler::render(RenderProduct const &product, std::uint32_t sa
     auto const accumulatedSamples = entry.accumulation && entry.accumulation->camera == camera
                                         ? entry.accumulation->samples
                                         : 0;
-    if (accumulatedSamples > std::numeric_limits<std::uint64_t>::max() - samples)
-        throw std::invalid_argument("EmbreeHandler: accumulated sample count overflows");
-    auto const lastBatchIndex = static_cast<std::uint64_t>(samples - 1);
-    if (accumulatedSamples > std::numeric_limits<std::uint64_t>::max() - pImpl_->sampleOffset ||
-        accumulatedSamples + pImpl_->sampleOffset >
-            std::numeric_limits<std::uint64_t>::max() - lastBatchIndex)
-        throw std::invalid_argument("EmbreeHandler: sample sequence index overflows");
 
     auto const params = EmbreeLaunchParams{
         .scene = pImpl_->embreeContext.getImpl(),

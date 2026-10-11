@@ -89,8 +89,9 @@ TEST(OptixPipelineTests, RendersAndDownloadsFilmChannels) {
 
     EXPECT_EQ(handler.getContext(), context);
     EXPECT_THROW(handler.download(*product), kira::Anyhow);
-    EXPECT_THROW(handler.render(*product, 0), std::invalid_argument);
+    EXPECT_EQ(handler.render(*product, 0).paths, 0);
     EXPECT_NO_THROW(handler.render(*product, 4));
+    EXPECT_EQ(handler.render(*product, 0).paths, 0);
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 4);
     EXPECT_NO_THROW(handler.download(*product));
     ASSERT_EQ(product->getFilm().getChannel<flux::NormalChannel>().size(), 1);

@@ -45,7 +45,9 @@ public:
     ///
     /// Waits until the batch is done.
     ///
-    /// \p samples is the number of samples for each pixel. It must not be 0.
+    /// \p samples is the number of samples for each pixel.
+    /// If \p samples is 0, nothing runs and \p product keeps its accumulation.
+    ///
     /// A product with no requested channels still counts its samples.
     ///
     /// If the device work fails, the accumulation of \p product is cleared.

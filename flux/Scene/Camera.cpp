@@ -1,25 +1,33 @@
 #include "flux/Scene/Camera.h"
 
+#include <algorithm>
 #include <cmath>
 #include <numbers>
+#include <optional>
 
+#include "flux/Core/Logging.h"
 #include "flux/Core/MathUtils.h"
-#include "kira/Anyhow.h"
+#include "flux/Shading/Frame.h"
 
 namespace flux {
 namespace {
-void validateVerticalFieldOfView(float degrees) {
-    if (!(degrees > 0.0F && degrees < 180.0F))
-        throw kira::Anyhow("Camera: vertical field of view must be between 0 and 180 degrees");
+constexpr float minVerticalFieldOfView = 0.001F;
+constexpr float maxVerticalFieldOfView = 179.999F;
+
+/// Returns \p vector scaled to unit length, or nothing if its length is zero.
+[[nodiscard]] std::optional<Vec3f> tryNormalize(Vec3f const &vector) {
+    auto const length = vector.norm();
+    if (!(length > 0.0F))
+        return std::nullopt;
+    return vector / length;
 }
 
-void validateThinLens(float radius, float focalDistance) {
-    if (!(radius >= 0.0F && std::isfinite(radius)))
-        throw kira::Anyhow("Camera: lens radius must be finite and nonnegative");
-    if (!(focalDistance >= 0.0F && std::isfinite(focalDistance)))
-        throw kira::Anyhow("Camera: focal distance must be finite and nonnegative");
-    if (radius > 0.0F && !(focalDistance > 0.0F))
-        throw kira::Anyhow("Camera: a positive lens radius requires a positive focal distance");
+/// Returns \p value if it is nonnegative, otherwise reports it and returns 0.
+[[nodiscard]] float boundLensValue(float value, char const *name) {
+    if (value >= 0.0F)
+        return value;
+    LogWarn("Camera: {} {} is invalid, using 0", name, value);
+    return 0.0F;
 }
 } // namespace
 
@@ -29,43 +37,42 @@ Camera::Camera(kira::Properties const &props) {
     position_ = props.use_or<Vec3f>("position", position_);
     lookAt_ = props.use_or<Vec3f>("look_at", lookAt_);
     referenceUp_ = props.use_or<Vec3f>("ref_up", referenceUp_);
-    verticalFieldOfView_ = props.use_or<float>("fov", verticalFieldOfView_);
-    lensRadius_ = props.use_or<float>("lens_radius", lensRadius_);
-    focalDistance_ = props.use_or<float>("focal_distance", focalDistance_);
-    validateVerticalFieldOfView(verticalFieldOfView_);
-    validateThinLens(lensRadius_, focalDistance_);
+    setVerticalFieldOfView(props.use_or<float>("fov", verticalFieldOfView_));
+    setLensRadius(props.use_or<float>("lens_radius", lensRadius_));
+    setFocalDistance(props.use_or<float>("focal_distance", focalDistance_));
+    if (lensRadius_ > 0.0F && !(focalDistance_ > 0.0F))
+        LogWarn("Camera: lens radius is positive but focal distance is not, using a pinhole");
 }
 
-void Camera::setVerticalFieldOfView(float degrees) {
-    validateVerticalFieldOfView(degrees);
-    verticalFieldOfView_ = degrees;
+void Camera::setVerticalFieldOfView(float degrees) noexcept {
+    verticalFieldOfView_ = std::clamp(degrees, minVerticalFieldOfView, maxVerticalFieldOfView);
 }
 
-void Camera::setLensRadius(float radius) {
-    validateThinLens(radius, focalDistance_);
-    lensRadius_ = radius;
-}
+void Camera::setLensRadius(float radius) { lensRadius_ = boundLensValue(radius, "lens radius"); }
 
 void Camera::setFocalDistance(float distance) {
-    validateThinLens(lensRadius_, distance);
-    focalDistance_ = distance;
+    focalDistance_ = boundLensValue(distance, "focal distance");
 }
 
-Camera::Impl Camera::getImpl() const {
-    auto const view = lookAt_ - position_;
-    auto const viewLength = view.norm();
-    if (!(viewLength > 0.0F && std::isfinite(viewLength)))
-        throw kira::Anyhow("Camera: viewing direction must be finite and nonzero");
-    Vec3f const forward = view / viewLength;
-    auto const horizontal = cross(forward, referenceUp_);
-    auto const horizontalLength = horizontal.norm();
-    if (!(horizontalLength > 0.0F && std::isfinite(horizontalLength)))
-        throw kira::Anyhow(
-            "Camera: reference up must be finite and not parallel to the viewing direction"
-        );
-    Vec3f const right = horizontal / horizontalLength;
-    auto const up = cross(right, forward);
+Camera::Impl Camera::getImpl() const noexcept {
+    // A zero view vector leaves no direction to keep, so the camera looks along -Z with +Y up.
+    Vec3f forward{0.0F, 0.0F, -1.0F};
+    Vec3f right{1.0F, 0.0F, 0.0F};
+    Vec3f up{0.0F, 1.0F, 0.0F};
+    if (auto const view = tryNormalize(lookAt_ - position_)) {
+        forward = *view;
+        if (auto const horizontal = tryNormalize(cross(forward, referenceUp_))) {
+            right = *horizontal;
+            up = cross(right, forward);
+        } else {
+            // A zero or parallel reference up leaves the roll free, so any perpendicular axes do.
+            Frame const frame(-forward);
+            right = frame.toWorld({1.0F, 0.0F, 0.0F});
+            up = frame.toWorld({0.0F, 1.0F, 0.0F});
+        }
+    }
     auto const halfHeight = std::tan(verticalFieldOfView_ * std::numbers::pi_v<float> / 360.0F);
+    auto const hasLens = lensRadius_ > 0.0F && focalDistance_ > 0.0F;
 
     return {
         .position = position_,
@@ -73,8 +80,8 @@ Camera::Impl Camera::getImpl() const {
         .right = right,
         .up = up,
         .halfHeight = halfHeight,
-        .lensRadius = lensRadius_,
-        .focalDistance = focalDistance_,
+        .lensRadius = hasLens ? lensRadius_ : 0.0F,
+        .focalDistance = hasLens ? focalDistance_ : 0.0F,
     };
 }
 } // namespace flux

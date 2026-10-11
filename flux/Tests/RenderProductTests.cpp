@@ -2,9 +2,11 @@
 
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <type_traits>
+#include <utility>
 
 #include "flux/Core/MathUtils.h"
 #include "flux/Core/RenderStats.h"
@@ -58,17 +60,108 @@ TEST(RenderProductTests, FocusesThinLensFootprintsAtTheFocusPlane) {
     EXPECT_NEAR(footprint.cones[1].width, 0.0F, 1.0e-7F);
 }
 
-TEST(RenderProductTests, RejectsDegenerateCameraFrame) {
+TEST(RenderProductTests, BoundsTheFieldOfViewToAFiniteProjection) {
     auto camera = flux::Camera::create();
-    EXPECT_THROW(camera->setVerticalFieldOfView(180.0F), kira::Anyhow);
+    for (auto const degrees : {-5.0F, 0.0F, 180.0F, 1.0e6F}) {
+        camera->setVerticalFieldOfView(degrees);
+        EXPECT_GT(camera->getVerticalFieldOfView(), 0.0F);
+        EXPECT_LT(camera->getVerticalFieldOfView(), 180.0F);
+        auto const halfHeight = camera->getImpl().halfHeight;
+        EXPECT_GT(halfHeight, 0.0F);
+        EXPECT_TRUE(std::isfinite(halfHeight));
+    }
 
-    camera->setPosition({std::numeric_limits<float>::infinity(), 0.0F, 0.0F});
-    EXPECT_THROW((void)camera->getImpl(), kira::Anyhow);
+    camera->setVerticalFieldOfView(90.0F);
+    EXPECT_EQ(camera->getVerticalFieldOfView(), 90.0F);
 
+    kira::Properties properties;
+    properties.set("fov", 180.0F);
+    EXPECT_LT(flux::Camera::create(properties)->getVerticalFieldOfView(), 180.0F);
+}
+
+TEST(RenderProductTests, DisablesDepthOfFieldForAnInvalidLens) {
+    auto camera = flux::Camera::create();
+    camera->setLensRadius(0.25F);
+    camera->setFocalDistance(4.0F);
+    EXPECT_EQ(camera->getImpl().lensRadius, 0.25F);
+    EXPECT_EQ(camera->getImpl().focalDistance, 4.0F);
+
+    camera->setLensRadius(-1.0F);
+    EXPECT_EQ(camera->getLensRadius(), 0.0F);
+    EXPECT_EQ(camera->getImpl().lensRadius, 0.0F);
+
+    camera->setLensRadius(0.25F);
+    camera->setFocalDistance(-4.0F);
+    EXPECT_EQ(camera->getFocalDistance(), 0.0F);
+    EXPECT_EQ(camera->getImpl().lensRadius, 0.0F);
+}
+
+TEST(RenderProductTests, GivesTheSameLensInAnyOrderOfSetters) {
+    auto const lens = [](float radius, float focalDistance, bool radiusFirst) {
+        auto camera = flux::Camera::create();
+        if (radiusFirst) {
+            camera->setLensRadius(radius);
+            camera->setFocalDistance(focalDistance);
+        } else {
+            camera->setFocalDistance(focalDistance);
+            camera->setLensRadius(radius);
+        }
+        auto const impl = camera->getImpl();
+        return std::pair{impl.lensRadius, impl.focalDistance};
+    };
+    for (auto const radius : {-1.0F, 0.0F, 0.25F}) {
+        for (auto const focalDistance : {-4.0F, 0.0F, 4.0F}) {
+            SCOPED_TRACE(::testing::Message() << radius << ", " << focalDistance);
+            EXPECT_EQ(lens(radius, focalDistance, true), lens(radius, focalDistance, false));
+        }
+    }
+    EXPECT_EQ(lens(0.25F, 4.0F, true), (std::pair{0.25F, 4.0F}));
+    EXPECT_EQ(lens(0.25F, 0.0F, false), (std::pair{0.0F, 0.0F}));
+}
+
+TEST(RenderProductTests, KeepsTheViewForADegenerateReferenceUp) {
+    auto const expectOrthonormalFrame = [](flux::Camera::Impl const &impl) {
+        EXPECT_NEAR(impl.forward.norm(), 1.0F, 1.0e-6F);
+        EXPECT_NEAR(impl.right.norm(), 1.0F, 1.0e-6F);
+        EXPECT_NEAR(impl.up.norm(), 1.0F, 1.0e-6F);
+        EXPECT_NEAR(impl.right.dot(impl.forward), 0.0F, 1.0e-6F);
+        EXPECT_NEAR(impl.up.dot(impl.forward), 0.0F, 1.0e-6F);
+        EXPECT_NEAR(impl.right.dot(impl.up), 0.0F, 1.0e-6F);
+        EXPECT_LT((flux::cross(impl.right, impl.up) + impl.forward).norm(), 1.0e-6F);
+    };
+
+    // The view looks along +Y, parallel to the default reference up.
+    auto camera = flux::Camera::create();
+    camera->setPosition({1.0F, 2.0F, 3.0F});
+    camera->setLookAt({1.0F, 12.0F, 3.0F});
+    auto impl = camera->getImpl();
+    EXPECT_EQ(impl.forward, (flux::Vec3f{0.0F, 1.0F, 0.0F}));
+    expectOrthonormalFrame(impl);
+
+    // A zero reference up keeps the view too.
+    camera->setLookAt({4.0F, 6.0F, 3.0F});
+    camera->setReferenceUp({});
+    impl = camera->getImpl();
+    EXPECT_LT((impl.forward - flux::Vec3f{0.6F, 0.8F, 0.0F}).norm(), 1.0e-6F);
+    expectOrthonormalFrame(impl);
+
+    // A regular reference up gives the usual look-at axes.
+    camera->setReferenceUp({0.0F, 1.0F, 0.0F});
+    camera->setLookAt({1.0F, 2.0F, 0.0F});
+    impl = camera->getImpl();
+    EXPECT_EQ(impl.right, (flux::Vec3f{1.0F, 0.0F, 0.0F}));
+    EXPECT_EQ(impl.up, (flux::Vec3f{0.0F, 1.0F, 0.0F}));
+}
+
+TEST(RenderProductTests, FallsBackToTheDefaultFrameForAZeroView) {
+    auto camera = flux::Camera::create();
     camera->setPosition({1.0F, 2.0F, 3.0F});
     camera->setLookAt({1.0F, 2.0F, 3.0F});
-
-    EXPECT_THROW((void)camera->getImpl(), kira::Anyhow);
+    auto const impl = camera->getImpl();
+    EXPECT_EQ(impl.forward, (flux::Vec3f{0.0F, 0.0F, -1.0F}));
+    EXPECT_EQ(impl.right, (flux::Vec3f{1.0F, 0.0F, 0.0F}));
+    EXPECT_EQ(impl.up, (flux::Vec3f{0.0F, 1.0F, 0.0F}));
+    EXPECT_EQ(impl.position, (flux::Vec3f{1.0F, 2.0F, 3.0F}));
 }
 
 TEST(RenderProductTests, OwnsFilmAndSampleTarget) {

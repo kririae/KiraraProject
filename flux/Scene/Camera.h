@@ -12,13 +12,12 @@ namespace flux {
 /// \brief Perspective camera selected by a render product.
 ///
 /// \par Properties
-/// - \c position: optional Vec3f camera position; defaults to \f$(0,0,0)\f$.
-/// - \c look_at: optional Vec3f target; defaults to \f$(0,0,-1)\f$.
-/// - \c ref_up: optional Vec3f reference up; defaults to \f$(0,1,0)\f$.
-/// - \c fov: optional float vertical field of view in degrees; defaults to 60.
-/// - \c lens_radius: optional nonnegative float lens radius; defaults to 0.
-/// - \c focal_distance: optional nonnegative float focus-plane distance;
-///   defaults to 0 and must be positive when the lens radius is positive.
+/// - \c position: optional Vec3f camera position, defaults to \f$(0,0,0)\f$.
+/// - \c look_at: optional Vec3f target, defaults to \f$(0,0,-1)\f$.
+/// - \c ref_up: optional Vec3f reference up, defaults to \f$(0,1,0)\f$.
+/// - \c fov: optional float vertical field of view in degrees, defaults to 60.
+/// - \c lens_radius: optional float lens radius, defaults to 0.
+/// - \c focal_distance: optional float focus-plane distance, defaults to 0.
 class Camera final : public Object {
 public:
     struct Impl;
@@ -48,25 +47,22 @@ public:
     [[nodiscard]] float getVerticalFieldOfView() const noexcept { return verticalFieldOfView_; }
 
     /// \brief Sets the vertical field of view in degrees.
-    ///
-    /// \throw kira::Anyhow If \p degrees is outside the open interval
-    /// \f$(0, 180)\f$.
-    void setVerticalFieldOfView(float degrees);
+    void setVerticalFieldOfView(float degrees) noexcept;
 
     /// \brief Returns the lens radius in world-space units.
     [[nodiscard]] float getLensRadius() const noexcept { return lensRadius_; }
 
     /// \brief Sets the lens radius.
-    ///
-    /// \throw kira::Anyhow If \p radius is negative or non-finite, or if a
-    /// positive radius has no positive focal distance.
     void setLensRadius(float radius);
 
+    /// \brief Returns the distance from the lens to the focus plane in world-space units.
     [[nodiscard]] float getFocalDistance() const noexcept { return focalDistance_; }
+
+    /// \brief Sets the distance from the lens to the focus plane.
     void setFocalDistance(float distance);
 
-    ///
-    [[nodiscard]] Impl getImpl() const;
+    /// \brief Returns the ray generator for the camera's current state.
+    [[nodiscard]] Impl getImpl() const noexcept;
 
 private:
     explicit Camera(kira::Properties const &props);

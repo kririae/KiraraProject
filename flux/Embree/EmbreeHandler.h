@@ -34,7 +34,9 @@ public:
 
     /// \brief Renders one batch of samples into \p product.
     ///
-    /// \p samples is the number of samples for each pixel. It must not be 0.
+    /// \p samples is the number of samples for each pixel.
+    /// If \p samples is 0, nothing runs and \p product keeps its accumulation.
+    ///
     /// A product with no requested channels still counts its samples.
     ///
     /// If the work fails, the accumulation of \p product is cleared.

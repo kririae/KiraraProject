@@ -424,8 +424,9 @@ TEST(EmbreePipelineTests, InvalidatesAccumulationForCameraFilmAndSync) {
         ),
         kira::Anyhow
     );
-    EXPECT_THROW(handler.render(*product, 0), std::invalid_argument);
+    EXPECT_EQ(handler.render(*product, 0).paths, 0);
     handler.render(*product, 2);
+    EXPECT_EQ(handler.render(*product, 0).paths, 0);
     handler.download(*product);
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 2);
     EXPECT_FALSE(handler.isConverged(*product));
