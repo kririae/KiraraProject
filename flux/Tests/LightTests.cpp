@@ -89,7 +89,7 @@ TEST(LightTests, MapsEnvironmentFootprintsToImageGradients) {
                 .storage = {.image = {.imageTextureIndex = 0}},
             },
         .scale = {1.0F, 1.0F, 1.0F},
-        .worldToEnv = {1.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 1.0F},
+        .worldToEnv = {1.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 1.0F},
     };
     constexpr auto angle = 0.2F;
 
