@@ -115,6 +115,7 @@ TEST(OptixPipelineTests, RendersNothingForZeroSamples) {
     EXPECT_NO_THROW(handler.render(*camera, buffer, 4));
     EXPECT_EQ(handler.render(*camera, buffer, 0).paths, 0);
     EXPECT_EQ(buffer.getSampleCount(), 4);
+    EXPECT_EQ(downloadColor(buffer), (std::vector<flux::Spectrum>{flux::Spectrum{}}));
 }
 
 TEST(OptixPipelineTests, ReportsTheShapeOfABuffer) {

@@ -14,8 +14,7 @@
 namespace flux {
 KIRA_DEVICE inline bool
 OptixContext::Impl::intersect(Ray const &ray, Hit &hit, bool shaderReorder) const noexcept {
-    if (!traversable)
-        return false;
+    // A branch around a traversal would give every continuation its own copy of the loop.
     // clang-format off
     optixTraverse(
         /* handle =          */ traversable,
@@ -57,9 +56,6 @@ OptixContext::Impl::intersect(Ray const &ray, Hit &hit, bool shaderReorder) cons
 
 KIRA_DEVICE inline bool
 OptixContext::Impl::isVisible(Ray const &ray, unsigned int mask) const noexcept {
-    if (!traversable)
-        return true;
-
     // clang-format off
     optixTraverse(
         /* handle =          */ traversable,

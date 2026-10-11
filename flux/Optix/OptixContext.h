@@ -72,7 +72,10 @@ struct OptixContext::Impl {
         SurfaceInteraction surface;
     };
 
-    /// Top-level instance acceleration structure.
+    /// Top-level instance acceleration structure, or null when the scene has no instance.
+    ///
+    /// A traversal from a null handle misses
+    /// (https://forums.developer.nvidia.com/t/how-to-use-optix-trace-a-child-instance/272378).
     OptixTraversableHandle traversable{};
 
     /// Instance index in the IAS of each primitive, by primitive index. A hole has
