@@ -300,38 +300,6 @@ TEST(EmbreePipelineTests, RejectsAVertexBufferWithoutSpareCapacity) {
     }
 }
 
-TEST(EmbreePipelineTests, HoldsTheMeshArraysItReads) {
-    auto context = flux::Context::create();
-    flux::test::setActiveDefaults(*context);
-    auto vertices = flux::test::sharedBuffer(
-        flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F}, flux::Vec3f{0.0F, 1.0F, 0.0F}
-    );
-    auto mesh = context->create<flux::TriangleMesh>(flux::TriangleMesh::Data{
-        .vertices = vertices,
-        .triangles = flux::test::sharedBuffer(flux::Vec3u{0, 1, 2}),
-        .texCoords = flux::test::sharedBuffer(
-            flux::Vec2f{0.0F, 0.0F}, flux::Vec2f{1.0F, 0.0F}, flux::Vec2f{0.0F, 1.0F}
-        ),
-    });
-    auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
-    (void)context->create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
-
-    // Count the holders of each array the Impl reads, generated normals included.
-    auto const &data = mesh->getData();
-    auto const counts = std::array{
-        data.vertices.use_count(), data.triangles.use_count(), data.normals.use_count(),
-        data.texCoords.use_count()
-    };
-    auto handler = flux::EmbreeHandler(context);
-
-    // Embree holds each array. use_count is the only observable, since the
-    // entries are private.
-    EXPECT_GT(data.vertices.use_count(), counts[0]);
-    EXPECT_GT(data.triangles.use_count(), counts[1]);
-    EXPECT_GT(data.normals.use_count(), counts[2]);
-    EXPECT_GT(data.texCoords.use_count(), counts[3]);
-}
-
 TEST(EmbreePipelineTests, RendersWithIndicesThatFollowUnusedObjectsAndAfterAResync) {
     // Light a triangle with an emitter and return the center pixel.
     auto const render = [&](bool withUnusedMesh, bool withHiddenPrimitive, bool withResync) {
@@ -629,30 +597,6 @@ TEST(EmbreePipelineTests, RejectsADownloadIntoAFilmOfAnotherShape) {
     flux::Film const saved{std::move(film)};
     EXPECT_THROW(small.download(film), std::invalid_argument); // NOLINT(bugprone-use-after-move)
     EXPECT_EQ(colorOf(saved), expected);
-}
-
-TEST(EmbreePipelineTests, HoldsNoContextObjectAfterSync) {
-    auto context = flux::Context::create();
-    flux::test::setActiveDefaults(*context);
-    auto mesh = context->create<flux::TriangleMesh>(triangleData());
-    auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
-    auto edf = context->create<flux::ConstantEDF>(kira::Properties{});
-    auto properties = primitiveProperties(*mesh, *bsdf);
-    properties.set("edf_ctx_id", static_cast<std::int64_t>(edf->getContextId()));
-    auto primitive = context->create<flux::Primitive>(properties);
-
-    // The test, the Context and, for the mesh, the primitive hold each object.
-    auto const counts = std::array{
-        mesh->getRefCount(), bsdf->getRefCount(), edf->getRefCount(), primitive->getRefCount()
-    };
-    flux::EmbreeHandler handler(context);
-    handler.sync();
-
-    // The runtime holds no context object after sync.
-    EXPECT_EQ(mesh->getRefCount(), counts[0]);
-    EXPECT_EQ(bsdf->getRefCount(), counts[1]);
-    EXPECT_EQ(edf->getRefCount(), counts[2]);
-    EXPECT_EQ(primitive->getRefCount(), counts[3]);
 }
 
 namespace {

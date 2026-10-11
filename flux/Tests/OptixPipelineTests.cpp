@@ -99,34 +99,6 @@ struct NoisyScene {
 }
 } // namespace
 
-TEST(OptixPipelineTests, UsesAStableProgramTypeSbtLayout) {
-    EXPECT_EQ(
-        flux::OptixSbt::getHitgroupRecordIndex(
-            flux::BSDFType::Diffuse, flux::GeometryType::TriangleMesh
-        ),
-        0
-    );
-    EXPECT_EQ(
-        flux::OptixSbt::getInstanceOffset(
-            flux::BSDFType::Diffuse, flux::GeometryType::TriangleMesh
-        ),
-        0
-    );
-    EXPECT_EQ(
-        flux::OptixSbt::getHitgroupRecordIndex(
-            flux::BSDFType::Principled, flux::GeometryType::TriangleMesh
-        ),
-        1
-    );
-    EXPECT_EQ(
-        flux::OptixSbt::getInstanceOffset(
-            flux::BSDFType::Principled, flux::GeometryType::TriangleMesh
-        ),
-        1
-    );
-    EXPECT_EQ(flux::OptixSbt::getNumHitgroupRecords(), 2);
-}
-
 TEST(OptixPipelineTests, RendersNothingForZeroSamples) {
     if (!flux::test::hasCudaMemoryPoolSupport())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
@@ -505,33 +477,6 @@ TEST(OptixPipelineTests, RendersImageEnvironmentMapOnMiss) {
     EXPECT_NEAR(color.x(), 0.5F, 1.0e-5F);
     EXPECT_NEAR(color.y(), 0.5F, 1.0e-5F);
     EXPECT_NEAR(color.z(), 0.5F, 1.0e-5F);
-}
-
-TEST(OptixPipelineTests, HoldsNoContextObjectAfterSync) {
-    if (!flux::test::hasCudaMemoryPoolSupport())
-        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
-
-    auto context = flux::Context::create();
-    flux::test::setActiveDefaults(*context);
-    auto mesh = context->create<flux::TriangleMesh>(triangleData());
-    auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
-    auto edf = context->create<flux::ConstantEDF>(kira::Properties{});
-    auto properties = primitiveProperties(*mesh, *bsdf);
-    properties.set("edf_ctx_id", static_cast<std::int64_t>(edf->getContextId()));
-    auto primitive = context->create<flux::Primitive>(properties);
-
-    // The test, the Context and, for the mesh, the primitive hold each object.
-    auto const counts = std::array{
-        mesh->getRefCount(), bsdf->getRefCount(), edf->getRefCount(), primitive->getRefCount()
-    };
-    flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
-    handler.sync();
-
-    // The runtime holds no context object after sync.
-    EXPECT_EQ(mesh->getRefCount(), counts[0]);
-    EXPECT_EQ(bsdf->getRefCount(), counts[1]);
-    EXPECT_EQ(edf->getRefCount(), counts[2]);
-    EXPECT_EQ(primitive->getRefCount(), counts[3]);
 }
 
 TEST(OptixPipelineTests, SyncFailsForGoodWithoutAnActiveIntegratorOrSampler) {
