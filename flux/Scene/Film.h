@@ -6,6 +6,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "flux/Core/EnumFlags.h"
 #include "flux/Core/Math.h"
 #include "flux/Core/Object.h"
 #include "kira/Compiler.h"
@@ -13,7 +14,7 @@
 
 namespace flux {
 class EmbreeHandler;
-class OptixHandler;
+class OptixAccumulationBuffer;
 
 namespace detail {
 template <typename...> struct TypeList {};
@@ -30,11 +31,15 @@ enum class FilmChannels : std::uint32_t {
     All = (1U << 0U) | (1U << 1U) | (1U << 2U),
 };
 
-[[nodiscard]] constexpr FilmChannels operator|(FilmChannels lhs, FilmChannels rhs) noexcept {
-    return static_cast<FilmChannels>(
-        static_cast<std::uint32_t>(lhs) | static_cast<std::uint32_t>(rhs)
-    );
-}
+template <> inline constexpr bool isEnumFlags<FilmChannels> = true;
+
+namespace detail {
+/// \brief Checks the shape that a film or a buffer is built with.
+///
+/// \throw std::invalid_argument If a dimension of \p resolution is 0 or \p channels has an unknown
+/// bit.
+void checkFilmShape(Vec2u resolution, FilmChannels channels);
+} // namespace detail
 
 /// \brief Describes the world-space shading-normal channel.
 struct NormalChannel {
@@ -216,7 +221,7 @@ public:
 
 private:
     friend class EmbreeHandler;
-    friend class OptixHandler;
+    friend class OptixAccumulationBuffer;
 
     template <typename Channel> struct HostChannelStorage {
         using ChannelType = Channel;

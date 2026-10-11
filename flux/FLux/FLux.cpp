@@ -6,12 +6,14 @@
 #include <cstdio>
 #include <exception>
 #include <filesystem>
+#include <limits>
 
 #include "flux/Core/Logging.h"
 #include "flux/Embree/EmbreeHandler.h"
 #include "flux/FLux/FLuxCLI.h"
 #include "flux/FLux/TomlScene.h"
 #include "flux/IO/ImageIO.h"
+#include "flux/Optix/OptixAccumulationBuffer.h"
 #include "flux/Optix/OptixHandler.h"
 #include "flux/Scene/RenderProduct.h"
 
@@ -40,18 +42,27 @@ int run(int argc, char **argv) {
             flux::LogDebug(
                 "OptixHandler: estimated resident threads {}", handler.getEstimatedResidentThreads()
             );
+            // The buffer is destroyed before the handler.
+            flux::OptixAccumulationBuffer buffer{
+                handler, {film.getWidth(), film.getHeight()}, film.getChannels()
+            };
             flux::RenderStats result;
-            auto remaining = scene.product->getSamplesPerPixel();
-            // A full batch assigns one pixel's samples to one warp.
-            constexpr auto launchBatchSize = 32U;
-            while (remaining != 0) {
-                auto const batchSize = std::min(remaining, launchBatchSize);
-                auto const batch = handler.render(*scene.product, batchSize);
+            auto const target = scene.product->getSamplesPerPixel();
+            // A render has at most 2^32 - 1 paths. A full batch of 32 assigns one pixel's samples
+            // to one warp.
+            auto const pixelCount = std::uint64_t{film.getWidth()} * film.getHeight();
+            auto const launchBatchSize = std::clamp<std::uint64_t>(
+                std::numeric_limits<std::uint32_t>::max() / pixelCount, 1, 32
+            );
+            while (buffer.getSampleCount() < target) {
+                auto const batchSize = static_cast<std::uint32_t>(
+                    std::min<std::uint64_t>(target - buffer.getSampleCount(), launchBatchSize)
+                );
+                auto const batch = handler.render(scene.product->getCamera(), buffer, batchSize);
                 result.paths += batch.paths;
                 result.elapsed += batch.elapsed;
-                remaining -= batchSize;
             }
-            handler.download(*scene.product);
+            buffer.download(scene.product->getFilm());
             return result;
         }
 

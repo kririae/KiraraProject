@@ -4,12 +4,12 @@
 #include <cstdint>
 
 namespace flux {
-/// \brief Timing result for one render batch.
+/// \brief Timing result for one render call.
 struct RenderStats {
-    /// Number of camera paths executed by the batch.
+    /// Number of camera paths that the call ran.
     std::uint64_t paths{};
 
-    /// Backend execution time, excluding scene synchronization and download.
+    /// Backend execution time.
     std::chrono::nanoseconds elapsed{};
 
     [[nodiscard]] double getPathsPerSecond() const noexcept {

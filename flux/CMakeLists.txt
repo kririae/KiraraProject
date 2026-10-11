@@ -58,6 +58,7 @@ add_library(
     Embree/EmbreeRenderProductPool.cpp
     Integrator/PathIntegrator.cpp
     Optix/DeletionQueue.cpp
+    Optix/OptixAccumulationBuffer.cu
     Optix/OptixContext.cpp
     Optix/OptixDeviceSession.cpp
     Optix/OptixGas.cpp
@@ -66,7 +67,6 @@ add_library(
     Optix/OptixIas.cpp
     Optix/OptixLightSampler.cu
     Optix/OptixProgram.cpp
-    Optix/OptixRenderProductPool.cpp
     Optix/OptixSbt.cpp
     Optix/OptixTextureObject.cpp
     Sampling/Distribution2D.cpp

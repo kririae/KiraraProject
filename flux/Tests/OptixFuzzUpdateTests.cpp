@@ -15,16 +15,14 @@
 //   FLUX_FUZZ_FIRST_SEED  first seed; the others follow it (default 1)
 //   FLUX_FUZZ_VERBOSE     when set, print the operations of every seed
 //
-// Why the comparison is exact: the live product is released before it renders, and the sample
+// Why the comparison is exact: the live buffer is cleared before it renders, and the sample
 // offset of both handlers stays zero, so both sides render sample batch index 0 of the same
-// sequence. Before the release, the live product shows whether the last sync cleared
-// accumulation, which it must exactly when the version changed. Emitting primitives take light
-// slots in Context ID order, after the point light and the environment map, so the model keeps
-// primitives in creation order and the fresh context creates them in that order. Indices differ
-// between the sides (the live context has holes and reused indices) and must not change the
-// image. This assumes that no two instances are hit at exactly the same distance, which holds
-// for random geometry. Image textures read fixture files, so the fresh side loads its own images
-// with the same pixels.
+// sequence. Emitting primitives take light slots in Context ID order, after the point light and
+// the environment map, so the model keeps primitives in creation order and the fresh context
+// creates them in that order. Indices differ between the sides (the live context has holes and
+// reused indices) and must not change the image. This assumes that no two instances are hit at
+// exactly the same distance, which holds for random geometry. Image textures read fixture files,
+// so the fresh side loads its own images with the same pixels.
 
 #include <gtest/gtest.h>
 
@@ -51,6 +49,7 @@
 
 #include "TestUtils.h"
 #include "flux/Integrator/PathIntegrator.h"
+#include "flux/Optix/OptixAccumulationBuffer.h"
 #include "flux/Optix/OptixHandler.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
@@ -59,7 +58,6 @@
 #include "flux/Scene/Geometry.h"
 #include "flux/Scene/Light.h"
 #include "flux/Scene/Primitive.h"
-#include "flux/Scene/RenderProduct.h"
 #include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
 #include "flux/Shading/EDF.h"
@@ -456,22 +454,30 @@ struct Image {
     }
 };
 
-[[nodiscard]] flux::Ref<flux::RenderProduct> makeProduct() {
+[[nodiscard]] flux::Ref<flux::Camera> makeCamera() {
     kira::Properties cameraProps;
     cameraProps.set("position", Vec3f{0.25F, 0.25F, 1.6F});
     cameraProps.set("look_at", Vec3f{0.25F, 0.25F, 0.0F});
     cameraProps.set("fov", 60.0F);
-    kira::Properties productProps;
-    productProps.set("resolution", flux::Vec2u{imageSize, imageSize});
-    auto product = flux::RenderProduct::create(flux::Camera::create(cameraProps), productProps);
-    return product;
+    return flux::Camera::create(cameraProps);
 }
 
-/// Renders one sample per pixel and downloads every channel.
-[[nodiscard]] Image renderImage(flux::OptixHandler &handler, flux::RenderProduct &product) {
-    handler.render(product, 1);
-    handler.download(product);
-    auto const &film = product.getFilm();
+[[nodiscard]] std::unique_ptr<flux::OptixAccumulationBuffer>
+makeBuffer(flux::OptixHandler &handler) {
+    return std::make_unique<flux::OptixAccumulationBuffer>(
+        handler, flux::Vec2u{imageSize, imageSize}, flux::FilmChannels::All
+    );
+}
+
+/// Clears \p buffer, then renders one sample per pixel into it.
+/// Returns every channel of the result.
+[[nodiscard]] Image renderImage(
+    flux::OptixHandler &handler, flux::Camera const &camera, flux::OptixAccumulationBuffer &buffer
+) {
+    buffer.clear();
+    handler.render(camera, buffer, 1);
+    flux::Film film{flux::Vec2u{imageSize, imageSize}, flux::FilmChannels::All};
+    buffer.download(film);
     Image image;
     for (auto const &c : film.getChannel<flux::ColorChannel>())
         image.values.insert(image.values.end(), {c.x(), c.y(), c.z()});
@@ -506,12 +512,13 @@ struct Image {
 class Rig {
 public:
     explicit Rig(Spec initial, std::filesystem::path modulePath = FLUX_TEST_OPTIX_IR)
-        : model(std::move(initial)), context(flux::Context::create()), product(makeProduct()) {
+        : model(std::move(initial)), context(flux::Context::create()), camera(makeCamera()) {
         ids = model.build(*context);
         if (model.env)
             envImage = model.env->image;
         track();
         handler = std::make_unique<flux::OptixHandler>(context, modulePath);
+        buffer = makeBuffer(*handler);
 
         // Start in the host's steady state: synced and cleared.
         context->clearDirty();
@@ -521,7 +528,10 @@ public:
     flux::Ref<flux::Context> context;
     Spec::Ids ids;
     std::unique_ptr<flux::OptixHandler> handler;
-    flux::Ref<flux::RenderProduct> product;
+    flux::Ref<flux::Camera> camera;
+
+    /// Destroyed before \c handler.
+    std::unique_ptr<flux::OptixAccumulationBuffer> buffer;
     std::vector<std::string> log;
     bool ok{true};
 
@@ -780,30 +790,15 @@ public:
 
     /// Renders the live side and a fresh side built from the model, and requires them to match.
     ///
-    /// The live product holds the one sample of the last compare. A sync that changed the
-    /// version must have cleared it, and a sync that did not must have kept it. The product is
-    /// then released, so its batch is sample 0, as the fresh one is.
+    /// The live buffer is cleared first, so its batch is sample 0, like the fresh one.
     Image compare() {
-        auto const version = context->getVersion();
-        if (comparedVersion) {
-            auto const expected = version == *comparedVersion ? 1U : 0U;
-            if (handler->getAccumulatedSamples(*product) != expected)
-                report(
-                    std::format(
-                        "the live product holds {} samples, expected {}",
-                        handler->getAccumulatedSamples(*product), expected
-                    )
-                );
-        }
-        comparedVersion = version;
-        handler->release(*product);
-        auto live = renderImage(*handler, *product);
+        auto live = renderImage(*handler, *camera, *buffer);
 
         auto fresh = flux::Context::create();
         (void)model.build(*fresh);
         flux::OptixHandler freshHandler(fresh, std::filesystem::path(FLUX_TEST_OPTIX_IR));
-        auto freshProduct = makeProduct();
-        auto const expected = renderImage(freshHandler, *freshProduct);
+        auto freshBuffer = makeBuffer(freshHandler);
+        auto const expected = renderImage(freshHandler, *makeCamera(), *freshBuffer);
         if (!(live == expected))
             report(
                 "the live image differs from a fresh context: " + describeMismatch(live, expected)
@@ -1004,9 +999,6 @@ private:
 
     /// Image of the environment map \c ids.env, active or parked.
     std::optional<Spec::Image> envImage;
-
-    /// Context version at the last compare, or nothing before the first.
-    std::optional<std::uint64_t> comparedVersion;
 };
 
 [[nodiscard]] bool skipWithoutCuda() { return !flux::test::hasCudaMemoryPoolSupport(); }

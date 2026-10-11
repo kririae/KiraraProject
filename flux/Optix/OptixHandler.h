@@ -8,15 +8,15 @@
 #include "flux/Core/RenderStats.h"
 
 namespace flux {
+class Camera;
 class Context;
-class RenderProduct;
+class OptixDeviceSession;
+class OptixAccumulationBuffer;
 
 /// \brief Renders a host \c Context with OptiX on one CUDA device.
 ///
 /// Public operations do not need a current CUDA context.
 /// They leave the current CUDA context of the calling thread unchanged.
-///
-/// Call \c sync after you change the host \c Context.
 ///
 /// \remark A handler is not thread-safe.
 class OptixHandler final : private Noncopyable {
@@ -26,7 +26,9 @@ public:
     /// \p modulePath names the OptiX IR module that the handler uses.
     /// \p deviceOrdinal is the ordinal of the CUDA device that the handler runs on.
     ///
-    /// \throw kira::Anyhow If \p deviceOrdinal is outside [0, device count).
+    /// \pre \p context is not null.
+    /// \throw kira::Anyhow If \p deviceOrdinal is outside [0, device count), the context has no
+    /// active integrator or sampler, or CUDA or OptiX fails.
     OptixHandler(
         Ref<Context> context, std::filesystem::path const &modulePath, int deviceOrdinal = 0
     );
@@ -36,42 +38,40 @@ public:
     /// \brief Updates the OptiX scene from the host \c Context.
     ///
     /// Does nothing if the context version has not changed since the last sync that succeeded.
-    /// Otherwise it updates the scene and clears the accumulation of every render product.
     ///
-    /// If sync throws, do not render until a later sync succeeds.
+    /// \throw kira::Anyhow If the context has no active integrator or sampler, or CUDA or OptiX
+    /// fails.
     void sync();
 
-    /// \brief Renders one batch of samples into \p product.
+    /// \brief Renders \p samples samples per pixel from \p camera into \p buffer.
     ///
-    /// Waits until the batch is done.
+    /// Waits until the samples are in \p buffer.
     ///
-    /// \p samples is the number of samples for each pixel.
-    /// If \p samples is 0, nothing runs and \p product keeps its accumulation.
+    /// If \p samples is 0, nothing runs and \p buffer keeps its samples.
     ///
-    /// A product with no requested channels still counts its samples.
+    /// Renders the scene as of the last \c sync.
     ///
-    /// If the device work fails, the accumulation of \p product is cleared.
+    /// The new samples continue the sample sequence of \p buffer.
+    /// If \p buffer has no samples, its old pixel values do not affect the result.
+    /// A buffer with no channels still counts its samples.
+    ///
+    /// If the device work fails, \p buffer has no samples and its pixels are unspecified.
     ///
     /// \pre The last sync succeeded.
-    /// \throw std::length_error If the pixel count of the film of \p product times \p samples is
-    /// more than 2^32 - 1.
+    /// \pre \p buffer was created by this handler.
+    /// \throw std::length_error If the pixel count of \p buffer times \p samples is more than
+    /// 2^32 - 1.
+    /// \throw kira::Anyhow If CUDA or OptiX fails.
     /// \return The camera paths that ran, and the time that the backend took.
-    RenderStats render(RenderProduct const &product, std::uint32_t samples);
-
-    /// \brief Downloads every requested channel of \p product into its Film.
-    ///
-    /// Waits until the copy is done.
-    ///
-    /// \warning If the copy fails, the values in the Film of \p product are unspecified.
-    ///
-    /// \throw kira::Anyhow If \p product has no valid accumulation.
-    void download(RenderProduct &product);
+    RenderStats
+    render(Camera const &camera, OptixAccumulationBuffer &buffer, std::uint32_t samples);
 
 public:
     /// \brief Sets how many threads later launches use.
     ///
     /// The thread count is \p waves times the estimated number of resident threads.
-    /// It changes how many threads share a batch. It does not change how much work the batch does.
+    /// It changes how many threads share a render.
+    /// It does not change how much work the render does.
     ///
     /// Use a value above 1 if the estimate leaves part of the device idle.
     /// A value below 1 can help on a device with a small L2 cache.
@@ -84,27 +84,13 @@ public:
     /// The estimate does not include the launch waves.
     [[nodiscard]] std::uint32_t getEstimatedResidentThreads() const;
 
-    /// \brief Returns the number of samples accumulated for \p product.
-    ///
-    /// Returns 0 if \p product has no accumulation.
-    /// Returns 0 if its Camera, Film resolution, or channels changed since the last render.
-    [[nodiscard]] std::uint64_t getAccumulatedSamples(RenderProduct const &product) const;
-
-    /// \brief Returns whether \p product has reached its target sample count.
-    ///
-    /// Only valid accumulation counts.
-    /// Changing the target keeps the accumulated samples.
-    [[nodiscard]] bool isConverged(RenderProduct const &product) const;
-
-    /// \brief Releases the film storage and the accumulation of \p product.
-    ///
-    /// Does nothing if there is no storage.
-    ///
-    /// \p product stays valid. A later render creates new storage.
-    void release(RenderProduct const &product) noexcept;
     [[nodiscard]] Ref<Context> getContext() const;
 
 private:
+    friend class OptixAccumulationBuffer;
+
+    [[nodiscard]] OptixDeviceSession const &getDeviceSession() const noexcept;
+
     struct pImpl;
     std::unique_ptr<pImpl> pImpl_;
 };

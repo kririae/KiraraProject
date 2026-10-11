@@ -17,25 +17,24 @@
 #include "flux/Optix/DeletionQueue.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/KernelUtils.cuh"
+#include "flux/Optix/OptixAccumulationBufferPImpl.h"
 #include "flux/Optix/OptixContext.h"
 #include "flux/Optix/OptixDeviceSession.h"
 #include "flux/Optix/OptixHandler.h"
 #include "flux/Optix/OptixLaunchParams.h"
 #include "flux/Optix/OptixProgram.h"
-#include "flux/Optix/OptixRenderProductPool.h"
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/FilmImpl.h"
-#include "flux/Scene/RenderProduct.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
 namespace {
 [[nodiscard]] Ref<Context> requireContext(Ref<Context> context) {
     if (!context)
-        throw kira::Anyhow("OptixHandler: context must not be null");
+        throw std::invalid_argument("OptixHandler: context must not be null");
     return context;
 }
 
@@ -98,7 +97,6 @@ struct OptixHandler::pImpl final {
     Sampler::Impl sampler{};
     std::uint64_t sampleOffset{};
     PathIntegrator::Impl integrator;
-    OptixRenderProductPool renderProducts{getStream()};
     DeviceBuffer<OptixLaunchParams> launchParams{getStream()};
 
     /// Next chunk not yet claimed by any lane. Zeroed before each launch.
@@ -127,7 +125,7 @@ OptixHandler::pImpl::~pImpl() {
 }
 
 void OptixHandler::pImpl::sync() {
-    // An equal version means an equal scene, so the device state and accumulation stand.
+    // An equal version means an equal scene, so the device state stands.
     auto const version = context->getVersion();
     if (optixContext && syncedVersion == version)
         return;
@@ -161,7 +159,6 @@ void OptixHandler::pImpl::sync() {
     sampler = nextSampler;
     sampleOffset = nextSampleOffset;
     integrator = nextIntegrator;
-    renderProducts.resetAccumulation();
     syncedVersion = version;
 }
 
@@ -184,20 +181,27 @@ void OptixHandler::sync() {
     pImpl_->sync();
 }
 
-RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t samples) {
+RenderStats
+OptixHandler::render(Camera const &camera, OptixAccumulationBuffer &buffer, std::uint32_t samples) {
     if (samples == 0)
         return {};
     if (!pImpl_->optixContext)
-        throw kira::Anyhow("OptixHandler: no scene, because the last sync failed");
+        throw std::invalid_argument("OptixHandler: no scene, because the last sync failed");
 
-    auto const &film = product.getFilm();
-    auto const camera = product.getCamera().getImpl();
+    // The launch runs on this handler's stream, and the buffer's storage is ordered on the stream
+    // of the handler that built it. Two streams would race on the pixels.
+    auto &impl = *buffer.pImpl_;
+    if (impl.session != &pImpl_->deviceSession)
+        throw std::invalid_argument("OptixHandler: buffer was created by another handler");
+
+    auto const &film = impl.film;
+    auto const cameraImpl = camera.getImpl();
 
     // One path per pixel sample, with each pixel's samples consecutive. The launch is capped at
     // the resident thread count, so a lane whose chunk is done claims the next rather than
     // retiring and leaving its warp short.
     auto const pixelCount =
-        static_cast<std::uint64_t>(film.getWidth()) * static_cast<std::uint64_t>(film.getHeight());
+        static_cast<std::uint64_t>(film.width) * static_cast<std::uint64_t>(film.height);
     constexpr auto maxPaths = std::numeric_limits<decltype(OptixLaunchParams::pathCount)>::max();
     if (pixelCount > maxPaths / samples)
         throw std::length_error("OptixHandler: render has more paths than the path index counts");
@@ -210,27 +214,20 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
     CudaContextGuard const guard(pImpl_->deviceSession.getPrimaryContext());
     pImpl_->deletionQueue.deleteFinished();
 
-    // Film changes resize the product entry. A matching Camera::Impl keeps its
-    // accumulation.
-    auto &entry = pImpl_->renderProducts.getOrCreate(product);
-    auto const accumulatedSamples = entry.accumulation && entry.accumulation->camera == camera
-                                        ? entry.accumulation->samples
-                                        : 0;
-
+    auto const accumulatedSamples = impl.samples;
     try {
-        // Clear accumulation before starting work. The next batch clears
-        // partial pixels after a backend failure.
-        entry.accumulation.reset();
+        // Discard the samples before starting work. The next render zeroes partial pixels after a
+        // backend failure.
+        impl.samples = 0;
         pImpl_->timer.start();
         auto const totalSamples = accumulatedSamples + samples;
         if (accumulatedSamples == 0) {
-            entry.storage.forEach([](auto &channel) { channel.buffer.zero(); });
-        } else if (entry.requestedChannels != FilmChannels::None) {
+            impl.storage.forEach([](auto &channel) { channel.buffer.zero(); });
+        } else if (impl.getChannels() != FilmChannels::None) {
             auto const factor =
                 static_cast<float>(accumulatedSamples) / static_cast<float>(totalSamples);
             launchLinearKernel(
-                pixelCount, ScaleFilmChannels{.film = entry.film, .factor = factor},
-                pImpl_->getStream()
+                pixelCount, ScaleFilmChannels{.film = film, .factor = factor}, pImpl_->getStream()
             );
         }
 
@@ -238,7 +235,7 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
         pImpl_->chunkCounter.zero();
         auto const params = OptixLaunchParams{
             .scene = pImpl_->optixContext->getImpl(),
-            .camera = camera,
+            .camera = cameraImpl,
             .sampler = pImpl_->sampler,
             .integrator = pImpl_->integrator,
             .bsdfDispatcher =
@@ -248,7 +245,7 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
             .accumulatedSamples = accumulatedSamples,
             .sampleOffset = pImpl_->sampleOffset,
             .nextChunk = pImpl_->chunkCounter.data(),
-            .film = entry.film,
+            .film = film,
             .batchSize = samples,
             .pathCount = pathCount,
             .chunkSize = programSpec.chunkSize, // (5)
@@ -259,34 +256,16 @@ RenderStats OptixHandler::render(RenderProduct const &product, std::uint32_t sam
         pImpl_->launch(params, launchSize);
         auto const elapsed = pImpl_->timer.stop();
 
-        // Publish accumulation after all Film writes complete.
-        entry.accumulation = OptixRenderProductPool::AccumulationState{
-            .camera = camera,
-            .samples = totalSamples,
-        };
+        // Count the samples after all Film writes complete.
+        impl.samples = totalSamples;
         return {
             .paths = pathCount,
             .elapsed = elapsed,
         };
     } catch (...) {
-        entry.accumulation.reset();
+        impl.samples = 0;
         throw;
     }
-}
-
-void OptixHandler::download(RenderProduct &product) {
-    if (getAccumulatedSamples(product) == 0)
-        throw kira::Anyhow("OptixHandler: render product has no valid accumulation");
-
-    CudaContextGuard const guard(pImpl_->deviceSession.getPrimaryContext());
-    auto *entry = pImpl_->renderProducts.find(product);
-    assert(entry);
-    auto destination = product.getFilm().getImpl();
-    entry->storage.forEach([&](auto &channel) {
-        using Channel = typename std::remove_reference_t<decltype(channel)>::ChannelType;
-        auto *output = destination.channels.template get<Channel>().data;
-        channel.buffer.copyToHost({output, channel.buffer.size()}, pImpl_->getStream());
-    });
 }
 
 void OptixHandler::setLaunchWaves(double waves) {
@@ -299,25 +278,9 @@ std::uint32_t OptixHandler::getEstimatedResidentThreads() const {
     return pImpl_->deviceSession.getEstimatedResidentThreads();
 }
 
-std::uint64_t OptixHandler::getAccumulatedSamples(RenderProduct const &product) const {
-    auto const *entry = pImpl_->renderProducts.find(product);
-    auto const &film = product.getFilm();
-    if (!entry || entry->film.width != film.getWidth() || entry->film.height != film.getHeight() ||
-        entry->requestedChannels != film.getChannels() || !entry->accumulation)
-        return 0;
-
-    auto const camera = product.getCamera().getImpl();
-    return entry->accumulation->camera == camera ? entry->accumulation->samples : 0;
-}
-
-bool OptixHandler::isConverged(RenderProduct const &product) const {
-    return getAccumulatedSamples(product) >= product.getSamplesPerPixel();
-}
-
-void OptixHandler::release(RenderProduct const &product) noexcept {
-    CudaContextGuard const guard(pImpl_->deviceSession.getPrimaryContext(), std::nothrow);
-    pImpl_->renderProducts.erase(product);
-}
-
 Ref<Context> OptixHandler::getContext() const { return pImpl_->context; }
+
+OptixDeviceSession const &OptixHandler::getDeviceSession() const noexcept {
+    return pImpl_->deviceSession;
+}
 } // namespace flux

@@ -9,13 +9,13 @@
 #include "TestUtils.h"
 #include "flux/IO/ImageIO.h"
 #include "flux/Integrator/PathIntegrator.h"
+#include "flux/Optix/OptixAccumulationBuffer.h"
 #include "flux/Optix/OptixHandler.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/Light.h"
 #include "flux/Scene/Primitive.h"
-#include "flux/Scene/RenderProduct.h"
 #include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
 
@@ -72,14 +72,12 @@ TEST(OptixGeometryTests, PreservesFilteredAlbedoUnderInstanceTransforms) {
     camera->setPosition({0.25F, 0.25F, 1.0F});
     camera->setLookAt({0.25F, 0.25F, 0.0F});
     camera->setVerticalFieldOfView(10.0F);
-    kira::Properties productProps;
-    productProps.set("resolution", flux::Vec2u{1, 1});
-    auto product = flux::RenderProduct::create(camera, productProps);
-    product->getFilm() = flux::Film{flux::Vec2u{1, 1}, flux::FilmChannels::Albedo};
     flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
-    handler.render(*product, 32);
-    handler.download(*product);
-    auto const expected = product->getFilm().getChannel<flux::AlbedoChannel>()[0];
+    flux::OptixAccumulationBuffer buffer(handler, flux::Vec2u{1, 1}, flux::FilmChannels::Albedo);
+    flux::Film film{flux::Vec2u{1, 1}, flux::FilmChannels::Albedo};
+    handler.render(*camera, buffer, 32);
+    buffer.download(film);
+    auto const expected = film.getChannel<flux::AlbedoChannel>()[0];
     EXPECT_GT(expected.norm2(), 0.0F);
 
     // Rotate about Y, scale uniformly by four, and translate both scene and camera.
@@ -87,9 +85,10 @@ TEST(OptixGeometryTests, PreservesFilteredAlbedoUnderInstanceTransforms) {
     camera->setPosition({14, 21, 29});
     camera->setLookAt({10, 21, 29});
     handler.sync();
-    handler.render(*product, 32);
-    handler.download(*product);
-    auto const actual = product->getFilm().getChannel<flux::AlbedoChannel>()[0];
+    buffer.clear();
+    handler.render(*camera, buffer, 32);
+    buffer.download(film);
+    auto const actual = film.getChannel<flux::AlbedoChannel>()[0];
     for (auto component = 0U; component < 3; ++component)
         EXPECT_NEAR(actual[component], expected[component], 2.0e-3F);
 }
@@ -115,12 +114,10 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
     cameraProperties.set("position", flux::Vec3f{0.25F, 0.25F, 1.0F});
     cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.0F});
     auto camera = flux::Camera::create(cameraProperties);
-    kira::Properties productProperties;
-    productProperties.set("resolution", flux::Vec2u{3, 1});
-    auto product = flux::RenderProduct::create(camera, productProperties);
 
     flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
-    EXPECT_NO_THROW(handler.render(*product, 1));
+    flux::OptixAccumulationBuffer buffer(handler, flux::Vec2u{3, 1}, flux::FilmChannels::All);
+    EXPECT_NO_THROW(handler.render(*camera, buffer, 1));
 
     EXPECT_THROW((void)context->create<ThrowingGapObject>(kira::Properties{}), std::runtime_error);
     auto secondPrimitive = context->create<flux::Primitive>(primitiveProperties(*mesh, bsdf.get()));
@@ -140,10 +137,9 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
     });
     EXPECT_GT(secondPrimitive->getContextId(), firstPrimitive->getContextId() + 1);
 
-    EXPECT_NO_THROW(handler.render(*product, 1));
+    EXPECT_NO_THROW(handler.render(*camera, buffer, 1));
     handler.sync();
-    EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
-    EXPECT_NO_THROW(handler.render(*product, 1));
+    EXPECT_NO_THROW(handler.render(*camera, buffer, 1));
 }
 
 TEST(OptixGeometryTests, RendersDirectLightIntoColorChannel) {
@@ -200,19 +196,18 @@ TEST(OptixGeometryTests, RendersDirectLightIntoColorChannel) {
     cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.0F});
     cameraProperties.set("fov", 1.0F);
     auto camera = flux::Camera::create(cameraProperties);
-    kira::Properties productProperties;
-    productProperties.set("resolution", flux::Vec2u{1, 1});
-    auto product = flux::RenderProduct::create(camera, productProperties);
     flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
-    handler.render(*product, 4);
-    handler.download(*product);
+    flux::OptixAccumulationBuffer buffer(handler, flux::Vec2u{1, 1}, flux::FilmChannels::All);
+    flux::Film film{flux::Vec2u{1, 1}, flux::FilmChannels::All};
+    handler.render(*camera, buffer, 4);
+    buffer.download(film);
 
-    auto const color = product->getFilm().getChannel<flux::ColorChannel>();
+    auto const color = film.getChannel<flux::ColorChannel>();
     ASSERT_EQ(color.size(), 1);
     EXPECT_GT(color[0].x(), 0.0F);
     EXPECT_GT(color[0].y(), 0.0F);
     EXPECT_GT(color[0].z(), 0.0F);
-    auto const albedo = product->getFilm().getChannel<flux::AlbedoChannel>();
+    auto const albedo = film.getChannel<flux::AlbedoChannel>();
     ASSERT_EQ(albedo.size(), 1);
     // CUDA approximates sRGB conversion.
     constexpr auto expectedLinearGreen = 0.13286832F;
@@ -237,8 +232,9 @@ TEST(OptixGeometryTests, RendersDirectLightIntoColorChannel) {
     });
 
     handler.sync();
-    handler.render(*product, 4);
-    handler.download(*product);
-    auto const blockedColor = product->getFilm().getChannel<flux::ColorChannel>();
+    buffer.clear();
+    handler.render(*camera, buffer, 4);
+    buffer.download(film);
+    auto const blockedColor = film.getChannel<flux::ColorChannel>();
     EXPECT_EQ(blockedColor[0], flux::Spectrum{});
 }

@@ -6,11 +6,11 @@
 
 #include "SceneUtils.h"
 #include "TestUtils.h"
+#include "flux/Optix/OptixAccumulationBuffer.h"
 #include "flux/Optix/OptixHandler.h"
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
-#include "flux/Scene/RenderProduct.h"
 #include "kira/Anyhow.h"
 
 #ifndef FLUX_TEST_OPTIX_IR
@@ -24,15 +24,12 @@ namespace {
     return current;
 }
 
-/// Exercises every public handler operation that touches CUDA, expecting the calling thread's
-/// current context to be \p expected after each of them.
+/// Exercises every public operation of the handler and the buffer that touches CUDA.
+/// After each operation, the current context of the calling thread must be \p expected.
 void expectHandlerLeavesCurrentContext(CUcontext expected) {
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
     auto camera = flux::Camera::create();
-    kira::Properties properties;
-    properties.set("resolution", flux::Vec2u{1, 1});
-    auto product = flux::RenderProduct::create(camera, properties);
 
     auto handler =
         std::make_unique<flux::OptixHandler>(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
@@ -41,16 +38,23 @@ void expectHandlerLeavesCurrentContext(CUcontext expected) {
     handler->sync();
     EXPECT_EQ(getCurrentContext(), expected);
 
-    EXPECT_NO_THROW(handler->render(*product, 2));
+    auto buffer = std::make_unique<flux::OptixAccumulationBuffer>(
+        *handler, flux::Vec2u{1, 1}, flux::FilmChannels::All
+    );
     EXPECT_EQ(getCurrentContext(), expected);
 
-    EXPECT_NO_THROW(handler->download(*product));
+    EXPECT_NO_THROW(handler->render(*camera, *buffer, 2));
     EXPECT_EQ(getCurrentContext(), expected);
 
-    handler->release(*product);
+    flux::Film film{flux::Vec2u{1, 1}, flux::FilmChannels::All};
+    EXPECT_NO_THROW(buffer->download(film));
     EXPECT_EQ(getCurrentContext(), expected);
 
-    EXPECT_NO_THROW(handler->render(*product, 2));
+    buffer->clear();
+    EXPECT_NO_THROW(handler->render(*camera, *buffer, 2));
+    buffer.reset();
+    EXPECT_EQ(getCurrentContext(), expected);
+
     handler.reset();
     EXPECT_EQ(getCurrentContext(), expected);
 }

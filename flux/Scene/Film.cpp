@@ -11,12 +11,16 @@ namespace {
 }
 } // namespace
 
+void detail::checkFilmShape(Vec2u resolution, FilmChannels channels) {
+    if (resolution.x() == 0 || resolution.y() == 0)
+        throw std::invalid_argument("checkFilmShape: resolution must be nonzero");
+    if ((bits(channels) & ~bits(FilmChannels::All)) != 0)
+        throw std::invalid_argument("checkFilmShape: channels contain an unknown bit");
+}
+
 Film::Film(Vec2u resolution, FilmChannels channels)
     : width_(resolution.x()), height_(resolution.y()) {
-    if (width_ == 0 || height_ == 0)
-        throw std::invalid_argument("Film: resolution must be nonzero");
-    if ((bits(channels) & ~bits(FilmChannels::All)) != 0)
-        throw std::invalid_argument("Film: channels contain an unknown bit");
+    detail::checkFilmShape(resolution, channels);
 
     auto const pixelCount = static_cast<std::size_t>(width_) * static_cast<std::size_t>(height_);
     hostStorage_.forEach([&](auto &storage) {
