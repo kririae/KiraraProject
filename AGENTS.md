@@ -16,6 +16,7 @@
   the basic guarantee: after an exception it stays valid and destructible, and the caller recovers,
   for example by creating a new backend. Never add a rollback, a staging copy, or any other
   mechanism that keeps derived state, such as the OptiX scene, as it was before a failure.
+- FLux core never depends on Hydra. Its API ends at core types such as `Film`.
 
 ## Testing
 
@@ -63,21 +64,33 @@
 
 - Name an entity for what it is, in the established vocabulary of its domain, as a designer of
   the C++ standard library or LLVM would.
+- Choose a verb as carefully as a noun. A function's verb names its operation as established code
+  in the domain does: a scheduler hands out work with next, fetch, or claim, never take. Look up
+  the name that reliable code, such as the C++ standard library, LLVM, CUDA, or USD, gives the same
+  operation before inventing one.
 - Define domain terms clearly, then use them consistently.
 - Do not repeat context that the type or scope already supplies.
 - Do not name a value after the strategy that produced it, and do not reuse a name whose
   standard meaning differs.
+- Prefix CUDA wrappers with `Cuda` and OptiX backend types with `Optix`.
+- Share a class's internals through an internal `XPImpl.h` header, not through accessors.
 
 ## Comments
 
 - Prefer invariants: state what always holds for a member, a container, or an index before
   describing what code does.
+- Decide where a comment goes before writing it. An interface comment holds only what a caller
+  can observe and what every correct implementation keeps true, in terms the caller can see.
+  Anything else, such as the strategy, the reason for it, or a limit of an underlying API, goes in
+  the implementation, or on the private member when it is an invariant of the representation.
 - A comment on an interface states its contract: what an entity is or does, its preconditions,
   results, and errors. It does not say how, name private members or the functions it calls, or
   mention caching or other strategies a caller cannot observe.
 - An implementation comment says why, where the code does not show it. It never narrates a
   change.
 - Comments and commit messages never join clauses with a semicolon. Write separate sentences.
+- Write short, plain English. Say less rather than more.
+- Never describe a temporary state, such as "not yet". Never describe how a bad value is bounded.
 
 ## Commits
 
