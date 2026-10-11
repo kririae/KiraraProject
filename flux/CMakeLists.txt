@@ -59,6 +59,7 @@ add_library(
     Integrator/PathIntegrator.cpp
     Optix/DeletionQueue.cpp
     Optix/OptixContext.cpp
+    Optix/OptixDeviceSession.cpp
     Optix/OptixGas.cpp
     Optix/OptixGeometryPool.cpp
     Optix/OptixHandler.cu

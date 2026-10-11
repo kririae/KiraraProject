@@ -5,6 +5,7 @@
 #include <optix_stubs.h>
 
 #include <chrono>
+#include <new>
 #include <source_location>
 #include <utility>
 
@@ -101,6 +102,37 @@ inline void cuCheck(
     else
         LogError("{}", message);
 }
+
+/// \brief Makes a CUDA context current on the calling thread for the guard's lifetime.
+///
+/// Destroying the guard makes current again exactly what the thread had current before, including
+/// no context or a context the caller created.
+class CudaContextGuard final : private Noncopyable {
+public:
+    /// \brief Makes \p context current.
+    /// \throw kira::Anyhow If the driver cannot push \p context.
+    explicit CudaContextGuard(CUcontext context) {
+        cuCheck(cuCtxPushCurrent(context));
+        pushed_ = true;
+    }
+
+    /// \brief Makes \p context current, or logs the failure and leaves the current context
+    /// unchanged.
+    CudaContextGuard(CUcontext context, std::nothrow_t) noexcept {
+        auto const result = cuCtxPushCurrent(context);
+        cuCheck<false>(result);
+        pushed_ = result == CUDA_SUCCESS;
+    }
+
+    ~CudaContextGuard() {
+        if (pushed_)
+            cuCheck<false>(cuCtxPopCurrent(nullptr));
+    }
+
+private:
+    /// Whether this guard pushed a context that it must still pop.
+    bool pushed_{};
+};
 
 /// \brief Measures work ordered by a CUDA stream.
 class CudaStreamTimer final : private Noncopyable, private CudaStreamMixin {
