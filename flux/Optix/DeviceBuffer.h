@@ -4,7 +4,6 @@
 
 #include <cstddef>
 #include <cstring>
-#include <exception>
 #include <limits>
 #include <memory>
 #include <span>
@@ -61,15 +60,14 @@ public:
 
     /// \brief Releases the allocation on its lifetime stream.
     ///
-    /// The lifetime stream must still be valid. A deallocation failure is
-    /// fatal because ownership can no longer be represented safely.
+    /// The lifetime stream must still be valid.
     ~DeviceBuffer() noexcept { clear(); }
 
     /// \brief Replaces the allocation without preserving its contents.
     ///
     /// A same-size resize is a no-op and does not change the lifetime stream.
     /// \param count Number of elements in the replacement allocation.
-    /// \throw std::invalid_argument If the byte size overflows.
+    /// \throw std::length_error If the byte size overflows.
     /// \throw kira::Anyhow If CUDA cannot enqueue the allocation.
     void resize(std::size_t count) { resize(count, getStream()); }
 
@@ -78,7 +76,7 @@ public:
     /// A same-size resize is a no-op and does not publish \p stream.
     /// \param count Number of elements in the replacement allocation.
     /// \param stream Stream used to allocate and release storage.
-    /// \throw std::invalid_argument If the byte size overflows.
+    /// \throw std::length_error If the byte size overflows.
     /// \throw kira::Anyhow If CUDA cannot enqueue the allocation.
     void resize(std::size_t count, cudaStream_t stream) {
         KIRA_ASSERT(invariantHolds(), "DeviceBuffer invariant violated before resize");
@@ -177,16 +175,16 @@ public:
     }
 
     /// \brief Copies the contents to host memory, and waits until the copy finishes.
-    /// \param destination Receives the elements. Its size must equal size().
-    /// \throw std::invalid_argument If the sizes differ.
+    /// \param destination Receives the elements.
+    /// \pre \p destination has the size of the buffer.
     /// \throw kira::Anyhow If CUDA fails.
     void copyToHost(std::span<T> destination) { copyToHost(destination, getStream()); }
 
     /// \brief Copies the contents to host memory, and waits until the copy finishes.
-    /// \param destination Receives the elements. Its size must equal size().
+    /// \param destination Receives the elements.
     /// \param stream The copy runs on this stream. If the buffer is not empty, it is then bound to
     ///        this stream.
-    /// \throw std::invalid_argument If the sizes differ.
+    /// \pre \p destination has the size of the buffer.
     /// \throw kira::Anyhow If CUDA fails.
     void copyToHost(std::span<T> destination, cudaStream_t stream) {
         if (destination.size() != size_)
@@ -280,16 +278,13 @@ private:
         if (!storage)
             return;
 
-        auto const result = cudaFreeAsync(storage, stream);
-        if (result != cudaSuccess) {
-            cudaCheck<false>(result);
-            std::terminate();
-        }
+        // A failed free leaks the allocation, because the failure comes from the CUDA runtime.
+        cudaCheck<false>(cudaFreeAsync(storage, stream));
     }
 
     static void validateCount(std::size_t count) {
         if (count > std::numeric_limits<std::size_t>::max() / sizeof(T))
-            throw std::invalid_argument("DeviceBuffer: element count exceeds addressable bytes");
+            throw std::length_error("DeviceBuffer: element count exceeds addressable bytes");
     }
 
     [[nodiscard]] bool invariantHolds() const noexcept {

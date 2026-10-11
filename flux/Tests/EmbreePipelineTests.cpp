@@ -766,20 +766,36 @@ TEST(EmbreePipelineTests, HoldsACollectedMeshUntilTheNextSync) {
     EXPECT_EQ(renderPixel(handler, *scene.camera, 4), without);
 }
 
-TEST(EmbreePipelineTests, SyncFailsWithoutAnActiveIntegratorOrSampler) {
+TEST(EmbreePipelineTests, SyncFailsForGoodWithoutAnActiveIntegratorOrSampler) {
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
+    auto camera = flux::Camera::create();
     flux::EmbreeHandler handler(context);
+    flux::EmbreeAccumulationBuffer buffer(flux::Vec2u{1, 1}, flux::FilmChannels::Color);
     auto const integratorId = context->getActiveIntegrator()->getContextId();
     auto const samplerId = context->getActiveSampler()->getContextId();
 
     context->remove(integratorId);
+    EXPECT_FALSE(handler.hasFailed());
     EXPECT_THROW(handler.sync(), kira::Anyhow);
+    EXPECT_TRUE(handler.hasFailed());
+
+    // Fixing the context does not revive the handler.
     context->setActiveIntegrator(context->create<flux::PathIntegrator>(kira::Properties{}));
     EXPECT_NO_THROW(handler.sync());
+    EXPECT_EQ(handler.render(*camera, buffer, 1).paths, 0);
+    EXPECT_EQ(buffer.getSampleCount(), 0);
+    EXPECT_TRUE(handler.hasFailed());
+
+    // A new handler renders the fixed context, and fails when the sampler is gone.
+    flux::EmbreeHandler replacement(context);
+    flux::EmbreeAccumulationBuffer replacementBuffer(flux::Vec2u{1, 1}, flux::FilmChannels::Color);
+    EXPECT_EQ(replacement.render(*camera, replacementBuffer, 1).paths, 1);
+    EXPECT_FALSE(replacement.hasFailed());
 
     context->remove(samplerId);
-    EXPECT_THROW(handler.sync(), kira::Anyhow);
+    EXPECT_THROW(replacement.sync(), kira::Anyhow);
+    EXPECT_TRUE(replacement.hasFailed());
 }
 
 namespace {

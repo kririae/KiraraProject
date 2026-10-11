@@ -109,12 +109,35 @@ TEST(DeviceBufferTests, RejectedResizePreservesTheAllocation) {
     constexpr auto impossibleCount =
         std::numeric_limits<std::size_t>::max() / sizeof(std::uint64_t) + 1;
 
-    EXPECT_THROW(buffer.resize(impossibleCount), std::invalid_argument);
+    EXPECT_THROW(buffer.resize(impossibleCount), std::length_error);
     EXPECT_EQ(buffer.data(), allocation);
     EXPECT_EQ(buffer.size(), 2);
 
     buffer.clear();
     flux::cudaCheck(cudaStreamSynchronize(cudaStreamPerThread));
+}
+
+TEST(DeviceBufferTests, FailedFreeLeaksInsteadOfTerminating) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    cudaStream_t stream = nullptr;
+    flux::cudaCheck(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+    auto buffer = std::make_unique<flux::DeviceBuffer<std::uint64_t>>(stream);
+    buffer->resize(2);
+    flux::cudaCheck(cudaStreamSynchronize(stream));
+
+    // The CUDA runtime rejects a free that a capture records, because the allocation was made
+    // outside of that capture. The destructor logs the error and leaks the allocation.
+    flux::cudaCheck(cudaStreamBeginCapture(stream, cudaStreamCaptureModeRelaxed));
+    (void)cudaGetLastError();
+    buffer.reset();
+    EXPECT_EQ(cudaGetLastError(), cudaErrorInvalidValue);
+    cudaGraph_t graph = nullptr;
+    flux::cudaCheck(cudaStreamEndCapture(stream, &graph));
+    if (graph)
+        flux::cudaCheck(cudaGraphDestroy(graph));
+    flux::cudaCheck(cudaStreamDestroy(stream));
 }
 
 TEST(DeviceBufferTests, MoveTransfersTheAllocationAndStream) {

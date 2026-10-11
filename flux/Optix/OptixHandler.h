@@ -18,6 +18,10 @@ class OptixAccumulationBuffer;
 /// Public operations do not need a current CUDA context.
 /// They leave the current CUDA context of the calling thread unchanged.
 ///
+/// \par Failure
+/// An exception that escapes \c sync or \c render makes the handler failed for good.
+/// Create a new handler to render again.
+///
 /// \remark A handler is not thread-safe.
 class OptixHandler final : private Noncopyable {
 public:
@@ -37,7 +41,8 @@ public:
 
     /// \brief Updates the OptiX scene from the host \c Context.
     ///
-    /// Does nothing if the context version has not changed since the last sync that succeeded.
+    /// Does nothing if the context version has not changed since the last sync, or once the
+    /// handler has failed.
     ///
     /// \throw kira::Anyhow If the context has no active integrator or sampler, or CUDA or OptiX
     /// fails.
@@ -47,7 +52,8 @@ public:
     ///
     /// Waits until the samples are in \p buffer.
     ///
-    /// If \p samples is 0, nothing runs and \p buffer keeps its samples.
+    /// If \p samples is 0, or once the handler has failed, nothing runs and \p buffer keeps its
+    /// samples.
     ///
     /// Renders the scene as of the last \c sync.
     ///
@@ -55,9 +61,8 @@ public:
     /// If \p buffer has no samples, its old pixel values do not affect the result.
     /// A buffer with no channels still counts its samples.
     ///
-    /// If the device work fails, \p buffer has no samples and its pixels are unspecified.
+    /// If \c render throws, \p buffer keeps its samples or has none.
     ///
-    /// \pre The last sync succeeded.
     /// \pre \p buffer was created by this handler.
     /// \throw std::length_error If the pixel count of \p buffer times \p samples is more than
     /// 2^32 - 1.
@@ -83,6 +88,11 @@ public:
     ///
     /// The estimate does not include the launch waves.
     [[nodiscard]] std::uint32_t getEstimatedResidentThreads() const;
+
+    /// \brief Returns whether an exception has escaped \c sync or \c render.
+    ///
+    /// Once true, it stays true.
+    [[nodiscard]] bool hasFailed() const noexcept;
 
     [[nodiscard]] Ref<Context> getContext() const;
 

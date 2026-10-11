@@ -524,6 +524,14 @@ public:
         context->clearDirty();
     }
 
+    /// Replaces the handler with a new one on the same context, as a host does after a failure.
+    void restartHandler(std::filesystem::path modulePath = FLUX_TEST_OPTIX_IR) {
+        note("restart the handler");
+        buffer.reset();
+        handler = std::make_unique<flux::OptixHandler>(context, modulePath);
+        buffer = makeBuffer(*handler);
+    }
+
     Spec model;
     flux::Ref<flux::Context> context;
     Spec::Ids ids;
@@ -1550,69 +1558,13 @@ namespace {
 }
 } // namespace
 
-// A sync that fails before the OptiX scene update touches no device state, so the scene and its
-// program stay. Without its module, the live handler can sync only while the program is kept.
-TEST(OptixFuzzUpdateTests, KeepsTheSceneAfterAHostSideFailure) {
-    if (skipWithoutCuda())
-        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
-
-    auto base = makeBase();
-    auto const module = copyModule();
-    Rig rig(base.spec, module);
-    auto const before = rig.frame();
-
-    rig.move(base.occluder, makeTransform(0.6F, 1.1F, false, {0.3F, 0.2F, 0.5F}));
-    auto const sampler = rig.context->getActiveSampler();
-    rig.context->setActiveSampler({});
-    auto const cleared = rig.context->getClearedVersion();
-    EXPECT_THROW(rig.handler->sync(), kira::Anyhow);
-
-    // The tracked changes survive the failure.
-    EXPECT_TRUE(flux::any(rig.context->getDirtyBits() & flux::Context::DirtyBits::ActiveSampler));
-    EXPECT_TRUE(rig.context->getDirtiedIds().contains(rig.ids.prims.at(base.occluder)));
-    EXPECT_EQ(rig.context->getClearedVersion(), cleared);
-
-    std::filesystem::remove(module);
-    rig.context->setActiveSampler(sampler);
-    auto const after = rig.frame();
-    EXPECT_FALSE(after == before);
-    EXPECT_TRUE(rig.ok);
-}
-
+// A sync that fails before the OptiX scene update leaves the handler failed for good. A new handler
+// on the same context renders the edits.
 // Building the program reads the module file. Without its module, the live handler can sync only
-// while the program is kept.
-TEST(OptixFuzzUpdateTests, KeepsTheProgramUntilItsSpecializationChanges) {
-    if (skipWithoutCuda())
-        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
-
-    auto base = makeBase();
-    auto const module = copyModule();
-    Rig rig(base.spec, module);
-    auto const before = rig.frame();
-    std::filesystem::remove(module);
-
-    // The version stays the same, so the sync is skipped, twice in a row.
-    EXPECT_NO_THROW((void)rig.frame());
-    EXPECT_TRUE(rig.frame() == before);
-
-    // Assigning a current value records nothing either.
-    rig.reassign(base.occluder);
-    EXPECT_NO_THROW((void)rig.frame());
-
-    // A transform edit rebuilds the tables and the IAS, but keeps the specialization.
-    rig.move(base.occluder, makeTransform(0.6F, 1.1F, false, {0.3F, 0.2F, 0.5F}));
-    EXPECT_NO_THROW((void)rig.frame());
-
-    // Another sampler type changes the specialization, which cannot read the module.
-    rig.switchSampler(true, false);
-    rig.context->collectGarbage();
-    EXPECT_THROW(rig.handler->sync(), kira::Anyhow);
-    EXPECT_TRUE(rig.ok);
-}
-
-// A failed update of the OptiX scene drops it, so the next sync rebuilds it, even after a clear
-// dropped the tracked changes of the failed edits.
-TEST(OptixFuzzUpdateTests, RebuildsTheSceneAfterAFailedSync) {
+// while the program is kept, and a failed sync leaves it failed for good.
+// A failed update of the OptiX scene leaves the handler failed for good, even after the cause is
+// gone and a clear dropped the tracked changes of the failed edits. A new handler renders them.
+TEST(OptixFuzzUpdateTests, FailsForGoodAfterAFailedSync) {
     if (skipWithoutCuda())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
@@ -1629,13 +1581,18 @@ TEST(OptixFuzzUpdateTests, RebuildsTheSceneAfterAFailedSync) {
     rig.move(base.occluder, makeTransform(0.6F, 1.1F, false, {0.3F, 0.2F, 0.5F}));
     rig.switchSampler(true, false);
     EXPECT_THROW(rig.handler->sync(), kira::Anyhow);
+    EXPECT_TRUE(rig.handler->hasFailed());
 
-    // Drop the tracked changes, restore the module, and sync with none tracked.
+    // Drop the tracked changes and restore the module. The failed handler still does nothing.
     rig.clearOnly();
     std::filesystem::rename(saved, module);
     rig.context->collectGarbage();
     rig.handler->sync();
+    EXPECT_TRUE(rig.handler->hasFailed());
+
+    rig.restartHandler(module);
     auto const after = rig.compare();
+    EXPECT_FALSE(rig.handler->hasFailed());
     EXPECT_FALSE(after == before);
     EXPECT_TRUE(rig.ok);
 }
