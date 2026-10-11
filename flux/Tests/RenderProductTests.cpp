@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
@@ -242,15 +243,12 @@ TEST(RenderProductTests, OwnsFilmAndSampleTarget) {
     EXPECT_EQ(product->getFilm().getHeight(), 480U);
     EXPECT_EQ(product->getSamplesPerPixel(), 16U);
 
-    product->getFilm().setResolution(1280, 720);
+    product->getFilm() = flux::Film{flux::Vec2u{1280, 720}, flux::FilmChannels::Color};
 
     EXPECT_EQ(product->getFilm().getWidth(), 1280U);
     EXPECT_EQ(product->getFilm().getHeight(), 720U);
 
-    product->getFilm().setResolution(320, 240);
-
-    EXPECT_EQ(product->getFilm().getWidth(), 320U);
-    EXPECT_EQ(product->getFilm().getHeight(), 240U);
+    EXPECT_EQ(product->getFilm().getChannels(), flux::FilmChannels::Color);
 
     product->setSamplesPerPixel(1);
     EXPECT_EQ(product->getSamplesPerPixel(), 1U);
@@ -260,60 +258,73 @@ TEST(RenderProductTests, OwnsFilmAndSampleTarget) {
     EXPECT_EQ(product->getSamplesPerPixel(), std::numeric_limits<std::uint32_t>::max());
 }
 
-TEST(RenderProductTests, RejectsZeroFilmDimensions) {
-    EXPECT_THROW((void)flux::Film(0, 1), kira::Anyhow);
-
-    flux::Film film(1, 1);
-    EXPECT_THROW(film.setResolution(1, 0), kira::Anyhow);
-    EXPECT_EQ(film.getWidth(), 1U);
-    EXPECT_EQ(film.getHeight(), 1U);
-}
-
-TEST(RenderProductTests, MovesAndSwapsFilmResolutionAndChannels) {
+TEST(RenderProductTests, MovesAndSwapsFilmResolutionChannelsAndValues) {
     static_assert(!std::is_copy_constructible_v<flux::Film>);
     static_assert(!std::is_copy_assignable_v<flux::Film>);
     static_assert(std::is_nothrow_move_constructible_v<flux::Film>);
     static_assert(std::is_nothrow_move_assignable_v<flux::Film>);
     static_assert(std::is_nothrow_swappable_v<flux::Film>);
 
-    flux::Film first(1, 2);
-    first.setChannels(flux::FilmChannels::Normal);
-    flux::Film second(3, 4);
-    second.setChannels(flux::FilmChannels::Albedo);
+    flux::Film first(flux::Vec2u{1, 2}, flux::FilmChannels::Normal);
+    flux::Film second(flux::Vec2u{3, 4}, flux::FilmChannels::Albedo);
 
     swap(first, second);
     EXPECT_EQ(first.getWidth(), 3);
     EXPECT_EQ(first.getHeight(), 4);
     EXPECT_EQ(first.getChannels(), flux::FilmChannels::Albedo);
+    EXPECT_EQ(first.getChannel<flux::AlbedoChannel>().size(), 12);
+    EXPECT_TRUE(first.getChannel<flux::NormalChannel>().empty());
     EXPECT_EQ(second.getWidth(), 1);
     EXPECT_EQ(second.getHeight(), 2);
     EXPECT_EQ(second.getChannels(), flux::FilmChannels::Normal);
+    EXPECT_EQ(second.getChannel<flux::NormalChannel>().size(), 2);
+    EXPECT_TRUE(second.getChannel<flux::AlbedoChannel>().empty());
 
-    first = flux::Film(5, 6);
+    first = flux::Film(flux::Vec2u{5, 6}, flux::FilmChannels::All);
     EXPECT_EQ(first.getWidth(), 5);
     EXPECT_EQ(first.getHeight(), 6);
     EXPECT_EQ(first.getChannels(), flux::FilmChannels::All);
+    EXPECT_EQ(first.getChannel<flux::ColorChannel>().size(), 30);
 }
 
-TEST(RenderProductTests, SetsRequestedFilmChannels) {
-    flux::Film film(1, 1);
-    EXPECT_TRUE(film.hasChannel(flux::FilmChannels::Normal));
-    EXPECT_TRUE(film.hasChannel(flux::FilmChannels::Albedo));
+TEST(RenderProductTests, StoresZeroedValuesForRequestedFilmChannels) {
+    flux::Film film(flux::Vec2u{2, 3}, flux::FilmChannels::Normal | flux::FilmChannels::Color);
 
-    film.setChannels(flux::FilmChannels::Normal);
+    auto const normal = film.getChannel<flux::NormalChannel>();
+    ASSERT_EQ(normal.size(), 6);
+    EXPECT_TRUE(std::ranges::all_of(normal, [](auto const &value) {
+        return value == flux::Vec3f{};
+    }));
+    auto const color = film.getChannel<flux::ColorChannel>();
+    ASSERT_EQ(color.size(), 6);
+    EXPECT_TRUE(std::ranges::all_of(color, [](auto const &value) {
+        return value == flux::Spectrum{};
+    }));
+    EXPECT_TRUE(film.getChannel<flux::AlbedoChannel>().empty());
+}
+
+TEST(RenderProductTests, HoldsNoChannelsAfterMove) {
+    flux::Film film(flux::Vec2u{2, 2}, flux::FilmChannels::All);
+    flux::Film const moved{std::move(film)};
+
+    EXPECT_EQ(moved.getChannels(), flux::FilmChannels::All);
+    EXPECT_EQ(film.getChannels(), flux::FilmChannels::None); // NOLINT(bugprone-use-after-move)
+    EXPECT_FALSE(film.hasChannel(flux::FilmChannels::Color));
+    EXPECT_TRUE(film.getChannel<flux::ColorChannel>().empty());
+    EXPECT_TRUE(film.getChannel<flux::NormalChannel>().empty());
+    EXPECT_TRUE(film.getChannel<flux::AlbedoChannel>().empty());
+}
+
+TEST(RenderProductTests, ReportsHeldFilmChannels) {
+    flux::Film film(flux::Vec2u{1, 1}, flux::FilmChannels::Normal);
     EXPECT_TRUE(film.hasChannel(flux::FilmChannels::Normal));
     EXPECT_FALSE(film.hasChannel(flux::FilmChannels::Albedo));
 
-    film.setChannels(flux::FilmChannels::None);
+    film = flux::Film(flux::Vec2u{1, 1}, flux::FilmChannels::None);
     EXPECT_FALSE(film.hasChannel(flux::FilmChannels::None));
     EXPECT_FALSE(film.hasChannel(flux::FilmChannels::Normal));
     EXPECT_FALSE(film.hasChannel(flux::FilmChannels::Albedo));
-
-    // Use an underlying value that has no FilmChannels enumerator.
-    // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange)
-    auto const unknownChannels = static_cast<flux::FilmChannels>(1U << 31U);
-    EXPECT_THROW(film.setChannels(unknownChannels), kira::Anyhow);
-    EXPECT_EQ(film.getChannels(), flux::FilmChannels::None);
+    EXPECT_TRUE(film.getChannel<flux::NormalChannel>().empty());
 }
 
 TEST(RenderProductTests, AccumulatesFilmChannelsOnHost) {

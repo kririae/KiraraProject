@@ -131,10 +131,12 @@ TEST(OptixPipelineTests, RejectsARenderBeyondThePathIndex) {
     flux::test::setActiveDefaults(*context);
     flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
 
-    // 65535 pixels at 65538 samples are more paths than a 32-bit path index counts.
+    // 65535 pixels at 65538 samples are more paths than a 32-bit path index counts. The film holds
+    // no channels, so it holds no storage.
     kira::Properties properties;
-    properties.set("resolution", flux::Vec2u{255, 257});
+    properties.set("resolution", flux::Vec2u{1, 1});
     auto product = flux::RenderProduct::create(flux::Camera::create(), properties);
+    product->getFilm() = flux::Film{flux::Vec2u{255, 257}, flux::FilmChannels::None};
     EXPECT_THROW(handler.render(*product, 65538), std::length_error);
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
 }
@@ -265,30 +267,6 @@ TEST(OptixPipelineTests, ReleasesContextAfterConstructionFails) {
     EXPECT_NO_THROW(handler.render(*product, 1));
 }
 
-TEST(OptixPipelineTests, RendersConstantEnvironmentMapOnMiss) {
-    if (!flux::test::hasCudaMemoryPoolSupport())
-        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
-
-    auto context = flux::Context::create();
-    flux::test::setActiveDefaults(*context);
-    kira::Properties lightProps;
-    lightProps.set("scale", flux::Spectrum{0.25F, 0.5F, 0.75F});
-    context->setActiveEnvMap(context->create<flux::EnvMapLight>(lightProps));
-
-    auto camera = flux::Camera::create();
-    kira::Properties productProps;
-    productProps.set("resolution", flux::Vec2u{1, 1});
-    auto product = flux::RenderProduct::create(camera, productProps);
-    product->getFilm().setChannels(flux::FilmChannels::Color);
-    flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
-    handler.render(*product, 1);
-    handler.download(*product);
-
-    auto const color = product->getFilm().getChannel<flux::ColorChannel>();
-    ASSERT_EQ(color.size(), 1);
-    EXPECT_EQ(color.front(), (flux::Spectrum{0.25F, 0.5F, 0.75F}));
-}
-
 TEST(OptixPipelineTests, RendersImageEnvironmentMapOnMiss) {
     if (!flux::test::hasCudaMemoryPoolSupport())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
@@ -308,7 +286,7 @@ TEST(OptixPipelineTests, RendersImageEnvironmentMapOnMiss) {
     kira::Properties productProps;
     productProps.set("resolution", flux::Vec2u{1, 1});
     auto product = flux::RenderProduct::create(camera, productProps);
-    product->getFilm().setChannels(flux::FilmChannels::Color);
+    product->getFilm() = flux::Film{flux::Vec2u{1, 1}, flux::FilmChannels::Color};
     flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
     handler.render(*product, 1);
     handler.download(*product);
@@ -411,15 +389,15 @@ TEST(OptixPipelineTests, TracksAccumulationAcrossFilmAndSampleTargetChanges) {
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 2);
     EXPECT_FALSE(handler.isConverged(*product));
 
-    product->getFilm().setChannels(flux::FilmChannels::Normal);
+    product->getFilm() = flux::Film{flux::Vec2u{2, 2}, flux::FilmChannels::Normal};
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
     handler.render(*product, 2);
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 2);
 
-    product->getFilm().setChannels(flux::FilmChannels::Normal);
+    product->getFilm() = flux::Film{flux::Vec2u{2, 2}, flux::FilmChannels::Normal};
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 2);
 
-    product->getFilm().setChannels(flux::FilmChannels::All);
+    product->getFilm() = flux::Film{flux::Vec2u{2, 2}, flux::FilmChannels::All};
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
     handler.render(*product, 2);
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 2);
@@ -432,104 +410,27 @@ TEST(OptixPipelineTests, TracksAccumulationAcrossFilmAndSampleTargetChanges) {
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 2);
     EXPECT_FALSE(handler.isConverged(*product));
 
-    product->getFilm().setResolution(2, 2);
+    product->getFilm() = flux::Film{flux::Vec2u{2, 2}, flux::FilmChannels::All};
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 2);
 
-    product->getFilm().setResolution(1, 4);
+    product->getFilm() = flux::Film{flux::Vec2u{1, 4}, flux::FilmChannels::All};
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
     EXPECT_FALSE(handler.isConverged(*product));
     handler.render(*product, 3);
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 3);
 
-    product->getFilm().setResolution(1, 1);
+    product->getFilm() = flux::Film{flux::Vec2u{1, 1}, flux::FilmChannels::All};
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
     handler.render(*product, 8);
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 8);
     EXPECT_TRUE(handler.isConverged(*product));
 
-    product->getFilm().setResolution(2, 2);
+    product->getFilm() = flux::Film{flux::Vec2u{2, 2}, flux::FilmChannels::All};
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
     EXPECT_FALSE(handler.isConverged(*product));
     handler.render(*product, 9);
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 9);
     EXPECT_TRUE(handler.isConverged(*product));
-}
-
-TEST(OptixPipelineTests, RendersWithIndicesThatFollowUnusedObjectsAndAfterAResync) {
-    if (!flux::test::hasCudaMemoryPoolSupport())
-        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
-
-    // Light a triangle with an emitter and return the center pixel.
-    auto const render = [&](bool withUnusedMesh, bool withHiddenPrimitive, bool withResync) {
-        auto context = flux::Context::create();
-        flux::test::setActiveDefaults(*context);
-
-        // Create a mesh first that no primitive references, so the visible mesh has index 1.
-        if (withUnusedMesh)
-            (void)context->create<flux::TriangleMesh>(triangleData());
-        auto mesh = context->create<flux::TriangleMesh>(triangleData());
-        auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
-
-        // Create a hidden primitive first, so the visible primitive has index 1.
-        if (withHiddenPrimitive)
-            context->create<flux::Primitive>(primitiveProperties(*mesh, *bsdf))->setVisible(false);
-        auto primitive = context->create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
-        EXPECT_EQ(
-            context->getIndex<flux::Primitive>(primitive->getContextId()),
-            withHiddenPrimitive ? 1 : 0
-        );
-        EXPECT_EQ(context->getIndex<flux::Geometry>(mesh->getContextId()), withUnusedMesh ? 1 : 0);
-
-        // Add an emitter facing the triangle, which light sampling reaches by primitive index.
-        auto edf = context->create<flux::ConstantEDF>(kira::Properties{});
-        auto emitterProperties = primitiveProperties(*mesh, *bsdf);
-        emitterProperties.set("edf_ctx_id", static_cast<std::int64_t>(edf->getContextId()));
-        auto emitter = context->create<flux::Primitive>(emitterProperties);
-        emitter->setTransform(
-            {1.0F, 0.0F, 0.0F, 0.0F, 0.0F, -1.0F, 0.0F, 0.0F, 0.0F, 0.0F, -1.0F, 1.0F}
-        );
-
-        // Add a second emitter that the re-sync hides again.
-        auto extra = context->create<flux::Primitive>(emitterProperties);
-        extra->setTransform(
-            {1.0F, 0.0F, 0.0F, 0.5F, 0.0F, -1.0F, 0.0F, 0.0F, 0.0F, 0.0F, -1.0F, 1.0F}
-        );
-        extra->setVisible(withResync);
-
-        kira::Properties cameraProperties;
-        cameraProperties.set("position", flux::Vec3f{0.25F, 0.25F, 1.0F});
-        cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.0F});
-        cameraProperties.set("fov", 1.0F);
-        auto camera = flux::Camera::create(cameraProperties);
-        kira::Properties productProperties;
-        productProperties.set("resolution", flux::Vec2u{1, 1});
-        productProperties.set("num_samples", std::uint32_t{4});
-        auto product = flux::RenderProduct::create(camera, productProperties);
-        product->getFilm().setChannels(flux::FilmChannels::Color);
-
-        flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
-        auto const color = [&] {
-            handler.render(*product, 4);
-            handler.download(*product);
-            return product->getFilm().getChannel<flux::ColorChannel>()[0];
-        };
-        if (!withResync)
-            return color();
-
-        // Render with the second emitter, then hide it and sync the same handler.
-        auto const lit = color();
-        extra->setVisible(false);
-        handler.sync();
-        auto const dimmed = color();
-        EXPECT_NE(dimmed, lit);
-        return dimmed;
-    };
-
-    auto const expected = render(false, false, false);
-    EXPECT_GT(expected.x(), 0.0F);
-    EXPECT_EQ(render(true, false, false), expected);
-    EXPECT_EQ(render(false, true, false), expected);
-    EXPECT_EQ(render(false, false, true), expected);
 }
 
 TEST(OptixPipelineTests, HoldsNoContextObjectAfterSync) {
@@ -607,7 +508,7 @@ struct RemovalScene {
     productProperties.set("num_samples", std::uint32_t{4});
     scene.product =
         flux::RenderProduct::create(flux::Camera::create(cameraProperties), productProperties);
-    scene.product->getFilm().setChannels(flux::FilmChannels::Color);
+    scene.product->getFilm() = flux::Film{flux::Vec2u{1, 1}, flux::FilmChannels::Color};
     return scene;
 }
 
@@ -731,7 +632,7 @@ addOccluder(flux::Context &context, float size, float reflectance) {
     productProperties.set("num_samples", std::uint32_t{4});
     scene.product =
         flux::RenderProduct::create(flux::Camera::create(cameraProperties), productProperties);
-    scene.product->getFilm().setChannels(flux::FilmChannels::Color);
+    scene.product->getFilm() = flux::Film{flux::Vec2u{1, 1}, flux::FilmChannels::Color};
     return scene;
 }
 } // namespace

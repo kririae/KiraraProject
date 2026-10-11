@@ -54,7 +54,8 @@ LoadedScene loadTomlScene(FluxCLIRequest const &request) {
     if (request.samplesPerPixel)
         filmProps.set("num_samples", *request.samplesPerPixel);
     auto product = RenderProduct::create(std::move(camera), filmProps);
-    product->getFilm().setChannels(FilmChannels::Color);
+    auto &film = product->getFilm();
+    film = Film{Vec2u{film.getWidth(), film.getHeight()}, FilmChannels::Color};
 
     std::unordered_map<std::string, Ref<BSDF const>> bsdfs;
     if (scene.contains("bsdf")) {

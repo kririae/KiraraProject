@@ -75,7 +75,7 @@ TEST(OptixGeometryTests, PreservesFilteredAlbedoUnderInstanceTransforms) {
     kira::Properties productProps;
     productProps.set("resolution", flux::Vec2u{1, 1});
     auto product = flux::RenderProduct::create(camera, productProps);
-    product->getFilm().setChannels(flux::FilmChannels::Albedo);
+    product->getFilm() = flux::Film{flux::Vec2u{1, 1}, flux::FilmChannels::Albedo};
     flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
     handler.render(*product, 32);
     handler.download(*product);

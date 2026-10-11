@@ -157,7 +157,7 @@ void EmbreeHandler::download(RenderProduct &product) {
 
     auto *entry = pImpl_->renderProducts.find(product);
     assert(entry);
-    auto destination = product.getFilm().prepareDownload();
+    auto destination = product.getFilm().getImpl();
     entry->storage.forEach([&](auto const &channel) {
         using Channel = typename std::remove_reference_t<decltype(channel)>::ChannelType;
         if (!channel.values.empty()) {

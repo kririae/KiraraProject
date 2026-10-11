@@ -21,7 +21,7 @@ template <typename...> struct TypeList {};
 template <typename> inline constexpr bool AlwaysFalse = false;
 } // namespace detail
 
-/// \brief Identifies the channels requested by a film.
+/// \brief Identifies the channels of a film.
 enum class FilmChannels : std::uint32_t {
     None = 0,
     Normal = 1U << 0U,
@@ -159,18 +159,21 @@ static_assert(std::is_same_v<
                            .template get<AlbedoChannel>()),
               FilmChannelView<AlbedoChannel> const &>);
 
-/// \brief Stores a render product's channel request and downloaded values.
+/// \brief Holds the host pixels of an image.
 ///
-/// The renderer backend owns render storage. Film owns the latest downloaded
-/// channel values.
+/// The resolution and the channels are fixed when the film is built.
+/// The values start at zero.
+///
+/// A film that was moved from holds no channels.
 class Film final : private Noncopyable {
 public:
     struct Impl;
 
-    /// \brief Creates a film with the given dimensions.
+    /// \brief Creates a film with \p resolution and \p channels.
     ///
-    /// Both dimensions must be nonzero.
-    Film(std::uint32_t width, std::uint32_t height);
+    /// \pre Both dimensions of \p resolution are nonzero.
+    /// \pre \p channels has no unknown bit.
+    Film(Vec2u resolution, FilmChannels channels);
 
     Film(Film &&other) noexcept = default;
 
@@ -181,45 +184,30 @@ public:
 
     [[nodiscard]] std::uint32_t getWidth() const noexcept { return width_; }
     [[nodiscard]] std::uint32_t getHeight() const noexcept { return height_; }
+    /// \brief Returns the channels that the film holds.
+    [[nodiscard]] FilmChannels getChannels() const noexcept;
 
-    /// \brief Changes the film resolution.
-    ///
-    /// A changed resolution clears downloaded values. Renderer backends update
-    /// their storage on the next render. Both dimensions must be nonzero.
-    void setResolution(std::uint32_t width, std::uint32_t height);
-
-    [[nodiscard]] FilmChannels getChannels() const noexcept { return channels_; }
-
-    /// \brief Changes the requested film channels.
-    ///
-    /// A changed request clears downloaded values. Renderer backends update
-    /// their storage on the next render. \p channels may contain known bits
-    /// only.
-    void setChannels(FilmChannels channels);
-
-    /// \brief Returns whether every bit in \p channel is requested.
+    /// \brief Returns whether the film holds every bit of \p channel.
     ///
     /// Returns false for \c FilmChannels::None.
     [[nodiscard]] bool hasChannel(FilmChannels channel) const noexcept;
 
-    /// \brief Returns the most recently downloaded values for \c Channel.
+    /// \brief Returns the values of \c Channel for all pixels, row by row.
     ///
-    /// Returns an empty span before download or when the channel is not
-    /// requested. Resolution and channel changes clear all downloaded values.
-    /// The span remains valid until this film is changed, downloaded, moved,
-    /// swapped, or destroyed.
+    /// Returns an empty span if the film does not hold the channel.
+    ///
+    /// The span stays valid until the film is moved, assigned, swapped, or destroyed.
     template <typename Channel>
     [[nodiscard]] std::span<typename Channel::Value const> getChannel() const noexcept {
         auto const &storage = hostStorage_.template get<Channel>();
         return {storage.values.data(), storage.values.size()};
     }
 
-    /// \brief Swaps the resolution, channel request, and downloaded values.
+    /// \brief Swaps two films.
     friend void swap(Film &lhs, Film &rhs) noexcept {
         using std::swap;
         swap(lhs.width_, rhs.width_);
         swap(lhs.height_, rhs.height_);
-        swap(lhs.channels_, rhs.channels_);
         lhs.hostStorage_.forEach([&](auto &storage) {
             using Channel = typename std::remove_reference_t<decltype(storage)>::ChannelType;
             swap(storage.values, rhs.hostStorage_.template get<Channel>().values);
@@ -235,17 +223,11 @@ private:
         kira::SmallVector<typename Channel::Value, 0> values;
     };
 
-    /// \brief Allocates requested host channels and returns a writable view.
-    ///
-    /// \warning After an allocation or backend download exception, destroy,
-    /// swap, or move-assign this film.
-    [[nodiscard]] Impl prepareDownload();
-
-    void invalidateDownload() noexcept;
+    /// \brief Returns a writable view of the channels that the film holds.
+    [[nodiscard]] Impl getImpl() noexcept;
 
     std::uint32_t width_;
     std::uint32_t height_;
-    FilmChannels channels_{FilmChannels::All};
     FilmChannelListOf<HostChannelStorage> hostStorage_;
 };
 

@@ -31,7 +31,7 @@ namespace detail {
 void writeExr(std::filesystem::path const &path, ImageView image);
 } // namespace detail
 
-/// \brief Writes one downloaded film channel to a 32-bit float EXR image.
+/// \brief Writes one film channel to a 32-bit float EXR image.
 template <typename Channel> void writeImage(std::filesystem::path const &path, Film const &film) {
     using Value = typename Channel::Value;
     auto const pixels = film.template getChannel<Channel>();

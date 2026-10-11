@@ -464,7 +464,6 @@ struct Image {
     kira::Properties productProps;
     productProps.set("resolution", flux::Vec2u{imageSize, imageSize});
     auto product = flux::RenderProduct::create(flux::Camera::create(cameraProps), productProps);
-    product->getFilm().setChannels(flux::FilmChannels::All);
     return product;
 }
 

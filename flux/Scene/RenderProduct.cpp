@@ -10,11 +10,8 @@ Ref<RenderProduct> RenderProduct::create(Ref<Camera const> camera, kira::Propert
 }
 
 RenderProduct::RenderProduct(Ref<Camera const> camera, kira::Properties const &props)
-    : film_([&] {
-          auto const resolution = props.use<Vec2u>("resolution");
-          return Film{resolution.x(), resolution.y()};
-      }()),
-      camera_(std::move(camera)), samplesPerPixel_(props.use_or<std::uint32_t>("num_samples", 1)) {
+    : film_(props.use<Vec2u>("resolution"), FilmChannels::All), camera_(std::move(camera)),
+      samplesPerPixel_(props.use_or<std::uint32_t>("num_samples", 1)) {
     if (!camera_)
         throw kira::Anyhow("RenderProduct: camera must not be null");
     if (samplesPerPixel_ == 0)

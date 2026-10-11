@@ -432,7 +432,7 @@ void OptixHandler::download(RenderProduct &product) {
     ContextScope const scope(pImpl_->deviceSession.getPrimaryContext());
     auto *entry = pImpl_->renderProducts.find(product);
     assert(entry);
-    auto destination = product.getFilm().prepareDownload();
+    auto destination = product.getFilm().getImpl();
     entry->storage.forEach([&](auto &channel) {
         using Channel = typename std::remove_reference_t<decltype(channel)>::ChannelType;
         auto *output = destination.channels.template get<Channel>().data;

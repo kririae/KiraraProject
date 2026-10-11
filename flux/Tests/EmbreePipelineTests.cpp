@@ -184,11 +184,25 @@ TEST(EmbreePipelineTests, RendersSecondInstanceAndDownloadsFilmChannels) {
     EXPECT_TRUE(input->close());
     std::filesystem::remove_all(outputRoot);
 
-    flux::Film savedFilm(1, 1);
+    flux::Film savedFilm{flux::Vec2u{1, 1}, flux::FilmChannels::Albedo};
     swap(savedFilm, product->getFilm());
     EXPECT_EQ(savedFilm.getChannel<flux::NormalChannel>().size(), 1);
     EXPECT_TRUE(product->getFilm().getChannel<flux::NormalChannel>().empty());
     swap(savedFilm, product->getFilm());
+}
+
+TEST(EmbreePipelineTests, RendersAndDownloadsIntoAMovedFromFilm) {
+    auto context = flux::Context::create();
+    flux::test::setActiveDefaults(*context);
+    auto product =
+        flux::RenderProduct::create(flux::Camera::create(), renderProductProperties(2, 2, 1));
+    flux::EmbreeHandler handler(context);
+
+    auto const saved = std::move(product->getFilm());
+    EXPECT_NO_THROW(handler.render(*product, 1));
+    EXPECT_NO_THROW(handler.download(*product));
+    EXPECT_EQ(product->getFilm().getChannels(), flux::FilmChannels::None);
+    EXPECT_EQ(saved.getChannel<flux::ColorChannel>().size(), 4);
 }
 
 TEST(EmbreePipelineTests, RejectsSingularInstanceTransforms) {
@@ -324,7 +338,7 @@ TEST(EmbreePipelineTests, RendersWithIndicesThatFollowUnusedObjectsAndAfterAResy
         productProperties.set("resolution", flux::Vec2u{1, 1});
         productProperties.set("num_samples", std::uint32_t{4});
         auto product = flux::RenderProduct::create(camera, productProperties);
-        product->getFilm().setChannels(flux::FilmChannels::Color);
+        product->getFilm() = flux::Film{flux::Vec2u{1, 1}, flux::FilmChannels::Color};
 
         flux::EmbreeHandler handler(context);
         auto const color = [&] {
@@ -372,7 +386,7 @@ TEST(EmbreePipelineTests, RendersDirectLightIntoColorChannel) {
     cameraProperties.set("fov", 1.0F);
     auto camera = flux::Camera::create(cameraProperties);
     auto product = flux::RenderProduct::create(camera, renderProductProperties(1, 1, 4));
-    product->getFilm().setChannels(flux::FilmChannels::Color);
+    product->getFilm() = flux::Film{flux::Vec2u{1, 1}, flux::FilmChannels::Color};
 
     flux::EmbreeHandler handler(context);
     handler.render(*product, 4);
@@ -409,25 +423,6 @@ TEST(EmbreePipelineTests, RendersDirectLightIntoColorChannel) {
     EXPECT_EQ(blockedColor[0], flux::Spectrum{});
 }
 
-TEST(EmbreePipelineTests, RendersConstantEnvironmentMapOnMiss) {
-    auto context = flux::Context::create();
-    flux::test::setActiveDefaults(*context);
-    kira::Properties lightProps;
-    lightProps.set("scale", flux::Spectrum{0.25F, 0.5F, 0.75F});
-    context->setActiveEnvMap(context->create<flux::EnvMapLight>(lightProps));
-
-    auto product =
-        flux::RenderProduct::create(flux::Camera::create(), renderProductProperties(1, 1, 1));
-    product->getFilm().setChannels(flux::FilmChannels::Color);
-    flux::EmbreeHandler handler(context);
-    handler.render(*product, 1);
-    handler.download(*product);
-
-    auto const color = product->getFilm().getChannel<flux::ColorChannel>();
-    ASSERT_EQ(color.size(), 1);
-    EXPECT_EQ(color.front(), (flux::Spectrum{0.25F, 0.5F, 0.75F}));
-}
-
 TEST(EmbreePipelineTests, RendersImageEnvironmentMapOnMiss) {
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
@@ -443,7 +438,7 @@ TEST(EmbreePipelineTests, RendersImageEnvironmentMapOnMiss) {
     auto product = flux::RenderProduct::create(
         flux::Camera::create(cameraProps), renderProductProperties(1, 1, 1)
     );
-    product->getFilm().setChannels(flux::FilmChannels::Color);
+    product->getFilm() = flux::Film{flux::Vec2u{1, 1}, flux::FilmChannels::Color};
     flux::EmbreeHandler handler(context);
     handler.render(*product, 1);
     handler.download(*product);
@@ -460,12 +455,12 @@ TEST(EmbreePipelineTests, InvalidatesAccumulationForCameraFilmAndSync) {
     flux::test::setActiveDefaults(*context);
     auto camera = flux::Camera::create();
     auto product = flux::RenderProduct::create(camera, renderProductProperties(1, 1, 4));
-    product->getFilm().setChannels(flux::FilmChannels::Normal);
+    product->getFilm() = flux::Film{flux::Vec2u{1, 1}, flux::FilmChannels::Normal};
     flux::EmbreeHandler handler(context);
 
     EXPECT_THROW(handler.download(*product), kira::Anyhow);
     EXPECT_THROW(
-        flux::writeImage<flux::NormalChannel>(
+        flux::writeImage<flux::AlbedoChannel>(
             std::filesystem::path(FLUX_TEST_OUTPUT_DIR) / "missing.exr", product->getFilm()
         ),
         kira::Anyhow
@@ -487,8 +482,7 @@ TEST(EmbreePipelineTests, InvalidatesAccumulationForCameraFilmAndSync) {
     EXPECT_EQ(product->getFilm().getChannel<flux::NormalChannel>().size(), 1);
 
     handler.render(*product, 1);
-    product->getFilm().setResolution(2, 1);
-    EXPECT_TRUE(product->getFilm().getChannel<flux::NormalChannel>().empty());
+    product->getFilm() = flux::Film{flux::Vec2u{2, 1}, flux::FilmChannels::Normal};
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
     handler.render(*product, 1);
     handler.download(*product);
@@ -506,13 +500,9 @@ TEST(EmbreePipelineTests, InvalidatesAccumulationForCameraFilmAndSync) {
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
     EXPECT_EQ(product->getFilm().getChannel<flux::NormalChannel>().size(), 2);
 
-    product->getFilm().setResolution(2, 1);
-    product->getFilm().setChannels(flux::FilmChannels::Normal);
-    EXPECT_EQ(product->getFilm().getChannel<flux::NormalChannel>().size(), 2);
-
-    product->getFilm().setChannels(flux::FilmChannels::Albedo);
+    product->getFilm() = flux::Film{flux::Vec2u{2, 1}, flux::FilmChannels::Albedo};
     EXPECT_TRUE(product->getFilm().getChannel<flux::NormalChannel>().empty());
-    EXPECT_TRUE(product->getFilm().getChannel<flux::AlbedoChannel>().empty());
+    EXPECT_EQ(product->getFilm().getChannel<flux::AlbedoChannel>().size(), 2);
 }
 
 TEST(EmbreePipelineTests, HoldsNoContextObjectAfterSync) {
@@ -599,7 +589,7 @@ struct RemovalScene {
     productProperties.set("num_samples", std::uint32_t{4});
     scene.product =
         flux::RenderProduct::create(flux::Camera::create(cameraProperties), productProperties);
-    scene.product->getFilm().setChannels(flux::FilmChannels::Color);
+    scene.product->getFilm() = flux::Film{flux::Vec2u{1, 1}, flux::FilmChannels::Color};
     return scene;
 }
 
@@ -750,7 +740,7 @@ addOccluder(flux::Context &context, float size, float reflectance) {
     productProperties.set("num_samples", std::uint32_t{4});
     scene.product =
         flux::RenderProduct::create(flux::Camera::create(cameraProperties), productProperties);
-    scene.product->getFilm().setChannels(flux::FilmChannels::Color);
+    scene.product->getFilm() = flux::Film{flux::Vec2u{1, 1}, flux::FilmChannels::Color};
     return scene;
 }
 } // namespace

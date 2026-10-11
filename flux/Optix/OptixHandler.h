@@ -62,8 +62,7 @@ public:
     ///
     /// Waits until the copy is done.
     ///
-    /// \warning If allocation or the copy fails, the Film in \p product is valid only for
-    /// destruction, swap, or move assignment.
+    /// \warning If the copy fails, the values in the Film of \p product are unspecified.
     ///
     /// \throw kira::Anyhow If \p product has no valid accumulation.
     void download(RenderProduct &product);
