@@ -83,11 +83,6 @@ public:
     /// The estimate does not include the launch waves.
     [[nodiscard]] std::uint32_t getEstimatedResidentThreads() const;
 
-    /// \brief Sets the offset of the sample sequence for later renders.
-    ///
-    /// Changing the offset clears the accumulation of every render product.
-    void setSampleOffset(std::uint64_t offset);
-
     /// \brief Returns the number of samples accumulated for \p product.
     ///
     /// Returns 0 if \p product has no accumulation.

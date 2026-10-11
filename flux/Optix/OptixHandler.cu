@@ -246,8 +246,9 @@ struct OptixHandler::pImpl final {
     /// Context version of the last successful sync, or nothing before the first.
     std::optional<std::uint64_t> syncedVersion;
 
-    /// Active sampler and integrator as of the last sync.
+    /// Active sampler, its sample offset, and the active integrator as of the last sync.
     Sampler::Impl sampler{};
+    std::uint64_t sampleOffset{};
     PathIntegrator::Impl integrator;
     OptixRenderProductPool renderProducts{getStream()};
     DeviceBuffer<OptixLaunchParams> launchParams{getStream()};
@@ -255,7 +256,6 @@ struct OptixHandler::pImpl final {
     /// Next chunk not yet claimed by any lane. Zeroed before each launch.
     DeviceBuffer<std::uint32_t> chunkCounter{getStream()};
     CudaStreamTimer timer{getStream()};
-    std::uint64_t sampleOffset{};
 
     /// Threads to launch as a multiple of the estimated resident thread count.
     double launchWaves{2.0};
@@ -293,6 +293,7 @@ void OptixHandler::pImpl::sync() {
     if (!activeSampler)
         throw kira::Anyhow("OptixHandler: context has no active sampler");
     auto const nextSampler = activeSampler->getImpl();
+    auto const nextSampleOffset = activeSampler->getSampleOffset();
     auto const nextIntegrator = activeIntegrator->getImpl();
 
     // A failure here leaves the device state unknown, so a later sync builds a new OptiX scene.
@@ -310,6 +311,7 @@ void OptixHandler::pImpl::sync() {
     }
 
     sampler = nextSampler;
+    sampleOffset = nextSampleOffset;
     integrator = nextIntegrator;
     renderProducts.resetAccumulation();
     syncedVersion = version;
@@ -444,13 +446,6 @@ void OptixHandler::setLaunchWaves(double waves) {
 
 std::uint32_t OptixHandler::getEstimatedResidentThreads() const {
     return pImpl_->deviceSession.getEstimatedResidentThreads();
-}
-
-void OptixHandler::setSampleOffset(std::uint64_t offset) {
-    if (pImpl_->sampleOffset == offset)
-        return;
-    pImpl_->sampleOffset = offset;
-    pImpl_->renderProducts.resetAccumulation();
 }
 
 std::uint64_t OptixHandler::getAccumulatedSamples(RenderProduct const &product) const {

@@ -201,6 +201,38 @@ TEST(SamplerTests, ActivatesOnlyTheSamplerTheHostSets) {
     EXPECT_EQ(context->getActiveSampler().get(), first.get());
 }
 
+TEST(SamplerTests, TakesTheSampleOffsetFromItsProperties) {
+    auto context = flux::Context::create();
+    EXPECT_EQ(context->create<flux::IndependentSampler>(kira::Properties{})->getSampleOffset(), 0);
+
+    kira::Properties properties;
+    properties.set("type", "sobol");
+    properties.set("sample_offset", std::int64_t{40});
+    auto sampler = context->create<flux::Sampler>(properties);
+
+    EXPECT_TRUE(properties.is_all_used());
+    EXPECT_EQ(sampler->getSampleOffset(), 40);
+
+    kira::Properties negative;
+    negative.set("sample_offset", std::int64_t{-5});
+    EXPECT_EQ(context->create<flux::IndependentSampler>(negative)->getSampleOffset(), 0);
+}
+
+TEST(SamplerTests, RecordsAChangeOfTheSampleOffset) {
+    auto context = flux::Context::create();
+    auto sampler = context->create<flux::IndependentSampler>(kira::Properties{});
+    context->clearDirty();
+    auto const version = context->getVersion();
+
+    sampler->setSampleOffset(0);
+    EXPECT_EQ(context->getVersion(), version);
+    EXPECT_EQ(flux::getDirtyBits(*sampler), flux::Sampler::DirtyBits::None);
+
+    sampler->setSampleOffset(7);
+    EXPECT_GT(context->getVersion(), version);
+    EXPECT_EQ(flux::getDirtyBits(*sampler), flux::Sampler::DirtyBits::SampleOffset);
+}
+
 TEST(SamplerTests, CreatesTheSelectedSamplerThroughTheBaseType) {
     auto context = flux::Context::create();
     kira::Properties properties;

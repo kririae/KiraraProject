@@ -36,6 +36,14 @@ primitiveProperties(flux::TriangleMesh const &mesh, flux::BSDF const &bsdf) {
     return properties;
 }
 
+[[nodiscard]] kira::Properties
+renderProductProperties(std::uint32_t width, std::uint32_t height, std::uint32_t samplesPerPixel) {
+    kira::Properties properties;
+    properties.set("resolution", flux::Vec2u{width, height});
+    properties.set("num_samples", samplesPerPixel);
+    return properties;
+}
+
 [[nodiscard]] flux::TriangleMesh::Data triangleData() {
     return {
         .vertices = flux::test::sharedBuffer(
@@ -81,6 +89,8 @@ TEST(OptixPipelineTests, RendersAndDownloadsFilmChannels) {
 
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
+    auto sampler = context->create<flux::IndependentSampler>(kira::Properties{});
+    context->setActiveSampler(sampler);
     auto camera = flux::Camera::create();
     kira::Properties properties;
     properties.set("resolution", flux::Vec2u{1, 1});
@@ -99,9 +109,11 @@ TEST(OptixPipelineTests, RendersAndDownloadsFilmChannels) {
     ASSERT_EQ(product->getFilm().getChannel<flux::AlbedoChannel>().size(), 1);
     EXPECT_EQ(product->getFilm().getChannel<flux::AlbedoChannel>()[0], (flux::Vec3f{}));
 
-    handler.setSampleOffset(0);
+    sampler->setSampleOffset(0);
+    handler.sync();
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 4);
-    handler.setSampleOffset(100);
+    sampler->setSampleOffset(100);
+    handler.sync();
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
     EXPECT_EQ(product->getFilm().getChannel<flux::NormalChannel>().size(), 1);
     EXPECT_NO_THROW(handler.render(*product, 2));
@@ -109,6 +121,52 @@ TEST(OptixPipelineTests, RendersAndDownloadsFilmChannels) {
 
     handler.release(*product);
     EXPECT_EQ(handler.getAccumulatedSamples(*product), 0);
+}
+
+TEST(OptixPipelineTests, StartsTheSampleSequenceAtTheSamplerSampleOffset) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    // A diffuse triangle under a constant environment, so a sample's value depends on its index.
+    auto context = flux::Context::create();
+    flux::test::setActiveDefaults(*context);
+    auto sampler = context->create<flux::IndependentSampler>(kira::Properties{});
+    context->setActiveSampler(sampler);
+    context->setActiveEnvMap(context->create<flux::EnvMapLight>(kira::Properties{}));
+    auto mesh = context->create<flux::TriangleMesh>(triangleData());
+    auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
+    (void)context->create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
+    kira::Properties cameraProperties;
+    cameraProperties.set("position", flux::Vec3f{0.25F, 0.25F, 1.0F});
+    cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.0F});
+    auto camera = flux::Camera::create(cameraProperties);
+
+    // Renders with a fresh handler, so the offset reaches it through the sampler alone.
+    auto const render = [&](std::uint64_t offset, std::uint32_t samples) {
+        sampler->setSampleOffset(offset);
+        auto product = flux::RenderProduct::create(camera, renderProductProperties(8, 8, 1));
+        flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
+        handler.render(*product, samples);
+        handler.download(*product);
+        auto const color = product->getFilm().getChannel<flux::ColorChannel>();
+        return std::vector<flux::Spectrum>(color.begin(), color.end());
+    };
+
+    auto const first = render(0, 1);
+    auto const second = render(1, 1);
+    auto const both = render(0, 2);
+    ASSERT_EQ(second.size(), first.size());
+    ASSERT_EQ(both.size(), first.size());
+
+    float difference = 0.0F;
+    for (std::size_t pixel = 0; pixel < first.size(); ++pixel) {
+        for (int axis = 0; axis < 3; ++axis) {
+            difference = std::max(difference, std::abs(second[pixel][axis] - first[pixel][axis]));
+            EXPECT_NEAR(both[pixel][axis], 0.5F * (first[pixel][axis] + second[pixel][axis]), 1e-5F)
+                << pixel;
+        }
+    }
+    EXPECT_GT(difference, 1e-3F);
 }
 
 TEST(OptixPipelineTests, RendersTheSameSamplesForAnyChunkSize) {

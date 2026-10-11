@@ -4,6 +4,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "flux/Core/EnumFlags.h"
 #include "flux/Core/Math.h"
 #include "flux/Scene/RenderObject.h"
 #include "kira/Compiler.h"
@@ -41,16 +42,35 @@ static_assert(static_cast<std::uint32_t>(SampleUse::Terminate) + 1 == sampleUseC
 /// \brief Host-side sampling configuration selected by a context.
 ///
 /// The first sampler successfully added to a context becomes active.
+///
+/// \par Properties
+/// - \c sample_offset: optional integer index of the first sample in the sample sequence, defaults
+///   to 0.
 class Sampler : public RenderObject {
     friend class TXContext;
 
 protected:
-    Sampler(TXContext &tx, SamplerType type);
+    Sampler(TXContext &tx, SamplerType type, kira::Properties const &props);
 
 public:
     struct Impl;
 
+    /// \brief Properties of a sampler that a setter can change.
+    ///
+    /// One bit per setter. A setter records its bit only when the value changes.
+    enum class DirtyBits : std::uint32_t {
+        None = 0,
+        SampleOffset = 1U << 0U,
+    };
+
     [[nodiscard]] SamplerType getType() const noexcept { return type_; }
+
+    /// \brief Returns the sample offset.
+    [[nodiscard]] std::uint64_t getSampleOffset() const noexcept { return sampleOffset_; }
+
+    /// \brief Sets the sample offset.
+    void setSampleOffset(std::uint64_t offset);
+
     [[nodiscard]] bool isRoot() const noexcept override { return true; }
     [[nodiscard]] Impl getImpl() const;
 
@@ -58,6 +78,7 @@ private:
     [[nodiscard]] static Ref<Sampler> create(TXContext &tx, kira::Properties const &props);
 
     SamplerType type_;
+    std::uint64_t sampleOffset_{};
 };
 
 /// \brief Independent pseudorandom sampler.
@@ -197,6 +218,8 @@ private:
         KIRA_UNREACHABLE();
     }
 };
+
+template <> inline constexpr bool isEnumFlags<Sampler::DirtyBits> = true;
 
 static_assert(std::is_standard_layout_v<IndependentSampler::Impl>);
 static_assert(std::is_trivially_copyable_v<IndependentSampler::Impl>);

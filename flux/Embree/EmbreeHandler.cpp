@@ -52,12 +52,14 @@ struct EmbreeHandler::pImpl {
         if (!activeSampler)
             throw kira::Anyhow("EmbreeHandler: context has no active sampler");
         auto const nextSampler = activeSampler->getImpl();
+        auto const nextSampleOffset = activeSampler->getSampleOffset();
         auto const nextIntegrator = activeIntegrator->getImpl();
 
         renderProducts.resetAccumulation();
         syncedVersion.reset();
         embreeContext.sync();
         sampler = nextSampler;
+        sampleOffset = nextSampleOffset;
         integrator = nextIntegrator;
         syncedVersion = version;
     }
@@ -69,11 +71,11 @@ struct EmbreeHandler::pImpl {
     /// failed rebuild of the Embree scene.
     std::optional<std::uint64_t> syncedVersion;
 
-    /// Active sampler and integrator as of the last sync.
+    /// Active sampler, its sample offset, and the active integrator as of the last sync.
     Sampler::Impl sampler{};
+    std::uint64_t sampleOffset{};
     PathIntegrator::Impl integrator;
     EmbreeRenderProductPool renderProducts;
-    std::uint64_t sampleOffset{};
 };
 
 EmbreeHandler::EmbreeHandler(Ref<Context> context)
@@ -164,13 +166,6 @@ void EmbreeHandler::download(RenderProduct &product) {
             std::ranges::copy(channel.values, output);
         }
     });
-}
-
-void EmbreeHandler::setSampleOffset(std::uint64_t offset) {
-    if (pImpl_->sampleOffset == offset)
-        return;
-    pImpl_->sampleOffset = offset;
-    pImpl_->renderProducts.resetAccumulation();
 }
 
 std::uint64_t EmbreeHandler::getAccumulatedSamples(RenderProduct const &product) const {
