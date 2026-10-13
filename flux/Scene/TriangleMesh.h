@@ -8,6 +8,7 @@
 #include "flux/Core/Math.h"
 #include "flux/Scene/Geometry.h"
 #include "kira/Compiler.h"
+#include "kira/SmallVector.h"
 
 namespace flux {
 /// \brief Host indexed triangle mesh.
@@ -117,12 +118,14 @@ public:
     /// holds no handle, so \p data must outlive it.
     [[nodiscard]] static Impl makeImpl(Data const &data, float surfaceArea) noexcept;
 
+    /// \brief Per-triangle arrays for selecting a triangle by area.
+    struct SamplingDistribution {
+        kira::SmallVector<float, 0> areaCDF;
+        kira::SmallVector<float, 0> areaPDF;
+    };
+
     /// \brief Computes the triangle-selection distribution for \p mesh.
-    ///
-    /// \pre Both output spans contain \c mesh.numTriangles elements.
-    static void computeSamplingDistribution(
-        Impl const &mesh, std::span<float> areaCDF, std::span<float> areaPDF
-    );
+    [[nodiscard]] static SamplingDistribution computeSamplingDistribution(Impl const &mesh);
 
     [[nodiscard]] float getSurfaceArea() const noexcept override { return surfaceArea_; }
 

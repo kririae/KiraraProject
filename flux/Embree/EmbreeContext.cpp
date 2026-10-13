@@ -6,6 +6,7 @@
 #include <array>
 #include <cstddef>
 #include <limits>
+#include <utility>
 
 #include "flux/Core/Logging.h"
 #include "flux/Core/MathUtils.h"
@@ -129,12 +130,9 @@ void EmbreeContext::sync() try {
 
         // Build the triangle selection distribution.
         auto impl = TriangleMesh::makeImpl(entry.data, mesh->getSurfaceArea());
-        entry.areaCDF.resize_for_overwrite(impl.numTriangles);
-        entry.areaPDF.resize_for_overwrite(impl.numTriangles);
-        TriangleMesh::computeSamplingDistribution(
-            impl, {entry.areaCDF.data(), entry.areaCDF.size()},
-            {entry.areaPDF.data(), entry.areaPDF.size()}
-        );
+        auto distribution = TriangleMesh::computeSamplingDistribution(impl);
+        entry.areaCDF = std::move(distribution.areaCDF);
+        entry.areaPDF = std::move(distribution.areaPDF);
 
         // Publish the Impl with the distribution.
         impl.triangleAreaCDF = entry.areaCDF.data();

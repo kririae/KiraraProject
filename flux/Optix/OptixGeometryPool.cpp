@@ -26,17 +26,16 @@ void OptixGeometryPool::add(std::span<Ref<TriangleMesh const> const> meshes) {
         entry.texCoordIndices.copyFromHost(data.texCoordIndices, deletionQueue_);
 
         auto const hostImpl = mesh->getImpl();
-        kira::SmallVector<float, 0> cdf;
-        kira::SmallVector<float, 0> pdf;
-        cdf.resize_for_overwrite(hostImpl.numTriangles);
-        pdf.resize_for_overwrite(hostImpl.numTriangles);
-        TriangleMesh::computeSamplingDistribution(
-            hostImpl, {cdf.data(), cdf.size()}, {pdf.data(), pdf.size()}
-        );
+        auto const distribution = TriangleMesh::computeSamplingDistribution(hostImpl);
 
-        entry.triangleAreaCDF.copyFromHost({cdf.data(), cdf.size()}, deletionQueue_);
-        entry.triangleAreaPDF.copyFromHost({pdf.data(), pdf.size()}, deletionQueue_);
-        entry.surfaceArea = cdf.empty() ? hostImpl.surfaceArea : cdf.back();
+        entry.triangleAreaCDF.copyFromHost(
+            {distribution.areaCDF.data(), distribution.areaCDF.size()}, deletionQueue_
+        );
+        entry.triangleAreaPDF.copyFromHost(
+            {distribution.areaPDF.data(), distribution.areaPDF.size()}, deletionQueue_
+        );
+        entry.surfaceArea =
+            distribution.areaCDF.empty() ? hostImpl.surfaceArea : distribution.areaCDF.back();
     }
 
     // Build every GAS in one batch. The inputs point into these locals.

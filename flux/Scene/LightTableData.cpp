@@ -5,7 +5,7 @@
 
 #include "flux/Core/Logging.h"
 #include "flux/Scene/Context.h"
-#include "kira/Anyhow.h"
+#include "kira/Assertions.h"
 
 namespace flux {
 void LightTableData::build(
@@ -47,10 +47,7 @@ void LightTableData::build(
         switch (light->getType()) {
         case LightType::Point: {
             auto point = light.dynamicCast<PointLight const>();
-            if (!point)
-                throw kira::Anyhow(
-                    "LightTableData: light type does not match its host implementation"
-                );
+            KIRA_ASSERT(point, "LightTableData: light type does not match its host implementation");
 
             auto const pointIndex = static_cast<std::uint32_t>(lights.points.size());
             lights.points.push_back(point->getImpl());
@@ -59,7 +56,7 @@ void LightTableData::build(
         }
         case LightType::EnvMap: break;
         case LightType::Primitive:
-        case LightType::Count: throw kira::Anyhow("LightTableData: unsupported light type");
+        case LightType::Count: KIRA_ASSERT(false, "LightTableData: unsupported light type"); break;
         }
     }
 

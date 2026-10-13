@@ -252,13 +252,12 @@ TriangleMesh::Impl TriangleMesh::makeImpl(Data const &data, float surfaceArea) n
     };
 }
 
-void TriangleMesh::computeSamplingDistribution(
-    Impl const &mesh, std::span<float> areaCDF, std::span<float> areaPDF
-) {
-    KIRA_ASSERT(
-        areaCDF.size() == mesh.numTriangles && areaPDF.size() == mesh.numTriangles,
-        "Triangle sampling arrays do not match the mesh"
-    );
+TriangleMesh::SamplingDistribution TriangleMesh::computeSamplingDistribution(Impl const &mesh) {
+    SamplingDistribution result;
+    result.areaCDF.resize_for_overwrite(mesh.numTriangles);
+    result.areaPDF.resize_for_overwrite(mesh.numTriangles);
+    std::span<float> const areaCDF{result.areaCDF.data(), result.areaCDF.size()};
+    std::span<float> const areaPDF{result.areaPDF.data(), result.areaPDF.size()};
 
     tbb::parallel_for(std::uint32_t{0}, mesh.numTriangles, [&](std::uint32_t triangle) {
         areaPDF[triangle] = mesh.getTriangleArea(triangle);
@@ -276,7 +275,7 @@ void TriangleMesh::computeSamplingDistribution(
     );
     if (areaCDF.empty() || areaCDF.back() == 0.0F) {
         std::ranges::fill(areaPDF, 0.0F);
-        return;
+        return result;
     }
 
     auto const cdfTotal = areaCDF.back();
@@ -291,6 +290,7 @@ void TriangleMesh::computeSamplingDistribution(
                       static_cast<double>(interval) / (static_cast<double>(cdfTotal) * area)
                   );
     });
+    return result;
 }
 
 namespace {

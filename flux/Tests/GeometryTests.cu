@@ -192,20 +192,16 @@ TEST(GeometryTests, LoadsBinaryLittleEndianPly) {
 TEST(GeometryTests, SamplesTriangleMeshesByGeometrySpaceArea) {
     auto context = flux::Context::create();
     auto mesh = context->create<flux::TriangleMesh>(triangleProperties("Polygons.ply"));
-    kira::SmallVector<float, 0> areaCDF;
-    kira::SmallVector<float, 0> areaPDF;
-    areaCDF.resize_for_overwrite(mesh->getTriangles().size());
-    areaPDF.resize_for_overwrite(mesh->getTriangles().size());
     auto impl = mesh->getImpl();
-    flux::TriangleMesh::computeSamplingDistribution(impl, areaCDF, areaPDF);
-    impl.triangleAreaCDF = areaCDF.data();
-    impl.triangleAreaPDF = areaPDF.data();
-    impl.surfaceArea = areaCDF.back();
+    auto const distribution = flux::TriangleMesh::computeSamplingDistribution(impl);
+    impl.triangleAreaCDF = distribution.areaCDF.data();
+    impl.triangleAreaPDF = distribution.areaPDF.data();
+    impl.surfaceArea = distribution.areaCDF.back();
 
     auto const sample = impl.sample({0.25F, 0.5F});
 
     ASSERT_GT(sample.pdf, 0.0F);
-    EXPECT_NEAR(areaCDF.back(), mesh->getSurfaceArea(), 1.0e-5F);
+    EXPECT_NEAR(distribution.areaCDF.back(), mesh->getSurfaceArea(), 1.0e-5F);
     EXPECT_NEAR(sample.pdf, 1.0F / mesh->getSurfaceArea(), 1.0e-6F);
     EXPECT_NEAR(sample.geometricNormal.norm(), 1.0F, 1.0e-6F);
 }
@@ -238,13 +234,12 @@ TEST(GeometryTests, ReportsTheQuantizedTriangleSelectionDensity) {
         .numTriangles = static_cast<std::uint32_t>(triangles.size()),
     };
 
-    std::array<float, 2> areaCDF;
-    std::array<float, 2> areaPDF;
-    flux::TriangleMesh::computeSamplingDistribution(mesh, areaCDF, areaPDF);
+    auto const distribution = flux::TriangleMesh::computeSamplingDistribution(mesh);
+    auto const &areaCDF = distribution.areaCDF;
     auto const interval = areaCDF[1] - areaCDF[0];
     auto const expected = interval / (areaCDF.back() * mesh.getTriangleArea(1));
-    EXPECT_FLOAT_EQ(areaPDF[1], expected);
-    EXPECT_NE(areaPDF[1], 1.0F / areaCDF.back());
+    EXPECT_FLOAT_EQ(distribution.areaPDF[1], expected);
+    EXPECT_NE(distribution.areaPDF[1], 1.0F / areaCDF.back());
 }
 
 TEST(GeometryTests, RejectsInvalidPlyVertexIndex) {

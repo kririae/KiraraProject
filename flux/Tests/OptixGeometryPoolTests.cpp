@@ -86,10 +86,15 @@ void expectSameMesh(
     EXPECT_EQ(got.normalIndices == got.triangles, want.normalIndices == want.triangles);
     EXPECT_EQ(got.texCoordIndices == got.triangles, want.texCoordIndices == want.triangles);
 
-    std::vector<float> cdf(want.numTriangles), pdf(want.numTriangles);
-    TriangleMesh::computeSamplingDistribution(want, cdf, pdf);
-    expectArray("triangleAreaCDF", got.triangleAreaCDF, cdf.data(), cdf.size(), stream);
-    expectArray("triangleAreaPDF", got.triangleAreaPDF, pdf.data(), pdf.size(), stream);
+    auto const distribution = TriangleMesh::computeSamplingDistribution(want);
+    expectArray(
+        "triangleAreaCDF", got.triangleAreaCDF, distribution.areaCDF.data(),
+        distribution.areaCDF.size(), stream
+    );
+    expectArray(
+        "triangleAreaPDF", got.triangleAreaPDF, distribution.areaPDF.data(),
+        distribution.areaPDF.size(), stream
+    );
     EXPECT_FLOAT_EQ(got.surfaceArea, want.surfaceArea);
 }
 } // namespace

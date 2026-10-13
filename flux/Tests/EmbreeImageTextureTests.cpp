@@ -11,6 +11,10 @@
 #include "flux/Scene/Context.h"
 #include "flux/Shading/Texture.h"
 
+#ifndef FLUX_TEST_FIXTURES_DIR
+#error "FLUX_TEST_FIXTURES_DIR must name the Flux test fixtures directory"
+#endif
+
 namespace {
 class EmbreeImageTextureTests : public testing::Test {
 protected:
