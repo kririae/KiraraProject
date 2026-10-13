@@ -82,9 +82,12 @@ struct ImageAssetRequest {
 
 /// \brief Image file shared by image textures.
 ///
-/// Source pixels must use straight alpha. Data and display windows must match
-/// and start at the origin. The source file must remain available and unchanged
-/// while the asset is in use.
+/// A well-formed image is flat and 2D, with one to four channels, and its data
+/// window is its display window at the origin. An sRGB image has three or four
+/// channels.
+///
+/// By position, the channels are a value, a value and alpha, RGB, or RGBA.
+/// Alpha is straight. The file must not change while the asset is in use.
 class ImageAsset final : public RefCountedBase<ImageAsset> {
     friend class EmbreeImageTexturePool;
     friend class ImageAssetPool;
@@ -106,6 +109,9 @@ public:
     [[nodiscard]] ImageComponentType getComponentType() const noexcept;
 
     /// Component mapping used when ImageTexture does not provide one.
+    ///
+    /// One component is a value with alpha one. Two components are a value and
+    /// alpha. Four components map to themselves.
     [[nodiscard]] ImageComponentMapping getDefaultComponentMapping() const noexcept;
 
 private:

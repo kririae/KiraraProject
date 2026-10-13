@@ -67,32 +67,6 @@ class EmbreeImageOrientationTests : public EmbreeImageTextureTests,
                                     public testing::WithParamInterface<ImageOrientationCase> {};
 } // namespace
 
-TEST_F(EmbreeImageTextureTests, ConvertsNamedSRGBComponents) {
-    auto const imagePath = path("argb-srgb.exr");
-    auto const componentNames = std::array<std::string_view, 4>{"A", "R", "G", "B"};
-    auto const pixels = std::array{0.4F, 0.5F, 0.25F, 0.75F};
-    flux::writeImage(
-        imagePath,
-        {
-            .pixels = std::as_bytes(std::span{pixels}),
-            .extent = {1, 1},
-            .componentType = flux::ImageComponentType::Float32,
-            .componentCount = static_cast<std::uint8_t>(componentNames.size()),
-        },
-        {
-            .outputComponentType = flux::ImageComponentType::Float32,
-            .componentNames = componentNames,
-        }
-    );
-    build(imagePath, "srgb");
-
-    auto const value = sample({0.5F, 0.5F});
-    EXPECT_NEAR(value.x(), 0.21404114F, 2.0e-5F);
-    EXPECT_NEAR(value.y(), 0.05087609F, 2.0e-5F);
-    EXPECT_NEAR(value.z(), 0.52252155F, 2.0e-5F);
-    EXPECT_FLOAT_EQ(value.w(), 0.4F);
-}
-
 TEST_F(EmbreeImageTextureTests, PreservesStraightAlphaDuringSRGBConversion) {
     auto const imagePath = path("straight-alpha.tif");
     auto const componentNames = std::array<std::string_view, 4>{"R", "G", "B", "A"};

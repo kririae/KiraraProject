@@ -50,18 +50,6 @@ TEST_F(ImageAssetTests, LoadsMetadataAndSharesCanonicalPaths) {
     EXPECT_EQ(asset->getComponentType(), flux::ImageComponentType::Float32);
 }
 
-TEST_F(ImageAssetTests, ExposesRGBAsRGBA) {
-    auto const imagePath = std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "SRGB.ppm";
-    auto const asset = pool.getOrCreate({
-        .path = imagePath,
-        .colorSpace = flux::ImageColorSpace::SRGB,
-    });
-
-    EXPECT_EQ(asset->getComponentCount(), 4);
-    EXPECT_EQ(asset->getComponentType(), flux::ImageComponentType::UNorm8);
-    EXPECT_EQ(asset->getDefaultComponentMapping(), flux::ImageComponentMapping{});
-}
-
 TEST_F(ImageAssetTests, UsesColorSpaceInPoolKey) {
     auto const imagePath = std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "SRGB.ppm";
     auto const linear = pool.getOrCreate({.path = imagePath});
@@ -102,91 +90,40 @@ TEST_F(ImageAssetTests, RejectsSRGBForTwoComponents) {
     );
 }
 
-TEST_F(ImageAssetTests, MapsOneAlphaComponent) {
-    auto const imagePath = path("alpha.exr");
-    auto const componentNames = std::array<std::string_view, 1>{"A"};
-    auto const pixels = std::array{0.25F};
-    flux::writeImage(
-        imagePath,
-        {
-            .pixels = std::as_bytes(std::span{pixels}),
-            .extent = {1, 1},
-            .componentType = flux::ImageComponentType::Float32,
-            .componentCount = static_cast<std::uint8_t>(componentNames.size()),
-        },
-        {
-            .outputComponentType = flux::ImageComponentType::Float32,
-            .componentNames = componentNames,
-        }
-    );
-
-    auto const asset = pool.getOrCreate({.path = imagePath});
-    EXPECT_EQ(asset->getComponentCount(), 1);
-    EXPECT_EQ(
-        asset->getDefaultComponentMapping(), (flux::ImageComponentMapping{
-                                                 .r = flux::ImageComponentSource::Zero,
-                                                 .g = flux::ImageComponentSource::Zero,
-                                                 .b = flux::ImageComponentSource::Zero,
-                                                 .a = flux::ImageComponentSource::X,
-                                             })
-    );
-}
-
-TEST_F(ImageAssetTests, MapsColorAndAlphaComponents) {
-    auto const imagePath = path("color-alpha.exr");
-    auto const componentNames = std::array<std::string_view, 2>{"Y", "A"};
-    auto const pixels = std::array{0.25F, 0.75F};
-    flux::writeImage(
-        imagePath,
-        {
-            .pixels = std::as_bytes(std::span{pixels}),
-            .extent = {1, 1},
-            .componentType = flux::ImageComponentType::Float32,
-            .componentCount = static_cast<std::uint8_t>(componentNames.size()),
-        },
-        {
-            .outputComponentType = flux::ImageComponentType::Float32,
-            .componentNames = componentNames,
-        }
-    );
-
-    auto const asset = pool.getOrCreate({.path = imagePath});
-    EXPECT_EQ(asset->getComponentCount(), 2);
-    EXPECT_EQ(
-        asset->getDefaultComponentMapping(), (flux::ImageComponentMapping{
-                                                 .r = flux::ImageComponentSource::X,
-                                                 .g = flux::ImageComponentSource::X,
-                                                 .b = flux::ImageComponentSource::X,
-                                                 .a = flux::ImageComponentSource::Y,
-                                             })
-    );
-}
-
-TEST_F(ImageAssetTests, RequiresAlphaForFourComponentSRGB) {
-    auto const imagePath = path("four-components.exr");
-    auto const componentNames = std::array<std::string_view, 4>{"X", "Y", "Z", "W"};
+TEST_F(ImageAssetTests, DefaultMappingFollowsChannelPosition) {
+    using Source = flux::ImageComponentSource;
+    // Alpha-like names do not change the mapping.
+    auto const componentNames = std::array<std::string_view, 4>{"A", "R", "G", "B"};
     auto const pixels = std::array{0.25F, 0.5F, 0.75F, 1.0F};
-    flux::writeImage(
-        imagePath,
-        {
-            .pixels = std::as_bytes(std::span{pixels}),
-            .extent = {1, 1},
-            .componentType = flux::ImageComponentType::Float32,
-            .componentCount = static_cast<std::uint8_t>(componentNames.size()),
+    auto const expected = std::array{
+        flux::ImageComponentMapping{
+            .r = Source::X, .g = Source::X, .b = Source::X, .a = Source::One
         },
-        {
-            .outputComponentType = flux::ImageComponentType::Float32,
-            .componentNames = componentNames,
-        }
-    );
+        flux::ImageComponentMapping{.r = Source::X, .g = Source::X, .b = Source::X, .a = Source::Y},
+        flux::ImageComponentMapping{},
+        flux::ImageComponentMapping{},
+    };
+    for (auto count = std::uint8_t{1}; count <= 4; ++count) {
+        SCOPED_TRACE(testing::Message{} << "components = " << static_cast<int>(count));
+        auto const imagePath = path("channels-" + std::to_string(count) + ".exr");
+        flux::writeImage(
+            imagePath,
+            {
+                .pixels = std::as_bytes(std::span{pixels.data(), count}),
+                .extent = {1, 1},
+                .componentType = flux::ImageComponentType::Float32,
+                .componentCount = count,
+            },
+            {
+                .outputComponentType = flux::ImageComponentType::Float32,
+                .componentNames = {componentNames.data(), count},
+            }
+        );
 
-    EXPECT_THROW(
-        static_cast<void>(pool.getOrCreate({
-            .path = imagePath,
-            .colorSpace = flux::ImageColorSpace::SRGB,
-        })),
-        kira::Anyhow
-    );
+        auto const asset = pool.getOrCreate({.path = imagePath});
+        EXPECT_EQ(asset->getComponentCount(), count == 3 ? 4 : count);
+        EXPECT_EQ(asset->getDefaultComponentMapping(), expected[count - 1]);
+    }
 }
 
 TEST_F(ImageAssetTests, RejectsOffsetDataWindow) {

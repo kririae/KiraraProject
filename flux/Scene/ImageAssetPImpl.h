@@ -7,7 +7,6 @@
 #include <OpenImageIO/texture.h>
 
 #include <memory>
-#include <optional>
 #include <span>
 
 #include "flux/Scene/ImageAsset.h"
@@ -57,10 +56,6 @@ struct ImageAsset::pImpl {
     /// File layout used by OIIO texture lookups.
     std::uint8_t orientation;
     std::uint8_t fileComponentCount;
-    int fileAlphaComponent;
-
-    /// Maps file components to the four-component image layout.
-    std::optional<ImageComponentMapping> fileToRGBA;
 };
 
 /// \brief OIIO texture systems shared by one ImageAssetPool.

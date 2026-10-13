@@ -52,38 +52,12 @@ void EmbreeImageTexturePool::build(Context const &context) {
         // OIIO converts color components before filtering.
         options.colortransformid = asset->pImpl_->colorTransformId;
 
-        auto componentMapping = texture->getComponentMapping();
         auto sampleComponentCount = asset->pImpl_->fileComponentCount;
         // Request RGBA for RGB images so OIIO filters the added alpha. Border
         // mode blends it with zero outside the image.
-        auto const addsAlpha =
-            asset->pImpl_->fileToRGBA && asset->pImpl_->fileToRGBA->a == ImageComponentSource::One;
-        if (addsAlpha) {
+        if (sampleComponentCount == 3) {
             options.fill = 1.0F;
             sampleComponentCount = 4;
-        }
-
-        // Compose the ImageTexture mapping with the file component order.
-        if (asset->pImpl_->fileToRGBA) {
-            auto const &fileMapping = *asset->pImpl_->fileToRGBA;
-            auto const mapSource = [&](ImageComponentSource component) {
-                switch (component) {
-                case ImageComponentSource::X: return fileMapping.r;
-                case ImageComponentSource::Y: return fileMapping.g;
-                case ImageComponentSource::Z: return fileMapping.b;
-                case ImageComponentSource::W:
-                    return addsAlpha ? ImageComponentSource::W : fileMapping.a;
-                case ImageComponentSource::Zero:
-                case ImageComponentSource::One: return component;
-                }
-                KIRA_UNREACHABLE();
-            };
-            componentMapping = {
-                .r = mapSource(componentMapping.r),
-                .g = mapSource(componentMapping.g),
-                .b = mapSource(componentMapping.b),
-                .a = mapSource(componentMapping.a),
-            };
         }
 
         textures_[context.getIndex<ImageTexture>(texture->getContextId())] = {
@@ -93,7 +67,7 @@ void EmbreeImageTexturePool::build(Context const &context) {
             .options = options,
             .sampleComponentCount = sampleComponentCount,
             .orientation = asset->pImpl_->orientation,
-            .componentMapping = componentMapping,
+            .componentMapping = texture->getComponentMapping(),
         };
     }
 }

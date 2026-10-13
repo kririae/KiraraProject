@@ -180,7 +180,7 @@ TEST_P(OptixImageStorageTests, SamplesStoredComponents) {
     auto const value = sample({0.5F, 0.5F});
     auto expected = flux::Vec4f{pixels[0], pixels[0], pixels[0], 1.0F};
     if (parameter.componentCount == 2)
-        expected = flux::Vec4f{pixels[0], pixels[1], 0.0F, 1.0F};
+        expected = flux::Vec4f{pixels[0], pixels[0], pixels[0], pixels[1]};
     else if (parameter.componentCount == 4)
         expected = flux::Vec4f{pixels[0], pixels[1], pixels[2], pixels[3]};
 
@@ -388,11 +388,11 @@ TEST_F(OptixImageTextureTests, PreservesStraightAlphaDuringSRGBConversion) {
     EXPECT_NEAR(value.w(), 128.0F / 255.0F, 2.0e-3F);
 }
 
-TEST_P(OptixSRGBStorageTests, ConvertsNamedComponentsBeforeUpload) {
+TEST_P(OptixSRGBStorageTests, ConvertsComponentsBeforeUpload) {
     auto const &parameter = GetParam();
     auto const imagePath = path(std::string{parameter.name} + parameter.extension);
-    auto const componentNames = std::array<std::string_view, 4>{"A", "R", "G", "B"};
-    auto const pixels = std::array{0.4F, 0.5F, 0.25F, 0.75F};
+    auto const componentNames = std::array<std::string_view, 4>{"R", "G", "B", "A"};
+    auto const pixels = std::array{0.5F, 0.25F, 0.75F, 0.4F};
     flux::writeImage(
         imagePath,
         {

@@ -27,10 +27,6 @@ void validateImageSpec(OIIO::ImageSpec const &spec, std::string_view filename) {
         throw kira::Anyhow("ImageAsset: '{}' must be a non-empty flat 2D image", filename);
     if (spec.nchannels < 1 || spec.nchannels > 4)
         throw kira::Anyhow("ImageAsset: '{}' must contain one to four components", filename);
-    if (spec.alpha_channel < -1 || spec.alpha_channel >= spec.nchannels)
-        throw kira::Anyhow("ImageAsset: '{}' has an invalid alpha component", filename);
-    if (spec.z_channel >= 0)
-        throw kira::Anyhow("ImageAsset: '{}' must not contain a depth component", filename);
     if (spec.x != 0 || spec.y != 0 || spec.z != 0 || spec.full_x != 0 || spec.full_y != 0 ||
         spec.full_z != 0 || spec.full_width != spec.width || spec.full_height != spec.height ||
         spec.full_depth != spec.depth)
@@ -57,86 +53,22 @@ void validateImageSpec(OIIO::ImageSpec const &spec, std::string_view filename) {
     return result;
 }
 
-[[nodiscard]] ImageComponentMapping makeFileComponentMapping(OIIO::ImageSpec const &spec) {
-    auto const components = spec.nchannels;
-    auto const alpha = spec.alpha_channel;
-    if (components == 1 && alpha == 0)
-        return {
-            .r = ImageComponentSource::Zero,
-            .g = ImageComponentSource::Zero,
-            .b = ImageComponentSource::Zero,
-            .a = ImageComponentSource::X,
-        };
-    if (components == 1)
-        return {
-            .r = ImageComponentSource::X,
-            .g = ImageComponentSource::X,
-            .b = ImageComponentSource::X,
-            .a = ImageComponentSource::One,
-        };
-    if (components == 2 && alpha < 0)
-        return {
-            .r = ImageComponentSource::X,
-            .g = ImageComponentSource::Y,
-            .b = ImageComponentSource::Zero,
-            .a = ImageComponentSource::One,
-        };
-    if (components == 2) {
-        auto const color = static_cast<ImageComponentSource>(alpha == 0 ? 1 : 0);
-        return {
-            .r = color,
-            .g = color,
-            .b = color,
-            .a = static_cast<ImageComponentSource>(alpha),
-        };
+[[nodiscard]] ImageComponentMapping makeDefaultComponentMapping(std::uint8_t componentCount) {
+    using Source = ImageComponentSource;
+    switch (componentCount) {
+    case 1: return {.r = Source::X, .g = Source::X, .b = Source::X, .a = Source::One};
+    case 2: return {.r = Source::X, .g = Source::X, .b = Source::X, .a = Source::Y};
+    default: return {};
     }
-    if (components == 3 && alpha < 0)
-        return {
-            .r = ImageComponentSource::X,
-            .g = ImageComponentSource::Y,
-            .b = ImageComponentSource::Z,
-            .a = ImageComponentSource::One,
-        };
-    if (components == 4 && alpha < 0)
-        return {};
-
-    auto color = std::array{
-        ImageComponentSource::Zero,
-        ImageComponentSource::Zero,
-        ImageComponentSource::Zero,
-    };
-    auto colorIndex = std::size_t{};
-    for (auto component = 0; component < components; ++component)
-        if (component != alpha)
-            color[colorIndex++] = static_cast<ImageComponentSource>(component);
-    return {
-        .r = color[0],
-        .g = color[1],
-        .b = components == 3 ? ImageComponentSource::Zero : color[2],
-        .a = static_cast<ImageComponentSource>(alpha),
-    };
 }
 
-[[nodiscard]] OIIO::ImageBuf convertToRGBA(
-    OIIO::ImageBuf const &source, ImageComponentMapping mapping, std::string_view filename
-) {
-    auto const sources = std::array{mapping.r, mapping.g, mapping.b, mapping.a};
-    auto order = std::array<int, 4>{};
-    auto fill = std::array<float, 4>{};
-    for (auto index = std::size_t{}; index < sources.size(); ++index) {
-        auto const component = static_cast<std::uint8_t>(sources[index]);
-        if (component <= static_cast<std::uint8_t>(ImageComponentSource::W)) {
-            order[index] = component;
-        } else {
-            order[index] = -1;
-            fill[index] = sources[index] == ImageComponentSource::One ? 1.0F : 0.0F;
-        }
-    }
-
+[[nodiscard]] OIIO::ImageBuf appendAlpha(OIIO::ImageBuf const &source, std::string_view filename) {
     auto result = OIIO::ImageBuf{};
-    if (!OIIO::ImageBufAlgo::channels(result, source, 4, order, fill))
+    if (!OIIO::ImageBufAlgo::channels(
+            result, source, 4, std::array{0, 1, 2, -1}, std::array{0.0F, 0.0F, 0.0F, 1.0F}
+        ))
         throw kira::Anyhow(
-            "ImageAsset: failed to arrange components for '{}': {}", filename, result.geterror()
+            "ImageAsset: failed to append alpha to '{}': {}", filename, result.geterror()
         );
     return result;
 }
@@ -193,9 +125,7 @@ ImageAsset::pImpl::pImpl(
         throw kira::Anyhow("ImageAsset: failed to read metadata for '{}'", path.string());
     validateImageSpec(spec, path.string());
 
-    auto const hasRGB = spec.nchannels == 3 && spec.alpha_channel < 0;
-    auto const hasRGBA = spec.nchannels == 4 && spec.alpha_channel >= 0;
-    if (colorSpace == ImageColorSpace::SRGB && !hasRGB && !hasRGBA)
+    if (colorSpace == ImageColorSpace::SRGB && spec.nchannels < 3)
         throw kira::Anyhow(
             "ImageAsset: sRGB input '{}' must contain RGB or RGBA pixels", path.string()
         );
@@ -207,13 +137,9 @@ ImageAsset::pImpl::pImpl(
         std::swap(width, height);
     extent = Vec2u{static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)};
     fileComponentCount = static_cast<std::uint8_t>(spec.nchannels);
-    fileAlphaComponent = spec.alpha_channel;
     componentType = chooseComponentType(spec);
-    auto const fileComponentMapping = makeFileComponentMapping(spec);
-    if (fileComponentCount >= 3 && fileComponentMapping != ImageComponentMapping{})
-        fileToRGBA = fileComponentMapping;
-    componentCount = fileToRGBA ? 4 : fileComponentCount;
-    defaultComponentMapping = fileToRGBA ? ImageComponentMapping{} : fileComponentMapping;
+    componentCount = fileComponentCount == 3 ? 4 : fileComponentCount;
+    defaultComponentMapping = makeDefaultComponentMapping(componentCount);
 
     if (colorSpace == ImageColorSpace::SRGB) {
         colorTransformId = textureSystem->get_colortransform_id(
@@ -268,7 +194,6 @@ std::vector<ImageAsset::ImageBuffer> ImageAsset::readMipChain() const {
         auto spec = OIIO::ImageSpec{
             static_cast<int>(width), static_cast<int>(height), pImpl_->fileComponentCount, format
         };
-        spec.alpha_channel = pImpl_->fileAlphaComponent;
         spec.attribute("Orientation", pImpl_->orientation);
         auto source = OIIO::ImageBuf{spec};
         auto const roi =
@@ -282,8 +207,8 @@ std::vector<ImageAsset::ImageBuffer> ImageAsset::readMipChain() const {
                 pImpl_->filename.string(), pImpl_->textureSystem->geterror()
             );
 
-        if (pImpl_->fileToRGBA)
-            source = convertToRGBA(source, *pImpl_->fileToRGBA, pImpl_->filename.string());
+        if (pImpl_->fileComponentCount == 3)
+            source = appendAlpha(source, pImpl_->filename.string());
 
         if (source.orientation() != 1) {
             auto oriented = OIIO::ImageBuf{};
