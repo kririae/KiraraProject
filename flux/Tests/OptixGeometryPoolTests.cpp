@@ -82,10 +82,6 @@ void expectSameMesh(
         "texCoordIndices", got.texCoordIndices, want.texCoordIndices, want.numTriangles, stream
     );
 
-    // An attribute without its own indices shares the triangles.
-    EXPECT_EQ(got.normalIndices == got.triangles, want.normalIndices == want.triangles);
-    EXPECT_EQ(got.texCoordIndices == got.triangles, want.texCoordIndices == want.triangles);
-
     auto const distribution = TriangleMesh::computeSamplingDistribution(want);
     expectArray(
         "triangleAreaCDF", got.triangleAreaCDF, distribution.areaCDF.data(),

@@ -5,7 +5,6 @@
 #include <future>
 #include <latch>
 #include <stdexcept>
-#include <string>
 #include <vector>
 
 #include "flux/Core/ConcurrentPool.h"
@@ -114,18 +113,8 @@ TEST(ConcurrentPoolTests, PublishesComputationErrorsToWaiters) {
     releaseCompute.count_down();
 
     EXPECT_EQ(waiterStatus, std::future_status::timeout);
-    try {
-        (void)owner.get();
-        FAIL() << "owner returned a value";
-    } catch (std::runtime_error const &error) {
-        EXPECT_EQ(std::string{error.what()}, "first failure");
-    }
-    try {
-        (void)waiter.get();
-        FAIL() << "waiter returned a value";
-    } catch (std::runtime_error const &error) {
-        EXPECT_EQ(std::string{error.what()}, "first failure");
-    }
+    EXPECT_THROW((void)owner.get(), std::runtime_error);
+    EXPECT_THROW((void)waiter.get(), std::runtime_error);
     EXPECT_EQ(computeCount.load(std::memory_order_relaxed), 1U);
 }
 

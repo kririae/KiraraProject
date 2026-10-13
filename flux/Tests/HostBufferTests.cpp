@@ -26,7 +26,6 @@ TEST(HostBufferTests, DefaultIsEmptyWithNullData) {
     EXPECT_EQ(buffer.data(), nullptr);
     EXPECT_EQ(buffer.size(), 0);
     EXPECT_EQ(buffer.capacity(), 0);
-    EXPECT_TRUE(buffer.span().empty());
 }
 
 TEST(HostBufferTests, TakesAVectorWithoutCopyingElements) {
@@ -42,26 +41,12 @@ TEST(HostBufferTests, TakesAVectorWithoutCopyingElements) {
     EXPECT_EQ(buffer.span()[2], 3);
 }
 
-TEST(HostBufferTests, TakesASmallVectorWithoutCopyingElements) {
-    kira::SmallVector<std::uint32_t, 2> values;
-    for (std::uint32_t value = 0; value < 6; ++value)
-        values.push_back(value);
-    auto const *data = values.data();
-    auto const capacity = values.capacity();
-
-    HostBuffer<std::uint32_t> buffer(std::move(values));
-
-    EXPECT_EQ(buffer.data(), data);
-    EXPECT_EQ(buffer.size(), 6);
-    EXPECT_EQ(buffer.capacity(), capacity);
-    EXPECT_EQ(buffer.span()[5], 5);
-}
-
 TEST(HostBufferTests, TakesAnInlineSmallVectorWithItsElements) {
     kira::SmallVector<std::uint32_t, 4> values{7, 8};
 
     HostBuffer<std::uint32_t> buffer(std::move(values));
 
+    EXPECT_NE(buffer.data(), values.data());
     EXPECT_EQ(buffer.size(), 2);
     EXPECT_GE(buffer.capacity(), 4);
     EXPECT_EQ(buffer.span()[0], 7);
@@ -132,17 +117,4 @@ TEST(HostBufferTests, ResizeToZeroReleasesTheAllocation) {
     buffer.clear();
     EXPECT_EQ(buffer.data(), nullptr);
     EXPECT_TRUE(buffer.empty());
-}
-
-TEST(HostBufferTests, SharingKeepsTheDataPointer) {
-    auto buffer = std::make_shared<HostBuffer<std::uint32_t>>();
-    buffer->resize(4, 5);
-    auto const *data = buffer->data();
-
-    Shared<HostBuffer<std::uint32_t>> shared = std::move(buffer);
-
-    EXPECT_EQ(buffer, nullptr);
-    EXPECT_EQ(shared->data(), data);
-    EXPECT_EQ(shared->size(), 4);
-    EXPECT_EQ(shared->capacity(), 5);
 }

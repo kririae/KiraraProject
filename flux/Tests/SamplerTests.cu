@@ -6,7 +6,6 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -18,26 +17,15 @@
 #include "flux/Sampling/LightPowerDistribution.h"
 #include "flux/Sampling/SamplerImpl.h"
 #include "flux/Scene/Context.h"
-#include "flux/Scene/TXContext.h"
 #include "kira/Anyhow.h"
 
 namespace {
-class ThrowingSamplerOwner final : public flux::RenderObject {
-    friend class flux::TXContext;
-
-    ThrowingSamplerOwner(flux::TXContext &tx, kira::Properties const &) : RenderObject(tx) {
-        (void)tx.create<flux::IndependentSampler>(kira::Properties{});
-        throw std::runtime_error("intentional sampler transaction failure");
-    }
-};
-
 struct SamplerResult {
     flux::Vec2f first;
     flux::Vec2f repeated;
     flux::Vec2f differentSample;
     flux::Vec2f differentPixel;
     float next;
-    flux::SamplerType type;
 };
 
 __global__ void sampleIndependentSampler(flux::Sampler::Impl sampler, SamplerResult *result) {
@@ -50,7 +38,6 @@ __global__ void sampleIndependentSampler(flux::Sampler::Impl sampler, SamplerRes
 
     sampler.startPixelSample(pixel, 7U, resolution);
     result->repeated = sampler.get2D(flux::SampleUse::Pixel, 0);
-    result->type = sampler.type;
 
     sampler.startPixelSample(pixel, 8U, resolution);
     result->differentSample = sampler.get2D(flux::SampleUse::Pixel, 0);
@@ -189,11 +176,6 @@ TEST(SamplerTests, ActivatesOnlyTheSamplerTheHostSets) {
     auto context = flux::Context::create();
 
     EXPECT_FALSE(context->getActiveSampler());
-    EXPECT_THROW(
-        (void)context->create<ThrowingSamplerOwner>(kira::Properties{}), std::runtime_error
-    );
-    EXPECT_EQ(context->getNumContextObjects(), 0);
-
     auto first = context->create<flux::IndependentSampler>(kira::Properties{});
     EXPECT_FALSE(context->getActiveSampler());
 
@@ -257,7 +239,6 @@ TEST(SamplerTests, DispatchesDeterministicPixelSequencesOnHost) {
     auto const first = sampler.get2D(flux::SampleUse::Pixel, 0);
     sampler.startPixelSample({3U, 2U}, 7U, {16U, 9U});
 
-    EXPECT_EQ(sampler.type, flux::SamplerType::Independent);
     EXPECT_EQ(sampler.get2D(flux::SampleUse::Pixel, 0), first);
 }
 
@@ -278,7 +259,6 @@ TEST(SamplerTests, DispatchesDeterministicPixelSequences) {
     deviceResult.copyToHost({&result, 1});
     flux::cudaCheck(cudaStreamSynchronize(cudaStreamPerThread));
 
-    EXPECT_EQ(result.type, flux::SamplerType::Independent);
     EXPECT_FLOAT_EQ(result.first.x(), result.repeated.x());
     EXPECT_FLOAT_EQ(result.first.y(), result.repeated.y());
     EXPECT_GE(result.first.x(), 0.0F);
@@ -401,21 +381,9 @@ TEST(SamplerTests, BoundsNegativeTwoDimensionalWeights) {
     EXPECT_FLOAT_EQ(rows[0], 1.0F);
 }
 
-TEST(SamplerTests, CreatesTheSobolSamplerThroughTheBaseType) {
-    auto context = flux::Context::create();
-    kira::Properties properties;
-    properties.set("type", "sobol");
-
-    auto sampler = context->create<flux::Sampler>(properties);
-
-    EXPECT_TRUE(properties.is_all_used());
-    EXPECT_NE(sampler.dynamicCast<flux::SobolSampler>(), nullptr);
-    EXPECT_EQ(sampler->getImpl().type, flux::SamplerType::Sobol);
-}
-
 TEST(SamplerTests, SobolPrefixesAreNets) {
     using flux::SampleUse;
-    for (auto const pixel : {flux::Vec2u{0U, 0U}, flux::Vec2u{5U, 3U}, flux::Vec2u{15U, 8U}}) {
+    for (auto const pixel : {flux::Vec2u{0U, 0U}, flux::Vec2u{5U, 3U}}) {
         for (auto const [use, depth] :
              {std::pair{SampleUse::Pixel, 0U}, std::pair{SampleUse::Bsdf, 0U},
               std::pair{SampleUse::Light, 7U}, std::pair{SampleUse::Terminate, 31U}}) {

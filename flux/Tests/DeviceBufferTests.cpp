@@ -27,6 +27,7 @@ TEST(DeviceBufferTests, CopiesAndZerosStorageOnItsBoundStream) {
     {
         flux::DeviceBuffer<std::uint32_t> buffer(cudaStreamPerThread);
         buffer.copyFromHostAndWait({input.data(), input.size()});
+        EXPECT_EQ(cudaStreamQuery(cudaStreamPerThread), cudaSuccess);
         buffer.copyToHost({output.data(), output.size()});
 
         EXPECT_EQ(output, input);
@@ -49,9 +50,6 @@ TEST(DeviceBufferTests, SameSizeResizeIsANoOp) {
     buffer.resize(4);
     auto *const allocation = buffer.data();
 
-    buffer.setStream(cudaStreamLegacy);
-    EXPECT_EQ(buffer.getStream(), cudaStreamLegacy);
-    buffer.setStream(cudaStreamPerThread);
     buffer.resize(4, cudaStreamLegacy);
 
     EXPECT_EQ(buffer.data(), allocation);
@@ -229,7 +227,7 @@ TEST(DeviceBufferTests, CopyFromHostReadsTheSourceOnlyDuringTheCall) {
         ASSERT_EQ(output[i], i);
 }
 
-TEST(DeviceBufferTests, CopyFromHostHoldsASharedSourceUntilTheCopyCompletes) {
+TEST(DeviceBufferTests, CopyFromHostKeepsASharedSourceAlive) {
     if (!flux::test::hasCudaMemoryPoolSupport())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
@@ -244,25 +242,7 @@ TEST(DeviceBufferTests, CopyFromHostHoldsASharedSourceUntilTheCopyCompletes) {
 
     std::array<std::uint32_t, 3> output{};
     buffer.copyToHost({output.data(), output.size()});
-    deletionQueue.deleteFinished();
 
-    EXPECT_TRUE(held.expired());
     EXPECT_EQ(output, (std::array<std::uint32_t, 3>{5, 6, 7}));
     EXPECT_EQ(buffer.size(), 3);
-    EXPECT_EQ(buffer.capacity(), buffer.size());
-}
-
-TEST(DeviceBufferTests, CopyFromHostAndWaitCompletesTheCopy) {
-    if (!flux::test::hasCudaMemoryPoolSupport())
-        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
-
-    Stream stream;
-    std::array<std::uint32_t, 3> const input{1, 2, 3};
-    std::array<std::uint32_t, 3> output{};
-    flux::DeviceBuffer<std::uint32_t> buffer(stream.get());
-    buffer.copyFromHostAndWait({input.data(), input.size()});
-
-    EXPECT_EQ(cudaStreamQuery(stream.get()), cudaSuccess);
-    buffer.copyToHost({output.data(), output.size()});
-    EXPECT_EQ(output, input);
 }

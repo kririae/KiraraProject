@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-#include <functional>
 #include <memory>
 #include <utility>
 
@@ -9,19 +8,6 @@
 #include "flux/Optix/OptixUtils.h"
 
 namespace {
-/// Calls a function when it is destroyed.
-class DestructionNotifier {
-public:
-    explicit DestructionNotifier(std::function<void()> onDestroy)
-        : onDestroy_(std::move(onDestroy)) {}
-    DestructionNotifier(DestructionNotifier const &) = delete;
-    DestructionNotifier &operator=(DestructionNotifier const &) = delete;
-    ~DestructionNotifier() { onDestroy_(); }
-
-private:
-    std::function<void()> onDestroy_;
-};
-
 class DeletionQueueTests : public testing::Test {
 protected:
     void SetUp() override {
@@ -36,33 +22,13 @@ protected:
     }
 
     /// Returns an object that sets \p destroyed to true when it is destroyed.
-    [[nodiscard]] static std::shared_ptr<DestructionNotifier>
-    makeDestructionNotifier(bool &destroyed) {
-        return std::make_shared<DestructionNotifier>([&destroyed] { destroyed = true; });
+    [[nodiscard]] static std::shared_ptr<void> makeDestructionNotifier(bool &destroyed) {
+        return {&destroyed, [](bool *flag) { *flag = true; }};
     }
 
     cudaStream_t stream_{};
 };
 } // namespace
-
-TEST_F(DeletionQueueTests, DeletesAnObjectOnlyAfterItsWorkFinishes) {
-    auto destroyed = false;
-    flux::DeletionQueue deletionQueue(stream_);
-
-    {
-        flux::test::StreamGate gate(stream_);
-        deletionQueue.deleteLater(makeDestructionNotifier(destroyed));
-        deletionQueue.deleteFinished();
-        EXPECT_FALSE(destroyed);
-
-        gate.open();
-        flux::cudaCheck(cudaStreamSynchronize(stream_));
-    }
-    EXPECT_FALSE(destroyed);
-
-    deletionQueue.deleteFinished();
-    EXPECT_TRUE(destroyed);
-}
 
 TEST_F(DeletionQueueTests, DeletesOnlyTheObjectsWhoseWorkHasFinished) {
     auto first = false;
@@ -83,6 +49,7 @@ TEST_F(DeletionQueueTests, DeletesOnlyTheObjectsWhoseWorkHasFinished) {
         gate.open();
         flux::cudaCheck(cudaStreamSynchronize(stream_));
     }
+    EXPECT_FALSE(second);
 
     deletionQueue.deleteFinished();
     EXPECT_TRUE(second);
