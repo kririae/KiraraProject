@@ -11,20 +11,52 @@
   simplest design, and does it fit the existing structure? Complexity it adds, such as duplicated
   state, a parallel code path, or extra failure handling, usually means a misplaced seam. Look for
   the seam that makes it disappear.
+- The scene is the source of truth, so its edits give the strong exception guarantee: an edit that
+  throws leaves the Context unchanged. State derived from the scene, such as a backend, gives only
+  the basic guarantee: after an exception it stays valid and destructible, and the caller recovers,
+  for example by creating a new backend. Never add a rollback, a staging copy, or any other
+  mechanism that keeps derived state, such as the OptiX scene, as it was before a failure.
 
 ## Testing
 
 - After a change, run only the unit tests it touches. Run the full suite only when asked.
+- A unit test locks one promise: a documented result or `\throw`, or a rule of this file.
+- Do not test a strategy, or a conclusion that another test or a default integration test reaches.
+- Prefer a missing test to a low-value one. Delete low-value tests.
 
 ## Input handling
 
-- Validate scene input with an exception only when continuing could access invalid memory.
-- Propagate failures from required system APIs.
-- Bad scene values are not exceptional. Bound them to the supported domain and keep rendering.
-- Do not add defensive NaN or infinity checks to rendering code. Let arithmetic propagate unless it can make memory access unsafe.
-- A resource is never empty. Reject a mesh without triangles or an image without pixels when it is
-  built. A collection may be empty, and an optional attribute may be absent. An adapter turns empty
-  input into no resource.
+- Respect what the user asks for in the scene, and report misuse by the calling code. Two layers
+  meet here:
+  - Scene content, such as a TOML file or a USD prim, describes the scene: the `Context` and its
+    objects. Scene objects and adapters, meaning the code that reads scene content, such as the
+    CLI and hdFlux, follow the scene rules below.
+  - Every other API, such as a handler, a buffer, or a `Film`, takes its arguments from the calling
+    code. It follows the calling-code rules below.
+- Scene rules:
+  - Never invent a result that the user did not ask for. A value that asks for nothing, such as
+    zero samples or a zero resolution, renders nothing. An adapter turns empty input into no
+    resource.
+  - Bound a value that asks for something unsupported to the nearest supported value, and warn.
+    Report an unsupported feature the same way. The renderer keeps rendering.
+  - An adapter keeps its requests within the preconditions of the APIs it calls.
+- Calling-code rules:
+  - A bad argument violates a precondition. State it as `\pre`.
+  - Misuse at a host API boundary that would corrupt memory is always checked and throws
+    `std::invalid_argument`. Other preconditions may be checked. No test locks such a check.
+- `\throw` documents only an environment failure, missing required configuration, one of our size
+  limits (`std::length_error`), or a check that is the function's purpose.
+- Throw when required configuration has no fallback, such as an unset active integrator.
+- Propagate failures from required system APIs, including a request beyond one of their limits.
+  Do not add a feature, such as splitting work, only to avoid such a failure.
+- Add no machinery for a case that is extremely rare.
+- Scene content never crashes the process. Terminate, through an assertion or otherwise, only when
+  our own code is wrong: an internal invariant broke. A failure from outside the code, such as a
+  system API, the device, or memory, never terminates the process. Log it and continue, or throw.
+- Do not check for NaN or infinity, whether arithmetic or the scene produced it, or for a 64-bit
+  counter that wraps. Let them propagate unless they can make memory access unsafe.
+- A resource is never empty: building an empty one violates a precondition. A collection may be
+  empty, and an optional attribute may be absent.
 - Degenerate values are not empty. Keep a zero-area mesh and bound what it affects.
 
 ## Naming
