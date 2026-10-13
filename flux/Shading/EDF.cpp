@@ -1,18 +1,21 @@
 #include "flux/Shading/EDF.h"
 
-#include <cmath>
 #include <string>
 
+#include "flux/Core/Logging.h"
 #include "flux/Core/MathUtils.h"
 #include "flux/Scene/TXContext.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
 namespace {
-void validateRadiance(Spectrum const &radiance) {
-    for (auto const value : radiance)
-        if (!(value >= 0.0F && std::isfinite(value)))
-            throw kira::Anyhow("ConstantEDF: radiance must be finite and nonnegative");
+[[nodiscard]] Spectrum boundRadiance(Spectrum radiance) {
+    for (auto &value : radiance)
+        if (value < 0.0F) {
+            LogWarn("ConstantEDF: radiance component {} is negative, using 0", value);
+            value = 0.0F;
+        }
+    return radiance;
 }
 } // namespace
 
@@ -24,13 +27,11 @@ Ref<EDF> EDF::create(TXContext &tx, kira::Properties const &props) {
 }
 
 ConstantEDF::ConstantEDF(TXContext &tx, kira::Properties const &props) : EDF(tx) {
-    radiance_ = props.use_or<Spectrum>("radiance", radiance_);
-    validateRadiance(radiance_);
+    radiance_ = boundRadiance(props.use_or<Spectrum>("radiance", radiance_));
 }
 
 void ConstantEDF::setRadiance(Spectrum const &radiance) {
-    validateRadiance(radiance);
-    setIfDifferent(radiance_, radiance, DirtyBits::Radiance);
+    setIfDifferent(radiance_, boundRadiance(radiance), DirtyBits::Radiance);
 }
 
 EDF::Impl ConstantEDF::getImpl() const { return Impl{.radiance = radiance_}; }

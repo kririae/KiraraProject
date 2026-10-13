@@ -473,8 +473,16 @@ TEST(ShadingTests, EvaluatesOneSidedConstantEmission) {
         }),
         flux::Spectrum{}
     );
+}
 
-    kira::Properties invalid;
-    invalid.set("radiance", flux::Spectrum{-1.0F, 0.0F, 0.0F});
-    EXPECT_THROW((void)context->create<flux::ConstantEDF>(invalid), kira::Anyhow);
+TEST(ShadingTests, BoundsNegativeEmissionToZero) {
+    auto context = flux::Context::create();
+    kira::Properties props;
+    props.set("radiance", flux::Spectrum{-1.0F, 0.5F, 0.0F});
+
+    auto edf = context->create<flux::ConstantEDF>(props);
+    EXPECT_EQ(edf->getRadiance(), (flux::Spectrum{0.0F, 0.5F, 0.0F}));
+
+    edf->setRadiance({1.0F, -2.0F, 3.0F});
+    EXPECT_EQ(edf->getRadiance(), (flux::Spectrum{1.0F, 0.0F, 3.0F}));
 }

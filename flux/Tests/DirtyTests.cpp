@@ -224,14 +224,11 @@ TEST(DirtyTests, FailedValidationRecordsNothing) {
     auto context = flux::Context::create();
     auto mesh = context->create<flux::TriangleMesh>(triangleProperties());
     auto primitive = createPrimitive(*context, mesh);
-    auto point = context->create<flux::PointLight>(kira::Properties{});
 
     EXPECT_THROW(primitive->setGeometry(nullptr), kira::Anyhow);
-    EXPECT_THROW(point->setIntensity({-1.0F, 0.0F, 0.0F}), kira::Anyhow);
 
     EXPECT_TRUE(context->getDirtiedIds().empty());
     EXPECT_EQ(flux::getDirtyBits(*primitive), flux::Primitive::DirtyBits::None);
-    EXPECT_EQ(flux::getDirtyBits(*point), flux::PointLight::DirtyBits::None);
 }
 
 TEST(DirtyTests, CreateListsNewObjectsAsAdded) {

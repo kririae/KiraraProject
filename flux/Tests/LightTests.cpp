@@ -7,6 +7,7 @@
 #include "flux/Scene/Context.h"
 #include "flux/Scene/EnvMapLight.h"
 #include "flux/Scene/EnvMapLightImpl.h"
+#include "flux/Scene/Light.h"
 
 namespace {
 struct UVTextureEvaluator {
@@ -44,6 +45,18 @@ TEST(LightTests, ClampsEnvironmentMapScale) {
     light->setScale({-1.0F, 2.0F, 3.0F});
 
     EXPECT_EQ(light->getScale(), (flux::Spectrum{0.0F, 2.0F, 3.0F}));
+}
+
+TEST(LightTests, BoundsNegativePointLightIntensityToZero) {
+    auto context = flux::Context::create();
+    kira::Properties props;
+    props.set("intensity", flux::Spectrum{-1.0F, 2.0F, 3.0F});
+
+    auto light = context->create<flux::PointLight>(props);
+    EXPECT_EQ(light->getIntensity(), (flux::Spectrum{0.0F, 2.0F, 3.0F}));
+
+    light->setIntensity({1.0F, -2.0F, 3.0F});
+    EXPECT_EQ(light->getIntensity(), (flux::Spectrum{1.0F, 0.0F, 3.0F}));
 }
 
 TEST(LightTests, MapsEnvironmentCoordinatesToImageCoordinates) {

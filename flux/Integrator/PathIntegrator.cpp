@@ -1,8 +1,8 @@
 #include "flux/Integrator/PathIntegrator.h"
 
-#include <algorithm>
 #include <string>
 
+#include "flux/Core/Logging.h"
 #include "flux/Scene/TXContext.h"
 #include "kira/Anyhow.h"
 
@@ -15,16 +15,25 @@ PathIntegrator::PathIntegrator(TXContext &tx, kira::Properties const &props)
           props.use_or<float>("rr_prob", 0.95F),
       },
       shaderReorder_(props.use_or<bool>("shader_reorder", false)),
-      chunkSize_(std::max(props.use_or<std::uint32_t>("chunk_size", 1), 1U)) {
+      chunkSize_(props.use_or<std::uint32_t>("chunk_size", 1)) {
     auto const type = props.use_or<std::string>("type", "path");
     if (type != "path")
         throw kira::Anyhow("PathIntegrator: unsupported type '{}'", type);
 
-    if (impl_.maxDepth == 0)
-        throw kira::Anyhow("PathIntegrator: maximum depth must be nonzero");
-    if (!(impl_.rrProb > 0.0F && impl_.rrProb <= 1.0F))
-        throw kira::Anyhow(
-            "PathIntegrator: Russian roulette probability must be greater than zero and at most one"
+    if (chunkSize_ == 0) {
+        LogWarn("PathIntegrator: chunk size is 0, using 1");
+        chunkSize_ = 1;
+    }
+    if (impl_.rrProb < 0.0F) {
+        LogWarn(
+            "PathIntegrator: Russian roulette probability {} is below 0, using 0", impl_.rrProb
         );
+        impl_.rrProb = 0.0F;
+    } else if (impl_.rrProb > 1.0F) {
+        LogWarn(
+            "PathIntegrator: Russian roulette probability {} is above 1, using 1", impl_.rrProb
+        );
+        impl_.rrProb = 1.0F;
+    }
 }
 } // namespace flux

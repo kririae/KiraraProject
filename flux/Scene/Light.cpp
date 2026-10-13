@@ -2,21 +2,18 @@
 
 #include <numbers>
 
+#include "flux/Core/Logging.h"
 #include "flux/Core/MathUtils.h"
-#include "kira/Anyhow.h"
 
 namespace flux {
 namespace {
-void validatePosition(Vec3f const &position) {
-    for (auto const value : position)
-        if (!std::isfinite(value))
-            throw kira::Anyhow("PointLight: position must be finite");
-}
-
-void validateIntensity(Spectrum const &intensity) {
-    for (auto const value : intensity)
-        if (!(value >= 0.0F && std::isfinite(value)))
-            throw kira::Anyhow("PointLight: intensity must be finite and nonnegative");
+[[nodiscard]] Spectrum boundIntensity(Spectrum intensity) {
+    for (auto &value : intensity)
+        if (value < 0.0F) {
+            LogWarn("PointLight: intensity component {} is negative, using 0", value);
+            value = 0.0F;
+        }
+    return intensity;
 }
 } // namespace
 
@@ -24,19 +21,15 @@ Light::Light(TXContext &tx, LightType type) : RenderObject(tx), type_(type) {}
 
 PointLight::PointLight(TXContext &tx, kira::Properties const &props) : Light(tx, LightType::Point) {
     position_ = props.use_or<Vec3f>("position", position_);
-    intensity_ = props.use_or<Spectrum>("intensity", intensity_);
-    validatePosition(position_);
-    validateIntensity(intensity_);
+    intensity_ = boundIntensity(props.use_or<Spectrum>("intensity", intensity_));
 }
 
 void PointLight::setPosition(Vec3f const &position) {
-    validatePosition(position);
     setIfDifferent(position_, position, DirtyBits::Position);
 }
 
 void PointLight::setIntensity(Spectrum const &intensity) {
-    validateIntensity(intensity);
-    setIfDifferent(intensity_, intensity, DirtyBits::Intensity);
+    setIfDifferent(intensity_, boundIntensity(intensity), DirtyBits::Intensity);
 }
 
 PointLight::Impl PointLight::getImpl() const noexcept {

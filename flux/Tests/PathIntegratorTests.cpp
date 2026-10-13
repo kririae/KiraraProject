@@ -156,6 +156,17 @@ TEST(PathIntegratorTests, ReadsChunkSizeFromProperties) {
     EXPECT_EQ(context->create<flux::PathIntegrator>(props)->getChunkSize(), 1U);
 }
 
+TEST(PathIntegratorTests, BoundsRussianRouletteProbabilityToUnitRange) {
+    auto context = flux::Context::create();
+    kira::Properties props;
+
+    props.set("rr_prob", -0.5F);
+    EXPECT_EQ(context->create<flux::PathIntegrator>(props)->getImpl().rrProb, 0.0F);
+
+    props.set("rr_prob", 1.5F);
+    EXPECT_EQ(context->create<flux::PathIntegrator>(props)->getImpl().rrProb, 1.0F);
+}
+
 TEST(PathIntegratorTests, WeightsBsdfSampledEmitterHits) {
     auto const context = EmitterHitContext{
         .table = {.edf = flux::ConstantEDF::Impl{.radiance = {2.0F, 2.0F, 2.0F}}},

@@ -6,14 +6,18 @@
 #include <numbers>
 #include <utility>
 
+#include "flux/Core/Logging.h"
 #include "flux/Scene/TXContext.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
 namespace {
-void clampScale(Spectrum &scale) noexcept {
+void clampScale(Spectrum &scale) {
     for (auto &component : scale)
-        component = component > 0.0F ? component : 0.0F;
+        if (component < 0.0F) {
+            LogWarn("EnvMapLight: scale component {} is negative, using 0", component);
+            component = 0.0F;
+        }
 }
 } // namespace
 

@@ -33,7 +33,7 @@ public:
 
     [[nodiscard]] Spectrum const &getScale() const noexcept { return scale_; }
 
-    /// Sets the radiance scale. Negative components are clamped to zero.
+    /// Sets the radiance scale.
     void setScale(Spectrum const &scale);
 
     /// Euler rotation in degrees, applied around X, Y, then Z.

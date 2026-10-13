@@ -96,17 +96,13 @@ public:
     /// World-space light position.
     [[nodiscard]] Vec3f const &getPosition() const noexcept { return position_; }
 
-    /// \brief Sets the world-space light position.
-    ///
-    /// All coordinates must be finite.
+    /// Sets the world-space light position.
     void setPosition(Vec3f const &position);
 
     /// RGB radiant intensity.
     [[nodiscard]] Spectrum const &getIntensity() const noexcept { return intensity_; }
 
-    /// \brief Sets the RGB radiant intensity.
-    ///
-    /// All components must be finite and nonnegative.
+    /// Sets the RGB radiant intensity.
     void setIntensity(Spectrum const &intensity);
 
     [[nodiscard]] Impl getImpl() const noexcept;
