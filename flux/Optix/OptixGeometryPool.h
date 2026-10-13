@@ -30,8 +30,7 @@ public:
 
     /// \brief Uploads \p meshes and builds their GASes in one batch.
     /// \pre No mesh of \p meshes is present, and their IDs are distinct.
-    /// \throw kira::Anyhow If a mesh exceeds the device limit, or OptiX or CUDA fails. Then
-    ///        nothing is added.
+    /// \throw kira::Anyhow If a mesh exceeds the device limit, or OptiX or CUDA fails.
     void add(std::span<Ref<TriangleMesh const> const> meshes);
 
     /// \brief Drops the meshes \p ids with their arrays and GASes.

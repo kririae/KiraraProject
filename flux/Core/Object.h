@@ -269,6 +269,8 @@ private:
 
 /// \brief Returns the properties of \p object dirtied since the last \c Context::clearDirty.
 ///
+/// An object that left the scene reads as \c None.
+///
 /// \c T is the concrete type that declares \c DirtyBits.
 template <typename T> [[nodiscard]] typename T::DirtyBits getDirtyBits(T const &object) noexcept {
     return static_cast<typename T::DirtyBits>(

@@ -68,8 +68,6 @@ public:
 
     /// \brief Removes every computed value for which \p keep returns false.
     ///
-    /// A value still being computed stays.
-    ///
     /// \pre No call to \c acquire runs concurrently.
     template <typename Keep> void prune(Keep &&keep) {
         std::scoped_lock lock(mutex_);

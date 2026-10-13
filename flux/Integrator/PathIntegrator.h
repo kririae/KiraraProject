@@ -273,7 +273,7 @@ public:
 
     /// \brief Returns whether OptiX radiance traversal requests shader execution reordering.
     [[nodiscard]] bool usesShaderReorder() const noexcept { return shaderReorder_; }
-    ///
+
     [[nodiscard]] std::uint32_t getChunkSize() const noexcept { return chunkSize_; }
 
 private:

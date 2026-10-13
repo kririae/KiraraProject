@@ -41,8 +41,6 @@ static_assert(static_cast<std::uint32_t>(SampleUse::Terminate) + 1 == sampleUseC
 
 /// \brief Host-side sampling configuration selected by a context.
 ///
-/// The first sampler successfully added to a context becomes active.
-///
 /// \par Properties
 /// - \c sample_offset: optional integer index of the first sample in the sample sequence, defaults
 ///   to 0.

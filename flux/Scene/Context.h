@@ -122,8 +122,9 @@ public:
     /// the active integrator, sampler, or environment map, that slot becomes empty. An exception
     /// leaves the context unchanged.
     ///
-    /// \pre The object is a root. No edit to the object runs concurrently. Editing it afterwards
-    ///      is unspecified. The host may still read or release it.
+    /// An edit to the object afterwards records no change. The host may still read or release it.
+    ///
+    /// \pre The object is a root. No edit to it runs concurrently.
     ///
     /// \throw std::out_of_range if the ID is unknown.
     void remove(std::size_t contextId);

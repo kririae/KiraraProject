@@ -136,6 +136,8 @@ private:
     TriangleMesh(TXContext &tx, Data &&data);
 
     /// \brief Builds a mesh from the file named by the \c path property.
+    ///
+    /// \throw kira::Anyhow If the file cannot be read.
     TriangleMesh(TXContext &tx, kira::Properties const &props);
 
     /// \brief Returns the elements of \p buffer, or an empty span when it is null.
