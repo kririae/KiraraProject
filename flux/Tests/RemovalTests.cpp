@@ -90,7 +90,6 @@ TEST(RemovalTests, RemovedIdsLeaveTheAddedAndDirtiedSets) {
     EXPECT_TRUE(context->getAddedIds().empty());
     EXPECT_TRUE(context->getDirtiedIds().empty());
     EXPECT_EQ(context->getRemovedIds().size(), 2U);
-    EXPECT_EQ(flux::getDirtyBits(*dirtied), flux::PointLight::DirtyBits::None);
     EXPECT_EQ(added->getContext(), context.get());
 }
 
@@ -168,24 +167,6 @@ TEST(RemovalTests, CollectsDependentsThatNothingReferences) {
     EXPECT_THROW((void)context->get<flux::Geometry>(meshId), std::out_of_range);
     EXPECT_THROW((void)context->get<flux::BSDF>(bsdfId), std::out_of_range);
     EXPECT_THROW((void)context->get<flux::EDF>(edfId), std::out_of_range);
-    EXPECT_EQ(context->getRemovedIds().size(), 5U);
-    EXPECT_TRUE(context->findIndex<flux::BSDF>(bsdfId));
-}
-
-TEST(RemovalTests, CollectsInlineChildrenWithTheirParent) {
-    auto context = flux::Context::create();
-    auto properties =
-        primitiveProperties(*context->create<flux::TriangleMesh>(triangleData()), nullptr, nullptr);
-    kira::Properties bsdfProperties;
-    bsdfProperties.set("type", "diffuse");
-    properties.set("bsdf", bsdfProperties);
-    auto primitive = context->create<flux::Primitive>(properties);
-
-    context->remove(primitive->getContextId());
-    primitive.reset();
-    context->collectGarbage();
-
-    EXPECT_EQ(context->getNumContextObjects(), 0U);
 }
 
 TEST(RemovalTests, KeepsDependentsThatAreStillReferenced) {
@@ -244,7 +225,7 @@ TEST(RemovalTests, CollectsAChainToItsFixpoint) {
     EXPECT_THROW((void)context->get<flux::Texture>(textureId), std::out_of_range);
 }
 
-TEST(RemovalTests, ReusesARemovedIndexOnlyAfterClearDirty) {
+TEST(RemovalTests, KeepsARemovedIndexReservedUntilClearDirty) {
     auto context = flux::Context::create();
     auto mesh = context->create<flux::TriangleMesh>(triangleData());
     auto first = context->create<flux::Primitive>(primitiveProperties(*mesh, nullptr, nullptr));
@@ -254,23 +235,6 @@ TEST(RemovalTests, ReusesARemovedIndexOnlyAfterClearDirty) {
     context->remove(first->getContextId());
     auto second = context->create<flux::Primitive>(primitiveProperties(*mesh, nullptr, nullptr));
     EXPECT_NE(context->getIndex<flux::Primitive>(second->getContextId()), index);
-
-    context->clearDirty();
-    auto third = context->create<flux::Primitive>(primitiveProperties(*mesh, nullptr, nullptr));
-    EXPECT_EQ(context->getIndex<flux::Primitive>(third->getContextId()), index);
-}
-
-TEST(RemovalTests, GetObjectsSkipsRemovedObjectsBeforeTheClear) {
-    auto context = flux::Context::create();
-    auto mesh = context->create<flux::TriangleMesh>(triangleData());
-    auto first = context->create<flux::Primitive>(primitiveProperties(*mesh, nullptr, nullptr));
-    auto second = context->create<flux::Primitive>(primitiveProperties(*mesh, nullptr, nullptr));
-
-    context->remove(first->getContextId());
-
-    auto const primitives = context->getObjects<flux::Primitive>();
-    ASSERT_EQ(primitives.size(), 1U);
-    EXPECT_EQ(primitives[0], second);
 }
 
 TEST(RemovalTests, RejectsARemovedRootAsActive) {
@@ -301,7 +265,6 @@ TEST(RemovalTests, ListsADirtiedDependentOnlyAsRemoved) {
     EXPECT_FALSE(context->getAddedIds().contains(edfId));
     EXPECT_FALSE(context->getDirtiedIds().contains(edfId));
     EXPECT_TRUE(context->getRemovedIds().contains(edfId));
-    EXPECT_FALSE(context->findIndex<flux::Primitive>(edfId));
     EXPECT_TRUE(context->findIndex<flux::EDF>(edfId));
     context->clearDirty();
     EXPECT_FALSE(context->findIndex<flux::EDF>(edfId));

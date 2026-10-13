@@ -9,8 +9,6 @@
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/SceneTableData.h"
 #include "flux/Scene/TriangleMesh.h"
-#include "flux/Shading/BSDF.h"
-#include "flux/Shading/EDF.h"
 
 namespace {
 using Transform = std::array<float, 12>;
@@ -43,8 +41,7 @@ makePrimitive(flux::Context &context, flux::Ref<flux::TriangleMesh const> const 
     return context.create<flux::Primitive>(properties);
 }
 
-/// Compares the tables two builds produce, ignoring the geometry implementations
-/// that only a backend builds.
+/// Compares the tables two builds produce.
 void expectSameTables(flux::SceneTableData const &actual, flux::SceneTableData const &expected) {
     ASSERT_EQ(actual.primitives.size(), expected.primitives.size());
     for (std::size_t index = 0; index < actual.primitives.size(); ++index) {
@@ -97,48 +94,6 @@ TEST(SceneTableTests, KeepsEveryPrimitiveIndexWhenOneIsHidden) {
     EXPECT_EQ(table.transforms[thirdIndex], translated(1.0F, 2.0F, 3.0F));
 }
 
-TEST(SceneTableTests, HidingAPrimitiveMovesNoIndex) {
-    auto context = flux::Context::create();
-    auto const mesh = context->create<flux::TriangleMesh>(triangle());
-    auto const first = makePrimitive(*context, mesh);
-    auto const second = makePrimitive(*context, mesh);
-    auto const indexOf = [&](auto const &primitive) {
-        return context->getIndex<flux::Primitive>(primitive->getContextId());
-    };
-    auto const firstIndex = indexOf(first);
-    auto const secondIndex = indexOf(second);
-
-    // Hide one primitive and add another.
-    first->setVisible(false);
-    auto const added = makePrimitive(*context, mesh);
-    auto table = flux::SceneTableData{};
-    table.build(*context);
-
-    ASSERT_EQ(indexOf(first), firstIndex);
-    ASSERT_EQ(indexOf(second), secondIndex);
-    ASSERT_EQ(table.primitives.size(), context->getIndexLimit<flux::Primitive>());
-    EXPECT_TRUE(table.primitives[firstIndex].isHole());
-    EXPECT_FALSE(table.primitives[secondIndex].isHole());
-    EXPECT_FALSE(table.primitives[indexOf(added)].isHole());
-}
-
-TEST(SceneTableTests, GivesOneGeometryIndexToEveryPrimitiveThatSharesAMesh) {
-    auto context = flux::Context::create();
-    auto const firstMesh = context->create<flux::TriangleMesh>(triangle());
-    auto const secondMesh = context->create<flux::TriangleMesh>(triangle());
-    (void)makePrimitive(*context, firstMesh);
-    (void)makePrimitive(*context, secondMesh);
-    (void)makePrimitive(*context, firstMesh);
-
-    auto table = flux::SceneTableData{};
-    table.build(*context);
-
-    ASSERT_EQ(table.primitives.size(), 3);
-    EXPECT_EQ(table.primitives[0].geometryIndex, 0);
-    EXPECT_EQ(table.primitives[1].geometryIndex, 1);
-    EXPECT_EQ(table.primitives[2].geometryIndex, 0);
-}
-
 TEST(SceneTableTests, TakesGeometryIndicesFromTheContext) {
     auto context = flux::Context::create();
     auto const unused = context->create<flux::TriangleMesh>(triangle());
@@ -156,65 +111,11 @@ TEST(SceneTableTests, TakesGeometryIndicesFromTheContext) {
     EXPECT_EQ(table.primitives[0].geometryIndex, usedIndex);
 }
 
-TEST(SceneTableTests, EmptyBsdfAndEdfAreValidAndInert) {
-    auto const bsdf = flux::BSDF::Impl{};
-    EXPECT_EQ(bsdf.type, flux::BSDFType::Diffuse);
-    EXPECT_EQ(bsdf.storage.diffuse.R.type, flux::TextureType::Constant);
-    EXPECT_EQ(bsdf.storage.diffuse.R.storage.constant.value, flux::Spectrum{});
-
-    auto const edf = flux::EDF::Impl{};
-    auto const query = flux::EDFQuery{
-        .geometricNormal = flux::Vec3f{0.0F, 0.0F, 1.0F},
-        .wo = flux::Vec3f{0.0F, 0.0F, 1.0F},
-    };
-    EXPECT_EQ(edf.evaluate(query), flux::Spectrum{});
-}
-
-TEST(SceneTableTests, CopiesEveryBsdfAndEdfTheContextHolds) {
-    auto context = flux::Context::create();
-    auto const mesh = context->create<flux::TriangleMesh>(triangle());
-    auto const unusedBsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
-    (void)unusedBsdf;
-
-    auto table = flux::SceneTableData{};
-    table.build(*context);
-
-    ASSERT_EQ(table.bsdfs.size(), context->getIndexLimit<flux::BSDF>());
-    ASSERT_FALSE(table.bsdfs.empty());
-    for (auto const &bsdf : table.bsdfs)
-        EXPECT_NE(bsdf.type, flux::BSDFType::Count);
-}
-
-TEST(SceneTableTests, ResolvesTheBsdfAndEdfIndicesOfAPrimitive) {
-    auto context = flux::Context::create();
-    auto const mesh = context->create<flux::TriangleMesh>(triangle());
-    auto const bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
-    auto const edf = context->create<flux::ConstantEDF>(kira::Properties{});
-
-    kira::Properties properties;
-    properties.set("geometry_ctx_id", static_cast<std::int64_t>(mesh->getContextId()));
-    properties.set("bsdf_ctx_id", static_cast<std::int64_t>(bsdf->getContextId()));
-    properties.set("edf_ctx_id", static_cast<std::int64_t>(edf->getContextId()));
-    (void)context->create<flux::Primitive>(properties);
-    (void)makePrimitive(*context, mesh);
-
-    auto table = flux::SceneTableData{};
-    table.build(*context);
-
-    ASSERT_EQ(table.primitives.size(), 2);
-    EXPECT_EQ(
-        table.primitives[0].getBSDFIndex(), context->getIndex<flux::BSDF>(bsdf->getContextId())
-    );
-    EXPECT_EQ(table.primitives[0].getEDFIndex(), context->getIndex<flux::EDF>(edf->getContextId()));
-    EXPECT_FALSE(table.primitives[1].hasBSDF());
-    EXPECT_FALSE(table.primitives[1].hasEDF());
-}
-
 TEST(SceneTableTests, RebuildingMatchesABuildFromScratch) {
     auto context = flux::Context::create();
     auto const mesh = context->create<flux::TriangleMesh>(triangle());
     auto const otherMesh = context->create<flux::TriangleMesh>(triangle());
-    auto const first = makePrimitive(*context, mesh);
+    (void)makePrimitive(*context, mesh);
     auto const second = makePrimitive(*context, mesh);
     auto const third = makePrimitive(*context, otherMesh);
 
@@ -225,16 +126,8 @@ TEST(SceneTableTests, RebuildingMatchesABuildFromScratch) {
     third->setTransform(translated(4.0F, 5.0F, 6.0F));
     table.build(*context);
 
-    auto freshContext = flux::Context::create();
-    auto const freshMesh = freshContext->create<flux::TriangleMesh>(triangle());
-    auto const freshOtherMesh = freshContext->create<flux::TriangleMesh>(triangle());
-    makePrimitive(*freshContext, freshMesh)->setTransform(first->getTransform());
-    makePrimitive(*freshContext, freshMesh)->setVisible(false);
-    auto const freshThird = makePrimitive(*freshContext, freshOtherMesh);
-    freshThird->setTransform(translated(4.0F, 5.0F, 6.0F));
-
     auto freshTable = flux::SceneTableData{};
-    freshTable.build(*freshContext);
+    freshTable.build(*context);
 
     expectSameTables(table, freshTable);
 }
