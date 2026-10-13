@@ -117,7 +117,7 @@ krr_add_test(
 target_compile_definitions(
     flux.Scene.ImageAssetTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
                                        FLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/ImageAssetTests")
-target_link_libraries(flux.Scene.ImageAssetTests PRIVATE OpenImageIO::OpenImageIO)
+
 krr_add_test(
     flux Embree ImageTextureTests
     SOURCES EmbreeImageTextureTests.cpp
@@ -125,6 +125,7 @@ krr_add_test(
 target_compile_definitions(
     flux.Embree.ImageTextureTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
                                           FLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/EmbreeImageTextureTests")
+target_link_libraries(flux.Embree.ImageTextureTests PRIVATE OpenImageIO::OpenImageIO)
 
 krr_add_test(
     flux Scene PrimitiveTests

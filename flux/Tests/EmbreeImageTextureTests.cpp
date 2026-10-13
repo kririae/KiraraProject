@@ -1,3 +1,4 @@
+#include <OpenImageIO/imagebuf.h>
 #include <gtest/gtest.h>
 
 #include <array>
@@ -63,6 +64,49 @@ struct ImageOrientationCase {
     std::array<float, 6> bottomUp;
 };
 
+struct BadAssetCase {
+    char const *name;
+    char const *colorSpace;
+    void (*write)(std::filesystem::path const &);
+};
+
+void writeTwoChannelImage(std::filesystem::path const &imagePath) {
+    auto const pixels = std::array{0.25F, 0.75F};
+    flux::writeImage(
+        imagePath,
+        {
+            .pixels = std::as_bytes(std::span{pixels}),
+            .extent = {1, 1},
+            .componentType = flux::ImageComponentType::Float32,
+            .componentCount = 2,
+        },
+        {.outputComponentType = flux::ImageComponentType::Float32}
+    );
+}
+
+void writeSinglePixel(std::filesystem::path const &imagePath, OIIO::ImageSpec const &spec) {
+    auto const pixels = std::array{0.5F};
+    auto const bytes = std::as_bytes(std::span{pixels});
+    auto image = OIIO::ImageBuf{spec, OIIO::cspan<std::byte>{bytes.data(), bytes.size()}};
+    ASSERT_TRUE(image.write(imagePath.string())) << image.geterror();
+}
+
+void writeOffsetDataWindow(std::filesystem::path const &imagePath) {
+    auto spec = OIIO::ImageSpec{1, 1, 1, OIIO::TypeDesc::FLOAT};
+    spec.x = 1;
+    spec.full_x = 1;
+    writeSinglePixel(imagePath, spec);
+}
+
+void writeInvalidOrientation(std::filesystem::path const &imagePath) {
+    auto spec = OIIO::ImageSpec{1, 1, 1, OIIO::TypeDesc::FLOAT};
+    spec.attribute("Orientation", 9);
+    writeSinglePixel(imagePath, spec);
+}
+
+class EmbreeBadAssetTests : public EmbreeImageTextureTests,
+                            public testing::WithParamInterface<BadAssetCase> {};
+
 class EmbreeImageOrientationTests : public EmbreeImageTextureTests,
                                     public testing::WithParamInterface<ImageOrientationCase> {};
 } // namespace
@@ -92,6 +136,31 @@ TEST_F(EmbreeImageTextureTests, PreservesStraightAlphaDuringSRGBConversion) {
     EXPECT_NEAR(value.z(), 0.05087609F, 2.0e-3F);
     EXPECT_NEAR(value.w(), 128.0F / 255.0F, 2.0e-3F);
 }
+
+TEST_P(EmbreeBadAssetTests, BadAssetBecomesMagenta) {
+    auto const &parameter = GetParam();
+    auto const imagePath = path(std::string{parameter.name} + ".exr");
+    if (parameter.write)
+        parameter.write(imagePath);
+    build(imagePath, parameter.colorSpace);
+
+    EXPECT_EQ(
+        context->getObjects<flux::ImageTexture>().front()->getImageAsset()->getExtent(),
+        (flux::Vec2u{1, 1})
+    );
+    expectNear(sample({0.5F, 0.5F}), {1.0F, 0.0F, 1.0F, 1.0F});
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Defects, EmbreeBadAssetTests,
+    testing::Values(
+        BadAssetCase{"MissingFile", "linear", nullptr},
+        BadAssetCase{"TwoChannelSRGB", "srgb", writeTwoChannelImage},
+        BadAssetCase{"OffsetDataWindow", "linear", writeOffsetDataWindow},
+        BadAssetCase{"BadOrientation", "linear", writeInvalidOrientation}
+    ),
+    [](testing::TestParamInfo<BadAssetCase> const &info) { return info.param.name; }
+);
 
 TEST_P(EmbreeImageOrientationTests, AppliesImageOrientation) {
     auto const &parameter = GetParam();

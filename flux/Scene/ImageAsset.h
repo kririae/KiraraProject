@@ -131,7 +131,8 @@ private:
 
 /// \brief Shares ImageAsset objects by canonical path and color space.
 ///
-/// The pool validates image metadata before adding an asset. Concurrent calls
+/// A file that is missing, unreadable, or not a well-formed image gets a 1x1
+/// magenta asset, and the pool warns once for the request. Concurrent calls
 /// share one creation for each canonical path and color space.
 class ImageAssetPool {
 public:

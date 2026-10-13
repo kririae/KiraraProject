@@ -1,5 +1,6 @@
 #include "flux/Scene/ImageAsset.h"
 
+#include <OpenImageIO/filesystem.h>
 #include <OpenImageIO/imagebufalgo.h>
 #include <OpenImageIO/imagecache.h>
 #include <OpenImageIO/imageio.h>
@@ -7,10 +8,13 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
+#include "flux/Core/Logging.h"
 #include "flux/Scene/ImageAssetPImpl.h"
 #include "kira/Anyhow.h"
 
@@ -22,20 +26,52 @@ std::atomic_size_t nextImageAssetId{0};
 constexpr auto srgbRec709 = "srgb_rec709_scene";
 constexpr auto linearRec709 = "lin_rec709_scene";
 
-void validateImageSpec(OIIO::ImageSpec const &spec, std::string_view filename) {
+/// Raised for a file that is not a well-formed image. The message is the reason.
+struct BadImage final : std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
+
+/// Name of the 1x1 magenta image that every texture system holds in place of a bad asset.
+constexpr auto magentaName = "flux-magenta.tif";
+
+[[nodiscard]] std::vector<unsigned char> encodeMagenta() {
+    auto bytes = std::vector<unsigned char>{};
+    auto proxy = OIIO::Filesystem::IOVecOutput{bytes};
+    auto output = OIIO::ImageOutput::create(magentaName, &proxy);
+    auto const spec = OIIO::ImageSpec{1, 1, 3, OIIO::TypeDesc::UINT8};
+    auto const pixel = std::array<std::uint8_t, 3>{255, 0, 255};
+    if (!output || !output->open(magentaName, spec) ||
+        !output->write_image(OIIO::TypeDesc::UINT8, pixel.data()) || !output->close())
+        throw kira::Anyhow("ImageAssetPool: failed to encode the magenta image");
+    return bytes;
+}
+
+/// The magenta image in memory. \c reader serves \c bytes as a file. Magenta is the same in sRGB
+/// and linear.
+struct Magenta {
+    std::vector<unsigned char> bytes{encodeMagenta()};
+    OIIO::Filesystem::IOMemReader reader{bytes.data(), bytes.size()};
+};
+
+/// A texture system and the magenta image that its cache may read at any time. The system is
+/// destroyed first, so the cache never outlives the image.
+struct MagentaTextureSystem {
+    Magenta magenta;
+    std::shared_ptr<OIIO::TextureSystem> system;
+};
+
+void validateImageSpec(OIIO::ImageSpec const &spec) {
     if (spec.width <= 0 || spec.height <= 0 || spec.depth != 1 || spec.deep)
-        throw kira::Anyhow("ImageAsset: '{}' must be a non-empty flat 2D image", filename);
+        throw BadImage("it must be non-empty, flat, and 2D");
     if (spec.nchannels < 1 || spec.nchannels > 4)
-        throw kira::Anyhow("ImageAsset: '{}' must contain one to four components", filename);
+        throw BadImage("it must have one to four channels");
     if (spec.x != 0 || spec.y != 0 || spec.z != 0 || spec.full_x != 0 || spec.full_y != 0 ||
         spec.full_z != 0 || spec.full_width != spec.width || spec.full_height != spec.height ||
         spec.full_depth != spec.depth)
-        throw kira::Anyhow(
-            "ImageAsset: '{}' must have matching data and display windows at the origin", filename
-        );
+        throw BadImage("its data and display windows must match and start at the origin");
     auto const orientation = spec.get_int_attribute("Orientation", 1);
     if (orientation < 1 || orientation > 8)
-        throw kira::Anyhow("ImageAsset: '{}' has an invalid orientation", filename);
+        throw BadImage("its orientation must be valid");
 }
 
 [[nodiscard]] ImageComponentType chooseComponentType(OIIO::ImageSpec const &spec) noexcept {
@@ -76,6 +112,8 @@ void validateImageSpec(OIIO::ImageSpec const &spec, std::string_view filename) {
 
 ImageAssetPool::pImpl::pImpl() {
     auto createTextureSystem = [](ImageColorSpace colorSpace) {
+        // Created before the image cache, so that the cache is destroyed first on every path.
+        auto const owner = std::make_shared<MagentaTextureSystem>();
         auto imageCache = OIIO::ImageCache::create(/* shared = */ false);
         if (!imageCache)
             throw kira::Anyhow("ImageAssetPool: failed to create an OpenImageIO image cache");
@@ -92,13 +130,19 @@ ImageAssetPool::pImpl::pImpl() {
                 "ImageAssetPool: failed to configure the sRGB image cache component type"
             );
 
-        auto textureSystem =
-            OIIO::TextureSystem::create(/* shared = */ false, std::move(imageCache));
-        if (!textureSystem)
+        OIIO::Filesystem::IOProxy *proxy = &owner->magenta.reader;
+        auto config = OIIO::ImageSpec{};
+        config.attribute("oiio:ioproxy", OIIO::TypeDesc::PTR, &proxy);
+        if (!imageCache->add_file(OIIO::ustring{magentaName}, nullptr, &config))
+            throw kira::Anyhow("ImageAssetPool: failed to add the magenta image to the cache");
+
+        owner->system = OIIO::TextureSystem::create(/* shared = */ false, std::move(imageCache));
+        if (!owner->system)
             throw kira::Anyhow("ImageAssetPool: failed to create an OpenImageIO texture system");
-        if (!textureSystem->attribute("flip_t", 1))
+        if (!owner->system->attribute("flip_t", 1))
             throw kira::Anyhow("ImageAssetPool: failed to configure texture coordinates");
-        return textureSystem;
+
+        return std::shared_ptr<OIIO::TextureSystem>{owner, owner->system.get()};
     };
 
     linearTextureSystem = createTextureSystem(ImageColorSpace::Linear);
@@ -112,23 +156,21 @@ ImageAsset::pImpl::pImpl(
     : textureSystem(std::move(system)), filename(path.string()), fileColorSpace(colorSpace) {
     auto const imageCache = textureSystem->imagecache();
     if (!imageCache->add_file(filename))
-        throw kira::Anyhow("ImageAsset: failed to open '{}'", path.string());
+        throw BadImage(imageCache->geterror());
 
     auto *imageHandle = imageCache->get_image_handle(filename);
     if (!imageHandle || !imageCache->good(imageHandle))
-        throw kira::Anyhow("ImageAsset: failed to open '{}'", path.string());
+        throw BadImage(imageCache->geterror());
 
     auto spec = OIIO::ImageSpec{};
     if (!imageCache->get_imagespec(
             imageHandle, /* threadInfo = */ nullptr, spec, /* subimage = */ 0
         ))
-        throw kira::Anyhow("ImageAsset: failed to read metadata for '{}'", path.string());
-    validateImageSpec(spec, path.string());
+        throw BadImage(imageCache->geterror());
+    validateImageSpec(spec);
 
     if (colorSpace == ImageColorSpace::SRGB && spec.nchannels < 3)
-        throw kira::Anyhow(
-            "ImageAsset: sRGB input '{}' must contain RGB or RGBA pixels", path.string()
-        );
+        throw BadImage("an sRGB image must have RGB or RGBA channels");
 
     auto width = spec.width;
     auto height = spec.height;
@@ -269,9 +311,20 @@ Ref<ImageAsset const> ImageAssetPool::getOrCreate(ImageAssetRequest const &reque
         auto const &textureSystem = key.colorSpace == ImageColorSpace::SRGB
                                         ? pImpl_->srgbTextureSystem
                                         : pImpl_->linearTextureSystem;
-        return Ref<ImageAsset const>{new ImageAsset(
-            std::make_unique<ImageAsset::pImpl>(textureSystem, key.path, key.colorSpace)
-        )};
+        auto const create = [&](std::filesystem::path const &path) {
+            return Ref<ImageAsset const>{new ImageAsset(
+                std::make_unique<ImageAsset::pImpl>(textureSystem, path, key.colorSpace)
+            )};
+        };
+        try {
+            return create(key.path);
+        } catch (BadImage const &bad) {
+            LogWarn(
+                "ImageAsset: '{}' is not a well-formed image ({}), using a magenta pixel",
+                key.path.string(), bad.what()
+            );
+        }
+        return create(magentaName);
     });
 }
 
