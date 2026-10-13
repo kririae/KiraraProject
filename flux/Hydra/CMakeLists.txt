@@ -9,36 +9,50 @@ endif()
 set(Houdini_DIR "$ENV{HFS}/toolkit/cmake")
 find_package(Houdini CONFIG REQUIRED)
 
-add_library(hdFlux SHARED RenderBuffer.cpp RenderDelegate.cpp RendererPlugin.cpp RenderPass.cpp)
+add_library(flux_hydra STATIC Camera.cpp RenderBuffer.cpp RenderDelegate.cpp RenderPass.cpp)
+
 # Houdini's Houdini target serves HDK plugins. It forces -std=c++17, which overrides the C++20 the
 # delegate is written in, and adds HDK definitions that the USD headers on Linux do not read. The
 # delegate takes only the target's include directories and links the USD libraries it calls.
-target_include_directories(hdFlux SYSTEM
-                           PRIVATE "$<TARGET_PROPERTY:Houdini,INTERFACE_INCLUDE_DIRECTORIES>")
+target_include_directories(flux_hydra SYSTEM
+                           PUBLIC "$<TARGET_PROPERTY:Houdini,INTERFACE_INCLUDE_DIRECTORIES>")
+
 target_link_libraries(
-    hdFlux
-    PRIVATE flux
-            Houdini::Dep::pxr_gf
-            Houdini::Dep::pxr_hd
-            Houdini::Dep::pxr_hf
-            Houdini::Dep::pxr_plug
-            Houdini::Dep::pxr_python
-            Houdini::Dep::pxr_sdf
-            Houdini::Dep::pxr_tf
-            Houdini::Dep::pxr_vt
-            Houdini::Dep::python${_houdini_python_version})
-# TF_REGISTRY_FUNCTION registers under the package name. tf/hashset.h includes libstdc++'s
-# deprecated <ext/hash_set>.
-target_compile_definitions(hdFlux PRIVATE MFB_PACKAGE_NAME=hdFlux MFB_ALT_PACKAGE_NAME=hdFlux
-                                          _GLIBCXX_PERMIT_BACKWARD_HASH)
-target_compile_options(hdFlux PRIVATE -Wall -Wextra)
+    flux_hydra
+    PUBLIC flux
+           Houdini::Dep::pxr_gf
+           Houdini::Dep::pxr_hd
+           Houdini::Dep::pxr_hf
+           Houdini::Dep::pxr_plug
+           Houdini::Dep::pxr_python
+           Houdini::Dep::pxr_sdf
+           Houdini::Dep::pxr_tf
+           Houdini::Dep::pxr_vt
+           Houdini::Dep::python${_houdini_python_version})
+
+# tf/hashset.h includes libstdc++'s deprecated <ext/hash_set>.
+target_compile_definitions(flux_hydra PUBLIC _GLIBCXX_PERMIT_BACKWARD_HASH)
+
+target_compile_options(flux_hydra PUBLIC -Wall -Wextra)
+
+set_target_properties(flux_hydra PROPERTIES POSITION_INDEPENDENT_CODE ON CXX_VISIBILITY_PRESET hidden
+                                            VISIBILITY_INLINES_HIDDEN ON)
+
+add_library(hdFlux SHARED RendererPlugin.cpp)
+target_link_libraries(hdFlux PRIVATE flux_hydra)
+
+# TF_REGISTRY_FUNCTION registers under the package name.
+target_compile_definitions(hdFlux PRIVATE MFB_PACKAGE_NAME=hdFlux MFB_ALT_PACKAGE_NAME=hdFlux)
+
 # The plugin exports no symbol. Plug registers it through static initializers and looks nothing up,
 # and an exported symbol could interpose on a library of the host or be preempted by one. Hidden
 # visibility also lets the compiler bind the plugin's calls to its own functions directly.
 set_target_properties(hdFlux PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
+
 set(exportMap "${CMAKE_CURRENT_SOURCE_DIR}/exports.map")
 target_link_options(hdFlux PRIVATE "LINKER:--version-script=${exportMap}")
 set_property(TARGET hdFlux APPEND PROPERTY LINK_DEPENDS "${exportMap}")
+
 # A symbol that no linked library defines fails the link, not the load.
 target_link_options(hdFlux PRIVATE "LINKER:--no-undefined")
 
@@ -51,6 +65,7 @@ set_target_properties(
     PROPERTIES PREFIX ""
                LIBRARY_OUTPUT_DIRECTORY "$<1:${packageDir}/dso/usd>"
                RUNTIME_OUTPUT_DIRECTORY "$<1:${packageDir}/dso/usd>")
+
 file(GENERATE OUTPUT "${packageDir}/dso/usd_plugins/hdFlux/resources/plugInfo.json"
      INPUT plugInfo.json.in)
 file(WRITE "${packageDir}/dso/usd_plugins/plugInfo.json" "{ \"Includes\": [ \"*/resources/\" ] }\n")
@@ -65,5 +80,10 @@ add_custom_command(
             "${packageDir}/dso/usd/${moduleName}"
     DEPENDS flux_megakernel_ir "$<TARGET_OBJECTS:flux_megakernel_ir>"
     VERBATIM)
+
 target_sources(hdFlux PRIVATE "${packageDir}/dso/usd/${moduleName}")
 target_compile_definitions(hdFlux PRIVATE FLUX_OPTIX_IR_NAME="${moduleName}")
+
+if(KRR_BUILD_TESTS)
+    add_subdirectory(Tests)
+endif()

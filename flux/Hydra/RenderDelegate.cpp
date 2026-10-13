@@ -2,6 +2,7 @@
 
 #include <pxr/base/gf/vec4f.h>
 #include <pxr/imaging/hd/bprim.h>
+#include <pxr/imaging/hd/camera.h>
 #include <pxr/imaging/hd/instancer.h>
 #include <pxr/imaging/hd/resourceRegistry.h>
 #include <pxr/imaging/hd/rprim.h>
@@ -41,7 +42,7 @@ pxr::TfTokenVector const &HdFluxRenderDelegate::GetSupportedRprimTypes() const {
 }
 
 pxr::TfTokenVector const &HdFluxRenderDelegate::GetSupportedSprimTypes() const {
-    static auto const types = pxr::TfTokenVector{};
+    static auto const types = pxr::TfTokenVector{pxr::HdPrimTypeTokens->camera};
     return types;
 }
 
@@ -73,11 +74,16 @@ pxr::HdRprim *HdFluxRenderDelegate::CreateRprim(pxr::TfToken const &, pxr::SdfPa
 
 void HdFluxRenderDelegate::DestroyRprim(pxr::HdRprim *rprim) { delete rprim; }
 
-pxr::HdSprim *HdFluxRenderDelegate::CreateSprim(pxr::TfToken const &, pxr::SdfPath const &) {
+pxr::HdSprim *
+HdFluxRenderDelegate::CreateSprim(pxr::TfToken const &typeId, pxr::SdfPath const &sprimId) {
+    if (typeId == pxr::HdPrimTypeTokens->camera)
+        return new pxr::HdCamera(sprimId);
     return nullptr;
 }
 
-pxr::HdSprim *HdFluxRenderDelegate::CreateFallbackSprim(pxr::TfToken const &) { return nullptr; }
+pxr::HdSprim *HdFluxRenderDelegate::CreateFallbackSprim(pxr::TfToken const &typeId) {
+    return CreateSprim(typeId, pxr::SdfPath::EmptyPath());
+}
 
 void HdFluxRenderDelegate::DestroySprim(pxr::HdSprim *sprim) { delete sprim; }
 
