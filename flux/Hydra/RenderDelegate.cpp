@@ -1,6 +1,5 @@
 #include "flux/Hydra/RenderDelegate.h"
 
-#include <pxr/base/gf/vec4f.h>
 #include <pxr/imaging/hd/bprim.h>
 #include <pxr/imaging/hd/camera.h>
 #include <pxr/imaging/hd/instancer.h>
@@ -11,6 +10,7 @@
 
 #include <memory>
 
+#include "flux/Hydra/AovMapping.h"
 #include "flux/Hydra/RenderBuffer.h"
 #include "flux/Hydra/RenderPass.h"
 #include "flux/Integrator/PathIntegrator.h"
@@ -103,8 +103,5 @@ void HdFluxRenderDelegate::DestroyBprim(pxr::HdBprim *bprim) { delete bprim; }
 void HdFluxRenderDelegate::CommitResources(pxr::HdChangeTracker *) {}
 
 pxr::HdAovDescriptor HdFluxRenderDelegate::GetDefaultAovDescriptor(pxr::TfToken const &name) const {
-    // The renderer resolves its samples itself, so the buffer is not multisampled.
-    if (name == pxr::HdAovTokens->color)
-        return {pxr::HdFormatFloat32Vec4, false, pxr::VtValue(pxr::GfVec4f(0.0F))};
-    return {};
+    return HdFluxGetAovDescriptor(name);
 }

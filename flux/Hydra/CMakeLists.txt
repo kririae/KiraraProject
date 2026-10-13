@@ -9,7 +9,8 @@ endif()
 set(Houdini_DIR "$ENV{HFS}/toolkit/cmake")
 find_package(Houdini CONFIG REQUIRED)
 
-add_library(flux_hydra STATIC Camera.cpp RenderBuffer.cpp RenderDelegate.cpp RenderPass.cpp)
+add_library(flux_hydra STATIC AovMapping.cpp Camera.cpp RenderBuffer.cpp RenderDelegate.cpp
+                              RenderPass.cpp)
 
 # Houdini's Houdini target serves HDK plugins. It forces -std=c++17, which overrides the C++20 the
 # delegate is written in, and adds HDK definitions that the USD headers on Linux do not read. The

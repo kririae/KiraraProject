@@ -12,4 +12,5 @@ function(add_hydra_test name)
                                PRIVATE "$<TARGET_PROPERTY:Houdini,INTERFACE_INCLUDE_DIRECTORIES>")
 endfunction()
 
+add_hydra_test(AovMappingTests)
 add_hydra_test(CameraTests)
