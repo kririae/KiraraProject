@@ -74,6 +74,8 @@ public:
     /// \p args reach \c TXContext::create. Nested calls through the supplied
     /// \c TXContext join the same transaction. If construction or registration
     /// throws, the context keeps none of the transaction's objects.
+    ///
+    /// \throw std::length_error If a kind of object has used every index.
     template <IsConfigurableObject T, typename... Args>
     [[nodiscard]] Ref<T> create(Args &&...args) {
         TXContext tx(*this);

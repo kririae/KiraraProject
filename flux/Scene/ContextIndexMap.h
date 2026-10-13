@@ -33,6 +33,8 @@ public:
     };
 
     /// \brief Publishes the IDs in \p tx and assigns each one an index.
+    ///
+    /// \throw std::length_error If the index range is exhausted.
     void merge(Transaction &&tx);
 
     /// \brief Removes \p contextId and returns its released index.

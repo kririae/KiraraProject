@@ -49,7 +49,7 @@ void ContextIndexMap::validateMerge(Transaction const &tx) const {
         tx.entries_.size() > freeIndices_.size() ? tx.entries_.size() - freeIndices_.size() : 0;
     auto const availableIndices = static_cast<std::size_t>(invalidIndex - indexLimit_);
     if (newIndices > availableIndices)
-        throw kira::Anyhow("ContextIndexMap: index range is exhausted");
+        throw std::length_error("ContextIndexMap: index range is exhausted");
 }
 
 void ContextIndexMap::mergeValidated(Transaction &&tx) noexcept {
