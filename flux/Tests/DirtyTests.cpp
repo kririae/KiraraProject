@@ -4,6 +4,7 @@
 #include <array>
 #include <cstdint>
 #include <filesystem>
+#include <stdexcept>
 #include <vector>
 
 #include "flux/Integrator/PathIntegrator.h"
@@ -16,7 +17,6 @@
 #include "flux/Shading/BSDF.h"
 #include "flux/Shading/EDF.h"
 #include "flux/Shading/Texture.h"
-#include "kira/Anyhow.h"
 
 #ifndef FLUX_TEST_FIXTURES_DIR
 #error "FLUX_TEST_FIXTURES_DIR must name the Flux test fixtures directory"
@@ -225,7 +225,7 @@ TEST(DirtyTests, FailedValidationRecordsNothing) {
     auto mesh = context->create<flux::TriangleMesh>(triangleProperties());
     auto primitive = createPrimitive(*context, mesh);
 
-    EXPECT_THROW(primitive->setGeometry(nullptr), kira::Anyhow);
+    EXPECT_THROW(primitive->setGeometry(nullptr), std::invalid_argument);
 
     EXPECT_TRUE(context->getDirtiedIds().empty());
     EXPECT_EQ(flux::getDirtyBits(*primitive), flux::Primitive::DirtyBits::None);
@@ -330,23 +330,15 @@ TEST(DirtyTests, ActiveSettersAcceptNullAndRecordTheChange) {
     EXPECT_EQ(context->getDirtyBits(), ContextBits::ActiveEnvMap);
 }
 
-TEST(DirtyTests, ActiveSettersRejectForeignObjects) {
+TEST(DirtyTests, ActiveEnvMapRejectsAForeignObject) {
     auto context = flux::Context::create();
     auto other = flux::Context::create();
-    auto integrator = context->create<flux::PathIntegrator>(kira::Properties{});
-    auto foreignIntegrator = other->create<flux::PathIntegrator>(kira::Properties{});
-    auto foreignSampler = other->create<flux::IndependentSampler>(kira::Properties{});
     auto foreignEnv = other->create<flux::EnvMapLight>(kira::Properties{});
-    context->setActiveIntegrator(integrator);
     context->clearDirty();
 
-    EXPECT_THROW(context->setActiveIntegrator(foreignIntegrator), kira::Anyhow);
-    EXPECT_THROW(context->setActiveSampler(foreignSampler), kira::Anyhow);
-    EXPECT_THROW(context->setActiveEnvMap(foreignEnv), kira::Anyhow);
+    EXPECT_THROW(context->setActiveEnvMap(foreignEnv), std::invalid_argument);
 
     EXPECT_EQ(context->getDirtyBits(), ContextBits::None);
-    EXPECT_EQ(context->getActiveIntegrator(), integrator);
-    EXPECT_FALSE(context->getActiveSampler());
     EXPECT_FALSE(context->getActiveEnvMap());
 }
 

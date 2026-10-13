@@ -42,7 +42,7 @@ void Context::remove(std::size_t contextId) {
     if (iterator == objects_.end())
         throw std::out_of_range("Context: object ID is out of range");
     if (!iterator->second->isRoot())
-        throw kira::Anyhow("Context: only a root object can be removed");
+        throw std::invalid_argument("Context: only a root object can be removed");
 
     // Find the active roles while the object is still in the scene.
     auto const isIntegrator = activeIntegrator_ && activeIntegrator_->getContextId() == contextId;
@@ -113,7 +113,7 @@ void Context::setActiveIntegrator(Ref<PathIntegrator const> integrator) {
     // Check the owner under the lock, which \c remove holds while it clears the owner.
     std::scoped_lock const lock(mutex_);
     if (integrator && integrator->getContext() != this)
-        throw kira::Anyhow("Context: integrator is not in this context");
+        throw std::invalid_argument("Context: integrator is not in this context");
     if (activeIntegrator_ == integrator)
         return;
     activeIntegrator_ = std::move(integrator);
@@ -124,7 +124,7 @@ void Context::setActiveSampler(Ref<Sampler const> sampler) {
     // Check the owner under the lock, which \c remove holds while it clears the owner.
     std::scoped_lock const lock(mutex_);
     if (sampler && sampler->getContext() != this)
-        throw kira::Anyhow("Context: sampler is not in this context");
+        throw std::invalid_argument("Context: sampler is not in this context");
     if (activeSampler_ == sampler)
         return;
     activeSampler_ = std::move(sampler);
@@ -135,7 +135,7 @@ void Context::setActiveEnvMap(Ref<EnvMapLight const> envMap) {
     // Check the owner under the lock, which \c remove holds while it clears the owner.
     std::scoped_lock const lock(mutex_);
     if (envMap && envMap->getContext() != this)
-        throw kira::Anyhow("Context: environment map is not in this context");
+        throw std::invalid_argument("Context: environment map is not in this context");
     if (activeEnvMap_ == envMap)
         return;
     activeEnvMap_ = std::move(envMap);

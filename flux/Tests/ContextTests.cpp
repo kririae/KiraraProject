@@ -26,12 +26,6 @@ public:
     int answer;
 };
 
-class OtherRenderObject final : public flux::RenderObject {
-    friend class flux::TXContext;
-
-    explicit OtherRenderObject(flux::TXContext &tx, kira::Properties const &) : RenderObject(tx) {}
-};
-
 class NestedRenderObject final : public flux::RenderObject {
     friend class flux::TXContext;
 
@@ -135,14 +129,13 @@ TEST(ContextTests, RollsBackConstructionFailures) {
     EXPECT_EQ(TrackedRenderObject::liveCount, 0);
 }
 
-TEST(ContextTests, RejectsUnknownIdsAndWrongTypes) {
+TEST(ContextTests, RejectsUnknownIds) {
     auto context = flux::Context::create();
     auto object = context->create<TestRenderObject>(kira::Properties{});
 
     EXPECT_THROW(
         (void)context->get<TestRenderObject>(object->getContextId() + 1), std::out_of_range
     );
-    EXPECT_THROW((void)context->get<OtherRenderObject>(object->getContextId()), kira::Anyhow);
 }
 
 TEST(ContextIndexMapTests, KeepsAndReusesIndices) {

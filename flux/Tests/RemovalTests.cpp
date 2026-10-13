@@ -102,7 +102,7 @@ TEST(RemovalTests, RejectsDependentsAndUnknownIds) {
     primitive->setVisible(false);
     auto const count = context->getNumContextObjects();
 
-    EXPECT_THROW(context->remove(mesh->getContextId()), kira::Anyhow);
+    EXPECT_THROW(context->remove(mesh->getContextId()), std::invalid_argument);
     EXPECT_THROW(context->remove(1000), std::out_of_range);
 
     EXPECT_EQ(context->getNumContextObjects(), count);
@@ -279,7 +279,7 @@ TEST(RemovalTests, RejectsARemovedRootAsActive) {
     context->remove(env->getContextId());
     context->clearDirty();
 
-    EXPECT_THROW(context->setActiveEnvMap(env), kira::Anyhow);
+    EXPECT_THROW(context->setActiveEnvMap(env), std::invalid_argument);
     EXPECT_THROW(context->remove(env->getContextId()), std::out_of_range);
     EXPECT_FALSE(context->getActiveEnvMap());
     EXPECT_EQ(context->getDirtyBits(), ContextBits::None);

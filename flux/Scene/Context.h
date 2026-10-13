@@ -17,7 +17,6 @@
 #include "flux/Scene/ContextIndexMap.h"
 #include "flux/Scene/ImageAsset.h"
 #include "flux/Scene/TXContext.h"
-#include "kira/Anyhow.h"
 #include "kira/FileResolver.h"
 #include "kira/SmallVector.h"
 
@@ -85,8 +84,9 @@ public:
 
     /// \brief Gets object \p contextId as \c T.
     ///
+    /// \pre The object is a \c T.
+    ///
     /// \throw std::out_of_range if the ID is unknown.
-    /// \throw kira::Anyhow if the object is not a \c T.
     template <IsContextObject T> [[nodiscard]] Ref<T> get(std::size_t contextId) {
         std::scoped_lock const lock(mutex_);
         auto const iterator = objects_.find(contextId);
@@ -95,14 +95,15 @@ public:
 
         auto object = iterator->second.template dynamicCast<T>();
         if (!object)
-            throw kira::Anyhow("Context: object has the wrong type");
+            throw std::invalid_argument("Context: object has the wrong type");
         return object;
     }
 
     /// \brief Gets object \p contextId as a const \c T.
     ///
+    /// \pre The object is a \c T.
+    ///
     /// \throw std::out_of_range if the ID is unknown.
-    /// \throw kira::Anyhow if the object is not a \c T.
     template <IsContextObject T> [[nodiscard]] Ref<T const> get(std::size_t contextId) const {
         std::scoped_lock const lock(mutex_);
         auto const iterator = objects_.find(contextId);
@@ -111,7 +112,7 @@ public:
 
         auto object = iterator->second.template dynamicCast<T const>();
         if (!object)
-            throw kira::Anyhow("Context: object has the wrong type");
+            throw std::invalid_argument("Context: object has the wrong type");
         return object;
     }
 
@@ -121,26 +122,25 @@ public:
     /// the active integrator, sampler, or environment map, that slot becomes empty. An exception
     /// leaves the context unchanged.
     ///
-    /// \pre No edit to the object runs concurrently. Editing it afterwards is unspecified; the
-    ///      host may still read or release it.
+    /// \pre The object is a root. No edit to the object runs concurrently. Editing it afterwards
+    ///      is unspecified. The host may still read or release it.
     ///
     /// \throw std::out_of_range if the ID is unknown.
-    /// \throw kira::Anyhow if the object is a dependent.
     void remove(std::size_t contextId);
 
     /// \brief Makes \p integrator the active integrator, or none if it is empty.
     ///
-    /// \throw kira::Anyhow If \p integrator belongs to another context.
+    /// \pre \p integrator is empty or belongs to this context.
     void setActiveIntegrator(Ref<PathIntegrator const> integrator);
 
     /// \brief Makes \p sampler the active sampler, or none if it is empty.
     ///
-    /// \throw kira::Anyhow If \p sampler belongs to another context.
+    /// \pre \p sampler is empty or belongs to this context.
     void setActiveSampler(Ref<Sampler const> sampler);
 
     /// \brief Makes \p envMap the active environment map, or none if it is empty.
     ///
-    /// \throw kira::Anyhow If \p envMap belongs to another context.
+    /// \pre \p envMap is empty or belongs to this context.
     void setActiveEnvMap(Ref<EnvMapLight const> envMap);
 
 public:

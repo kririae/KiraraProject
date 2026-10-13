@@ -61,23 +61,29 @@ public:
     /// \brief Returns the bound geometry.
     [[nodiscard]] Ref<Geometry const> getGeometry() const noexcept;
 
-    /// \brief Replaces the geometry with one from the same Context.
+    /// \brief Replaces the geometry.
+    ///
+    /// \pre \p geometry is not empty and belongs to the same Context.
     void setGeometry(Ref<Geometry const> geometry);
 
     /// \brief Returns the bound BSDF, or an empty reference.
     [[nodiscard]] Ref<BSDF const> getBSDF() const noexcept;
 
-    /// \brief Replaces the BSDF binding with one from the same Context.
+    /// \brief Replaces the BSDF binding.
     ///
     /// An empty reference removes the binding.
+    ///
+    /// \pre \p bsdf is empty or belongs to the same Context.
     void setBSDF(Ref<BSDF const> bsdf);
 
     /// \brief Returns the bound EDF, or an empty reference.
     [[nodiscard]] Ref<EDF const> getEDF() const noexcept;
 
-    /// \brief Replaces the EDF binding with one from the same Context.
+    /// \brief Replaces the EDF binding.
     ///
     /// An empty reference removes the binding.
+    ///
+    /// \pre \p edf is empty or belongs to the same Context.
     void setEDF(Ref<EDF const> edf);
 
     /// \brief Returns the row-major object-to-world affine transform.

@@ -28,7 +28,9 @@ public:
 
     [[nodiscard]] Ref<Texture const> const &getTexture() const noexcept { return texture_; }
 
-    /// Replaces the texture with one from the same Context.
+    /// \brief Replaces the texture.
+    ///
+    /// \pre \p texture is not empty and belongs to the same Context.
     void setTexture(Ref<Texture const> texture);
 
     [[nodiscard]] Spectrum const &getScale() const noexcept { return scale_; }

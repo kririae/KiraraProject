@@ -3,6 +3,7 @@
 #include <array>
 #include <cmath>
 #include <numbers>
+#include <stdexcept>
 
 #include "flux/Scene/Context.h"
 #include "flux/Scene/EnvMapLight.h"
@@ -57,6 +58,21 @@ TEST(LightTests, BoundsNegativePointLightIntensityToZero) {
 
     light->setIntensity({1.0F, -2.0F, 3.0F});
     EXPECT_EQ(light->getIntensity(), (flux::Spectrum{1.0F, 0.0F, 3.0F}));
+}
+
+TEST(LightTests, SetTextureRejectsNullAndForeignTextures) {
+    auto context = flux::Context::create();
+    auto other = flux::Context::create();
+    auto light = context->create<flux::EnvMapLight>(kira::Properties{});
+    auto const texture = light->getTexture();
+    kira::Properties textureProperties;
+    textureProperties.set("value", 0.5F);
+    auto foreign = other->create<flux::ConstantTexture>(textureProperties);
+
+    EXPECT_THROW(light->setTexture(nullptr), std::invalid_argument);
+    EXPECT_THROW(light->setTexture(foreign), std::invalid_argument);
+
+    EXPECT_EQ(light->getTexture(), texture);
 }
 
 TEST(LightTests, MapsEnvironmentCoordinatesToImageCoordinates) {

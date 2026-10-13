@@ -4,11 +4,11 @@
 #include <algorithm>
 #include <cmath>
 #include <numbers>
+#include <stdexcept>
 #include <utility>
 
 #include "flux/Core/Logging.h"
 #include "flux/Scene/TXContext.h"
-#include "kira/Anyhow.h"
 
 namespace flux {
 namespace {
@@ -34,9 +34,9 @@ EnvMapLight::EnvMapLight(TXContext &tx, kira::Properties const &props)
 
 void EnvMapLight::setTexture(Ref<Texture const> texture) {
     if (!texture)
-        throw kira::Anyhow("EnvMapLight: texture must not be null");
+        throw std::invalid_argument("EnvMapLight: texture must not be null");
     if (!getContext() || texture->getContext() != getContext())
-        throw kira::Anyhow("EnvMapLight: texture belongs to another context");
+        throw std::invalid_argument("EnvMapLight: texture belongs to another context");
     setIfDifferent(texture_, texture, DirtyBits::Texture);
 }
 

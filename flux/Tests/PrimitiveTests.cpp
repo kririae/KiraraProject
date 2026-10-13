@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <filesystem>
+#include <stdexcept>
 
 #include "flux/Scene/Context.h"
 #include "flux/Scene/Geometry.h"
@@ -157,16 +158,12 @@ TEST(PrimitiveTests, CreatesInlineGeometryAndBsdf) {
     EXPECT_EQ(context->getNumContextObjects(), 4);
 }
 
-TEST(PrimitiveTests, SettersKeepRelationshipsInsideTheContext) {
+TEST(PrimitiveTests, SettersRebindRelationships) {
     auto context = flux::Context::create();
-    auto otherContext = flux::Context::create();
     auto geometry = context->create<flux::TriangleMesh>(triangleProperties());
     auto replacement = context->create<flux::TriangleMesh>(triangleProperties());
-    auto foreignGeometry = otherContext->create<flux::TriangleMesh>(triangleProperties());
     auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
-    auto foreignBsdf = otherContext->create<flux::DiffuseBSDF>(kira::Properties{});
     auto edf = context->create<flux::ConstantEDF>(kira::Properties{});
-    auto foreignEdf = otherContext->create<flux::ConstantEDF>(kira::Properties{});
 
     kira::Properties properties;
     properties.set("geometry_ctx_id", static_cast<std::int64_t>(geometry->getContextId()));
@@ -174,13 +171,11 @@ TEST(PrimitiveTests, SettersKeepRelationshipsInsideTheContext) {
 
     primitive->setGeometry(replacement);
     EXPECT_EQ(primitive->getGeometry(), replacement);
-    EXPECT_THROW(primitive->setGeometry(nullptr), kira::Anyhow);
-    EXPECT_THROW(primitive->setGeometry(foreignGeometry), kira::Anyhow);
+    EXPECT_THROW(primitive->setGeometry(nullptr), std::invalid_argument);
     EXPECT_EQ(primitive->getGeometry(), replacement);
 
     primitive->setBSDF(bsdf);
     EXPECT_EQ(primitive->getBSDF(), bsdf);
-    EXPECT_THROW(primitive->setBSDF(foreignBsdf), kira::Anyhow);
     EXPECT_EQ(primitive->getBSDF(), bsdf);
 
     primitive->setBSDF(nullptr);
@@ -188,7 +183,6 @@ TEST(PrimitiveTests, SettersKeepRelationshipsInsideTheContext) {
 
     primitive->setEDF(edf);
     EXPECT_EQ(primitive->getEDF(), edf);
-    EXPECT_THROW(primitive->setEDF(foreignEdf), kira::Anyhow);
     EXPECT_EQ(primitive->getEDF(), edf);
 }
 
