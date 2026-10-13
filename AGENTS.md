@@ -122,6 +122,9 @@ Throughout, rewrite history in memory with `git amend`, `git reword`, and `git m
 `git rebase`. Never rewrite a commit that the target branch's upstream contains. Push only when
 asked.
 
+Create a worktree only with `tools/worktree-add.sh` and remove it only with
+`tools/worktree-remove.sh`. Never run vcpkg in it.
+
 ## Context identity
 
 - Context IDs only increase. They identify objects and serve as lookup keys.
