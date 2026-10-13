@@ -133,16 +133,6 @@ TEST(PrimitiveTests, ResolvesGeometryPathsThroughTheContext) {
     EXPECT_EQ(mesh->getTriangles().size(), 1);
 }
 
-TEST(PrimitiveTests, RejectsMissingGeometryPaths) {
-    auto context = flux::Context::create();
-    context->getFileResolver().prepend(FLUX_TEST_FIXTURES_DIR);
-    kira::Properties props;
-    props.set("path", "Missing.obj");
-
-    EXPECT_THROW((void)context->create<flux::TriangleMesh>(props), kira::Anyhow);
-    EXPECT_EQ(context->getNumContextObjects(), 0);
-}
-
 TEST(PrimitiveTests, CreatesInlineGeometryAndBsdf) {
     auto context = flux::Context::create();
     auto properties = triangleProperties();

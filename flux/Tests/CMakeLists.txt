@@ -161,7 +161,7 @@ krr_add_test(
 
 krr_add_test(
     flux Scene GeometryTests
-    SOURCES GeometryTests.cu
+    SOURCES GeometryTests.cpp
     HARD_DEPENDENCIES flux)
 target_compile_definitions(flux.Scene.GeometryTests
                            PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures")

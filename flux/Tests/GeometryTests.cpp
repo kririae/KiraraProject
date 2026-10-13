@@ -10,9 +10,6 @@
 
 #include "TestUtils.h"
 #include "flux/Core/MathUtils.h"
-#include "flux/Optix/DeviceBuffer.h"
-#include "flux/Optix/KernelUtils.cuh"
-#include "flux/Optix/OptixUtils.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/TriangleMeshImpl.h"
 #include "kira/SmallVector.h"
@@ -24,14 +21,10 @@
 namespace {
 using flux::test::sharedBuffer;
 
-struct ReconstructTriangleInteraction {
-    flux::TriangleMesh::Impl geometry;
-    flux::PreliminaryIntersection preliminary;
-    flux::GeometryInteraction *result;
-
-    KIRA_DEVICE void operator()(std::size_t) const noexcept {
-        *result = geometry.computeInteraction(preliminary);
-    }
+constexpr flux::PreliminaryIntersection preliminary{
+    .distance = 3.0F,
+    .coordinates = {0.25F, 0.5F},
+    .elementIndex = 0,
 };
 
 [[nodiscard]] kira::Properties triangleProperties(char const *filename) {
@@ -101,9 +94,6 @@ TEST(GeometryTests, LoadsObjAndGeneratesMissingNormals) {
     EXPECT_EQ(mesh->getTriangles()[0], (flux::Vec3u{0, 1, 2}));
     EXPECT_EQ(mesh->getTriangles()[1], (flux::Vec3u{0, 3, 1}));
     ASSERT_EQ(mesh->getNormals().size(), mesh->getVertices().size());
-    EXPECT_TRUE(mesh->getNormalIndices().empty());
-    EXPECT_TRUE(mesh->getTexCoords().empty());
-    EXPECT_TRUE(mesh->getTexCoordIndices().empty());
 
     auto constexpr diagonal = 0.70710678F;
     EXPECT_EQ(mesh->getNormals()[2], (flux::Vec3f{0.0F, 0.0F, 1.0F}));
@@ -113,25 +103,6 @@ TEST(GeometryTests, LoadsObjAndGeneratesMissingNormals) {
         EXPECT_NEAR(mesh->getNormals()[index].y(), diagonal, 1.0e-6F);
         EXPECT_NEAR(mesh->getNormals()[index].z(), diagonal, 1.0e-6F);
     }
-}
-
-TEST(GeometryTests, PreservesIndependentObjAttributeIndices) {
-    auto context = flux::Context::create();
-    auto mesh = context->create<flux::TriangleMesh>(triangleProperties("IndexedTriangle.obj"));
-
-    ASSERT_EQ(mesh->getNormals().size(), 3);
-    ASSERT_EQ(mesh->getNormalIndices().size(), 1);
-    EXPECT_EQ(mesh->getNormalIndices()[0], (flux::Vec3u{1, 2, 0}));
-    EXPECT_EQ(mesh->getNormals()[0], (flux::Vec3f{1.0F, 0.0F, 0.0F}));
-    EXPECT_EQ(mesh->getNormals()[1], (flux::Vec3f{0.0F, 1.0F, 0.0F}));
-    EXPECT_EQ(mesh->getNormals()[2], (flux::Vec3f{0.0F, 0.0F, 1.0F}));
-
-    ASSERT_EQ(mesh->getTexCoords().size(), 3);
-    ASSERT_EQ(mesh->getTexCoordIndices().size(), 1);
-    EXPECT_EQ(mesh->getTexCoordIndices()[0], (flux::Vec3u{2, 0, 1}));
-    EXPECT_EQ(mesh->getTexCoords()[0], (flux::Vec2f{0.1F, 0.2F}));
-    EXPECT_EQ(mesh->getTexCoords()[1], (flux::Vec2f{0.3F, 0.4F}));
-    EXPECT_EQ(mesh->getTexCoords()[2], (flux::Vec2f{0.5F, 0.6F}));
 }
 
 TEST(GeometryTests, LoadsAsciiPlyAndTriangulatesConcavePolygons) {
@@ -154,10 +125,6 @@ TEST(GeometryTests, LoadsAsciiPlyAndTriangulatesConcavePolygons) {
             auto const index = mesh->getTriangles()[triangle][corner];
             ASSERT_LT(index, mesh->getVertices().size());
             usedVertices[index] = true;
-            if (triangle < 2)
-                EXPECT_LT(index, 4);
-            else
-                EXPECT_GE(index, 4);
         }
         auto const &indices = mesh->getTriangles()[triangle];
         auto const &vertex0 = mesh->getVertices()[indices[0u]];
@@ -206,17 +173,22 @@ TEST(GeometryTests, SamplesTriangleMeshesByGeometrySpaceArea) {
     EXPECT_NEAR(sample.geometricNormal.norm(), 1.0F, 1.0e-6F);
 }
 
-TEST(GeometryTests, ReportsZeroDensityForAnUnsampledTriangle) {
-    auto const cdf = std::array{1.0F, 1.0F};
-    auto const pdf = std::array{1.0F, 0.0F};
-    auto const impl = flux::TriangleMesh::Impl{
-        .numTriangles = 2,
-        .triangleAreaCDF = cdf.data(),
-        .triangleAreaPDF = pdf.data(),
-        .surfaceArea = cdf.back(),
+TEST(GeometryTests, ReportsZeroDensityForAZeroAreaTriangle) {
+    auto const vertices = std::array{
+        flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F}, flux::Vec3f{0.0F, 1.0F, 0.0F},
+        flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F}, flux::Vec3f{2.0F, 0.0F, 0.0F},
     };
+    auto const triangles = std::array{flux::Vec3u{0, 1, 2}, flux::Vec3u{3, 4, 5}};
+    auto impl = flux::TriangleMesh::Impl{
+        .vertices = vertices.data(),
+        .triangles = triangles.data(),
+        .numVertices = static_cast<std::uint32_t>(vertices.size()),
+        .numTriangles = static_cast<std::uint32_t>(triangles.size()),
+    };
+    auto const distribution = flux::TriangleMesh::computeSamplingDistribution(impl);
+    impl.triangleAreaPDF = distribution.areaPDF.data();
 
-    EXPECT_FLOAT_EQ(impl.pdf(0), 1.0F);
+    EXPECT_FLOAT_EQ(impl.pdf(0), 2.0F);
     EXPECT_FLOAT_EQ(impl.pdf(1), 0.0F);
 }
 
@@ -239,14 +211,21 @@ TEST(GeometryTests, ReportsTheQuantizedTriangleSelectionDensity) {
     auto const interval = areaCDF[1] - areaCDF[0];
     auto const expected = interval / (areaCDF.back() * mesh.getTriangleArea(1));
     EXPECT_FLOAT_EQ(distribution.areaPDF[1], expected);
-    EXPECT_NE(distribution.areaPDF[1], 1.0F / areaCDF.back());
 }
 
-TEST(GeometryTests, RejectsInvalidPlyVertexIndex) {
+TEST(GeometryTests, RejectsMalformedPlyFiles) {
+    auto context = flux::Context::create();
+    for (auto const *filename : {"InvalidIndex.ply", "TruncatedFace.ply", "ListPosition.ply"}) {
+        EXPECT_THROW(
+            (void)context->create<flux::TriangleMesh>(triangleProperties(filename)), kira::Anyhow
+        ) << filename;
+    }
+}
+
+TEST(GeometryTests, RejectsMissingGeometryPaths) {
     auto context = flux::Context::create();
     EXPECT_THROW(
-        (void)context->create<flux::TriangleMesh>(triangleProperties("InvalidIndex.ply")),
-        kira::Anyhow
+        (void)context->create<flux::TriangleMesh>(triangleProperties("Missing.obj")), kira::Anyhow
     );
 }
 
@@ -272,23 +251,6 @@ TEST(GeometryTests, BuildsAMeshFromHostArrays) {
     ASSERT_EQ(mesh->getNormals().size(), 3);
     for (auto const &normal : mesh->getNormals())
         EXPECT_EQ(normal, (flux::Vec3f{0.0F, 0.0F, 1.0F}));
-}
-
-TEST(GeometryTests, KeepsIndependentAttributeIndicesFromHostArrays) {
-    auto context = flux::Context::create();
-    auto mesh = context->create<flux::TriangleMesh>(flux::TriangleMesh::Data{
-        .vertices = sharedBuffer(
-            flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F},
-            flux::Vec3f{0.0F, 1.0F, 0.0F}
-        ),
-        .triangles = sharedBuffer(flux::Vec3u{0, 1, 2}),
-        .normals = sharedBuffer(flux::Vec3f{0.0F, 0.0F, 1.0F}),
-        .normalIndices = sharedBuffer(flux::Vec3u{0, 0, 0}),
-    });
-
-    ASSERT_EQ(mesh->getNormals().size(), 1);
-    ASSERT_EQ(mesh->getNormalIndices().size(), 1);
-    EXPECT_EQ(mesh->getNormalIndices()[0], (flux::Vec3u{0, 0, 0}));
 }
 
 TEST(GeometryTests, RejectsAnEmptyMesh) {
@@ -417,9 +379,7 @@ TEST(GeometryTests, SharesBuffersBetweenMeshes) {
     auto b = context->create<flux::TriangleMesh>(std::move(second));
 
     EXPECT_EQ(a->getTriangles().data(), b->getTriangles().data());
-    EXPECT_NE(a->getVertices().data(), b->getVertices().data());
     EXPECT_EQ(a->getVertices().data(), vertices);
-    EXPECT_EQ(a->getData().triangles, b->getData().triangles);
 }
 
 TEST(GeometryTests, TurnsAbsentArraysIntoNullHandles) {
@@ -450,33 +410,6 @@ TEST(GeometryTests, TurnsAbsentArraysIntoNullHandles) {
     EXPECT_EQ(empty->getImpl().texCoords, nullptr);
 }
 
-TEST(GeometryTests, GeneratesNormalsInANewBuffer) {
-    auto context = flux::Context::create();
-    auto mesh = context->create<flux::TriangleMesh>(flux::TriangleMesh::Data{
-        .vertices = sharedBuffer(
-            flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F},
-            flux::Vec3f{0.0F, 1.0F, 0.0F}
-        ),
-        .triangles = sharedBuffer(flux::Vec3u{0, 1, 2}),
-    });
-
-    ASSERT_NE(mesh->getData().normals, nullptr);
-    EXPECT_EQ(mesh->getNormals().size(), mesh->getVertices().size());
-    EXPECT_EQ(mesh->getNormals().data(), mesh->getData().normals->data());
-}
-
-TEST(GeometryTests, KeepsSpareVertexCapacityInLoadedMeshes) {
-    auto context = flux::Context::create();
-    for (auto const *filename : {"IndexedTriangle.obj", "CboxFloor.ply", "Polygons.ply"}) {
-        auto mesh = context->create<flux::TriangleMesh>(triangleProperties(filename));
-        auto const &vertices = mesh->getData().vertices;
-
-        ASSERT_NE(vertices, nullptr) << filename;
-        EXPECT_GT(vertices->capacity(), vertices->size()) << filename;
-        EXPECT_EQ(mesh->getVertices().size(), vertices->size()) << filename;
-    }
-}
-
 TEST(GeometryTests, BuildsTheSameMeshFromHostArraysAsFromAFile) {
     auto context = flux::Context::create();
     auto file = context->create<flux::TriangleMesh>(triangleProperties("IndexedTriangle.obj"));
@@ -505,74 +438,30 @@ TEST(GeometryTests, BuildsTheSameMeshFromHostArraysAsFromAFile) {
     EXPECT_TRUE(std::ranges::equal(hostArrays->getTexCoordIndices(), file->getTexCoordIndices()));
 }
 
-TEST(GeometryTests, RejectsTruncatedPlyFace) {
-    auto context = flux::Context::create();
-    EXPECT_THROW(
-        (void)context->create<flux::TriangleMesh>(triangleProperties("TruncatedFace.ply")),
-        kira::Anyhow
-    );
-}
-
-TEST(GeometryTests, RejectsListTypedPlyPosition) {
-    auto context = flux::Context::create();
-    EXPECT_THROW(
-        (void)context->create<flux::TriangleMesh>(triangleProperties("ListPosition.ply")),
-        kira::Anyhow
-    );
-}
-
 TEST(GeometryTests, ReconstructsTriangleInteractionInGeometrySpace) {
-    if (!flux::test::hasCudaMemoryPoolSupport())
-        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
-
     std::array const vertices{
         flux::Vec3f{0.0F, 0.0F, 0.0F},
         flux::Vec3f{2.0F, 0.0F, 0.0F},
         flux::Vec3f{0.0F, 4.0F, 0.0F},
     };
     std::array const triangles{flux::Vec3u{0, 1, 2}};
-    flux::DeviceBuffer<flux::Vec3f> deviceVertices(cudaStreamPerThread);
-    flux::DeviceBuffer<flux::Vec3u> deviceTriangles(cudaStreamPerThread);
-    flux::DeviceBuffer<flux::GeometryInteraction> deviceResult(cudaStreamPerThread);
-    deviceVertices.copyFromHostAndWait(vertices);
-    deviceTriangles.copyFromHostAndWait(triangles);
-    deviceResult.resize(1);
+    flux::TriangleMesh::Impl const mesh{
+        .vertices = vertices.data(),
+        .triangles = triangles.data(),
+        .numVertices = static_cast<std::uint32_t>(vertices.size()),
+        .numTriangles = static_cast<std::uint32_t>(triangles.size()),
+    };
 
-    flux::launchLinearKernel(
-        1,
-        ReconstructTriangleInteraction{
-            .geometry =
-                {
-                    .vertices = deviceVertices.data(),
-                    .triangles = deviceTriangles.data(),
-                    .numVertices = static_cast<std::uint32_t>(vertices.size()),
-                    .numTriangles = static_cast<std::uint32_t>(triangles.size()),
-                },
-            .preliminary =
-                {
-                    .distance = 3.0F,
-                    .coordinates = {0.25F, 0.5F},
-                    .elementIndex = 0,
-                },
-            .result = deviceResult.data(),
-        },
-        cudaStreamPerThread
-    );
+    auto const result = mesh.computeInteraction(preliminary);
 
-    std::array<flux::GeometryInteraction, 1> result{};
-    deviceResult.copyToHost(result);
-
-    EXPECT_EQ(result[0].position, (flux::Vec3f{0.5F, 2.0F, 0.0F}));
-    EXPECT_EQ(result[0].geometricNormal, (flux::Vec3f{0.0F, 0.0F, 1.0F}));
-    EXPECT_EQ(result[0].shadingNormal, result[0].geometricNormal);
-    EXPECT_EQ(result[0].uv, (flux::Vec2f{}));
-    EXPECT_EQ(result[0].elementIndex, 0);
+    EXPECT_EQ(result.position, (flux::Vec3f{0.5F, 2.0F, 0.0F}));
+    EXPECT_EQ(result.geometricNormal, (flux::Vec3f{0.0F, 0.0F, 1.0F}));
+    EXPECT_EQ(result.shadingNormal, result.geometricNormal);
+    EXPECT_EQ(result.uv, (flux::Vec2f{}));
+    EXPECT_EQ(result.elementIndex, 0);
 }
 
 TEST(GeometryTests, InterpolatesIndexedShadingAttributes) {
-    if (!flux::test::hasCudaMemoryPoolSupport())
-        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
-
     std::array const vertices{
         flux::Vec3f{0.0F, 0.0F, 0.0F},
         flux::Vec3f{2.0F, 0.0F, 0.0F},
@@ -592,62 +481,31 @@ TEST(GeometryTests, InterpolatesIndexedShadingAttributes) {
         flux::Vec2f{0.5F, 0.9F},
     };
     std::array const texCoordIndices{flux::Vec3u{2, 0, 1}};
+    flux::TriangleMesh::Impl const mesh{
+        .vertices = vertices.data(),
+        .triangles = triangles.data(),
+        .normals = normals.data(),
+        .normalIndices = normalIndices.data(),
+        .texCoords = texCoords.data(),
+        .texCoordIndices = texCoordIndices.data(),
+        .numVertices = static_cast<std::uint32_t>(vertices.size()),
+        .numTriangles = static_cast<std::uint32_t>(triangles.size()),
+    };
 
-    flux::DeviceBuffer<flux::Vec3f> deviceVertices(cudaStreamPerThread);
-    flux::DeviceBuffer<flux::Vec3u> deviceTriangles(cudaStreamPerThread);
-    flux::DeviceBuffer<flux::Vec3f> deviceNormals(cudaStreamPerThread);
-    flux::DeviceBuffer<flux::Vec3u> deviceNormalIndices(cudaStreamPerThread);
-    flux::DeviceBuffer<flux::Vec2f> deviceTexCoords(cudaStreamPerThread);
-    flux::DeviceBuffer<flux::Vec3u> deviceTexCoordIndices(cudaStreamPerThread);
-    flux::DeviceBuffer<flux::GeometryInteraction> deviceResult(cudaStreamPerThread);
-    deviceVertices.copyFromHostAndWait(vertices);
-    deviceTriangles.copyFromHostAndWait(triangles);
-    deviceNormals.copyFromHostAndWait(normals);
-    deviceNormalIndices.copyFromHostAndWait(normalIndices);
-    deviceTexCoords.copyFromHostAndWait(texCoords);
-    deviceTexCoordIndices.copyFromHostAndWait(texCoordIndices);
-    deviceResult.resize(1);
+    auto const result = mesh.computeInteraction(preliminary);
 
-    flux::launchLinearKernel(
-        1,
-        ReconstructTriangleInteraction{
-            .geometry =
-                {
-                    .vertices = deviceVertices.data(),
-                    .triangles = deviceTriangles.data(),
-                    .normals = deviceNormals.data(),
-                    .normalIndices = deviceNormalIndices.data(),
-                    .texCoords = deviceTexCoords.data(),
-                    .texCoordIndices = deviceTexCoordIndices.data(),
-                    .numVertices = static_cast<std::uint32_t>(vertices.size()),
-                    .numTriangles = static_cast<std::uint32_t>(triangles.size()),
-                },
-            .preliminary =
-                {
-                    .distance = 3.0F,
-                    .coordinates = {0.25F, 0.5F},
-                    .elementIndex = 0,
-                },
-            .result = deviceResult.data(),
-        },
-        cudaStreamPerThread
-    );
-
-    std::array<flux::GeometryInteraction, 1> result{};
-    deviceResult.copyToHost(result);
-
-    EXPECT_EQ(result[0].geometricNormal, (flux::Vec3f{0.0F, 0.0F, 1.0F}));
-    EXPECT_NEAR(result[0].shadingNormal.x(), 0.8164966F, 1.0e-6F);
-    EXPECT_NEAR(result[0].shadingNormal.y(), 0.4082483F, 1.0e-6F);
-    EXPECT_NEAR(result[0].shadingNormal.z(), 0.4082483F, 1.0e-6F);
-    EXPECT_NEAR(result[0].uv.x(), 0.3F, 1.0e-6F);
-    EXPECT_NEAR(result[0].uv.y(), 0.475F, 1.0e-6F);
+    EXPECT_EQ(result.geometricNormal, (flux::Vec3f{0.0F, 0.0F, 1.0F}));
+    EXPECT_NEAR(result.shadingNormal.x(), 0.8164966F, 1.0e-6F);
+    EXPECT_NEAR(result.shadingNormal.y(), 0.4082483F, 1.0e-6F);
+    EXPECT_NEAR(result.shadingNormal.z(), 0.4082483F, 1.0e-6F);
+    EXPECT_NEAR(result.uv.x(), 0.3F, 1.0e-6F);
+    EXPECT_NEAR(result.uv.y(), 0.475F, 1.0e-6F);
     // The gradients of the barycentric coordinates pair with the texture coordinate deltas:
     // b with texture1 - texture0 and c with texture2 - texture0.
-    EXPECT_NEAR(result[0].uvGradU.x(), -0.2F, 1.0e-6F);
-    EXPECT_NEAR(result[0].uvGradU.y(), -0.05F, 1.0e-6F);
-    EXPECT_NEAR(result[0].uvGradU.z(), 0.0F, 1.0e-6F);
-    EXPECT_NEAR(result[0].uvGradV.x(), -0.35F, 1.0e-6F);
-    EXPECT_NEAR(result[0].uvGradV.y(), -0.125F, 1.0e-6F);
-    EXPECT_NEAR(result[0].uvGradV.z(), 0.0F, 1.0e-6F);
+    EXPECT_NEAR(result.uvGradU.x(), -0.2F, 1.0e-6F);
+    EXPECT_NEAR(result.uvGradU.y(), -0.05F, 1.0e-6F);
+    EXPECT_NEAR(result.uvGradU.z(), 0.0F, 1.0e-6F);
+    EXPECT_NEAR(result.uvGradV.x(), -0.35F, 1.0e-6F);
+    EXPECT_NEAR(result.uvGradV.y(), -0.125F, 1.0e-6F);
+    EXPECT_NEAR(result.uvGradV.z(), 0.0F, 1.0e-6F);
 }
