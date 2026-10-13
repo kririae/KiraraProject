@@ -125,6 +125,10 @@ asked.
 Create a worktree only with `tools/worktree-add.sh` and remove it only with
 `tools/worktree-remove.sh`. Never run vcpkg in it.
 
+Keep documents for agents, such as briefs, reports, and plans, in the gitignored `.scratch/`, in
+one directory per work item. When the work lands, merge what is worth keeping into
+`docs/research/`, then move the directory to `.scratch/archive/`.
+
 ## Context identity
 
 - Context IDs only increase. They identify objects and serve as lookup keys.
