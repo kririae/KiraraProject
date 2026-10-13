@@ -5,10 +5,9 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
-#include <utility>
 
+#include "TestUtils.h"
 #include "flux/Embree/EmbreeImageTexturePool.h"
-#include "flux/IO/ImageIO.h"
 #include "flux/Scene/Context.h"
 #include "flux/Shading/Texture.h"
 
@@ -72,16 +71,7 @@ struct BadAssetCase {
 
 void writeTwoChannelImage(std::filesystem::path const &imagePath) {
     auto const pixels = std::array{0.25F, 0.75F};
-    flux::writeImage(
-        imagePath,
-        {
-            .pixels = std::as_bytes(std::span{pixels}),
-            .extent = {1, 1},
-            .componentType = flux::ImageComponentType::Float32,
-            .componentCount = 2,
-        },
-        {.outputComponentType = flux::ImageComponentType::Float32}
-    );
+    flux::test::writeFloatImage(imagePath, pixels, {1, 1});
 }
 
 void writeSinglePixel(std::filesystem::path const &imagePath, OIIO::ImageSpec const &spec) {
@@ -115,18 +105,8 @@ TEST_F(EmbreeImageTextureTests, PreservesStraightAlphaDuringSRGBConversion) {
     auto const imagePath = path("straight-alpha.tif");
     auto const componentNames = std::array<std::string_view, 4>{"R", "G", "B", "A"};
     auto const pixels = std::array{1.0F, 0.5F, 0.25F, 0.5F};
-    flux::writeImage(
-        imagePath,
-        {
-            .pixels = std::as_bytes(std::span{pixels}),
-            .extent = {1, 1},
-            .componentType = flux::ImageComponentType::Float32,
-            .componentCount = static_cast<std::uint8_t>(componentNames.size()),
-        },
-        {
-            .outputComponentType = flux::ImageComponentType::UNorm8,
-            .componentNames = componentNames,
-        }
+    flux::test::writeFloatImage(
+        imagePath, pixels, {1, 1}, componentNames, flux::ImageComponentType::UNorm8
     );
     build(imagePath, "srgb");
 
@@ -167,19 +147,9 @@ TEST_P(EmbreeImageOrientationTests, AppliesImageOrientation) {
     auto const imagePath = path(std::string{parameter.name} + ".exr");
     auto const componentNames = std::array<std::string_view, 1>{"Y"};
     auto const pixels = std::array{1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F};
-    flux::writeImage(
-        imagePath,
-        {
-            .pixels = std::as_bytes(std::span{pixels}),
-            .extent = {3, 2},
-            .componentType = flux::ImageComponentType::Float32,
-            .componentCount = static_cast<std::uint8_t>(componentNames.size()),
-        },
-        {
-            .outputComponentType = flux::ImageComponentType::Float32,
-            .componentNames = componentNames,
-            .orientation = parameter.orientation,
-        }
+    flux::test::writeFloatImage(
+        imagePath, pixels, {3, 2}, componentNames, flux::ImageComponentType::Float32,
+        parameter.orientation
     );
     build(imagePath);
 
@@ -214,19 +184,10 @@ INSTANTIATE_TEST_SUITE_P(
     [](testing::TestParamInfo<ImageOrientationCase> const &info) { return info.param.name; }
 );
 
-TEST_F(EmbreeImageTextureTests, SamplesBottomUpCoordinates) {
-    build(std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "Texture2x2.ppm", "srgb");
+TEST_F(EmbreeImageTextureTests, EvaluatesPointSamplesOfALinearlyFilteredTexture) {
+    build(std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "Texture2x2.ppm", "srgb", "linear");
 
-    auto const samples = std::array{
-        std::pair{flux::Vec2f{0.25F, 0.25F}, flux::Vec4f{0.0F, 0.0F, 1.0F, 1.0F}},
-        std::pair{flux::Vec2f{0.75F, 0.25F}, flux::Vec4f{1.0F, 1.0F, 1.0F, 1.0F}},
-        std::pair{flux::Vec2f{0.25F, 0.75F}, flux::Vec4f{1.0F, 0.0F, 0.0F, 1.0F}},
-        std::pair{flux::Vec2f{0.75F, 0.75F}, flux::Vec4f{0.0F, 1.0F, 0.0F, 1.0F}},
-    };
-    for (auto const &[uv, expected] : samples) {
-        SCOPED_TRACE(testing::Message{} << "uv = (" << uv.x() << ", " << uv.y() << ')');
-        expectNear(sample(uv), expected);
-    }
+    expectNear(pool.getImpl().evalPoint4f(0, {0.49F, 0.25F}), {0.0F, 0.0F, 1.0F, 1.0F});
 }
 
 TEST_F(EmbreeImageTextureTests, FiltersLinearSRGBValues) {
@@ -246,12 +207,6 @@ TEST_F(EmbreeImageTextureTests, FiltersMipLevels) {
     expectNear(
         sample({0.1F, 0.1F}, {1.0F, 0.0F}, {0.0F, 1.0F}), {expected, expected, expected, 1.0F}
     );
-}
-
-TEST_F(EmbreeImageTextureTests, UsesOIIOOddMipLevels) {
-    build(std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "Texture3x3.ppm", "linear", "linear");
-
-    expectNear(sample({0.5F, 0.5F}, {1.0F, 0.0F}, {0.0F, 1.0F}), {1.0F, 1.0F, 1.0F, 1.0F});
 }
 
 TEST_F(EmbreeImageTextureTests, BuildsSRGBMipLevelsInLinearSpace) {

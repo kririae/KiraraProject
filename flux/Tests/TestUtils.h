@@ -6,13 +6,18 @@
 #include <chrono>
 #include <concepts>
 #include <cstddef>
+#include <cstdint>
+#include <filesystem>
 #include <memory>
+#include <span>
 #include <stdexcept>
 #include <stop_token>
+#include <string_view>
 #include <thread>
 #include <utility>
 
 #include "flux/Core/HostBuffer.h"
+#include "flux/IO/ImageIO.h"
 
 namespace flux::test {
 /// \brief Returns a shared buffer of the arguments, with one spare element.
@@ -27,6 +32,30 @@ template <typename T, std::convertible_to<T>... Rest>
     *out = std::move(first);
     ((*++out = static_cast<T>(rest)), ...);
     return buffer;
+}
+
+/// \brief Writes float \p pixels as an image of \p extent.
+///
+/// The component count is the number of values per pixel.
+inline void writeFloatImage(
+    std::filesystem::path const &path, std::span<float const> pixels, Vec2u const &extent,
+    std::span<std::string_view const> componentNames = {},
+    ImageComponentType outputComponentType = ImageComponentType::Float32, int orientation = 1
+) {
+    writeImage(
+        path,
+        {
+            .pixels = std::as_bytes(pixels),
+            .extent = extent,
+            .componentType = ImageComponentType::Float32,
+            .componentCount = static_cast<std::uint8_t>(pixels.size() / (extent.x() * extent.y())),
+        },
+        {
+            .outputComponentType = outputComponentType,
+            .componentNames = componentNames,
+            .orientation = orientation,
+        }
+    );
 }
 
 /// \brief Returns whether the CUDA Runtime API can access a device.

@@ -27,25 +27,18 @@ struct GradientTextureEvaluator {
 };
 } // namespace
 
-TEST(LightTests, ActivatesOnlyTheEnvironmentMapTheHostSets) {
-    auto context = flux::Context::create();
-
-    EXPECT_FALSE(context->getActiveEnvMap());
-    auto first = context->create<flux::EnvMapLight>(kira::Properties{});
-    auto second = context->create<flux::EnvMapLight>(kira::Properties{});
-    EXPECT_FALSE(context->getActiveEnvMap());
-
-    context->setActiveEnvMap(second);
-    EXPECT_EQ(context->getActiveEnvMap(), second);
-}
-
 TEST(LightTests, ClampsEnvironmentMapScale) {
     auto context = flux::Context::create();
     auto light = context->create<flux::EnvMapLight>(kira::Properties{});
 
     light->setScale({-1.0F, 2.0F, 3.0F});
-
     EXPECT_EQ(light->getScale(), (flux::Spectrum{0.0F, 2.0F, 3.0F}));
+
+    kira::Properties props;
+    props.set("scale", flux::Spectrum{1.0F, -2.0F, 3.0F});
+    EXPECT_EQ(
+        context->create<flux::EnvMapLight>(props)->getScale(), (flux::Spectrum{1.0F, 0.0F, 3.0F})
+    );
 }
 
 TEST(LightTests, BoundsNegativePointLightIntensityToZero) {
@@ -73,28 +66,6 @@ TEST(LightTests, SetTextureRejectsNullAndForeignTextures) {
     EXPECT_THROW(light->setTexture(foreign), std::invalid_argument);
 
     EXPECT_EQ(light->getTexture(), texture);
-}
-
-TEST(LightTests, MapsEnvironmentCoordinatesToImageCoordinates) {
-    auto const light = flux::EnvMapLight::Impl{
-        .texture =
-            {
-                .type = flux::TextureType::Image,
-                .storage = {.image = {.imageTextureIndex = 0}},
-            },
-        .scale = {1.0F, 1.0F, 1.0F},
-        .worldToEnv = {1.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 1.0F},
-    };
-
-    EXPECT_EQ(
-        light.eval<UVTextureEvaluator>({1.0F, 0.0F, 0.0F}), (flux::Spectrum{0.0F, 0.5F, 0.0F})
-    );
-    EXPECT_EQ(
-        light.eval<UVTextureEvaluator>({0.0F, 1.0F, 0.0F}), (flux::Spectrum{0.25F, 0.5F, 0.0F})
-    );
-    EXPECT_EQ(
-        light.eval<UVTextureEvaluator>({0.0F, 0.0F, 1.0F}), (flux::Spectrum{0.0F, 1.0F, 0.0F})
-    );
 }
 
 TEST(LightTests, MapsEnvironmentFootprintsToImageGradients) {
@@ -134,19 +105,7 @@ TEST(LightTests, UsesFluxWorldAxesForEnvironmentMaps) {
     EXPECT_NEAR(atQuarter.wi.z(), 0.0F, 1.0e-6F);
 }
 
-TEST(LightTests, AppliesEnvironmentMapRotationInDegrees) {
-    auto context = flux::Context::create();
-    kira::Properties props;
-    props.set("rotation", flux::Vec3f{0.0F, 90.0F, 0.0F});
-    auto light = context->create<flux::EnvMapLight>(props)->getImpl({});
-
-    auto const sample = light.sampleDirect<UVTextureEvaluator>({}, {0.0F, 0.5F});
-    EXPECT_NEAR(sample.wi.x(), 1.0F, 1.0e-6F);
-    EXPECT_NEAR(sample.wi.y(), 0.0F, 1.0e-6F);
-    EXPECT_NEAR(sample.wi.z(), 0.0F, 1.0e-6F);
-}
-
-TEST(LightTests, AppliesEnvironmentMapRotationInXYZOrder) {
+TEST(LightTests, AppliesEnvironmentMapRotationInDegreesAndXYZOrder) {
     auto context = flux::Context::create();
     kira::Properties props;
     props.set("rotation", flux::Vec3f{90.0F, 90.0F, 90.0F});

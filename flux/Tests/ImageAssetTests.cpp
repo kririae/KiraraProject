@@ -4,7 +4,7 @@
 #include <filesystem>
 #include <string_view>
 
-#include "flux/IO/ImageIO.h"
+#include "TestUtils.h"
 #include "flux/Scene/ImageAsset.h"
 
 namespace {
@@ -24,19 +24,7 @@ TEST_F(ImageAssetTests, LoadsMetadataAndSharesCanonicalPaths) {
     auto const pixels = std::array{
         1.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 1.0F, 1.0F, 1.0F, 1.0F,
     };
-    flux::writeImage(
-        imagePath,
-        {
-            .pixels = std::as_bytes(std::span{pixels}),
-            .extent = {2, 2},
-            .componentType = flux::ImageComponentType::Float32,
-            .componentCount = static_cast<std::uint8_t>(componentNames.size()),
-        },
-        {
-            .outputComponentType = flux::ImageComponentType::Float32,
-            .componentNames = componentNames,
-        }
-    );
+    flux::test::writeFloatImage(imagePath, pixels, {2, 2}, componentNames);
 
     auto const asset = pool.getOrCreate({.path = imagePath});
     auto const cached =
@@ -57,6 +45,7 @@ TEST_F(ImageAssetTests, UsesColorSpaceInPoolKey) {
     });
 
     EXPECT_NE(linear, srgb);
+    EXPECT_NE(linear->getId(), srgb->getId());
 }
 
 TEST_F(ImageAssetTests, DefaultMappingFollowsChannelPosition) {
@@ -75,18 +64,8 @@ TEST_F(ImageAssetTests, DefaultMappingFollowsChannelPosition) {
     for (auto count = std::uint8_t{1}; count <= 4; ++count) {
         SCOPED_TRACE(testing::Message{} << "components = " << static_cast<int>(count));
         auto const imagePath = path("channels-" + std::to_string(count) + ".exr");
-        flux::writeImage(
-            imagePath,
-            {
-                .pixels = std::as_bytes(std::span{pixels.data(), count}),
-                .extent = {1, 1},
-                .componentType = flux::ImageComponentType::Float32,
-                .componentCount = count,
-            },
-            {
-                .outputComponentType = flux::ImageComponentType::Float32,
-                .componentNames = {componentNames.data(), count},
-            }
+        flux::test::writeFloatImage(
+            imagePath, {pixels.data(), count}, {1, 1}, {componentNames.data(), count}
         );
 
         auto const asset = pool.getOrCreate({.path = imagePath});
@@ -99,19 +78,7 @@ TEST_F(ImageAssetTests, CollectsAssetsThatOnlyThePoolHolds) {
     auto const imagePath = path("image-asset-collect.exr");
     auto const componentNames = std::array<std::string_view, 1>{"Y"};
     auto const pixels = std::array{0.5F};
-    flux::writeImage(
-        imagePath,
-        {
-            .pixels = std::as_bytes(std::span{pixels}),
-            .extent = {1, 1},
-            .componentType = flux::ImageComponentType::Float32,
-            .componentCount = 1,
-        },
-        {
-            .outputComponentType = flux::ImageComponentType::Float32,
-            .componentNames = componentNames,
-        }
-    );
+    flux::test::writeFloatImage(imagePath, pixels, {1, 1}, componentNames);
 
     auto asset = pool.getOrCreate({.path = imagePath});
     pool.collectGarbage();
