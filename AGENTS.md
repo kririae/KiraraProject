@@ -17,6 +17,8 @@
   for example by creating a new backend. Never add a rollback, a staging copy, or any other
   mechanism that keeps derived state, such as the OptiX scene, as it was before a failure.
 - FLux core never depends on Hydra. Its API ends at core types such as `Film`.
+- hdFlux is a general Hydra delegate. Adapt to a host's convention in one place, and name the host
+  there.
 
 ## Testing
 
