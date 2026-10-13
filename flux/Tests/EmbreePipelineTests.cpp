@@ -365,6 +365,43 @@ TEST(EmbreePipelineTests, RendersWithIndicesThatFollowUnusedObjectsAndAfterAResy
     EXPECT_EQ(render(false, false, true), expected);
 }
 
+TEST(EmbreePipelineTests, AddsNoRadianceAtZeroMaxDepth) {
+    // Render one sample of a pixel that sees either the environment or an emitter.
+    auto const render = [](std::uint32_t maxDepth, bool seesEmitter) {
+        auto context = flux::Context::create();
+        flux::test::setActiveDefaults(*context);
+        kira::Properties integratorProperties;
+        integratorProperties.set("max_depth", maxDepth);
+        context->setActiveIntegrator(context->create<flux::PathIntegrator>(integratorProperties));
+        context->setActiveEnvMap(context->create<flux::EnvMapLight>(kira::Properties{}));
+
+        if (seesEmitter) {
+            auto mesh = context->create<flux::TriangleMesh>(triangleData());
+            auto edf = context->create<flux::ConstantEDF>(kira::Properties{});
+            kira::Properties emitterProperties;
+            emitterProperties.set(
+                "geometry_ctx_id", static_cast<std::int64_t>(mesh->getContextId())
+            );
+            emitterProperties.set("edf_ctx_id", static_cast<std::int64_t>(edf->getContextId()));
+            (void)context->create<flux::Primitive>(emitterProperties);
+        }
+
+        kira::Properties cameraProperties;
+        cameraProperties.set("position", flux::Vec3f{0.25F, 0.25F, 1.0F});
+        cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.0F});
+        cameraProperties.set("fov", 1.0F);
+        auto camera = flux::Camera::create(cameraProperties);
+
+        flux::EmbreeHandler handler(context);
+        return renderPixel(handler, *camera, 1);
+    };
+
+    EXPECT_GT(render(1, false).x(), 0.0F);
+    EXPECT_GT(render(1, true).x(), 0.0F);
+    EXPECT_EQ(render(0, false), flux::Spectrum{});
+    EXPECT_EQ(render(0, true), flux::Spectrum{});
+}
+
 TEST(EmbreePipelineTests, RendersDirectLightIntoColorChannel) {
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);

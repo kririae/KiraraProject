@@ -83,7 +83,8 @@ public:
     struct Impl {
         /// Maximum number of path vertices.
         ///
-        /// A value of one only evaluates directly visible emission.
+        /// A value of zero adds no radiance. A value of one only evaluates directly visible
+        /// emission.
         std::uint32_t maxDepth;
         /// RR applies at and after this path depth.
         std::uint32_t rrDepth;
@@ -113,7 +114,7 @@ public:
         KIRA_HOST_DEVICE void
         onMiss(PathState &state, BackendContext const &backend) const noexcept {
             auto const *envMap = backend.lightSampler.table.envMap;
-            if (!envMap) {
+            if (!envMap || state.depth >= maxDepth) {
                 state.active = false;
                 return;
             }
@@ -188,7 +189,7 @@ public:
             PathState &state, BackendContext const &backend, Primitive::Impl const &prim,
             SurfaceInteraction const &isect, Vec3f const &wo
         ) const noexcept {
-            if (!prim.hasEDF())
+            if (!prim.hasEDF() || state.depth >= maxDepth)
                 return;
 
             auto weight = 1.0F;
