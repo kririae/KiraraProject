@@ -47,3 +47,5 @@ compile_commands.json
 
 *.gltf
 *.glb
+
+__pycache__/
