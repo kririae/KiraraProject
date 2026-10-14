@@ -9,7 +9,7 @@
 #include "kira/Logger.h"
 
 namespace flux {
-FluxCLIRequest parseFluxCLI(int argc, char **argv) {
+FluxCLIOptions parseFluxCLI(int argc, char **argv) {
     argparse::ArgumentParser program{"flux", std::string{}, argparse::default_arguments::help};
     program.add_argument("scene").help("TOML scene file").required();
     program.add_argument("-o", "--output").help("write the color image to this EXR file");
@@ -33,42 +33,42 @@ FluxCLIRequest parseFluxCLI(int argc, char **argv) {
     program.add_argument("--log-file").help("also append logs to this file");
     program.parse_args(argc, argv);
 
-    FluxCLIRequest request;
-    request.scenePath = program.get<std::string>("scene");
+    FluxCLIOptions options;
+    options.scenePath = program.get<std::string>("scene");
     if (auto output = program.present<std::string>("--output"))
-        request.outputPath = std::filesystem::path{std::move(*output)};
+        options.outputPath = std::filesystem::path{std::move(*output)};
     if (auto path = program.present<std::string>("--log-file"))
-        request.logFilePath = std::filesystem::path{std::move(*path)};
-    request.samplesPerPixel = program.present<std::uint32_t>("--spp");
+        options.logFilePath = std::filesystem::path{std::move(*path)};
+    options.samplesPerPixel = program.present<std::uint32_t>("--spp");
 
     if (auto waves = program.present<double>("--launch-waves")) {
         if (!(*waves > 0.0))
             throw kira::Anyhow("--launch-waves must be greater than zero");
-        request.launchWaves = waves;
+        options.launchWaves = waves;
     }
 
-    request.chunkSize = program.present<std::uint32_t>("--chunk-size");
+    options.chunkSize = program.present<std::uint32_t>("--chunk-size");
 
     if (auto backend = program.present<std::string>("--backend")) {
         if (*backend == "optix")
-            request.backend = RenderBackend::Optix;
+            options.backend = RenderBackend::Optix;
         else if (*backend == "embree")
-            request.backend = RenderBackend::Embree;
+            options.backend = RenderBackend::Embree;
         else
             throw kira::Anyhow("backend must be 'optix' or 'embree', got '{}'", *backend);
     }
 
     if (auto level = program.present<std::string>("--log-level")) {
         if (*level == "trace")
-            request.logLevel = spdlog::level::trace;
+            options.logLevel = spdlog::level::trace;
         else if (*level == "debug")
-            request.logLevel = spdlog::level::debug;
+            options.logLevel = spdlog::level::debug;
         else if (*level == "info")
-            request.logLevel = spdlog::level::info;
+            options.logLevel = spdlog::level::info;
         else if (*level == "warning")
-            request.logLevel = spdlog::level::warn;
+            options.logLevel = spdlog::level::warn;
         else if (*level == "error")
-            request.logLevel = spdlog::level::err;
+            options.logLevel = spdlog::level::err;
         else
             throw kira::Anyhow(
                 "log level must be 'trace', 'debug', 'info', 'warning', or 'error', got '{}'",
@@ -76,12 +76,12 @@ FluxCLIRequest parseFluxCLI(int argc, char **argv) {
             );
     }
 
-    return request;
+    return options;
 }
 
-void configureLogging(FluxCLIRequest const &request) {
-    if (request.logFilePath) {
-        auto const &path = *request.logFilePath;
+void configureLogging(FluxCLIOptions const &options) {
+    if (options.logFilePath) {
+        auto const &path = *options.logFilePath;
         if (auto const &parent = path.parent_path(); !parent.empty()) {
             std::error_code error;
             std::filesystem::create_directories(parent, error);
@@ -93,9 +93,9 @@ void configureLogging(FluxCLIRequest const &request) {
     }
 
     kira::LoggerBuilder builder{"flux"};
-    (void)builder.filter_level(request.logLevel);
-    if (request.logFilePath)
-        (void)builder.to_file(*request.logFilePath);
+    (void)builder.filter_level(options.logLevel);
+    if (options.logFilePath)
+        (void)builder.to_file(*options.logFilePath);
     auto logger = builder.init();
     logger->flush_on(spdlog::level::warn);
 }

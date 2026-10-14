@@ -304,24 +304,24 @@ std::vector<ImageAsset::ImageBuffer> ImageAsset::readMipChain() const {
 ImageAssetPool::ImageAssetPool() : pImpl_(std::make_unique<pImpl>()) {}
 ImageAssetPool::~ImageAssetPool() = default;
 
-Ref<ImageAsset const> ImageAssetPool::getOrCreate(ImageAssetRequest const &request) {
-    auto key = request;
-    key.path = std::filesystem::weakly_canonical(std::filesystem::absolute(request.path));
-    return assets_.acquire(key, [&] {
-        auto const &textureSystem = key.colorSpace == ImageColorSpace::SRGB
+Ref<ImageAsset const> ImageAssetPool::getOrCreate(ImageAssetSpec const &spec) {
+    auto canonical = spec;
+    canonical.path = std::filesystem::weakly_canonical(std::filesystem::absolute(spec.path));
+    return assets_.acquire(canonical, [&] {
+        auto const &textureSystem = canonical.colorSpace == ImageColorSpace::SRGB
                                         ? pImpl_->srgbTextureSystem
                                         : pImpl_->linearTextureSystem;
         auto const create = [&](std::filesystem::path const &path) {
             return Ref<ImageAsset const>{new ImageAsset(
-                std::make_unique<ImageAsset::pImpl>(textureSystem, path, key.colorSpace)
+                std::make_unique<ImageAsset::pImpl>(textureSystem, path, canonical.colorSpace)
             )};
         };
         try {
-            return create(key.path);
+            return create(canonical.path);
         } catch (BadImage const &bad) {
             LogWarn(
                 "ImageAsset: '{}' is not a well-formed image ({}), using a magenta pixel",
-                key.path.string(), bad.what()
+                canonical.path.string(), bad.what()
             );
         }
         return create(magentaName);

@@ -13,7 +13,7 @@
 #include "kira/detail/Logger.h"
 
 namespace {
-[[nodiscard]] flux::FluxCLIRequest parse(std::initializer_list<char const *> arguments) {
+[[nodiscard]] flux::FluxCLIOptions parse(std::initializer_list<char const *> arguments) {
     std::vector<std::string> storage;
     storage.reserve(arguments.size());
     for (auto const *argument : arguments)
@@ -28,18 +28,18 @@ namespace {
 } // namespace
 
 TEST(FLuxCLITests, UsesStableDefaults) {
-    auto const request = parse({"flux", "scene.toml"});
+    auto const options = parse({"flux", "scene.toml"});
 
-    EXPECT_EQ(request.scenePath, "scene.toml");
-    EXPECT_FALSE(request.outputPath);
-    EXPECT_FALSE(request.logFilePath);
-    EXPECT_FALSE(request.samplesPerPixel);
-    EXPECT_EQ(request.backend, flux::RenderBackend::Optix);
-    EXPECT_EQ(request.logLevel, spdlog::level::warn);
+    EXPECT_EQ(options.scenePath, "scene.toml");
+    EXPECT_FALSE(options.outputPath);
+    EXPECT_FALSE(options.logFilePath);
+    EXPECT_FALSE(options.samplesPerPixel);
+    EXPECT_EQ(options.backend, flux::RenderBackend::Optix);
+    EXPECT_EQ(options.logLevel, spdlog::level::warn);
 }
 
 TEST(FLuxCLITests, ParsesRenderOverrides) {
-    auto const request = parse({
+    auto const options = parse({
         "flux",
         "scene.toml",
         "--output",
@@ -54,11 +54,11 @@ TEST(FLuxCLITests, ParsesRenderOverrides) {
         "logs/flux.log",
     });
 
-    EXPECT_EQ(request.outputPath, "images/result.exr");
-    EXPECT_EQ(request.logFilePath, "logs/flux.log");
-    EXPECT_EQ(request.samplesPerPixel, 16);
-    EXPECT_EQ(request.backend, flux::RenderBackend::Embree);
-    EXPECT_EQ(request.logLevel, spdlog::level::debug);
+    EXPECT_EQ(options.outputPath, "images/result.exr");
+    EXPECT_EQ(options.logFilePath, "logs/flux.log");
+    EXPECT_EQ(options.samplesPerPixel, 16);
+    EXPECT_EQ(options.backend, flux::RenderBackend::Embree);
+    EXPECT_EQ(options.logLevel, spdlog::level::debug);
 }
 
 TEST(FLuxCLITests, RejectsUnknownBackend) {
@@ -83,13 +83,13 @@ TEST(FLuxCLITests, ConfiguresLevelAndFile) {
         output << "existing log\n";
     }
 
-    flux::FluxCLIRequest request;
-    request.logFilePath = path;
-    request.logLevel = spdlog::level::info;
+    flux::FluxCLIOptions options;
+    options.logFilePath = path;
+    options.logLevel = spdlog::level::info;
 #if !defined(_WIN32)
     ::testing::internal::CaptureStderr();
 #endif
-    flux::configureLogging(request);
+    flux::configureLogging(options);
     flux::LogDebug("FLuxCLITests: hidden");
     flux::LogInfo("FLuxCLITests: message");
     kira::LogFlush<"flux">();

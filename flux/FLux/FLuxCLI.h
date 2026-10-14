@@ -14,7 +14,7 @@ enum class RenderBackend { // NOLINT
 };
 
 /// \brief Options accepted by the Flux executable.
-struct FluxCLIRequest {
+struct FluxCLIOptions {
     std::filesystem::path scenePath;
     std::optional<std::filesystem::path> outputPath;
     std::optional<std::filesystem::path> logFilePath;
@@ -28,8 +28,8 @@ struct FluxCLIRequest {
 /// \brief Parses the Flux command line.
 ///
 /// Invalid arguments throw.
-[[nodiscard]] FluxCLIRequest parseFluxCLI(int argc, char **argv);
+[[nodiscard]] FluxCLIOptions parseFluxCLI(int argc, char **argv);
 
 /// \brief Configures CLI logging before renderer work starts.
-void configureLogging(FluxCLIRequest const &request);
+void configureLogging(FluxCLIOptions const &options);
 } // namespace flux

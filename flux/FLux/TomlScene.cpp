@@ -20,27 +20,27 @@
 #include "kira/Anyhow.h"
 
 namespace flux {
-LoadedScene loadTomlScene(FluxCLIRequest const &request) {
-    auto const extension = request.scenePath.extension().string();
+LoadedScene loadTomlScene(FluxCLIOptions const &options) {
+    auto const extension = options.scenePath.extension().string();
     if (extension != ".toml")
         throw kira::Anyhow("unsupported scene extension '{}'", extension);
 
-    std::ifstream stream{request.scenePath, std::ios::binary};
+    std::ifstream stream{options.scenePath, std::ios::binary};
     if (!stream)
-        throw kira::Anyhow("failed to open scene '{}'", request.scenePath.string());
+        throw kira::Anyhow("failed to open scene '{}'", options.scenePath.string());
     std::string const source{
         std::istreambuf_iterator<char>{stream},
         std::istreambuf_iterator<char>{},
     };
     if (stream.bad())
-        throw kira::Anyhow("failed to read scene '{}'", request.scenePath.string());
+        throw kira::Anyhow("failed to read scene '{}'", options.scenePath.string());
 
-    auto scene = kira::Properties::parse(source, request.scenePath);
+    auto scene = kira::Properties::parse(source, options.scenePath);
     auto context = Context::create();
-    context->getFileResolver().prepend(std::filesystem::absolute(request.scenePath).parent_path());
+    context->getFileResolver().prepend(std::filesystem::absolute(options.scenePath).parent_path());
     auto integratorProps = scene.use_view("integrator");
-    if (request.chunkSize)
-        integratorProps.set("chunk_size", *request.chunkSize);
+    if (options.chunkSize)
+        integratorProps.set("chunk_size", *options.chunkSize);
     context->setActiveIntegrator(context->create<PathIntegrator>(integratorProps));
     context->setActiveSampler(context->create<Sampler>(
         scene.contains("sampler") ? scene.use_view("sampler") : kira::Properties{}
@@ -52,7 +52,7 @@ LoadedScene loadTomlScene(FluxCLIRequest const &request) {
     auto filmProps = scene.use_view("film");
     auto const resolution = filmProps.use<Vec2u>("resolution");
     auto const samplesPerPixel =
-        request.samplesPerPixel.value_or(filmProps.use_or<std::uint32_t>("num_samples", 1));
+        options.samplesPerPixel.value_or(filmProps.use_or<std::uint32_t>("num_samples", 1));
 
     std::unordered_map<std::string, Ref<BSDF const>> bsdfs;
     if (scene.contains("bsdf")) {

@@ -45,31 +45,31 @@ template <typename Handler, typename Buffer>
 }
 
 int run(int argc, char **argv) {
-    auto const request = flux::parseFluxCLI(argc, argv);
-    flux::configureLogging(request);
-    auto scene = flux::loadTomlScene(request);
+    auto const options = flux::parseFluxCLI(argc, argv);
+    flux::configureLogging(options);
+    auto scene = flux::loadTomlScene(options);
 
     if (scene.film.resolution.x() == 0 || scene.film.resolution.y() == 0) {
         flux::LogInfo(
-            "'{}' has a film of no pixels, nothing to render", request.scenePath.string()
+            "'{}' has a film of no pixels, nothing to render", options.scenePath.string()
         );
         kira::LogFlush<"flux">();
         return 0;
     }
 
     flux::Film film{scene.film};
-    auto const *backend = request.backend == flux::RenderBackend::Optix ? "OptiX" : "Embree";
+    auto const *backend = options.backend == flux::RenderBackend::Optix ? "OptiX" : "Embree";
     flux::LogInfo(
-        "rendering '{}' with {} at {}x{}, {} sample(s) per pixel", request.scenePath.string(),
+        "rendering '{}' with {} at {}x{}, {} sample(s) per pixel", options.scenePath.string(),
         backend, film.getWidth(), film.getHeight(), scene.samplesPerPixel
     );
 
     // Each buffer is destroyed before its handler.
     auto const stats = [&] {
-        if (request.backend == flux::RenderBackend::Optix) {
+        if (options.backend == flux::RenderBackend::Optix) {
             flux::OptixHandler handler{scene.context, std::filesystem::path{FLUX_OPTIX_IR}};
-            if (request.launchWaves)
-                handler.setLaunchWaves(*request.launchWaves);
+            if (options.launchWaves)
+                handler.setLaunchWaves(*options.launchWaves);
             flux::LogDebug(
                 "OptixHandler: estimated resident threads {}", handler.getEstimatedResidentThreads()
             );
@@ -98,8 +98,8 @@ int run(int argc, char **argv) {
         return result;
     }();
 
-    auto outputPath = request.outputPath.value_or(request.scenePath);
-    if (!request.outputPath)
+    auto outputPath = options.outputPath.value_or(options.scenePath);
+    if (!options.outputPath)
         outputPath.replace_extension(".exr");
     flux::writeImage<flux::ColorChannel>(outputPath, film);
 

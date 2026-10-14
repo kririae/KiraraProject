@@ -72,12 +72,11 @@ struct ImageComponentMapping {
 };
 
 /// \brief Image file and its color space.
-struct ImageAssetRequest {
+struct ImageAssetSpec {
     std::filesystem::path path;
     ImageColorSpace colorSpace{ImageColorSpace::Linear};
 
-    [[nodiscard]] friend bool
-    operator==(ImageAssetRequest const &, ImageAssetRequest const &) = default;
+    [[nodiscard]] friend bool operator==(ImageAssetSpec const &, ImageAssetSpec const &) = default;
 };
 
 /// \brief Image file shared by image textures.
@@ -132,15 +131,15 @@ private:
 /// \brief Shares ImageAsset objects by canonical path and color space.
 ///
 /// A file that is missing, unreadable, or not a well-formed image gets a 1x1
-/// magenta asset, and the pool warns once for the request. Concurrent calls
+/// magenta asset, and the pool warns once for the spec. Concurrent calls
 /// share one creation for each canonical path and color space.
 class ImageAssetPool {
 public:
     ImageAssetPool();
     ~ImageAssetPool();
 
-    /// \brief Returns the shared asset for \p request.
-    [[nodiscard]] Ref<ImageAsset const> getOrCreate(ImageAssetRequest const &request);
+    /// \brief Returns the shared asset for \p spec.
+    [[nodiscard]] Ref<ImageAsset const> getOrCreate(ImageAssetSpec const &spec);
 
     /// \brief Drops every asset that only this pool references.
     ///
@@ -153,15 +152,15 @@ public:
 private:
     struct pImpl;
 
-    struct RequestHash {
-        [[nodiscard]] std::size_t operator()(ImageAssetRequest const &request) const noexcept {
-            auto const pathHash = std::filesystem::hash_value(request.path);
-            auto const colorSpace = static_cast<std::size_t>(request.colorSpace);
+    struct SpecHash {
+        [[nodiscard]] std::size_t operator()(ImageAssetSpec const &spec) const noexcept {
+            auto const pathHash = std::filesystem::hash_value(spec.path);
+            auto const colorSpace = static_cast<std::size_t>(spec.colorSpace);
             return pathHash * 31U + colorSpace;
         }
     };
 
-    ConcurrentPool<ImageAssetRequest, Ref<ImageAsset const>, RequestHash> assets_;
+    ConcurrentPool<ImageAssetSpec, Ref<ImageAsset const>, SpecHash> assets_;
     std::unique_ptr<pImpl> pImpl_;
 };
 } // namespace flux
