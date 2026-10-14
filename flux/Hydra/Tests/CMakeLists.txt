@@ -14,3 +14,4 @@ endfunction()
 
 add_hydra_test(AovMappingTests)
 add_hydra_test(CameraTests)
+add_hydra_test(RenderBufferTests)
