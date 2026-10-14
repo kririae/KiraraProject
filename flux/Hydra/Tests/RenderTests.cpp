@@ -1,0 +1,373 @@
+#include <gtest/gtest.h>
+#include <pxr/base/gf/matrix4d.h>
+#include <pxr/base/gf/rect2i.h>
+#include <pxr/base/gf/vec2f.h>
+#include <pxr/base/gf/vec3d.h>
+#include <pxr/base/gf/vec4f.h>
+#include <pxr/base/plug/registry.h>
+#include <pxr/imaging/cameraUtil/framing.h>
+#include <pxr/imaging/hd/camera.h>
+#include <pxr/imaging/hd/cameraSchema.h>
+#include <pxr/imaging/hd/engine.h>
+#include <pxr/imaging/hd/pluginRenderDelegateUniqueHandle.h>
+#include <pxr/imaging/hd/renderBuffer.h>
+#include <pxr/imaging/hd/renderIndex.h>
+#include <pxr/imaging/hd/renderPass.h>
+#include <pxr/imaging/hd/renderPassState.h>
+#include <pxr/imaging/hd/rendererPluginRegistry.h>
+#include <pxr/imaging/hd/retainedDataSource.h>
+#include <pxr/imaging/hd/retainedSceneIndex.h>
+#include <pxr/imaging/hd/rprimCollection.h>
+#include <pxr/imaging/hd/task.h>
+#include <pxr/imaging/hd/tokens.h>
+#include <pxr/imaging/hd/xformSchema.h>
+
+#include <memory>
+#include <mutex>
+#include <vector>
+
+#include "flux/Hydra/RenderParam.h"
+#include "flux/Hydra/RenderSettings.h"
+#include "flux/Integrator/PathIntegrator.h"
+#include "flux/Sampling/Sampler.h"
+#include "flux/Scene/Context.h"
+#include "kira/Properties.h"
+
+PXR_NAMESPACE_USING_DIRECTIVE
+
+namespace {
+constexpr int width{64};
+constexpr int height{32};
+
+SdfPath const cameraPath{"/cam"};
+
+/// Returns a perspective camera that looks down -Z from \p z.
+HdContainerDataSourceHandle makeCamera(double z) {
+    GfMatrix4d transform{1.0};
+    transform.SetTranslate(GfVec3d{0.0, 0.0, z});
+
+    return HdRetainedContainerDataSource::New(
+        HdCameraSchema::GetSchemaToken(),
+        HdCameraSchema::Builder()
+            .SetProjection(
+                HdRetainedTypedSampledDataSource<TfToken>::New(HdCameraSchemaTokens->perspective)
+            )
+            .SetFocalLength(HdRetainedTypedSampledDataSource<float>::New(50.0F))
+            .SetHorizontalAperture(HdRetainedTypedSampledDataSource<float>::New(20.955F))
+            .SetVerticalAperture(HdRetainedTypedSampledDataSource<float>::New(15.2908F))
+            .SetClippingRange(HdRetainedTypedSampledDataSource<GfVec2f>::New(GfVec2f{0.1F, 100.0F}))
+            .Build(),
+        HdXformSchema::GetSchemaToken(),
+        HdXformSchema::Builder()
+            .SetMatrix(HdRetainedTypedSampledDataSource<GfMatrix4d>::New(transform))
+            .Build()
+    );
+}
+
+/// Syncs, prepares, and executes one render pass, as testHdPrman does.
+class DrawTask final : public HdTask {
+public:
+    DrawTask(HdRenderPassSharedPtr pass, HdRenderPassStateSharedPtr state)
+        : HdTask{SdfPath::EmptyPath()}, pass_{std::move(pass)}, state_{std::move(state)} {}
+
+    void Sync(HdSceneDelegate *, HdTaskContext *, HdDirtyBits *dirtyBits) override {
+        pass_->Sync();
+        *dirtyBits = HdChangeTracker::Clean;
+    }
+
+    void Prepare(HdTaskContext *, HdRenderIndex *index) override {
+        state_->Prepare(index->GetResourceRegistry());
+    }
+
+    void Execute(HdTaskContext *) override { pass_->Execute(state_, tags_); }
+
+    TfTokenVector const &GetRenderTags() const override { return tags_; }
+
+private:
+    HdRenderPassSharedPtr pass_;
+    HdRenderPassStateSharedPtr state_;
+    TfTokenVector tags_{HdRenderTagTokens->geometry};
+};
+
+/// Renders the camera of a retained scene through the FLux plugin into a color buffer, and a depth
+/// buffer that keeps its clear value.
+///
+/// Eight samples at four per launch converge in two executions.
+class RenderTests : public testing::Test {
+protected:
+    void SetUp() override {
+        static std::once_flag registered;
+        std::call_once(registered, [] {
+            PlugRegistry::GetInstance().RegisterPlugins(HDFLUX_PLUGIN_PATH);
+        });
+
+        HdRenderSettingsMap settings;
+        settings[HdRenderSettingsTokens->convergedSamplesPerPixel] = VtValue{8};
+        settings[HdFluxRenderSettingsTokens->interactiveSamplesPerLaunch] = VtValue{4};
+
+        delegate_ = HdRendererPluginRegistry::GetInstance().CreateRenderDelegate(
+            TfToken{"HdFluxRendererPlugin"}, settings
+        );
+        ASSERT_TRUE(delegate_);
+
+        scene_ = HdRetainedSceneIndex::New();
+        scene_->AddPrims({{cameraPath, HdPrimTypeTokens->camera, makeCamera(5.0)}});
+
+        index_.reset(HdRenderIndex::New(delegate_.Get(), HdDriverVector{}));
+        index_->InsertSceneIndex(scene_, SdfPath::AbsoluteRootPath());
+
+        buffer_ = static_cast<HdRenderBuffer *>(
+            delegate_->CreateBprim(HdPrimTypeTokens->renderBuffer, SdfPath{"/color"})
+        );
+        ASSERT_TRUE(buffer_->Allocate({width, height, 1}, HdFormatFloat32Vec4, false));
+
+        depthBuffer_ = static_cast<HdRenderBuffer *>(
+            delegate_->CreateBprim(HdPrimTypeTokens->renderBuffer, SdfPath{"/depth"})
+        );
+        ASSERT_TRUE(depthBuffer_->Allocate({width, height, 1}, HdFormatFloat32, false));
+
+        // The index creates its prims when it first syncs.
+        syncIndex();
+
+        HdRenderPassAovBinding color;
+        color.aovName = HdAovTokens->color;
+        color.renderBuffer = buffer_;
+        color.clearValue = VtValue{GfVec4f{0.0F}};
+
+        HdRenderPassAovBinding depth;
+        depth.aovName = HdAovTokens->depth;
+        depth.renderBuffer = depthBuffer_;
+        depth.clearValue = VtValue{1.0F};
+
+        state_ = delegate_->CreateRenderPassState();
+        state_->SetFraming(CameraUtilFraming{GfRect2i{GfVec2i{0}, width, height}});
+        state_->SetAovBindings({color, depth});
+        useCamera();
+
+        pass_ = delegate_->CreateRenderPass(
+            index_.get(),
+            HdRprimCollection{HdTokens->geometry, HdReprSelector{HdReprTokens->smoothHull}}
+        );
+        tasks_ = {std::make_shared<DrawTask>(pass_, state_)};
+    }
+
+    void TearDown() override {
+        if (delegate_ && index_) {
+            EXPECT_FALSE(param().HasFailed());
+
+            tasks_.clear();
+            pass_.reset();
+            delegate_->DestroyBprim(buffer_);
+            delegate_->DestroyBprim(depthBuffer_);
+            for (auto *const buffer : extraBuffers_)
+                delegate_->DestroyBprim(buffer);
+        }
+    }
+
+    HdFluxRenderParam &param() {
+        // The test edits the plugin's Context with its own copy of the flux library. Both copies
+        // come from one build, and the edit needs no state that they would share.
+        return *static_cast<HdFluxRenderParam *>(delegate_->GetRenderParam());
+    }
+
+    void execute() { engine_.Execute(index_.get(), &tasks_); }
+
+    void syncIndex() {
+        HdTaskSharedPtrVector noTasks;
+        engine_.Execute(index_.get(), &noTasks);
+    }
+
+    void useCamera() {
+        auto *const camera =
+            static_cast<HdCamera const *>(index_->GetSprim(HdPrimTypeTokens->camera, cameraPath));
+        ASSERT_TRUE(camera);
+        state_->SetCamera(camera);
+    }
+
+    /// Moves the camera along Z. Adding the prim again does not dirty the camera.
+    void moveCamera(double z) {
+        scene_->AddPrims({{cameraPath, HdPrimTypeTokens->camera, makeCamera(z)}});
+        scene_->DirtyPrims({{cameraPath, HdXformSchema::GetDefaultLocator()}});
+        syncIndex();
+        useCamera();
+    }
+
+    /// Binds a new, unallocated buffer to \p aovName besides the bound ones.
+    HdRenderBuffer *bindBuffer(TfToken const &aovName) {
+        auto *const buffer = static_cast<HdRenderBuffer *>(delegate_->CreateBprim(
+            HdPrimTypeTokens->renderBuffer, SdfPath{"/" + aovName.GetString()}
+        ));
+        extraBuffers_.push_back(buffer);
+
+        HdRenderPassAovBinding binding;
+        binding.aovName = aovName;
+        binding.renderBuffer = buffer;
+
+        auto bindings = state_->GetAovBindings();
+        bindings.push_back(binding);
+        state_->SetAovBindings(bindings);
+        return buffer;
+    }
+
+    /// Executes until the pass converges, and checks that the buffer is flagged converged too.
+    void executeToConvergence() {
+        int count{0};
+        do {
+            execute();
+        } while (!pass_->IsConverged() && ++count < 8);
+
+        EXPECT_TRUE(pass_->IsConverged());
+        EXPECT_TRUE(buffer_->IsConverged());
+    }
+
+    HdPluginRenderDelegateUniqueHandle delegate_;
+    HdRetainedSceneIndexRefPtr scene_;
+    std::unique_ptr<HdRenderIndex> index_;
+    HdRenderBuffer *buffer_{nullptr};
+    HdRenderBuffer *depthBuffer_{nullptr};
+    std::vector<HdRenderBuffer *> extraBuffers_;
+    HdRenderPassStateSharedPtr state_;
+    HdRenderPassSharedPtr pass_;
+    HdTaskSharedPtrVector tasks_;
+    HdEngine engine_;
+};
+} // namespace
+
+TEST_F(RenderTests, ConvergesAtTheBufferSize) {
+    auto *const unallocated = bindBuffer(HdAovTokens->primId);
+
+    execute();
+    EXPECT_FALSE(pass_->IsConverged());
+    EXPECT_FALSE(buffer_->IsConverged());
+    EXPECT_FALSE(unallocated->IsConverged());
+
+    execute();
+    EXPECT_TRUE(pass_->IsConverged());
+    EXPECT_TRUE(buffer_->IsConverged());
+    EXPECT_TRUE(unallocated->IsConverged());
+
+    // The buffer was cleared to alpha 0, and a rendered pixel is opaque.
+    ASSERT_EQ(buffer_->GetWidth(), width);
+    ASSERT_EQ(buffer_->GetHeight(), height);
+    auto const *const pixels = static_cast<float const *>(buffer_->Map());
+    for (int pixel = 0; pixel < width * height; ++pixel)
+        ASSERT_EQ(pixels[4 * pixel + 3], 1.0F) << "pixel " << pixel;
+    buffer_->Unmap();
+
+    // The depth is not rendered, so it holds its clear value.
+    auto const *const depths = static_cast<float const *>(depthBuffer_->Map());
+    for (int pixel = 0; pixel < width * height; ++pixel)
+        ASSERT_EQ(depths[pixel], 1.0F) << "pixel " << pixel;
+    depthBuffer_->Unmap();
+}
+
+TEST_F(RenderTests, RestartsWhenTheCameraMoves) {
+    executeToConvergence();
+
+    moveCamera(6.0);
+
+    execute();
+    EXPECT_FALSE(pass_->IsConverged());
+    EXPECT_FALSE(buffer_->IsConverged());
+
+    executeToConvergence();
+}
+
+TEST_F(RenderTests, RestartsWhenTheBufferIsResized) {
+    executeToConvergence();
+
+    ASSERT_TRUE(buffer_->Allocate({width / 2, height / 2, 1}, HdFormatFloat32Vec4, false));
+
+    execute();
+    EXPECT_FALSE(pass_->IsConverged());
+
+    executeToConvergence();
+}
+
+TEST_F(RenderTests, WritesTheImageIntoANewBufferThatReplacesTheBoundOne) {
+    executeToConvergence();
+
+    // The allocator may return the address of the destroyed buffer.
+    delegate_->DestroyBprim(buffer_);
+    buffer_ = static_cast<HdRenderBuffer *>(
+        delegate_->CreateBprim(HdPrimTypeTokens->renderBuffer, SdfPath{"/color"})
+    );
+    ASSERT_TRUE(buffer_->Allocate({width, height, 1}, HdFormatFloat32Vec4, false));
+
+    auto bindings = state_->GetAovBindings();
+    bindings[0].renderBuffer = buffer_;
+    state_->SetAovBindings(bindings);
+
+    execute();
+    EXPECT_TRUE(pass_->IsConverged());
+    EXPECT_TRUE(buffer_->IsConverged());
+
+    auto const *const pixels = static_cast<float const *>(buffer_->Map());
+    for (int pixel = 0; pixel < width * height; ++pixel)
+        ASSERT_EQ(pixels[4 * pixel + 3], 1.0F) << "pixel " << pixel;
+    buffer_->Unmap();
+}
+
+TEST_F(RenderTests, RendersNothingForAZeroTargetAfterTheImageWasRendered) {
+    executeToConvergence();
+
+    delegate_->DestroyBprim(buffer_);
+    buffer_ = static_cast<HdRenderBuffer *>(
+        delegate_->CreateBprim(HdPrimTypeTokens->renderBuffer, SdfPath{"/color"})
+    );
+    ASSERT_TRUE(buffer_->Allocate({width, height, 1}, HdFormatFloat32Vec4, false));
+
+    auto bindings = state_->GetAovBindings();
+    bindings[0].renderBuffer = buffer_;
+    state_->SetAovBindings(bindings);
+
+    delegate_->SetRenderSetting(HdRenderSettingsTokens->convergedSamplesPerPixel, VtValue{0});
+    moveCamera(6.0);
+
+    execute();
+    EXPECT_TRUE(buffer_->IsConverged());
+
+    // The buffer holds its clear value, alpha 0, and not the old image.
+    auto const *const pixels = static_cast<float const *>(buffer_->Map());
+    for (int pixel = 0; pixel < width * height; ++pixel)
+        ASSERT_EQ(pixels[4 * pixel + 3], 0.0F) << "pixel " << pixel;
+    buffer_->Unmap();
+}
+
+TEST_F(RenderTests, AppliesAChangedClearValueToABufferThatShowsNoImage) {
+    executeToConvergence();
+
+    auto bindings = state_->GetAovBindings();
+    bindings[1].clearValue = VtValue{0.5F};
+    state_->SetAovBindings(bindings);
+
+    execute();
+
+    auto const *const depths = static_cast<float const *>(depthBuffer_->Map());
+    for (int pixel = 0; pixel < width * height; ++pixel)
+        ASSERT_EQ(depths[pixel], 0.5F) << "pixel " << pixel;
+    depthBuffer_->Unmap();
+}
+
+TEST_F(RenderTests, RestartsWhenTheSceneIsEdited) {
+    executeToConvergence();
+
+    auto const context = param().GetContext();
+    context->setActiveSampler(context->create<flux::IndependentSampler>(kira::Properties{}));
+
+    execute();
+    EXPECT_FALSE(pass_->IsConverged());
+
+    executeToConvergence();
+}
+
+TEST_F(RenderTests, RendersMoreWhenTheSettingsRaiseTheTarget) {
+    executeToConvergence();
+
+    delegate_->SetRenderSetting(HdRenderSettingsTokens->convergedSamplesPerPixel, VtValue{16});
+
+    execute();
+    EXPECT_FALSE(pass_->IsConverged());
+
+    executeToConvergence();
+}

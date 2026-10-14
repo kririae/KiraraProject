@@ -57,7 +57,7 @@ pxr::HdRenderParam *HdFluxRenderDelegate::GetRenderParam() const { return render
 pxr::HdRenderPassSharedPtr HdFluxRenderDelegate::CreateRenderPass(
     pxr::HdRenderIndex *index, pxr::HdRprimCollection const &collection
 ) {
-    return std::make_shared<HdFluxRenderPass>(index, collection);
+    return std::make_shared<HdFluxRenderPass>(index, collection, *renderParam_);
 }
 
 pxr::HdInstancer *

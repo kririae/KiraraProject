@@ -1,16 +1,32 @@
 #pragma once
 
+#include <pxr/base/tf/token.h>
 #include <pxr/imaging/hd/renderPass.h>
 #include <pxr/imaging/hd/renderPassState.h>
 
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "flux/Hydra/Renderer.h"
+
+class HdFluxRenderParam;
+
 /// \brief The render pass of the FLux delegate.
 ///
-/// Fills the AOV buffers bound at each execution.
+/// Each execution adds samples to the image of the AOV buffers bound at that execution, and writes
+/// the image into them. A change of the scene, the camera, or the image that the bindings ask for
+/// starts the image over.
 class HdFluxRenderPass final : public pxr::HdRenderPass {
 public:
-    using pxr::HdRenderPass::HdRenderPass;
+    /// \pre \p param outlives the pass.
+    HdFluxRenderPass(
+        pxr::HdRenderIndex *index, pxr::HdRprimCollection const &collection,
+        HdFluxRenderParam &param
+    );
 
-    /// \brief Returns whether every buffer bound at the last execution has converged.
+    /// \brief Returns whether the image has all the requested samples, the pass renders nothing, or
+    /// the delegate has failed.
     bool IsConverged() const override;
 
 private:
@@ -18,6 +34,8 @@ private:
         pxr::HdRenderPassStateSharedPtr const &renderPassState, pxr::TfTokenVector const &renderTags
     ) override;
 
-    /// AOV bindings of the last execution.
-    pxr::HdRenderPassAovBindingVector aovBindings_;
+    HdFluxRenderParam &param_;
+    HdFluxRenderer renderer_;
+    std::optional<unsigned int> settingsVersion_;
+    std::vector<std::string> warnings_;
 };
