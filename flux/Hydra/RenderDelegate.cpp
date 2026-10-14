@@ -12,27 +12,15 @@
 
 #include "flux/Hydra/AovMapping.h"
 #include "flux/Hydra/RenderBuffer.h"
+#include "flux/Hydra/RenderParam.h"
 #include "flux/Hydra/RenderPass.h"
-#include "flux/Integrator/PathIntegrator.h"
-#include "flux/Sampling/Sampler.h"
-#include "flux/Scene/Context.h"
-#include "kira/Properties.h"
-
-namespace {
-flux::Ref<flux::Context> makeContext() {
-    auto context = flux::Context::create();
-    context->setActiveIntegrator(context->create<flux::PathIntegrator>(kira::Properties{}));
-    context->setActiveSampler(context->create<flux::IndependentSampler>(kira::Properties{}));
-    return context;
-}
-} // namespace
 
 HdFluxRenderDelegate::HdFluxRenderDelegate(
     std::filesystem::path const &modulePath, pxr::HdRenderSettingsMap const &settingsMap
 )
     : pxr::HdRenderDelegate(settingsMap),
-      resourceRegistry_(std::make_shared<pxr::HdResourceRegistry>()), context_(makeContext()),
-      handler_(context_, modulePath) {}
+      resourceRegistry_(std::make_shared<pxr::HdResourceRegistry>()),
+      renderParam_(std::make_unique<HdFluxRenderParam>(modulePath)) {}
 
 HdFluxRenderDelegate::~HdFluxRenderDelegate() = default;
 
@@ -54,6 +42,8 @@ pxr::TfTokenVector const &HdFluxRenderDelegate::GetSupportedBprimTypes() const {
 pxr::HdResourceRegistrySharedPtr HdFluxRenderDelegate::GetResourceRegistry() const {
     return resourceRegistry_;
 }
+
+pxr::HdRenderParam *HdFluxRenderDelegate::GetRenderParam() const { return renderParam_.get(); }
 
 pxr::HdRenderPassSharedPtr HdFluxRenderDelegate::CreateRenderPass(
     pxr::HdRenderIndex *index, pxr::HdRprimCollection const &collection
@@ -100,7 +90,11 @@ pxr::HdBprim *HdFluxRenderDelegate::CreateFallbackBprim(pxr::TfToken const &type
 
 void HdFluxRenderDelegate::DestroyBprim(pxr::HdBprim *bprim) { delete bprim; }
 
-void HdFluxRenderDelegate::CommitResources(pxr::HdChangeTracker *) {}
+void HdFluxRenderDelegate::CommitResources(pxr::HdChangeTracker *) try {
+    if (renderParam_->HasFailed())
+        return;
+    renderParam_->GetHandler().sync();
+} catch (...) { renderParam_->ReportFailure(); }
 
 pxr::HdAovDescriptor HdFluxRenderDelegate::GetDefaultAovDescriptor(pxr::TfToken const &name) const {
     return HdFluxGetAovDescriptor(name);

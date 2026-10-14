@@ -3,13 +3,9 @@
 #include <pxr/imaging/hd/renderDelegate.h>
 
 #include <filesystem>
+#include <memory>
 
-#include "flux/Core/Object.h"
-#include "flux/Optix/OptixHandler.h"
-
-namespace flux {
-class Context;
-} // namespace flux
+class HdFluxRenderParam;
 
 /// \brief The FLux Hydra render delegate.
 class HdFluxRenderDelegate final : public pxr::HdRenderDelegate {
@@ -30,6 +26,8 @@ public:
     pxr::TfTokenVector const &GetSupportedBprimTypes() const override;
 
     pxr::HdResourceRegistrySharedPtr GetResourceRegistry() const override;
+
+    pxr::HdRenderParam *GetRenderParam() const override;
 
     pxr::HdRenderPassSharedPtr
     CreateRenderPass(pxr::HdRenderIndex *index, pxr::HdRprimCollection const &collection) override;
@@ -55,7 +53,5 @@ public:
 
 private:
     pxr::HdResourceRegistrySharedPtr resourceRegistry_;
-    /// The scene that \c handler_ renders.
-    flux::Ref<flux::Context> context_;
-    flux::OptixHandler handler_;
+    std::unique_ptr<HdFluxRenderParam> renderParam_;
 };
