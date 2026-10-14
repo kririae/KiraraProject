@@ -17,6 +17,8 @@ class HdFluxRenderParam;
 /// Each execution adds samples to the image of the AOV buffers bound at that execution, and writes
 /// the image into them. A change of the scene, the camera, or the image that the bindings ask for
 /// starts the image over.
+///
+/// A host that is not interactive gets the image in one execution.
 class HdFluxRenderPass final : public pxr::HdRenderPass {
 public:
     /// \pre \p param outlives the pass.

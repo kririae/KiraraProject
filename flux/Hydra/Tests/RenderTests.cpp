@@ -349,6 +349,15 @@ TEST_F(RenderTests, AppliesAChangedClearValueToABufferThatShowsNoImage) {
     depthBuffer_->Unmap();
 }
 
+TEST_F(RenderTests, ConvergesInOneExecutionWhenTheHostIsNotInteractive) {
+    delegate_->SetRenderSetting(HdRenderSettingsTokens->enableInteractive, VtValue{false});
+
+    execute();
+
+    EXPECT_TRUE(pass_->IsConverged());
+    EXPECT_TRUE(buffer_->IsConverged());
+}
+
 TEST_F(RenderTests, RestartsWhenTheSceneIsEdited) {
     executeToConvergence();
 

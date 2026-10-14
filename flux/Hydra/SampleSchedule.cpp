@@ -11,9 +11,10 @@ namespace {
 constexpr std::uint64_t maxPathCount{std::numeric_limits<std::uint32_t>::max()};
 } // namespace
 
-HdFluxSampleSchedule::HdFluxSampleSchedule(int target, int interactivePerLaunch)
+HdFluxSampleSchedule::HdFluxSampleSchedule(int target, int interactivePerLaunch, Mode mode)
     : target_{static_cast<std::uint64_t>(std::max(target, 0))},
-      interactivePerLaunch_{static_cast<std::uint32_t>(std::max(interactivePerLaunch, 1))} {
+      interactivePerLaunch_{static_cast<std::uint32_t>(std::max(interactivePerLaunch, 1))},
+      mode_{mode} {
     if (target < 0)
         TF_WARN("convergedSamplesPerPixel is %d, using 0", target);
 
@@ -29,7 +30,9 @@ std::uint32_t HdFluxSampleSchedule::GetNextSampleCount(
     // A film beyond the limit still gets one sample per pixel.
     auto const fitting = std::max<std::uint64_t>(1, maxPathCount / pixelCount);
 
-    return static_cast<std::uint32_t>(
-        std::min({std::uint64_t{interactivePerLaunch_}, remaining, fitting})
-    );
+    auto const wanted = mode_ == Mode::Batch
+                            ? remaining
+                            : std::min<std::uint64_t>(interactivePerLaunch_, remaining);
+
+    return static_cast<std::uint32_t>(std::min(wanted, fitting));
 }

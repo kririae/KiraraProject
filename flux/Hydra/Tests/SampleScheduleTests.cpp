@@ -12,6 +12,20 @@ TEST(SampleScheduleTests, AddsAtMostTheInteractiveSamplesPerLaunchAndStopsAtTheT
     EXPECT_EQ(schedule.GetNextSampleCount(10, 1U), 0U);
 }
 
+TEST(SampleScheduleTests, AddsAllTheRemainingSamplesToABatchLaunchWithinThePathIndexLimit) {
+    using Mode = HdFluxSampleSchedule::Mode;
+
+    HdFluxSampleSchedule const schedule{10, 4, Mode::Batch};
+
+    EXPECT_EQ(schedule.GetNextSampleCount(0, 1U), 10U);
+    EXPECT_EQ(schedule.GetNextSampleCount(8, 1U), 2U);
+    EXPECT_EQ(schedule.GetNextSampleCount(10, 1U), 0U);
+
+    HdFluxSampleSchedule const large{INT_MAX, 1, Mode::Batch};
+
+    EXPECT_EQ(large.GetNextSampleCount(0, std::uint64_t{1} << 20U), 4095U);
+}
+
 TEST(SampleScheduleTests, KeepsAnInteractiveLaunchWithinThePathIndexLimit) {
     HdFluxSampleSchedule const schedule{INT_MAX, INT_MAX};
 
