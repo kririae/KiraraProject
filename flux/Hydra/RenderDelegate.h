@@ -51,6 +51,8 @@ public:
 
     pxr::HdAovDescriptor GetDefaultAovDescriptor(pxr::TfToken const &name) const override;
 
+    pxr::HdRenderSettingDescriptorList GetRenderSettingDescriptors() const override;
+
 private:
     pxr::HdResourceRegistrySharedPtr resourceRegistry_;
     std::unique_ptr<HdFluxRenderParam> renderParam_;

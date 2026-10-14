@@ -14,13 +14,22 @@
 #include "flux/Hydra/RenderBuffer.h"
 #include "flux/Hydra/RenderParam.h"
 #include "flux/Hydra/RenderPass.h"
+#include "flux/Hydra/RenderSettings.h"
+
+PXR_NAMESPACE_OPEN_SCOPE
+
+TF_DEFINE_PUBLIC_TOKENS(HdFluxRenderSettingsTokens, HDFLUX_RENDER_SETTINGS_TOKENS);
+
+PXR_NAMESPACE_CLOSE_SCOPE
 
 HdFluxRenderDelegate::HdFluxRenderDelegate(
     std::filesystem::path const &modulePath, pxr::HdRenderSettingsMap const &settingsMap
 )
     : pxr::HdRenderDelegate(settingsMap),
       resourceRegistry_(std::make_shared<pxr::HdResourceRegistry>()),
-      renderParam_(std::make_unique<HdFluxRenderParam>(modulePath)) {}
+      renderParam_(std::make_unique<HdFluxRenderParam>(modulePath)) {
+    _PopulateDefaultSettings(GetRenderSettingDescriptors());
+}
 
 HdFluxRenderDelegate::~HdFluxRenderDelegate() = default;
 
@@ -98,4 +107,11 @@ void HdFluxRenderDelegate::CommitResources(pxr::HdChangeTracker *) try {
 
 pxr::HdAovDescriptor HdFluxRenderDelegate::GetDefaultAovDescriptor(pxr::TfToken const &name) const {
     return HdFluxGetAovDescriptor(name);
+}
+
+pxr::HdRenderSettingDescriptorList HdFluxRenderDelegate::GetRenderSettingDescriptors() const {
+    return {
+        {"Converged Samples Per Pixel", pxr::HdRenderSettingsTokens->convergedSamplesPerPixel,
+         pxr::VtValue(HdFluxDefaultConvergedSamplesPerPixel)},
+    };
 }
