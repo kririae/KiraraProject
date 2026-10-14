@@ -33,12 +33,20 @@ enum class FilmChannels : std::uint32_t {
 
 template <> inline constexpr bool isEnumFlags<FilmChannels> = true;
 
+/// \brief What a film or an accumulation buffer is built from.
+struct FilmSpec {
+    Vec2u resolution{0U, 0U};
+    FilmChannels channels{FilmChannels::None};
+
+    bool operator==(FilmSpec const &) const = default;
+};
+
 namespace detail {
-/// \brief Checks the shape that a film or a buffer is built with.
+/// \brief Checks the spec that a film or a buffer is built from.
 ///
-/// \throw std::invalid_argument If a dimension of \p resolution is 0 or \p channels has an unknown
-/// bit.
-void checkFilmShape(Vec2u resolution, FilmChannels channels);
+/// \throw std::invalid_argument If a dimension of the resolution of \p spec is 0 or its channels
+/// have an unknown bit.
+void checkFilmSpec(FilmSpec const &spec);
 } // namespace detail
 
 /// \brief Describes the world-space shading-normal channel.
@@ -174,11 +182,11 @@ class Film final : private Noncopyable {
 public:
     struct Impl;
 
-    /// \brief Creates a film with \p resolution and \p channels.
+    /// \brief Creates a film from \p spec.
     ///
-    /// \pre Both dimensions of \p resolution are nonzero.
-    /// \pre \p channels has no unknown bit.
-    Film(Vec2u resolution, FilmChannels channels);
+    /// \pre Both dimensions of the resolution of \p spec are nonzero.
+    /// \pre The channels of \p spec have no unknown bit.
+    explicit Film(FilmSpec const &spec);
 
     Film(Film &&other) noexcept = default;
 
@@ -189,8 +197,13 @@ public:
 
     [[nodiscard]] std::uint32_t getWidth() const noexcept { return width_; }
     [[nodiscard]] std::uint32_t getHeight() const noexcept { return height_; }
-    /// \brief Returns the channels that the film holds.
-    [[nodiscard]] FilmChannels getChannels() const noexcept;
+
+    /// \brief Returns the spec that the film was built from.
+    ///
+    /// A film that was moved from has no channels.
+    [[nodiscard]] FilmSpec getSpec() const noexcept {
+        return {.resolution = {width_, height_}, .channels = getChannels()};
+    }
 
     /// \brief Returns whether the film holds every bit of \p channel.
     ///
@@ -227,6 +240,9 @@ private:
         using ChannelType = Channel;
         kira::SmallVector<typename Channel::Value, 0> values;
     };
+
+    /// \brief Returns the channels that the film holds.
+    [[nodiscard]] FilmChannels getChannels() const noexcept;
 
     /// \brief Returns a writable view of the channels that the film holds.
     [[nodiscard]] Impl getImpl() noexcept;

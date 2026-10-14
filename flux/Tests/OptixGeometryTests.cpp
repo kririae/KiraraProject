@@ -73,8 +73,10 @@ TEST(OptixGeometryTests, PreservesFilteredAlbedoUnderInstanceTransforms) {
     camera->setLookAt({0.25F, 0.25F, 0.0F});
     camera->setVerticalFieldOfView(10.0F);
     flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
-    flux::OptixAccumulationBuffer buffer(handler, flux::Vec2u{1, 1}, flux::FilmChannels::Albedo);
-    flux::Film film{flux::Vec2u{1, 1}, flux::FilmChannels::Albedo};
+    flux::OptixAccumulationBuffer buffer(
+        handler, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Albedo}
+    );
+    flux::Film film{flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Albedo}};
     handler.render(*camera, buffer, 32);
     buffer.download(film);
     auto const expected = film.getChannel<flux::AlbedoChannel>()[0];
@@ -116,7 +118,9 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
     auto camera = flux::Camera::create(cameraProperties);
 
     flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
-    flux::OptixAccumulationBuffer buffer(handler, flux::Vec2u{3, 1}, flux::FilmChannels::All);
+    flux::OptixAccumulationBuffer buffer(
+        handler, flux::FilmSpec{flux::Vec2u{3, 1}, flux::FilmChannels::All}
+    );
     EXPECT_NO_THROW(handler.render(*camera, buffer, 1));
 
     EXPECT_THROW((void)context->create<ThrowingGapObject>(kira::Properties{}), std::runtime_error);
@@ -197,8 +201,10 @@ TEST(OptixGeometryTests, RendersDirectLightIntoColorChannel) {
     cameraProperties.set("fov", 1.0F);
     auto camera = flux::Camera::create(cameraProperties);
     flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
-    flux::OptixAccumulationBuffer buffer(handler, flux::Vec2u{1, 1}, flux::FilmChannels::All);
-    flux::Film film{flux::Vec2u{1, 1}, flux::FilmChannels::All};
+    flux::OptixAccumulationBuffer buffer(
+        handler, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::All}
+    );
+    flux::Film film{flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::All}};
     handler.render(*camera, buffer, 4);
     buffer.download(film);
 

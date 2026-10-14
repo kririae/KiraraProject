@@ -21,8 +21,8 @@ TEST(TomlSceneTests, LoadsTheFilmOfAScene) {
     auto request = flux::FluxCLIRequest{.scenePath = writeScene("num_samples = 16\n")};
     auto scene = flux::loadTomlScene(request);
 
-    EXPECT_EQ(scene.resolution, (flux::Vec2u{4, 2}));
-    EXPECT_EQ(scene.channels, flux::FilmChannels::Color);
+    EXPECT_EQ(scene.film.resolution, (flux::Vec2u{4, 2}));
+    EXPECT_EQ(scene.film.channels, flux::FilmChannels::Color);
     EXPECT_EQ(scene.samplesPerPixel, 16);
 
     request.samplesPerPixel = 4;

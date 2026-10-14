@@ -39,14 +39,14 @@ void expectHandlerLeavesCurrentContext(CUcontext expected) {
     EXPECT_EQ(getCurrentContext(), expected);
 
     auto buffer = std::make_unique<flux::OptixAccumulationBuffer>(
-        *handler, flux::Vec2u{1, 1}, flux::FilmChannels::All
+        *handler, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::All}
     );
     EXPECT_EQ(getCurrentContext(), expected);
 
     EXPECT_NO_THROW(handler->render(*camera, *buffer, 2));
     EXPECT_EQ(getCurrentContext(), expected);
 
-    flux::Film film{flux::Vec2u{1, 1}, flux::FilmChannels::All};
+    flux::Film film{flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::All}};
     EXPECT_NO_THROW(buffer->download(film));
     EXPECT_EQ(getCurrentContext(), expected);
 

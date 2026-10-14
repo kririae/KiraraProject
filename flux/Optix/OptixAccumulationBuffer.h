@@ -24,14 +24,14 @@ class OptixHandler;
 /// \remark A buffer is not thread-safe.
 class OptixAccumulationBuffer final : private Noncopyable {
 public:
-    /// \brief Creates a buffer with \p resolution and \p channels.
+    /// \brief Creates a buffer from \p spec.
     ///
     /// The buffer has no samples.
     ///
-    /// \pre Both dimensions of \p resolution are nonzero.
-    /// \pre \p channels has no unknown bit.
+    /// \pre Both dimensions of the resolution of \p spec are nonzero.
+    /// \pre The channels of \p spec have no unknown bit.
     /// \throw kira::Anyhow If CUDA fails.
-    OptixAccumulationBuffer(OptixHandler &handler, Vec2u resolution, FilmChannels channels);
+    OptixAccumulationBuffer(OptixHandler &handler, FilmSpec const &spec);
 
     ~OptixAccumulationBuffer();
 
@@ -43,10 +43,8 @@ public:
     /// \brief Returns the number of samples per pixel in the buffer.
     [[nodiscard]] std::uint64_t getSampleCount() const noexcept;
 
-    [[nodiscard]] Vec2u getResolution() const noexcept;
-
-    /// \brief Returns the channels that the buffer holds.
-    [[nodiscard]] FilmChannels getChannels() const noexcept;
+    /// \brief Returns the spec that the buffer was built from.
+    [[nodiscard]] FilmSpec getSpec() const noexcept;
 
     /// \brief Copies the mean of the samples into \p film.
     ///

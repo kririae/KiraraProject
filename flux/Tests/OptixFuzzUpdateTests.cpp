@@ -465,7 +465,7 @@ struct Image {
 [[nodiscard]] std::unique_ptr<flux::OptixAccumulationBuffer>
 makeBuffer(flux::OptixHandler &handler) {
     return std::make_unique<flux::OptixAccumulationBuffer>(
-        handler, flux::Vec2u{imageSize, imageSize}, flux::FilmChannels::All
+        handler, flux::FilmSpec{flux::Vec2u{imageSize, imageSize}, flux::FilmChannels::All}
     );
 }
 
@@ -476,7 +476,7 @@ makeBuffer(flux::OptixHandler &handler) {
 ) {
     buffer.clear();
     handler.render(camera, buffer, 1);
-    flux::Film film{flux::Vec2u{imageSize, imageSize}, flux::FilmChannels::All};
+    flux::Film film{flux::FilmSpec{flux::Vec2u{imageSize, imageSize}, flux::FilmChannels::All}};
     buffer.download(film);
     Image image;
     for (auto const &c : film.getChannel<flux::ColorChannel>())

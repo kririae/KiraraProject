@@ -126,7 +126,7 @@ RenderStats EmbreeHandler::pImpl::render(
                     channel.values, std::ranges::range_value_t<decltype(channel.values)>{}
                 );
             });
-        if (buffer.getChannels() != FilmChannels::None) {
+        if (buffer.getSpec().channels != FilmChannels::None) {
             tbb::parallel_for(
                 tbb::blocked_range<std::size_t>{0, pixelCount},
                 [&](tbb::blocked_range<std::size_t> const &range) {

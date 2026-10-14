@@ -8,10 +8,10 @@
 
 namespace flux {
 struct EmbreeAccumulationBuffer::pImpl final {
-    pImpl(Vec2u resolution, FilmChannels channels);
+    explicit pImpl(FilmSpec const &spec);
 
-    /// \brief Returns the channels that \c film views.
-    [[nodiscard]] FilmChannels getChannels() const noexcept;
+    /// \brief Returns the spec that \c film views.
+    [[nodiscard]] FilmSpec getSpec() const noexcept;
 
     template <typename Channel> struct ChannelStorage {
         using ChannelType = Channel;

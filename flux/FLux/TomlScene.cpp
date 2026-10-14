@@ -100,8 +100,7 @@ LoadedScene loadTomlScene(FluxCLIRequest const &request) {
     return {
         .context = std::move(context),
         .camera = std::move(camera),
-        .resolution = resolution,
-        .channels = FilmChannels::Color,
+        .film = {.resolution = resolution, .channels = FilmChannels::Color},
         .samplesPerPixel = samplesPerPixel,
     };
 }

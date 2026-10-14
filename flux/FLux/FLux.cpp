@@ -49,7 +49,7 @@ int run(int argc, char **argv) {
     flux::configureLogging(request);
     auto scene = flux::loadTomlScene(request);
 
-    if (scene.resolution.x() == 0 || scene.resolution.y() == 0) {
+    if (scene.film.resolution.x() == 0 || scene.film.resolution.y() == 0) {
         flux::LogInfo(
             "'{}' has a film of no pixels, nothing to render", request.scenePath.string()
         );
@@ -57,7 +57,7 @@ int run(int argc, char **argv) {
         return 0;
     }
 
-    flux::Film film{scene.resolution, scene.channels};
+    flux::Film film{scene.film};
     auto const *backend = request.backend == flux::RenderBackend::Optix ? "OptiX" : "Embree";
     flux::LogInfo(
         "rendering '{}' with {} at {}x{}, {} sample(s) per pixel", request.scenePath.string(),
@@ -73,7 +73,7 @@ int run(int argc, char **argv) {
             flux::LogDebug(
                 "OptixHandler: estimated resident threads {}", handler.getEstimatedResidentThreads()
             );
-            flux::OptixAccumulationBuffer buffer{handler, scene.resolution, scene.channels};
+            flux::OptixAccumulationBuffer buffer{handler, scene.film};
             // A render has at most 2^32 - 1 paths. A full batch of 32 assigns one pixel's samples
             // to one warp.
             auto const pixelCount = std::uint64_t{film.getWidth()} * film.getHeight();
@@ -88,7 +88,7 @@ int run(int argc, char **argv) {
         }
 
         flux::EmbreeHandler handler{scene.context};
-        flux::EmbreeAccumulationBuffer buffer{scene.resolution, scene.channels};
+        flux::EmbreeAccumulationBuffer buffer{scene.film};
         auto const result = renderUntil(
             handler, buffer, *scene.camera, scene.samplesPerPixel,
             std::numeric_limits<std::uint32_t>::max()

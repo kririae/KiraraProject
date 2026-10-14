@@ -14,8 +14,7 @@ struct FluxCLIRequest;
 struct LoadedScene {
     Ref<Context> context;
     Ref<Camera const> camera;
-    Vec2u resolution;
-    FilmChannels channels;
+    FilmSpec film;
 
     /// The target number of samples per pixel.
     std::uint32_t samplesPerPixel;

@@ -18,11 +18,11 @@ template <typename Channel> struct AccumulatedChannel {
 };
 
 struct OptixAccumulationBuffer::pImpl final {
-    pImpl(OptixDeviceSession const &session, Vec2u resolution, FilmChannels channels);
+    pImpl(OptixDeviceSession const &session, FilmSpec const &spec);
     ~pImpl();
 
-    /// \brief Returns the channels that \c film views.
-    [[nodiscard]] FilmChannels getChannels() const noexcept;
+    /// \brief Returns the spec that \c film views.
+    [[nodiscard]] FilmSpec getSpec() const noexcept;
 
     /// The session of the handler that built the buffer.
     /// It outlives the buffer.

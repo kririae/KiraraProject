@@ -8,20 +8,18 @@
 #include "flux/Optix/OptixHandler.h"
 
 namespace flux {
-OptixAccumulationBuffer::pImpl::pImpl(
-    OptixDeviceSession const &deviceSession, Vec2u resolution, FilmChannels channels
-)
+OptixAccumulationBuffer::pImpl::pImpl(OptixDeviceSession const &deviceSession, FilmSpec const &spec)
     : session(&deviceSession), cudaContextGuard(std::in_place, deviceSession.getPrimaryContext()),
       storage(std::in_place, deviceSession.getStream()) {
-    detail::checkFilmShape(resolution, channels);
+    detail::checkFilmSpec(spec);
 
-    film.width = resolution.x();
-    film.height = resolution.y();
+    film.width = spec.resolution.x();
+    film.height = spec.resolution.y();
     auto const pixelCount =
         static_cast<std::size_t>(film.width) * static_cast<std::size_t>(film.height);
     storage.forEach([&](auto &channel) {
         using Channel = typename std::remove_reference_t<decltype(channel)>::ChannelType;
-        if (!any(channels & Channel::flag))
+        if (!any(spec.channels & Channel::flag))
             return;
         channel.buffer.resize(pixelCount);
         film.channels.template get<Channel>().data = channel.buffer.data();
@@ -39,20 +37,18 @@ OptixAccumulationBuffer::pImpl::~pImpl() {
     cudaContextGuard.emplace(session->getPrimaryContext(), std::nothrow);
 }
 
-FilmChannels OptixAccumulationBuffer::pImpl::getChannels() const noexcept {
+FilmSpec OptixAccumulationBuffer::pImpl::getSpec() const noexcept {
     auto held = FilmChannels::None;
     film.channels.forEach([&](auto const &view) {
         using Channel = typename std::remove_reference_t<decltype(view)>::ChannelType;
         if (view.data)
             held = held | Channel::flag;
     });
-    return held;
+    return {.resolution = {film.width, film.height}, .channels = held};
 }
 
-OptixAccumulationBuffer::OptixAccumulationBuffer(
-    OptixHandler &handler, Vec2u resolution, FilmChannels channels
-)
-    : pImpl_(std::make_unique<pImpl>(handler.getDeviceSession(), resolution, channels)) {}
+OptixAccumulationBuffer::OptixAccumulationBuffer(OptixHandler &handler, FilmSpec const &spec)
+    : pImpl_(std::make_unique<pImpl>(handler.getDeviceSession(), spec)) {}
 
 OptixAccumulationBuffer::~OptixAccumulationBuffer() = default;
 
@@ -60,16 +56,11 @@ void OptixAccumulationBuffer::clear() noexcept { pImpl_->samples = 0; }
 
 std::uint64_t OptixAccumulationBuffer::getSampleCount() const noexcept { return pImpl_->samples; }
 
-Vec2u OptixAccumulationBuffer::getResolution() const noexcept {
-    return {pImpl_->film.width, pImpl_->film.height};
-}
-
-FilmChannels OptixAccumulationBuffer::getChannels() const noexcept { return pImpl_->getChannels(); }
+FilmSpec OptixAccumulationBuffer::getSpec() const noexcept { return pImpl_->getSpec(); }
 
 void OptixAccumulationBuffer::download(Film &film) {
     auto &impl = *pImpl_;
-    if (film.getWidth() != impl.film.width || film.getHeight() != impl.film.height ||
-        film.getChannels() != impl.getChannels())
+    if (film.getSpec() != impl.getSpec())
         throw std::invalid_argument(
             "OptixAccumulationBuffer: film differs in resolution or channels from the buffer"
         );

@@ -11,21 +11,20 @@ namespace {
 }
 } // namespace
 
-void detail::checkFilmShape(Vec2u resolution, FilmChannels channels) {
-    if (resolution.x() == 0 || resolution.y() == 0)
-        throw std::invalid_argument("checkFilmShape: resolution must be nonzero");
-    if ((bits(channels) & ~bits(FilmChannels::All)) != 0)
-        throw std::invalid_argument("checkFilmShape: channels contain an unknown bit");
+void detail::checkFilmSpec(FilmSpec const &spec) {
+    if (spec.resolution.x() == 0 || spec.resolution.y() == 0)
+        throw std::invalid_argument("checkFilmSpec: resolution must be nonzero");
+    if ((bits(spec.channels) & ~bits(FilmChannels::All)) != 0)
+        throw std::invalid_argument("checkFilmSpec: channels contain an unknown bit");
 }
 
-Film::Film(Vec2u resolution, FilmChannels channels)
-    : width_(resolution.x()), height_(resolution.y()) {
-    detail::checkFilmShape(resolution, channels);
+Film::Film(FilmSpec const &spec) : width_(spec.resolution.x()), height_(spec.resolution.y()) {
+    detail::checkFilmSpec(spec);
 
     auto const pixelCount = static_cast<std::size_t>(width_) * static_cast<std::size_t>(height_);
     hostStorage_.forEach([&](auto &storage) {
         using Channel = typename std::remove_reference_t<decltype(storage)>::ChannelType;
-        if ((bits(channels) & bits(Channel::flag)) != 0)
+        if ((bits(spec.channels) & bits(Channel::flag)) != 0)
             storage.values.assign(pixelCount, typename Channel::Value{});
     });
 }

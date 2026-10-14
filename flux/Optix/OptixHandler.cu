@@ -217,7 +217,7 @@ RenderStats OptixHandler::pImpl::render(
         auto const totalSamples = accumulatedSamples + samples;
         if (accumulatedSamples == 0) {
             buffer.storage.forEach([](auto &channel) { channel.buffer.zero(); });
-        } else if (buffer.getChannels() != FilmChannels::None) {
+        } else if (buffer.getSpec().channels != FilmChannels::None) {
             auto const factor =
                 static_cast<float>(accumulatedSamples) / static_cast<float>(totalSamples);
             launchLinearKernel(

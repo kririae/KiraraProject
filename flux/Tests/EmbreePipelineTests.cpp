@@ -62,8 +62,10 @@ primitiveProperties(flux::TriangleMesh const &mesh, flux::BSDF const &bsdf) {
 /// Renders \p samples samples into a new one-pixel color buffer and returns the pixel.
 [[nodiscard]] flux::Spectrum
 renderPixel(flux::EmbreeHandler &handler, flux::Camera const &camera, std::uint32_t samples) {
-    flux::EmbreeAccumulationBuffer buffer(flux::Vec2u{1, 1}, flux::FilmChannels::Color);
-    flux::Film film{flux::Vec2u{1, 1}, flux::FilmChannels::Color};
+    flux::EmbreeAccumulationBuffer buffer(
+        flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}
+    );
+    flux::Film film{flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}};
     handler.render(camera, buffer, samples);
     buffer.download(film);
     return film.getChannel<flux::ColorChannel>()[0];
@@ -71,7 +73,7 @@ renderPixel(flux::EmbreeHandler &handler, flux::Camera const &camera, std::uint3
 
 /// Downloads the color channel of \p buffer.
 [[nodiscard]] std::vector<flux::Spectrum> downloadColor(flux::EmbreeAccumulationBuffer &buffer) {
-    flux::Film film{buffer.getResolution(), buffer.getChannels()};
+    flux::Film film{buffer.getSpec()};
     buffer.download(film);
     auto const color = film.getChannel<flux::ColorChannel>();
     return {color.begin(), color.end()};
@@ -129,7 +131,9 @@ TEST(EmbreePipelineTests, StartsTheSampleSequenceAtTheSamplerSampleOffset) {
     auto const render = [&](std::uint64_t offset, std::uint32_t samples) {
         sampler->setSampleOffset(offset);
         flux::EmbreeHandler handler(context);
-        flux::EmbreeAccumulationBuffer buffer(flux::Vec2u{8, 8}, flux::FilmChannels::Color);
+        flux::EmbreeAccumulationBuffer buffer(
+            flux::FilmSpec{flux::Vec2u{8, 8}, flux::FilmChannels::Color}
+        );
         handler.render(*camera, buffer, samples);
         return downloadColor(buffer);
     };
@@ -153,7 +157,9 @@ TEST(EmbreePipelineTests, StartsTheSampleSequenceAtTheSamplerSampleOffset) {
     // An offset edit reaches a handler that already exists through sync.
     sampler->setSampleOffset(0);
     flux::EmbreeHandler handler(context);
-    flux::EmbreeAccumulationBuffer buffer(flux::Vec2u{8, 8}, flux::FilmChannels::Color);
+    flux::EmbreeAccumulationBuffer buffer(
+        flux::FilmSpec{flux::Vec2u{8, 8}, flux::FilmChannels::Color}
+    );
     handler.render(*camera, buffer, 1);
     sampler->setSampleOffset(1);
     handler.sync();
@@ -197,8 +203,10 @@ TEST(EmbreePipelineTests, RendersSecondInstanceAndDownloadsFilmChannels) {
     auto camera = flux::Camera::create(cameraProperties);
 
     flux::EmbreeHandler handler(context);
-    flux::EmbreeAccumulationBuffer buffer(flux::Vec2u{1, 1}, flux::FilmChannels::All);
-    flux::Film film{flux::Vec2u{1, 1}, flux::FilmChannels::All};
+    flux::EmbreeAccumulationBuffer buffer(
+        flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::All}
+    );
+    flux::Film film{flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::All}};
     auto const stats = handler.render(*camera, buffer, 2);
     buffer.download(film);
 
@@ -236,7 +244,7 @@ TEST(EmbreePipelineTests, RendersSecondInstanceAndDownloadsFilmChannels) {
     EXPECT_TRUE(input->close());
     std::filesystem::remove_all(outputRoot);
 
-    flux::Film const missing{flux::Vec2u{1, 1}, flux::FilmChannels::Normal};
+    flux::Film const missing{flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Normal}};
     EXPECT_THROW(
         flux::writeImage<flux::AlbedoChannel>(outputRoot / "missing.exr", missing), kira::Anyhow
     );
@@ -477,14 +485,15 @@ TEST(EmbreePipelineTests, ReportsTheShapeOfABuffer) {
     flux::EmbreeHandler handler(context);
 
     auto const channels = flux::FilmChannels::Normal | flux::FilmChannels::Color;
-    flux::EmbreeAccumulationBuffer buffer(flux::Vec2u{2, 3}, channels);
-    EXPECT_EQ(buffer.getResolution(), (flux::Vec2u{2, 3}));
-    EXPECT_EQ(buffer.getChannels(), channels);
+    flux::EmbreeAccumulationBuffer buffer(flux::FilmSpec{flux::Vec2u{2, 3}, channels});
+    EXPECT_EQ(buffer.getSpec(), (flux::FilmSpec{flux::Vec2u{2, 3}, channels}));
     EXPECT_EQ(buffer.getSampleCount(), 0);
 
     // A buffer without channels still counts samples.
-    flux::EmbreeAccumulationBuffer empty(flux::Vec2u{2, 3}, flux::FilmChannels::None);
-    EXPECT_EQ(empty.getChannels(), flux::FilmChannels::None);
+    flux::EmbreeAccumulationBuffer empty(
+        flux::FilmSpec{flux::Vec2u{2, 3}, flux::FilmChannels::None}
+    );
+    EXPECT_EQ(empty.getSpec().channels, flux::FilmChannels::None);
     EXPECT_NO_THROW(handler.render(*camera, empty, 2));
     EXPECT_EQ(empty.getSampleCount(), 2);
 }
@@ -492,9 +501,9 @@ TEST(EmbreePipelineTests, ReportsTheShapeOfABuffer) {
 TEST(EmbreePipelineTests, ContinuesAnAccumulationAcrossRenders) {
     auto scene = makeNoisyScene();
     flux::EmbreeHandler handler(scene.context);
-    constexpr auto shape = flux::Vec2u{8, 8};
-    flux::EmbreeAccumulationBuffer whole(shape, flux::FilmChannels::Color);
-    flux::EmbreeAccumulationBuffer split(shape, flux::FilmChannels::Color);
+    constexpr auto spec = flux::FilmSpec{flux::Vec2u{8, 8}, flux::FilmChannels::Color};
+    flux::EmbreeAccumulationBuffer whole(spec);
+    flux::EmbreeAccumulationBuffer split(spec);
 
     handler.render(*scene.camera, whole, 4);
     handler.render(*scene.camera, split, 1);
@@ -513,7 +522,9 @@ TEST(EmbreePipelineTests, ContinuesAnAccumulationAcrossRenders) {
 TEST(EmbreePipelineTests, RestartsAnAccumulationAfterClear) {
     auto scene = makeNoisyScene();
     flux::EmbreeHandler handler(scene.context);
-    flux::EmbreeAccumulationBuffer buffer(flux::Vec2u{8, 8}, flux::FilmChannels::Color);
+    flux::EmbreeAccumulationBuffer buffer(
+        flux::FilmSpec{flux::Vec2u{8, 8}, flux::FilmChannels::Color}
+    );
 
     handler.render(*scene.camera, buffer, 2);
     auto const expected = downloadColor(buffer);
@@ -532,8 +543,10 @@ TEST(EmbreePipelineTests, RemovesStalePixelsAfterClear) {
     flux::test::setActiveDefaults(*context);
     auto camera = flux::Camera::create();
     flux::EmbreeHandler handler(context);
-    flux::EmbreeAccumulationBuffer buffer(flux::Vec2u{1, 1}, flux::FilmChannels::Color);
-    flux::Film film{flux::Vec2u{1, 1}, flux::FilmChannels::Color};
+    flux::EmbreeAccumulationBuffer buffer(
+        flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}
+    );
+    flux::Film film{flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}};
 
     // A scale of NaN fills the pixel with NaN.
     kira::Properties nanProperties;
@@ -559,7 +572,9 @@ TEST(EmbreePipelineTests, LeavesTheSampleCountAloneWhenTheSceneChanges) {
     flux::test::setActiveDefaults(*context);
     auto camera = flux::Camera::create();
     flux::EmbreeHandler handler(context);
-    flux::EmbreeAccumulationBuffer buffer(flux::Vec2u{1, 1}, flux::FilmChannels::Color);
+    flux::EmbreeAccumulationBuffer buffer(
+        flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}
+    );
 
     handler.render(*camera, buffer, 1);
 
@@ -608,8 +623,10 @@ TEST(EmbreePipelineTests, RejectsADownloadIntoAFilmOfAnotherShape) {
     properties.set("scale", flux::Spectrum{0.25F, 0.5F, 0.75F});
     context->setActiveEnvMap(context->create<flux::EnvMapLight>(properties));
     handler.sync();
-    flux::EmbreeAccumulationBuffer small(flux::Vec2u{1, 1}, flux::FilmChannels::Color);
-    flux::Film film{flux::Vec2u{1, 1}, flux::FilmChannels::Color};
+    flux::EmbreeAccumulationBuffer small(
+        flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}
+    );
+    flux::Film film{flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}};
     handler.render(*camera, small, 1);
     small.download(film);
     auto const expected = std::vector{flux::Spectrum{0.25F, 0.5F, 0.75F}};
@@ -619,15 +636,17 @@ TEST(EmbreePipelineTests, RejectsADownloadIntoAFilmOfAnotherShape) {
     properties.set("scale", flux::Spectrum{0.5F, 0.25F, 0.125F});
     context->setActiveEnvMap(context->create<flux::EnvMapLight>(properties));
     handler.sync();
-    flux::EmbreeAccumulationBuffer wide(flux::Vec2u{2, 1}, flux::FilmChannels::Color);
+    flux::EmbreeAccumulationBuffer wide(
+        flux::FilmSpec{flux::Vec2u{2, 1}, flux::FilmChannels::Color}
+    );
     handler.render(*camera, wide, 1);
     EXPECT_THROW(wide.download(film), std::invalid_argument);
     EXPECT_EQ(colorOf(film), expected);
 
-    flux::EmbreeAccumulationBuffer more(flux::Vec2u{1, 1}, flux::FilmChannels::All);
+    flux::EmbreeAccumulationBuffer more(flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::All});
     handler.render(*camera, more, 1);
     EXPECT_THROW(more.download(film), std::invalid_argument);
-    EXPECT_EQ(film.getChannels(), flux::FilmChannels::Color);
+    EXPECT_EQ(film.getSpec().channels, flux::FilmChannels::Color);
     EXPECT_EQ(colorOf(film), expected);
 
     // A film that was moved from holds no channels, so the shapes differ.
@@ -752,7 +771,9 @@ TEST(EmbreePipelineTests, SyncFailsForGoodWithoutAnActiveIntegratorOrSampler) {
     flux::test::setActiveDefaults(*context);
     auto camera = flux::Camera::create();
     flux::EmbreeHandler handler(context);
-    flux::EmbreeAccumulationBuffer buffer(flux::Vec2u{1, 1}, flux::FilmChannels::Color);
+    flux::EmbreeAccumulationBuffer buffer(
+        flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}
+    );
     auto const integratorId = context->getActiveIntegrator()->getContextId();
     auto const samplerId = context->getActiveSampler()->getContextId();
 
@@ -770,7 +791,9 @@ TEST(EmbreePipelineTests, SyncFailsForGoodWithoutAnActiveIntegratorOrSampler) {
 
     // A new handler renders the fixed context, and fails when the sampler is gone.
     flux::EmbreeHandler replacement(context);
-    flux::EmbreeAccumulationBuffer replacementBuffer(flux::Vec2u{1, 1}, flux::FilmChannels::Color);
+    flux::EmbreeAccumulationBuffer replacementBuffer(
+        flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}
+    );
     EXPECT_EQ(replacement.render(*camera, replacementBuffer, 1).paths, 1);
     EXPECT_FALSE(replacement.hasFailed());
 
