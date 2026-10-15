@@ -74,9 +74,7 @@ A commit message is one descriptive Conventional Commits subject line, optionall
 - Do not check for NaN or infinity, whether arithmetic or the scene produced it, or for a 64-bit counter that wraps. Let them propagate unless they can make memory access unsafe.
 - A resource is never empty: building an empty one violates a precondition. A collection may be empty, and an optional attribute may be absent.
 - Degenerate values are not empty. Keep a zero-area mesh and bound what it affects.
-- A unit test locks one promise: a documented result or `\throw`, or a rule of this file.
-- Do not test a strategy, or a conclusion that another test or a default integration test reaches.
-- Prefer a missing test to a low-value one. Delete low-value tests.
+- Before you write, change, or delete a test, follow [tests](.agents/skills/tests/SKILL.md).
 
 ## Verify
 

@@ -8,7 +8,8 @@ description: Use when you write or change code, a build file, or a script.
 Code tests its design. Where the design forces complexity into the code, fix the design, not the code, since a small change to a design often removes much code. When you find such complexity, stop, and report it to whoever decided the design, with the code that another decision would remove. Such a report finishes the task.
 
 - Write each mechanism, such as the ownership of a resource or a dispatch over a closed set of types, as its [precedents and references](../design/SKILL.md) write it, in the idioms of its language. A project writes each mechanism one way.
-- Each check, branch, flag, lock, and layer serves a promise. What no promise needs goes.
+- Each check, branch, flag, lock, and layer serves a [promise](../tests/SKILL.md). What no promise needs goes.
+- Write `auto` where the right-hand side names the type, as in `auto const shape = Shape::make(x, y, z);`. Spell the type where the right-hand side does not show it, such as the call of a free function whose result type matters to the reader.
 - Code is read more often than it is written. Keep complex logic near the left margin, keep each function at one level of detail, and mark the paragraphs of a function or a class with blank lines, braces, and access specifiers. What the code cannot say goes in a [comment](../comments/SKILL.md).
 
 ## Steps
