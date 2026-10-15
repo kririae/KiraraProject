@@ -12,6 +12,10 @@ Before you write anything that states a fact or a rule, in code, a comment, a te
 
 A question is not a request. When the user asks a question, answer it and stop. The user asks because starting might go wrong, and decides from the answer whether to start.
 
+## Decide
+
+- Before you gather facts from code, documents, or other repositories, or send a scout to gather them, follow [survey](.agents/skills/survey/SKILL.md).
+
 ## Workflow
 
 Development is stack-based, in the style of stacked diffs. The history is what the user reviews, so each commit is a self-contained change sized for one review, with its code, tests, and docs. A commit is corrected in place. The stack never holds a commit that fixes or follows up another commit in it.

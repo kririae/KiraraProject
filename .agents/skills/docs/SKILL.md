@@ -11,7 +11,14 @@ description: Use when you write, move, or delete a document.
 - A skill holds how to do one kind of task, in any repository. Its front matter gives its `name`, which is the name of its directory, and a `description`, "Use when you X.", where X is the task of its route. It links only to skills and to outside sources, and to each skill it builds on.
 - A topic document describes one topic of its place.
 - A decision record (ADR) gives one decision in force, in four sections: Context, Decision, Consequences, and Alternatives. When the decision changes, change its record, and move the old choice to Alternatives with the reason it lost.
-- A research document keeps evidence. Each claim cites its source by a file and a symbol or section in it, by a URL, or by the command that measured it. It never cites a line number. A final "Not found" section lists what was looked for and not found.
+- A research document keeps evidence, written as a [survey](../survey/SKILL.md) report.
+- A `README.md` is for people.
+
+Every document is reachable from the root `AGENTS.md`. A decision record or a research document is linked from the documents, other than skills, that rest on it. A change to an `AGENTS.md` or a skill lands only after the user reviews it.
+
+## Skills
+
+A skill has four parts:
 
 1. Its few principles, under its title. Prefer an example of a principle to a new rule.
 2. The steps of the task, in the order an agent takes them, with the checks known to be useful. A check names what the agent lists, and what it does when the list fails, such as "if you cannot list it, delete it". At most three checks ask the agent to list their results, in its reasoning or in the work.
