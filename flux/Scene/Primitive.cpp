@@ -63,6 +63,12 @@ Primitive::Primitive(TXContext &tx, kira::Properties const &props) : RenderObjec
         throw kira::Anyhow("Primitive: edf must be an inline table");
 }
 
+Primitive::Primitive(TXContext &tx, Ref<Geometry const> geometry)
+    : RenderObject(tx), geometry_(std::move(geometry)) {
+    if (!geometry_)
+        throw std::invalid_argument("Primitive: geometry must not be null");
+}
+
 Primitive::~Primitive() = default;
 
 Ref<Geometry const> Primitive::getGeometry() const noexcept { return geometry_; }

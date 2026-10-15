@@ -123,6 +123,13 @@ public:
 private:
     Primitive(TXContext &tx, kira::Properties const &props);
 
+    /// \brief Creates a visible primitive of \p geometry with the identity transform.
+    ///
+    /// The primitive has no BSDF and no EDF.
+    ///
+    /// \pre \p geometry is not empty and belongs to the creating Context or to \p tx.
+    Primitive(TXContext &tx, Ref<Geometry const> geometry);
+
     Ref<Geometry const> geometry_;
     Ref<BSDF const> bsdf_;
     Ref<EDF const> edf_;

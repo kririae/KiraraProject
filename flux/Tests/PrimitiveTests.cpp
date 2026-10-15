@@ -40,6 +40,14 @@ TEST(PrimitiveTests, ResolvesContextReferencesDuringConstruction) {
     EXPECT_EQ(primitive->getBSDF(), bsdf);
 }
 
+TEST(PrimitiveTests, CreatesFromGeometry) {
+    auto context = flux::Context::create();
+    auto mesh = context->create<flux::TriangleMesh>(triangleProperties());
+    auto primitive = context->create<flux::Primitive>(mesh);
+
+    EXPECT_EQ(primitive->getGeometry(), mesh);
+}
+
 TEST(PrimitiveTests, ReadsRowMajorTransform) {
     auto context = flux::Context::create();
     context->getFileResolver().prepend(FLUX_TEST_FIXTURES_DIR);
