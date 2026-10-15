@@ -46,6 +46,7 @@ A question is not a request. When the user asks a question, answer it and stop. 
 ## Verify
 
 - Before you say that a change works, or when you run a test, a benchmark, or an experiment, follow [verify](.agents/skills/verify/SKILL.md).
+- Before you review a step of the stack, or the fixes to one, follow [review](.agents/skills/review/SKILL.md).
 
 ## Commit
 

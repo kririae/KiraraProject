@@ -16,8 +16,8 @@ The history is what the user reviews. Work is a stack of steps on a target branc
 
 A step moves through four states:
 
-1. Implement. Build it as one commit, on the tip of the stack, or on the target branch for a new stack.
-2. Agent review. An agent that did not write the step reviews it, until the agent approves. One review may cover several steps.
+1. Implement. Build it as one commit, on the tip of the stack, or on the target branch for a new stack. Check it as [verify](../verify/SKILL.md) says.
+2. Agent review. An agent reviews it, as [review](../review/SKILL.md) says, until the agent approves. One review may cover several steps.
 3. User review. The user reviews it, until the user approves.
 4. Approved. It stays in the stack until the feature lands.
 
