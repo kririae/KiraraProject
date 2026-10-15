@@ -8,6 +8,7 @@
 #include "flux/Optix/OptixHandler.h"
 
 namespace flux {
+class BSDF;
 class Context;
 } // namespace flux
 
@@ -22,6 +23,9 @@ public:
 
     /// \brief Returns the scene.
     [[nodiscard]] flux::Ref<flux::Context> GetContext() const;
+
+    /// \brief Returns the BSDF of a prim that has no material.
+    [[nodiscard]] flux::Ref<flux::BSDF const> GetFallbackBSDF() const;
 
     /// \brief Returns the backend that renders the scene.
     [[nodiscard]] flux::OptixHandler &GetHandler() noexcept { return handler_; }
@@ -38,5 +42,6 @@ public:
 
 private:
     flux::OptixHandler handler_;
+    flux::Ref<flux::BSDF const> fallbackBSDF_;
     bool failed_{false};
 };

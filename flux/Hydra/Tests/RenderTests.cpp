@@ -3,13 +3,19 @@
 #include <pxr/base/gf/rect2i.h>
 #include <pxr/base/gf/vec2f.h>
 #include <pxr/base/gf/vec3d.h>
+#include <pxr/base/gf/vec3f.h>
 #include <pxr/base/gf/vec4f.h>
 #include <pxr/base/plug/registry.h>
 #include <pxr/imaging/cameraUtil/framing.h>
 #include <pxr/imaging/hd/camera.h>
 #include <pxr/imaging/hd/cameraSchema.h>
+#include <pxr/imaging/hd/dataSource.h>
 #include <pxr/imaging/hd/engine.h>
+#include <pxr/imaging/hd/meshSchema.h>
+#include <pxr/imaging/hd/meshTopologySchema.h>
 #include <pxr/imaging/hd/pluginRenderDelegateUniqueHandle.h>
+#include <pxr/imaging/hd/primvarSchema.h>
+#include <pxr/imaging/hd/primvarsSchema.h>
 #include <pxr/imaging/hd/renderBuffer.h>
 #include <pxr/imaging/hd/renderIndex.h>
 #include <pxr/imaging/hd/renderPass.h>
@@ -24,6 +30,7 @@
 
 #include <memory>
 #include <mutex>
+#include <utility>
 #include <vector>
 
 #include "flux/Hydra/RenderParam.h"
@@ -40,6 +47,7 @@ constexpr int width{64};
 constexpr int height{32};
 
 SdfPath const cameraPath{"/cam"};
+SdfPath const meshPath{"/mesh"};
 
 /// Returns a perspective camera that looks down -Z from \p z.
 HdContainerDataSourceHandle makeCamera(double z) {
@@ -63,6 +71,78 @@ HdContainerDataSourceHandle makeCamera(double z) {
             .Build()
     );
 }
+
+/// Returns a mesh with one quad of the vertices \p indices of \p points.
+HdContainerDataSourceHandle makeMesh(
+    HdTypedSampledDataSource<VtVec3fArray>::Handle const &points,
+    VtIntArray const &indices = VtIntArray{0, 1, 2, 3}
+) {
+    return HdRetainedContainerDataSource::New(
+        HdMeshSchema::GetSchemaToken(),
+        HdMeshSchema::Builder()
+            .SetTopology(
+                HdMeshTopologySchema::Builder()
+                    .SetFaceVertexCounts(
+                        HdRetainedTypedSampledDataSource<VtIntArray>::New(VtIntArray{4})
+                    )
+                    .SetFaceVertexIndices(
+                        HdRetainedTypedSampledDataSource<VtIntArray>::New(indices)
+                    )
+                    .SetOrientation(
+                        HdRetainedTypedSampledDataSource<TfToken>::New(
+                            HdMeshTopologySchemaTokens->rightHanded
+                        )
+                    )
+                    .Build()
+            )
+            .Build(),
+        HdPrimvarsSchema::GetSchemaToken(),
+        HdRetainedContainerDataSource::New(
+            HdPrimvarsSchemaTokens->points,
+            HdPrimvarSchema::Builder()
+                .SetPrimvarValue(points)
+                .SetInterpolation(
+                    HdPrimvarSchema::BuildInterpolationDataSource(HdPrimvarSchemaTokens->vertex)
+                )
+                .SetRole(HdPrimvarSchema::BuildRoleDataSource(HdPrimvarSchemaTokens->point))
+                .Build()
+        )
+    );
+}
+
+HdContainerDataSourceHandle
+makeMesh(VtVec3fArray const &points, VtIntArray const &indices = VtIntArray{0, 1, 2, 3}) {
+    return makeMesh(HdRetainedTypedSampledDataSource<VtVec3fArray>::New(points), indices);
+}
+
+/// Returns the 2x2 quad at z = 0 whose center is at x = \p x. It faces +Z.
+VtVec3fArray makeQuad(float x) {
+    return {
+        GfVec3f{x - 1.0F, -1.0F, 0.0F},
+        GfVec3f{x + 1.0F, -1.0F, 0.0F},
+        GfVec3f{x + 1.0F, 1.0F, 0.0F},
+        GfVec3f{x - 1.0F, 1.0F, 0.0F},
+    };
+}
+
+/// Holds points that the test can change after the scene read them.
+class EditablePoints final : public HdTypedSampledDataSource<VtVec3fArray> {
+public:
+    explicit EditablePoints(VtVec3fArray points) : points_{std::move(points)} {}
+
+    void set(VtVec3fArray points) { points_ = std::move(points); }
+
+    VtValue GetValue(Time) override { return VtValue{points_}; }
+
+    VtVec3fArray GetTypedValue(Time) override { return points_; }
+
+    bool GetContributingSampleTimesForInterval(Time, Time, std::vector<Time> *) override {
+        return false;
+    }
+
+private:
+    VtVec3fArray points_;
+};
 
 /// Syncs, prepares, and executes one render pass, as testHdPrman does.
 class DrawTask final : public HdTask {
@@ -206,6 +286,13 @@ protected:
         auto bindings = state_->GetAovBindings();
         bindings.push_back(binding);
         state_->SetAovBindings(bindings);
+        return buffer;
+    }
+
+    /// Binds an allocated normal buffer and returns it.
+    HdRenderBuffer *bindNormal() {
+        auto *const buffer = bindBuffer(HdAovTokens->normal);
+        EXPECT_TRUE(buffer->Allocate({width, height, 1}, HdFormatFloat32Vec3, false));
         return buffer;
     }
 
@@ -379,4 +466,87 @@ TEST_F(RenderTests, RendersMoreWhenTheSettingsRaiseTheTarget) {
     EXPECT_FALSE(pass_->IsConverged());
 
     executeToConvergence();
+}
+
+namespace {
+/// Returns the vector that \p buffer holds at \p column of the center row.
+GfVec3f vectorAt(HdRenderBuffer *buffer, int column) {
+    auto const *const pixels = static_cast<GfVec3f const *>(buffer->Map());
+    auto const vector = pixels[(height / 2) * width + column];
+    buffer->Unmap();
+    return vector;
+}
+
+GfVec3f centerNormal(HdRenderBuffer *buffer) { return vectorAt(buffer, width / 2); }
+} // namespace
+
+TEST_F(RenderTests, WritesTheNormalOfAMeshThatCoversThePixel) {
+    auto *const normal = bindNormal();
+    scene_->AddPrims({{meshPath, HdPrimTypeTokens->mesh, makeMesh(makeQuad(0.0F))}});
+
+    executeToConvergence();
+
+    EXPECT_NEAR(centerNormal(normal)[2], 1.0F, 1e-4F);
+}
+
+TEST_F(RenderTests, MovesTheHitWhenOnlyThePointsChange) {
+    auto *const normal = bindNormal();
+    auto const points = std::make_shared<EditablePoints>(makeQuad(0.0F));
+    scene_->AddPrims({{meshPath, HdPrimTypeTokens->mesh, makeMesh(points)}});
+    executeToConvergence();
+    EXPECT_NEAR(centerNormal(normal)[2], 1.0F, 1e-4F);
+
+    points->set(makeQuad(1.5F));
+    scene_->DirtyPrims({{meshPath, HdPrimvarsSchema::GetPointsLocator()}});
+    executeToConvergence();
+
+    EXPECT_NEAR(vectorAt(normal, 48)[2], 1.0F, 1e-4F);
+    EXPECT_EQ(centerNormal(normal), GfVec3f{0.0F});
+}
+
+TEST_F(RenderTests, RendersAMeshThatGetsPointsAfterItHadNone) {
+    auto *const normal = bindNormal();
+    scene_->AddPrims({{meshPath, HdPrimTypeTokens->mesh, makeMesh(VtVec3fArray{})}});
+    executeToConvergence();
+    EXPECT_EQ(centerNormal(normal), GfVec3f{0.0F});
+
+    scene_->AddPrims({{meshPath, HdPrimTypeTokens->mesh, makeMesh(makeQuad(0.0F))}});
+    scene_->DirtyPrims({{meshPath, HdPrimvarsSchema::GetDefaultLocator()}});
+    executeToConvergence();
+
+    EXPECT_NEAR(centerNormal(normal)[2], 1.0F, 1e-4F);
+}
+
+TEST_F(RenderTests, LeavesTheBackgroundWhenTheMeshIsRemoved) {
+    auto *const normal = bindNormal();
+    scene_->AddPrims({{meshPath, HdPrimTypeTokens->mesh, makeMesh(makeQuad(0.0F))}});
+    executeToConvergence();
+
+    scene_->RemovePrims({{meshPath}});
+    executeToConvergence();
+
+    EXPECT_EQ(centerNormal(normal), GfVec3f{0.0F});
+}
+
+TEST_F(RenderTests, ShadesAMeshWithoutMaterialWithTheFallback) {
+    auto *const albedo = bindBuffer(TfToken{"albedo"});
+    ASSERT_TRUE(albedo->Allocate({width, height, 1}, HdFormatFloat32Vec3, false));
+    scene_->AddPrims({{meshPath, HdPrimTypeTokens->mesh, makeMesh(makeQuad(0.0F))}});
+
+    executeToConvergence();
+
+    auto const center = vectorAt(albedo, width / 2);
+    for (int component = 0; component < 3; ++component)
+        EXPECT_NEAR(center[component], 0.5F, 1e-3F);
+}
+
+TEST_F(RenderTests, KeepsRenderingWhenTheMeshContentIsInvalid) {
+    auto *const normal = bindNormal();
+    scene_->AddPrims(
+        {{meshPath, HdPrimTypeTokens->mesh, makeMesh(makeQuad(0.0F), VtIntArray{0, 1, 2, 5})}}
+    );
+
+    executeToConvergence();
+
+    EXPECT_EQ(centerNormal(normal), GfVec3f{0.0F});
 }

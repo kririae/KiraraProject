@@ -11,10 +11,12 @@
 #include <memory>
 
 #include "flux/Hydra/AovMapping.h"
+#include "flux/Hydra/Mesh.h"
 #include "flux/Hydra/RenderBuffer.h"
 #include "flux/Hydra/RenderParam.h"
 #include "flux/Hydra/RenderPass.h"
 #include "flux/Hydra/RenderSettings.h"
+#include "flux/Scene/Context.h"
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -34,7 +36,7 @@ HdFluxRenderDelegate::HdFluxRenderDelegate(
 HdFluxRenderDelegate::~HdFluxRenderDelegate() = default;
 
 pxr::TfTokenVector const &HdFluxRenderDelegate::GetSupportedRprimTypes() const {
-    static auto const types = pxr::TfTokenVector{};
+    static auto const types = pxr::TfTokenVector{pxr::HdPrimTypeTokens->mesh};
     return types;
 }
 
@@ -67,7 +69,10 @@ HdFluxRenderDelegate::CreateInstancer(pxr::HdSceneDelegate *, pxr::SdfPath const
 
 void HdFluxRenderDelegate::DestroyInstancer(pxr::HdInstancer *instancer) { delete instancer; }
 
-pxr::HdRprim *HdFluxRenderDelegate::CreateRprim(pxr::TfToken const &, pxr::SdfPath const &) {
+pxr::HdRprim *
+HdFluxRenderDelegate::CreateRprim(pxr::TfToken const &typeId, pxr::SdfPath const &rprimId) {
+    if (typeId == pxr::HdPrimTypeTokens->mesh)
+        return new HdFluxMesh(rprimId);
     return nullptr;
 }
 
@@ -102,7 +107,13 @@ void HdFluxRenderDelegate::DestroyBprim(pxr::HdBprim *bprim) { delete bprim; }
 void HdFluxRenderDelegate::CommitResources(pxr::HdChangeTracker *) try {
     if (renderParam_->HasFailed())
         return;
+
+    // A replaced mesh stays in the context until it is collected. A removed object keeps its index
+    // until the dirty records are cleared.
+    auto const context = renderParam_->GetContext();
+    context->collectGarbage();
     renderParam_->GetHandler().sync();
+    context->clearDirty();
 } catch (...) { renderParam_->ReportFailure(); }
 
 pxr::HdAovDescriptor HdFluxRenderDelegate::GetDefaultAovDescriptor(pxr::TfToken const &name) const {
