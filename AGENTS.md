@@ -50,12 +50,8 @@ A commit message is one descriptive Conventional Commits subject line, optionall
 ## Documentation
 
 - Before you write a comment, a document, or a commit message, follow [prose](.agents/skills/prose/SKILL.md).
-- Before you write, move, or delete a document, or decide where knowledge belongs, follow [docs](.agents/skills/docs/SKILL.md), and read [agent documents](docs/agent-documents.md).
-- Prefer invariants: state what always holds for a member, a container, or an index before describing what code does.
-- Decide where a comment goes before writing it. An interface comment holds only what a caller can observe and what every correct implementation keeps true, in terms the caller can see. Anything else, such as the strategy, the reason for it, or a limit of an underlying API, goes in the implementation, or on the private member when it is an invariant of the representation.
-- A comment on an interface states its contract: what an entity is or does, its preconditions, results, and errors. It does not say how, name private members or the functions it calls, or mention caching or other strategies a caller cannot observe.
-- An implementation comment says why, where the code does not show it.
-- A comment never describes how a bad value is bounded.
+- Before you write, move, or delete a document, follow [docs](.agents/skills/docs/SKILL.md), and read [agent documents](docs/agent-documents.md).
+- Before you write or change a comment in code, follow [comments](.agents/skills/comments/SKILL.md).
 
 ## Code
 
@@ -69,7 +65,7 @@ A commit message is one descriptive Conventional Commits subject line, optionall
 - Calling-code rules:
   - A bad argument violates a precondition. State it as `\pre`.
   - Misuse at a host API boundary that would corrupt memory is always checked and throws `std::invalid_argument`. Other preconditions may be checked. No test locks such a check.
-- `\throw` documents only an environment failure, missing required configuration, one of our size limits (`std::length_error`), or a check that is the function's purpose.
+- Document an error as `\throw`. One of our size limits throws `std::length_error`.
 - Throw when required configuration has no fallback, such as an unset active integrator.
 - Propagate failures from required system APIs, including a request beyond one of their limits. Do not add a feature, such as splitting work, only to avoid such a failure.
 - Add no machinery for a case that is extremely rare.
