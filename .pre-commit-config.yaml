@@ -30,3 +30,25 @@ repos:
         entry: scripts/verify-commit-message.py
         language: python
         stages: [commit-msg]
+
+  - repo: local
+    hooks:
+      - id: verify-md-wrap
+        name: verify agent documents keep one line per paragraph
+        entry: scripts/verify-md-wrap.py
+        language: python
+        additional_dependencies: [markdown-it-py==4.2.0]
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+  - repo: local
+    hooks:
+      - id: verify-md-links
+        name: verify agent document links
+        entry: scripts/verify-md-links.py
+        language: python
+        additional_dependencies: [markdown-it-py==4.2.0]
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
