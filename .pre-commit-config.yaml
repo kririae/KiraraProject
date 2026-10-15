@@ -51,3 +51,13 @@ repos:
         additional_dependencies: [markdown-it-py==4.2.0]
         pass_filenames: false
         always_run: true
+
+  - repo: local
+    hooks:
+      - id: verify-skills
+        name: verify skill shape
+        entry: scripts/verify-skills.py
+        language: python
+        additional_dependencies: [markdown-it-py==4.2.0]
+        pass_filenames: false
+        always_run: true

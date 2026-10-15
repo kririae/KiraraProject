@@ -3,8 +3,10 @@
 
 A link, an image or a reference definition must resolve to a tracked file or to a directory that
 holds tracked files. A fragment on a Markdown target must name a heading of it. Scheme URLs,
-`//host` and `/absolute` targets are skipped. Every agent document must be reachable from the
-root AGENTS.md by following links to agent documents. A link to a directory reaches nothing.
+`//host` and `/absolute` targets are skipped. A document under `.agents/skills` links only to skills
+and outside sources: a target that is not a scheme URL or `//host` must resolve under
+`.agents/skills`. Every agent document must be reachable from the root AGENTS.md by following links
+to agent documents. A link to a directory reaches nothing.
 
 Usage: verify-md-links.py [root]
 """
@@ -21,28 +23,15 @@ import agent_docs
 SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 
 
-def is_skipped(url):
-    """Tells whether a target is outside the checks: a scheme URL, `//host` or `/absolute`."""
-    return url.startswith("/") or SCHEME.match(url) is not None
+def is_outside(url):
+    """Tells whether a target is outside the repository: a scheme URL or `//host`."""
+    return url.startswith("//") or SCHEME.match(url) is not None
 
 
 def slug(heading):
     """Returns the GitHub anchor of the first heading with this rendered text."""
     kept = (c for c in heading.lower() if unicodedata.category(c)[0] in "LN" or c in "_ -")
     return "".join(kept).replace(" ", "-")
-
-
-def rendered(inline):
-    """Returns the text a reader sees from an inline token."""
-    parts = []
-    for child in inline.children or []:
-        if child.type in ("text", "code_inline"):
-            parts.append(child.content)
-        elif child.type == "image":
-            parts.append(child.content)
-        elif child.type in ("softbreak", "hardbreak"):
-            parts.append(" ")
-    return "".join(parts)
 
 
 def anchors(text):
@@ -53,7 +42,7 @@ def anchors(text):
     for index, token in enumerate(tokens):
         if token.type != "heading_open":
             continue
-        base = slug(rendered(tokens[index + 1]))
+        base = slug(agent_docs.rendered(tokens[index + 1]))
         name = base
         bump = occurrences.get(base, 0)
         while name in result:
@@ -121,11 +110,17 @@ def verify(root, tracked, documents):
         edges[source] = set()
         if text is None:
             continue
+        in_skills = agent_docs.is_in_skills(source)
         for line, url in links(text):
-            if is_skipped(url):
+            if is_outside(url):
                 continue
             path, fragment = split(url)
-            target = resolve(source, path)
+            target = None if url.startswith("/") else resolve(source, path)
+            if in_skills and (target is None or not agent_docs.is_in_skills(target)):
+                problems.append((source, line, url, "a skill links only to skills"))
+                continue
+            if target is None:
+                continue
             if not (target in tracked_set or is_directory(target)):
                 problems.append((source, line, url, "target is not a tracked file or directory"))
                 continue

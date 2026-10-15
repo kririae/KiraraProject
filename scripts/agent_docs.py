@@ -11,6 +11,7 @@ import subprocess
 from markdown_it import MarkdownIt
 
 ROOT_DOCUMENT = "AGENTS.md"
+SKILLS = ".agents/skills"
 
 
 def tracked_files(root):
@@ -33,12 +34,45 @@ def is_agent_document(path):
     if not path.endswith(".md") or parts[-1] == "README.md":
         return False
     in_docs = parts[0] == "docs" or (len(parts) > 2 and parts[1] == "docs")
-    return in_docs or parts[:2] == (".agents", "skills")
+    return in_docs or is_in_skills(path)
+
+
+def is_in_skills(path):
+    """Tells whether a repository-relative POSIX path is under the skills."""
+    return path.startswith(SKILLS + "/")
 
 
 def agent_documents(tracked):
     """Returns the agent documents among the tracked files."""
     return [path for path in tracked if is_agent_document(path)]
+
+
+def read_text(root, path):
+    """Returns the text of a file, or None when the file is gone from the disk."""
+    try:
+        return (pathlib.Path(root) / path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+
+def unquoted(value):
+    """Returns a YAML scalar without its enclosing quotes."""
+    if len(value) > 1 and value[0] == value[-1] and value[0] in "\"'":
+        return value[1:-1]
+    return value
+
+
+def front_matter(text):
+    """Returns the key: value pairs of the leading front matter block, or None when it is absent."""
+    lines = text.split("\n")
+    if lines[0] != "---" or "---" not in lines[1:]:
+        return None
+    pairs = {}
+    for line in lines[1 : lines.index("---", 1)]:
+        key, separator, value = line.partition(":")
+        if separator:
+            pairs[key.strip()] = unquoted(value.strip())
+    return pairs
 
 
 def read_markdown(root, path):
@@ -47,9 +81,8 @@ def read_markdown(root, path):
     A leading front matter block is blanked, so that it is not parsed as Markdown and the line
     numbers stay the same.
     """
-    try:
-        text = (pathlib.Path(root) / path).read_text(encoding="utf-8", errors="replace")
-    except OSError:
+    text = read_text(root, path)
+    if text is None:
         return None
     lines = text.split("\n")
     if lines[0] == "---" and "---" in lines[1:]:
@@ -63,3 +96,16 @@ def parse(text):
     env = {}
     tokens = MarkdownIt("commonmark").enable("table").parse(text, env)
     return tokens, env
+
+
+def rendered(inline):
+    """Returns the text a reader sees from an inline token."""
+    parts = []
+    for child in inline.children or []:
+        if child.type in ("text", "code_inline"):
+            parts.append(child.content)
+        elif child.type == "image":
+            parts.append(child.content)
+        elif child.type in ("softbreak", "hardbreak"):
+            parts.append(" ")
+    return "".join(parts)

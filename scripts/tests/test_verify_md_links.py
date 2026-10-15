@@ -84,6 +84,22 @@ class VerifyMdLinksTest(unittest.TestCase):
             [("docs/lone.md", 1, "not reachable from the root AGENTS.md")],
         )
 
+    def test_skill_links_only_to_skills(self):
+        files = {
+            "AGENTS.md": "[a](.agents/skills/a/examples.md)\n",
+            ".agents/skills/a/examples.md": (
+                "[b](../b/SKILL.md) [c](../../../AGENTS.md)\n\n[d](/AGENTS.md) [e](https://llvm.org)\n"
+            ),
+            ".agents/skills/b/SKILL.md": "x\n",
+        }
+        self.assertEqual(
+            problems(files),
+            [
+                (".agents/skills/a/examples.md", 1, "a skill links only to skills"),
+                (".agents/skills/a/examples.md", 3, "a skill links only to skills"),
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
