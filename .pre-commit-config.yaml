@@ -61,3 +61,13 @@ repos:
         additional_dependencies: [markdown-it-py==4.2.0]
         pass_filenames: false
         always_run: true
+
+  - repo: local
+    hooks:
+      - id: verify-agents-md
+        name: verify the word limit and the routes of each AGENTS.md
+        entry: scripts/verify-agents-md.py
+        language: python
+        additional_dependencies: [markdown-it-py==4.2.0]
+        pass_filenames: false
+        always_run: true
