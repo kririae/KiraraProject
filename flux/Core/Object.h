@@ -198,6 +198,9 @@ public:
     [[nodiscard]] Context const *getContext() const noexcept { return context_; }
 
     /// \brief Returns the stable identifier assigned by the owning context.
+    ///
+    /// IDs only increase, so no other object of the context shares it. An ID is a
+    /// lookup key, never an index.
     [[nodiscard]] std::size_t getContextId() const noexcept { return contextId_; }
 
     /// \brief Returns the kind whose index map holds this object, or nothing.
