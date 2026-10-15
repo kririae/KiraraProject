@@ -17,6 +17,7 @@ A question is not a request. When the user asks a question, answer it and stop. 
 - Before you design a change, or choose its structure, follow [design](.agents/skills/design/SKILL.md).
 - Before you name an entity, such as a type, a function, a variable, a file, or a test, follow [naming](.agents/skills/naming/SKILL.md).
 - Before you gather facts from code, documents, or other repositories, or send a scout to gather them, follow [survey](.agents/skills/survey/SKILL.md).
+- Before you hand work to another agent, or act on what one returns, follow [subagents](.agents/skills/subagents/SKILL.md).
 
 ## Design
 
