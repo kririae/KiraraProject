@@ -115,3 +115,11 @@ pxr::HdRenderSettingDescriptorList HdFluxRenderDelegate::GetRenderSettingDescrip
          pxr::VtValue(HdFluxDefaultConvergedSamplesPerPixel)},
     };
 }
+
+pxr::VtDictionary HdFluxRenderDelegate::GetRenderStats() const {
+    // husk ignores diagnostics. It ends a render with the status in this stat when it is nonzero.
+    pxr::VtDictionary stats;
+    if (renderParam_->HasFailed())
+        stats["huskErrorStatus"] = 1;
+    return stats;
+}
