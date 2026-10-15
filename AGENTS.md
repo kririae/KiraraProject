@@ -63,4 +63,4 @@ A commit message is one descriptive Conventional Commits subject line, optionall
 
 ## Verify
 
-- After a change, run only the unit tests it touches. Run the full suite only when asked.
+- Before you say that a change works, or when you run a test, a benchmark, or an experiment, follow [verify](.agents/skills/verify/SKILL.md).
