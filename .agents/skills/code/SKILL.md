@@ -15,7 +15,7 @@ Code tests its design. Where the design forces complexity into the code, fix the
 ## Steps
 
 1. Read the code around the change, and the code in this project that solves a similar problem. For each mechanism that you will write, find its precedents and references, and its idiom in the language, as [survey](../survey/SKILL.md) says.
-2. Write the code. Name each entity as [naming](../naming/SKILL.md) says.
+2. Write the code. Name each entity as [naming](../naming/SKILL.md) says, and handle each bad value, misuse, and failure as [errors](../errors/SKILL.md) says.
 3. Check the code that you add or change:
    1. In your report, list each check, special case, flag, lock, layer, and copy of state or of logic, with the promise that needs it, and the design decision that forces it, if one does. Delete what no promise needs, and what you are not sure a promise needs. Where another decision would remove it, or the references do without it, stop, and report that decision.
    2. In your reasoning, list each mechanism with its precedent, its reference, or its idiom. Rewrite a mechanism that differs from them, unless you can state a concrete reason. Where a precedent differs from another precedent or from the idiom, fix it in a commit of its own, or record it as an [open task](../locality/SKILL.md).

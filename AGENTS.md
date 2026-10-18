@@ -56,25 +56,10 @@ A commit message is one descriptive Conventional Commits subject line, optionall
 ## Code
 
 - Before you write or change code, a build file, or a script, follow [code](.agents/skills/code/SKILL.md).
-- Respect what the user asks for in the scene, and report misuse by the calling code. Two layers meet here:
-  - Scene content, such as a TOML file or a USD prim, describes the scene: the `Context` and its objects. Scene objects and adapters, meaning the code that reads scene content, such as the CLI and hdFlux, follow the scene rules below.
-  - Every other API, such as a handler, a buffer, or a `Film`, takes its arguments from the calling code. It follows the calling-code rules below.
-- Scene rules:
-  - Never invent a result that the user did not ask for. A value that asks for nothing, such as zero samples or a zero resolution, renders nothing. An adapter turns empty input into no resource.
-  - Bound a value that asks for something unsupported to the nearest supported value, and warn. Report an unsupported feature the same way. The renderer keeps rendering.
-  - An adapter keeps its requests within the preconditions of the APIs it calls.
-- Calling-code rules:
-  - A bad argument violates a precondition. State it as `\pre`.
-  - Misuse at a host API boundary that would corrupt memory is always checked and throws `std::invalid_argument`. Other preconditions may be checked. No test locks such a check.
-- Document an error as `\throw`. One of our size limits throws `std::length_error`.
-- Throw when required configuration has no fallback, such as an unset active integrator.
-- Propagate failures from required system APIs, including a request beyond one of their limits. Do not add a feature, such as splitting work, only to avoid such a failure.
-- Add no machinery for a case that is extremely rare.
-- Scene content never crashes the process. Terminate, through an assertion or otherwise, only when our own code is wrong: an internal invariant broke. A failure from outside the code, such as a system API, the device, or memory, never terminates the process. Log it and continue, or throw.
-- Do not check for NaN or infinity, whether arithmetic or the scene produced it, or for a 64-bit counter that wraps. Let them propagate unless they can make memory access unsafe.
-- A resource is never empty: building an empty one violates a precondition. A collection may be empty, and an optional attribute may be absent.
-- Degenerate values are not empty. Keep a zero-area mesh and bound what it affects.
+- In FLux, scene content, such as a TOML file or a USD prim, describes the scene: the `Context` and its objects. The CLI and hdFlux are its adapters. Every other API, such as a handler, a buffer, or a `Film`, takes its arguments from the calling code. Device code cannot throw, so only the host APIs check misuse that would corrupt memory.
+- State a bad argument as `\pre`. A checked misuse throws `std::invalid_argument`, and a lookup of an absent ID or key throws `std::out_of_range`, as `std::map::at` does. Document an error as `\throw`. One of our size limits throws `std::length_error`.
 - Before you write, change, or delete a test, follow [tests](.agents/skills/tests/SKILL.md).
+- Before you decide how code handles a bad value, a misuse, or a failure, follow [errors](.agents/skills/errors/SKILL.md).
 
 ## Verify
 
