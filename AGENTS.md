@@ -55,6 +55,7 @@ A commit message is one descriptive Conventional Commits subject line, optionall
 
 ## Code
 
+- Before you write or change code, a build file, or a script, follow [code](.agents/skills/code/SKILL.md).
 - Respect what the user asks for in the scene, and report misuse by the calling code. Two layers meet here:
   - Scene content, such as a TOML file or a USD prim, describes the scene: the `Context` and its objects. Scene objects and adapters, meaning the code that reads scene content, such as the CLI and hdFlux, follow the scene rules below.
   - Every other API, such as a handler, a buffer, or a `Film`, takes its arguments from the calling code. It follows the calling-code rules below.
