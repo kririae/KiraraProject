@@ -139,12 +139,7 @@ class CudaStreamTimer final : private Noncopyable, private CudaStreamMixin {
 public:
     explicit CudaStreamTimer(cudaStream_t stream) : CudaStreamTimer(EmptyState{}, stream) {
         cudaCheck(cudaEventCreate(&start_));
-        try {
-            cudaCheck(cudaEventCreate(&stop_));
-        } catch (...) {
-            cudaCheck<false>(cudaEventDestroy(start_));
-            throw;
-        }
+        cudaCheck(cudaEventCreate(&stop_));
     }
 
     ~CudaStreamTimer() {
