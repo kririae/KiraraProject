@@ -18,24 +18,6 @@ A question is not a request. When the user asks a question, answer it and stop. 
 - Before you name an entity, such as a type, a function, a variable, a file, or a test, follow [naming](.agents/skills/naming/SKILL.md).
 - Before you gather facts from code, documents, or other repositories, or send a scout to gather them, follow [survey](.agents/skills/survey/SKILL.md).
 
-## Workflow
-
-Development is stack-based, in the style of stacked diffs. The history is what the user reviews, so each commit is a self-contained change sized for one review, with its code, tests, and docs. A commit is corrected in place. The stack never holds a commit that fixes or follows up another commit in it.
-
-Work on the stack on a detached HEAD, managed with git-branchless. Each step of the work moves through three states:
-
-1. **Implement.** Start from the tip of the stack, or from the target branch for a new stack. Build the step as one commit. Then stop.
-2. **Review.** The user reviews the step. Stage the fix and run `git absorb` to make fixup commits, then fold each into its target with `git move --fixup`. The step stays in review until the user approves it.
-3. **Approved.** The step stays in the stack, and a later fix still amends it. The next step returns to Implement.
-
-A feature lands as a whole. When the user says it is complete, move the target branch to its last commit with `git branch -f`.
-
-Throughout, rewrite history in memory with `git amend`, `git reword`, and `git move`, never with `git rebase`. Never rewrite a commit that the target branch's upstream contains. Push only when asked.
-
-Create a worktree only with `tools/worktree-add.sh` and remove it only with `tools/worktree-remove.sh`. Never run vcpkg in it.
-
-A commit message is one descriptive Conventional Commits subject line, optionally followed by one paragraph of at most three lines. Nothing else, including trailers.
-
 ## Design
 
 - The scene is the source of truth, so its edits give the strong exception guarantee: an edit that throws leaves the Context unchanged. State derived from the scene, such as a backend, gives only the basic guarantee: after an exception it stays valid and destructible, and the caller recovers, for example by creating a new backend. Never add a rollback, a staging copy, or any other mechanism that keeps derived state, such as the OptiX scene, as it was before a failure.
@@ -64,3 +46,8 @@ A commit message is one descriptive Conventional Commits subject line, optionall
 ## Verify
 
 - Before you say that a change works, or when you run a test, a benchmark, or an experiment, follow [verify](.agents/skills/verify/SKILL.md).
+
+## Commit
+
+- Before you create, change, reorder, or land a commit, follow [commit](.agents/skills/commit/SKILL.md), and read [workflow](docs/workflow.md).
+- Before you create or remove a worktree, read [workflow](docs/workflow.md).
