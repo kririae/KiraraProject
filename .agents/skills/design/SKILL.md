@@ -16,7 +16,7 @@ After the second fix to one mechanism, stop patching, and design that mechanism 
 ## Steps
 
 1. Find the precedents and the references, as [survey](../survey/SKILL.md) says.
-2. Design. Make it run before you make it complete, and record what you leave out as an [open task](../locality/SKILL.md). Write the design as numbered decisions: the question, the options, the choice, and why. List each new class with what it owns, and each new public name with one line.
+2. Design. Make it run before you make it complete, and record what you leave out as an [open task](../locality/SKILL.md). Write the design as numbered decisions: the question, the options, the choice, and why. List each new class with what it owns, and each new public name with its naming entry, as [naming](../naming/SKILL.md) says.
 3. Check the design, and write down each result:
    - The mental model, and the invariants of each part. If you cannot write them, the design is wrong, so design again from step 2.
    - Each difference from a precedent or a reference, with its reason, and each decision that neither answers. Where a difference has no concrete reason, follow the precedent or the reference.

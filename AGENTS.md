@@ -15,6 +15,7 @@ A question is not a request. When the user asks a question, answer it and stop. 
 ## Decide
 
 - Before you design a change, or choose its structure, follow [design](.agents/skills/design/SKILL.md).
+- Before you name an entity, such as a type, a function, a variable, a file, or a test, follow [naming](.agents/skills/naming/SKILL.md).
 - Before you gather facts from code, documents, or other repositories, or send a scout to gather them, follow [survey](.agents/skills/survey/SKILL.md).
 
 ## Workflow
@@ -40,11 +41,7 @@ A commit message is one descriptive Conventional Commits subject line, optionall
 - The scene is the source of truth, so its edits give the strong exception guarantee: an edit that throws leaves the Context unchanged. State derived from the scene, such as a backend, gives only the basic guarantee: after an exception it stays valid and destructible, and the caller recovers, for example by creating a new backend. Never add a rollback, a staging copy, or any other mechanism that keeps derived state, such as the OptiX scene, as it was before a failure.
 - FLux core never depends on Hydra. Its API ends at core types such as `Film`.
 - hdFlux is a general Hydra delegate. Adapt to a host's convention in one place, and name the host there.
-- Name an entity for what it is, in the established vocabulary of its domain, as a designer of the C++ standard library or LLVM would.
-- Choose a verb as carefully as a noun. A function's verb names its operation as established code in the domain does: a scheduler hands out work with next, fetch, or claim, never take. Look up the name that reliable code, such as the C++ standard library, LLVM, CUDA, or USD, gives the same operation before inventing one.
-- Define domain terms clearly, then use them consistently.
-- Do not repeat context that the type or scope already supplies.
-- Do not name a value after the strategy that produced it, and do not reuse a name whose standard meaning differs.
+- Look a name up in the C++ standard library, LLVM, CUDA, and USD.
 - Prefix CUDA wrappers with `Cuda` and OptiX backend types with `Optix`.
 - Share a class's internals through an internal `XPImpl.h` header, not through accessors.
 - Context IDs only increase. They identify objects and serve as lookup keys.

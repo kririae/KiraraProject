@@ -48,6 +48,7 @@ CheckOptions:
   readability-identifier-naming.ClassCase: CamelCase
   readability-identifier-naming.StructCase: CamelCase
   readability-identifier-naming.EnumCase: CamelCase
+  # The case of function names is unchecked on purpose. A house style is best effort, as .agents/skills/naming/SKILL.md says.
   readability-identifier-naming.FunctionCase: aNy_CasE
   readability-identifier-naming.VariableCase: camelBack
   readability-identifier-naming.ClassMemberCase: camelBack
