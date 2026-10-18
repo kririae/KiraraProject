@@ -1,35 +1,35 @@
 ---
 name: docs
-description: Use when you write or edit Markdown for agents, such as AGENTS.md, files under docs/, or skills under .agents/skills/.
+description: Use when you write, move, or delete a document.
 ---
 
-# Writing Markdown for agents
+# Documents
 
-## Scope
+[Locality](../locality/SKILL.md) decides what belongs in a document, and in which one. This skill says how to write each kind. A document owns one thing, and each of its sentences follows from what it owns. A sentence that follows from something else belongs to the document that owns that thing.
 
-Agent documents are the tracked files that match one of these:
+- An `AGENTS.md` is the index of its place. It holds what a session needs before it knows its task: one sentence on what its place is, the orders that locality places there, and routes. A route names a task and what to load for it: "Before you X, follow Y" for a skill, and "read Y" for a document.
+- A skill holds how to do one kind of task, in any repository. Its front matter gives its `name`, which is the name of its directory, and a `description`, "Use when you X.", where X is the task of its route. It links only to skills and to outside sources, and to each skill it builds on.
+- A topic document describes one topic of its place.
+- A decision record (ADR) gives one decision in force, in four sections: Context, Decision, Consequences, and Alternatives. When the decision changes, change its record, and move the old choice to Alternatives with the reason it lost.
+- A research document keeps evidence. Each claim cites its source by a file and a symbol or section in it, by a URL, or by the command that measured it. It never cites a line number. A final "Not found" section lists what was looked for and not found.
 
-- `AGENTS.md` in any directory.
-- `docs/**/*.md` at the root or in any subproject.
-- `.agents/skills/**/*.md`.
+1. Its few principles, under its title. Prefer an example of a principle to a new rule.
+2. The steps of the task, in the order an agent takes them, with the checks known to be useful. A check names what the agent lists, and what it does when the list fails, such as "if you cannot list it, delete it". At most three checks ask the agent to list their results, in its reasoning or in the work.
+3. Links to the skills that own the rest of the task.
+4. `## Bad <things>`: generic examples of its principles, each with its fault.
 
-README files are not agent documents.
+## Steps
 
-## Rules
+1. Find the document that owns what you write, as locality says.
+2. Write it, as [prose](../prose/SKILL.md) says.
+3. List in your reasoning, for each sentence that you write in a skill, the principle it follows from. Move a sentence that follows from what another document owns, and delete one that follows from nothing.
 
-- Write each paragraph as one physical line. A paragraph has no length limit. This holds for paragraphs in list items and block quotes too. Headings, code blocks and tables are exempt.
-- Every link, image and reference definition must resolve to a tracked file or to a directory that holds tracked files. A fragment on a Markdown target must name one of its headings.
-- Every agent document must be reachable from the root `AGENTS.md` by following links to agent documents. A link to a directory reaches nothing.
+## Bad documents
 
-Run `git add` on a new file first, so that git tracks it.
-
-## Verify
-
-Run both from the repository root:
-
-```sh
-scripts/verify-md-wrap.py
-scripts/verify-md-links.py
-```
-
-Each prints `<file>:<line>: ...` for every problem and exits 1.
+- "Before you change `Parser`, read ..." A route names a task, not a class.
+- A skill that sends the reader to a project's files. It is false in any other repository.
+- Rules for choosing a name in a skill on design. Choosing a name is a task of its own, not a choice of structure.
+- Error handling as the whole of a skill named for code. The name promises how to write code.
+- "Check the design again before you deliver it." It names nothing to list.
+- "A film shape stored in a pool entry" as an example in a skill. A reader outside the project does not know the terms.
+- A rule that the principles of its skill already imply. It is a second home for the rule.

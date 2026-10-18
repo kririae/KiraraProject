@@ -42,8 +42,6 @@ compile_commands.json
 .cache/
 .idea/
 .scratch/
-/docs/*
-!/docs/specs/
 
 *.gltf
 *.glb
