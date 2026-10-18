@@ -91,21 +91,33 @@ createProgramGroup(OptixDeviceContext deviceContext, OptixProgramGroupDesc const
 OptixProgram::OptixProgram(
     OptixDeviceContext deviceContext, std::filesystem::path const &modulePath, OptixProgramSpec spec
 )
-    : deviceContext_(deviceContext), spec_(spec) {
+    : OptixProgram(EmptyState{}, deviceContext, spec) {
     if (!deviceContext_)
         throw kira::Anyhow("OptixProgram: device context must not be null");
 
-    try {
-        buildModule(modulePath);
-        buildProgramGroups();
-        buildPipeline();
-    } catch (...) {
-        reset();
-        throw;
-    }
+    buildModule(modulePath);
+    buildProgramGroups();
+    buildPipeline();
 }
 
-OptixProgram::~OptixProgram() { reset(); }
+OptixProgram::OptixProgram(
+    EmptyState, OptixDeviceContext deviceContext, OptixProgramSpec spec
+) noexcept
+    : deviceContext_(deviceContext), spec_(spec) {}
+
+OptixProgram::~OptixProgram() {
+    if (pipeline_)
+        optixCheck<false>(optixPipelineDestroy(pipeline_));
+    for (auto &program : hitgroupPrograms_)
+        if (program)
+            optixCheck<false>(optixProgramGroupDestroy(program));
+    if (missProgram_)
+        optixCheck<false>(optixProgramGroupDestroy(missProgram_));
+    if (raygenProgram_)
+        optixCheck<false>(optixProgramGroupDestroy(raygenProgram_));
+    if (module_)
+        optixCheck<false>(optixModuleDestroy(module_));
+}
 
 OptixProgramSpec OptixProgram::makeSpec(Context const &context) {
     auto const integrator = context.getActiveIntegrator();
@@ -278,26 +290,5 @@ void OptixProgram::buildPipeline() {
         /* maxDirectCallableDepthFromTraversal = */ 0,
         /* maxTraversableGraphDepth =            */ 2));
     // clang-format on
-}
-
-void OptixProgram::reset() noexcept {
-    if (pipeline_)
-        optixCheck<false>(optixPipelineDestroy(pipeline_));
-    for (auto &program : hitgroupPrograms_)
-        if (program)
-            optixCheck<false>(optixProgramGroupDestroy(program));
-    if (missProgram_)
-        optixCheck<false>(optixProgramGroupDestroy(missProgram_));
-    if (raygenProgram_)
-        optixCheck<false>(optixProgramGroupDestroy(raygenProgram_));
-    if (module_)
-        optixCheck<false>(optixModuleDestroy(module_));
-
-    pipeline_ = nullptr;
-    hitgroupPrograms_.fill(nullptr);
-    missProgram_ = nullptr;
-    raygenProgram_ = nullptr;
-    module_ = nullptr;
-    deviceContext_ = nullptr;
 }
 } // namespace flux

@@ -64,9 +64,10 @@ private:
     class Array final : private Noncopyable {
     public:
         explicit Array(cudaMipmappedArray_t handle) noexcept : handle_(handle) {}
-        Array(Array &&other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
+        Array(Array &&other) noexcept { swap(*this, other); }
         Array &operator=(Array &&other) noexcept {
-            std::swap(handle_, other.handle_);
+            Array replacement(std::move(other));
+            swap(*this, replacement);
             return *this;
         }
         ~Array() {
@@ -76,8 +77,13 @@ private:
 
         [[nodiscard]] cudaMipmappedArray_t get() const noexcept { return handle_; }
 
+        friend void swap(Array &lhs, Array &rhs) noexcept {
+            using std::swap;
+            swap(lhs.handle_, rhs.handle_);
+        }
+
     private:
-        cudaMipmappedArray_t handle_;
+        cudaMipmappedArray_t handle_{};
     };
 
     /// Device storage of one image.

@@ -83,7 +83,7 @@ public:
         requires(std::is_convertible_v<U *, T *>)
     Ref(Ref<U> const &other) noexcept : Ref(other.pointer_) {}
 
-    Ref(Ref &&other) noexcept : pointer_(std::exchange(other.pointer_, nullptr)) {}
+    Ref(Ref &&other) noexcept { swap(*this, other); }
 
     template <typename U>
         requires(std::is_convertible_v<U *, T *>)

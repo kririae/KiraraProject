@@ -29,7 +29,7 @@ using flux::TriangleMesh;
 /// Owns a CUDA stream and an OptiX context for one test.
 class Device {
 public:
-    Device() {
+    Device() : Device(EmptyState{}) {
         flux::cudaCheck(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
         flux::optixCheck(optixInit());
         OptixDeviceContextOptions options{};
@@ -38,12 +38,19 @@ public:
     Device(Device const &) = delete;
     Device &operator=(Device const &) = delete;
     ~Device() {
-        flux::optixCheck<false>(optixDeviceContextDestroy(context));
-        flux::cudaCheck<false>(cudaStreamDestroy(stream));
+        if (context)
+            flux::optixCheck<false>(optixDeviceContextDestroy(context));
+        if (stream)
+            flux::cudaCheck<false>(cudaStreamDestroy(stream));
     }
 
     cudaStream_t stream{};
     OptixDeviceContext context{};
+
+private:
+    struct EmptyState {};
+
+    explicit Device(EmptyState) noexcept {}
 };
 
 /// Requires the device array \p got to hold the \p count elements of the host array \p want, and

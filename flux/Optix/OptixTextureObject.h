@@ -15,10 +15,10 @@ class CudaTextureObject final : private Noncopyable {
 public:
     CudaTextureObject() noexcept = default;
     explicit CudaTextureObject(cudaTextureObject_t handle) noexcept : handle_(handle) {}
-    CudaTextureObject(CudaTextureObject &&other) noexcept
-        : handle_(std::exchange(other.handle_, cudaTextureObject_t{})) {}
+    CudaTextureObject(CudaTextureObject &&other) noexcept { swap(*this, other); }
     CudaTextureObject &operator=(CudaTextureObject &&other) noexcept {
-        std::swap(handle_, other.handle_);
+        CudaTextureObject replacement(std::move(other));
+        swap(*this, replacement);
         return *this;
     }
     ~CudaTextureObject() {
@@ -27,6 +27,11 @@ public:
     }
 
     [[nodiscard]] cudaTextureObject_t get() const noexcept { return handle_; }
+
+    friend void swap(CudaTextureObject &lhs, CudaTextureObject &rhs) noexcept {
+        using std::swap;
+        swap(lhs.handle_, rhs.handle_);
+    }
 
 private:
     cudaTextureObject_t handle_{};

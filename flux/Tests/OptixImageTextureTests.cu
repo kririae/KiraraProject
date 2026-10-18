@@ -277,6 +277,21 @@ TEST_F(OptixImageTextureTests, KeepsPointFilteredView) {
     EXPECT_EQ(sample({0.49F, 0.25F}, true), (flux::Vec4f{0.0F, 0.0F, 1.0F, 1.0F}));
 }
 
+TEST_F(OptixImageTextureTests, MoveKeepsTheHandleAndEmptiesTheSource) {
+    build(std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "Texture2x2.ppm");
+    auto const handle = filtered.get();
+    ASSERT_NE(handle, cudaTextureObject_t{});
+    ASSERT_NE(point.get(), cudaTextureObject_t{});
+
+    flux::CudaTextureObject moved(std::move(filtered));
+    EXPECT_EQ(moved.get(), handle);
+    EXPECT_EQ(filtered.get(), cudaTextureObject_t{});
+
+    point = std::move(moved);
+    EXPECT_EQ(point.get(), handle);
+    EXPECT_EQ(moved.get(), cudaTextureObject_t{});
+}
+
 TEST_F(OptixImageTextureTests, WrapsCoordinates) {
     build(std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "Texture2x2.ppm", "srgb");
 

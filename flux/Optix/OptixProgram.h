@@ -60,10 +60,13 @@ public:
     }
 
 private:
+    struct EmptyState {};
+
+    OptixProgram(EmptyState, OptixDeviceContext deviceContext, OptixProgramSpec spec) noexcept;
+
     void buildModule(std::filesystem::path const &modulePath);
     void buildProgramGroups();
     void buildPipeline();
-    void reset() noexcept;
 
     OptixDeviceContext deviceContext_;
     OptixProgramSpec spec_;

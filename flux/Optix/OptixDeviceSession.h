@@ -41,8 +41,6 @@ public:
 private:
     struct EmptyState {};
 
-    // Completing this target constructor makes the destructor responsible for
-    // resources acquired before the public constructor body throws.
     explicit OptixDeviceSession(EmptyState) noexcept {}
 
     /// Null, or the primary context of \c device_ with one reference held by this session.
