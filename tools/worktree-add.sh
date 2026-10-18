@@ -24,7 +24,7 @@ if ! git diff --quiet HEAD "$commit" -- vcpkg.json vcpkg-configuration.json vcpk
 fi
 
 git worktree add --detach "$path" "$commit"
-# worktree-remove.sh removes only worktrees that carry this marker.
+# worktree-remove.sh reads this marker.
 touch "$(git -C "$path" rev-parse --absolute-git-dir)/krr-disposable"
 
 # Share the .scratch of the main worktree, which git lists first.
