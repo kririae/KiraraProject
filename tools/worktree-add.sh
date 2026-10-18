@@ -27,6 +27,11 @@ git worktree add --detach "$path" "$commit"
 # worktree-remove.sh removes only worktrees that carry this marker.
 touch "$(git -C "$path" rev-parse --absolute-git-dir)/krr-disposable"
 
+# Share the .scratch of the main worktree, which git lists first.
+main=$(git worktree list --porcelain | sed -n "1s/^worktree //p")
+mkdir -p "$main/.scratch"
+ln -s "$main/.scratch" "$path/.scratch"
+
 # vcpkg never runs in the new worktree. Its submodule stays empty.
 options=(-DCMAKE_TOOLCHAIN_FILE="$toolchain" -DVCPKG_MANIFEST_INSTALL=OFF
          -DVCPKG_INSTALLED_DIR="$installed")
