@@ -14,6 +14,7 @@ A question is not a request. When the user asks a question, answer it and stop. 
 
 ## Decide
 
+- Before you design a change, or choose its structure, follow [design](.agents/skills/design/SKILL.md).
 - Before you gather facts from code, documents, or other repositories, or send a scout to gather them, follow [survey](.agents/skills/survey/SKILL.md).
 
 ## Workflow
@@ -36,7 +37,6 @@ A commit message is one descriptive Conventional Commits subject line, optionall
 
 ## Design
 
-- Review a feature's design before implementing it and again before delivering it: is it the simplest design, and does it fit the existing structure? Complexity it adds, such as duplicated state, a parallel code path, or extra failure handling, usually means a misplaced seam. Look for the seam that makes it disappear.
 - The scene is the source of truth, so its edits give the strong exception guarantee: an edit that throws leaves the Context unchanged. State derived from the scene, such as a backend, gives only the basic guarantee: after an exception it stays valid and destructible, and the caller recovers, for example by creating a new backend. Never add a rollback, a staging copy, or any other mechanism that keeps derived state, such as the OptiX scene, as it was before a failure.
 - FLux core never depends on Hydra. Its API ends at core types such as `Film`.
 - hdFlux is a general Hydra delegate. Adapt to a host's convention in one place, and name the host there.
