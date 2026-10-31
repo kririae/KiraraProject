@@ -10,7 +10,6 @@
 #include <pxr/imaging/hd/tokens.h>
 
 #include <algorithm>
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -20,6 +19,7 @@
 #include <stdexcept>
 
 #include "flux/Hydra/RenderParam.h"
+#include "flux/Hydra/Transform.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/TriangleMesh.h"
@@ -66,15 +66,6 @@ triangulate(HdMeshTopology const &topology, SdfPath const &id) {
     return buffer;
 }
 
-/// Returns the row-major 3x4 matrix that maps column vectors as \p matrix maps row vectors.
-[[nodiscard]] std::array<float, 12> toTransform(GfMatrix4d const &matrix) {
-    std::array<float, 12> transform{};
-    for (int row = 0; row < 3; ++row)
-        for (int column = 0; column < 4; ++column)
-            transform[4 * row + column] = static_cast<float>(matrix[column][row]);
-    return transform;
-}
-
 void removePrimitive(flux::Context &context, flux::Ref<flux::Primitive> &primitive) {
     if (!primitive)
         return;
@@ -84,7 +75,8 @@ void removePrimitive(flux::Context &context, flux::Ref<flux::Primitive> &primiti
 }
 } // namespace
 
-HdFluxMesh::HdFluxMesh(SdfPath const &id) : HdMesh(id), transform_(toTransform(GfMatrix4d{1.0})) {}
+HdFluxMesh::HdFluxMesh(SdfPath const &id)
+    : HdMesh(id), transform_(HdFluxToTransform(GfMatrix4d{1.0})) {}
 
 HdFluxMesh::~HdFluxMesh() = default;
 
@@ -104,7 +96,7 @@ void HdFluxMesh::Sync(
     _UpdateInstancer(sceneDelegate, dirtyBits);
 
     if (HdChangeTracker::IsTransformDirty(*dirtyBits, id))
-        transform_ = toTransform(sceneDelegate->GetTransform(id));
+        transform_ = HdFluxToTransform(sceneDelegate->GetTransform(id));
     if (HdChangeTracker::IsVisibilityDirty(*dirtyBits, id))
         _UpdateVisibility(sceneDelegate, dirtyBits);
 
