@@ -1,5 +1,6 @@
 #include "flux/Hydra/Mesh.h"
 
+#include <pxr/base/gf/matrix4d.h>
 #include <pxr/base/tf/diagnostic.h>
 #include <pxr/base/vt/array.h>
 #include <pxr/imaging/hd/changeTracker.h>
@@ -9,6 +10,7 @@
 #include <pxr/imaging/hd/tokens.h>
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -64,6 +66,15 @@ triangulate(HdMeshTopology const &topology, SdfPath const &id) {
     return buffer;
 }
 
+/// Returns the row-major 3x4 matrix that maps column vectors as \p matrix maps row vectors.
+[[nodiscard]] std::array<float, 12> toTransform(GfMatrix4d const &matrix) {
+    std::array<float, 12> transform{};
+    for (int row = 0; row < 3; ++row)
+        for (int column = 0; column < 4; ++column)
+            transform[4 * row + column] = static_cast<float>(matrix[column][row]);
+    return transform;
+}
+
 void removePrimitive(flux::Context &context, flux::Ref<flux::Primitive> &primitive) {
     if (!primitive)
         return;
@@ -73,13 +84,14 @@ void removePrimitive(flux::Context &context, flux::Ref<flux::Primitive> &primiti
 }
 } // namespace
 
-HdFluxMesh::HdFluxMesh(SdfPath const &id) : HdMesh(id) {}
+HdFluxMesh::HdFluxMesh(SdfPath const &id) : HdMesh(id), transform_(toTransform(GfMatrix4d{1.0})) {}
 
 HdFluxMesh::~HdFluxMesh() = default;
 
 HdDirtyBits HdFluxMesh::GetInitialDirtyBitsMask() const {
     return HdChangeTracker::Clean | HdChangeTracker::InitRepr | HdChangeTracker::DirtyPoints |
-           HdChangeTracker::DirtyTopology | HdChangeTracker::DirtyInstancer;
+           HdChangeTracker::DirtyTopology | HdChangeTracker::DirtyTransform |
+           HdChangeTracker::DirtyVisibility | HdChangeTracker::DirtyInstancer;
 }
 
 void HdFluxMesh::Sync(
@@ -90,6 +102,11 @@ void HdFluxMesh::Sync(
     auto &param = *static_cast<HdFluxRenderParam *>(renderParam);
 
     _UpdateInstancer(sceneDelegate, dirtyBits);
+
+    if (HdChangeTracker::IsTransformDirty(*dirtyBits, id))
+        transform_ = toTransform(sceneDelegate->GetTransform(id));
+    if (HdChangeTracker::IsVisibilityDirty(*dirtyBits, id))
+        _UpdateVisibility(sceneDelegate, dirtyBits);
 
     try {
         auto const context = param.GetContext();
@@ -123,6 +140,11 @@ void HdFluxMesh::Sync(
                 primitive_ = context->create<flux::Primitive>(mesh);
                 primitive_->setBSDF(param.GetFallbackBSDF());
             }
+        }
+
+        if (primitive_) {
+            primitive_->setTransform(transform_);
+            primitive_->setVisible(IsVisible());
         }
     } catch (std::exception const &error) { TF_WARN("%s: %s", id.GetText(), error.what()); }
 

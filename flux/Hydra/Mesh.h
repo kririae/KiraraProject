@@ -2,6 +2,8 @@
 
 #include <pxr/imaging/hd/mesh.h>
 
+#include <array>
+
 #include "flux/Core/HostBuffer.h"
 #include "flux/Core/Math.h"
 #include "flux/Core/Object.h"
@@ -37,6 +39,9 @@ private:
     /// Both buffers are null when empty. The vertex buffer has spare capacity.
     flux::Shared<flux::HostBuffer<flux::Vec3f>> points_;
     flux::Shared<flux::HostBuffer<flux::Vec3u>> triangles_;
+
+    /// The last transform that Hydra gave, in the form of \c flux::Primitive.
+    std::array<float, 12> transform_;
 
     /// Null when the mesh is not rendered.
     flux::Ref<flux::Primitive> primitive_;

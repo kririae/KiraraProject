@@ -13,6 +13,7 @@
 #include <pxr/imaging/hd/engine.h>
 #include <pxr/imaging/hd/meshSchema.h>
 #include <pxr/imaging/hd/meshTopologySchema.h>
+#include <pxr/imaging/hd/overlayContainerDataSource.h>
 #include <pxr/imaging/hd/pluginRenderDelegateUniqueHandle.h>
 #include <pxr/imaging/hd/primvarSchema.h>
 #include <pxr/imaging/hd/primvarsSchema.h>
@@ -123,6 +124,21 @@ VtVec3fArray makeQuad(float x) {
         GfVec3f{x + 1.0F, 1.0F, 0.0F},
         GfVec3f{x - 1.0F, 1.0F, 0.0F},
     };
+}
+
+HdContainerDataSourceHandle translateAlongX(HdContainerDataSourceHandle const &prim, double x) {
+    GfMatrix4d transform{1.0};
+    transform.SetTranslate(GfVec3d{x, 0.0, 0.0});
+
+    return HdOverlayContainerDataSource::New(
+        HdRetainedContainerDataSource::New(
+            HdXformSchema::GetSchemaToken(),
+            HdXformSchema::Builder()
+                .SetMatrix(HdRetainedTypedSampledDataSource<GfMatrix4d>::New(transform))
+                .Build()
+        ),
+        prim
+    );
 }
 
 /// Holds points that the test can change after the scene read them.
@@ -548,5 +564,26 @@ TEST_F(RenderTests, KeepsRenderingWhenTheMeshContentIsInvalid) {
 
     executeToConvergence();
 
+    EXPECT_EQ(centerNormal(normal), GfVec3f{0.0F});
+}
+
+TEST_F(RenderTests, KeepsTheTransformOfAMeshThatLosesItsPointsAndGetsThemAgain) {
+    auto *const normal = bindNormal();
+    auto const points = std::make_shared<EditablePoints>(makeQuad(0.0F));
+    scene_->AddPrims({{meshPath, HdPrimTypeTokens->mesh, translateAlongX(makeMesh(points), 1.5)}});
+    executeToConvergence();
+    EXPECT_NEAR(vectorAt(normal, 48)[2], 1.0F, 1e-4F);
+    EXPECT_EQ(centerNormal(normal), GfVec3f{0.0F});
+
+    points->set(VtVec3fArray{});
+    scene_->DirtyPrims({{meshPath, HdPrimvarsSchema::GetPointsLocator()}});
+    executeToConvergence();
+    EXPECT_EQ(vectorAt(normal, 48), GfVec3f{0.0F});
+
+    points->set(makeQuad(0.0F));
+    scene_->DirtyPrims({{meshPath, HdPrimvarsSchema::GetPointsLocator()}});
+    executeToConvergence();
+
+    EXPECT_NEAR(vectorAt(normal, 48)[2], 1.0F, 1e-4F);
     EXPECT_EQ(centerNormal(normal), GfVec3f{0.0F});
 }
