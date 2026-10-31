@@ -123,6 +123,30 @@ makeMesh(VtVec3fArray const &points, VtIntArray const &indices = VtIntArray{0, 1
     return makeMesh(HdRetainedTypedSampledDataSource<VtVec3fArray>::New(points), indices);
 }
 
+HdContainerDataSourceHandle withFaceVaryingNormals(
+    HdContainerDataSourceHandle const &prim,
+    HdTypedSampledDataSource<VtVec3fArray>::Handle const &normals
+) {
+    return HdOverlayContainerDataSource::New(
+        HdRetainedContainerDataSource::New(
+            HdPrimvarsSchema::GetSchemaToken(),
+            HdRetainedContainerDataSource::New(
+                HdPrimvarsSchemaTokens->normals,
+                HdPrimvarSchema::Builder()
+                    .SetPrimvarValue(normals)
+                    .SetInterpolation(
+                        HdPrimvarSchema::BuildInterpolationDataSource(
+                            HdPrimvarSchemaTokens->faceVarying
+                        )
+                    )
+                    .SetRole(HdPrimvarSchema::BuildRoleDataSource(HdPrimvarSchemaTokens->normal))
+                    .Build()
+            )
+        ),
+        prim
+    );
+}
+
 /// Returns the 2x2 quad at z = 0 whose center is at x = \p x. It faces +Z.
 VtVec3fArray makeQuad(float x) {
     return {
@@ -521,6 +545,26 @@ TEST_F(RenderTests, MovesTheHitWhenOnlyThePointsChange) {
 
     EXPECT_NEAR(vectorAt(normal, 48)[2], 1.0F, 1e-4F);
     EXPECT_EQ(centerNormal(normal), GfVec3f{0.0F});
+}
+
+TEST_F(RenderTests, RendersTheNewNormalsWhenOnlyTheNormalsChange) {
+    auto *const normal = bindNormal();
+    auto const normals =
+        std::make_shared<EditableArray>(VtVec3fArray(4, GfVec3f{0.0F, 0.6F, 0.8F}));
+    scene_->AddPrims(
+        {{meshPath, HdPrimTypeTokens->mesh,
+          withFaceVaryingNormals(makeMesh(makeQuad(0.0F)), normals)}}
+    );
+    executeToConvergence();
+    EXPECT_NEAR(centerNormal(normal)[1], 0.6F, 1e-4F);
+    EXPECT_NEAR(centerNormal(normal)[2], 0.8F, 1e-4F);
+
+    normals->set(VtVec3fArray(4, GfVec3f{0.6F, 0.0F, 0.8F}));
+    scene_->DirtyPrims({{meshPath, HdPrimvarsSchema::GetNormalsLocator()}});
+    executeToConvergence();
+
+    EXPECT_NEAR(centerNormal(normal)[0], 0.6F, 1e-4F);
+    EXPECT_NEAR(centerNormal(normal)[2], 0.8F, 1e-4F);
 }
 
 TEST_F(RenderTests, RendersAMeshThatGetsPointsAfterItHadNone) {

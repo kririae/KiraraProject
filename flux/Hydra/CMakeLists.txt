@@ -38,6 +38,7 @@ target_link_libraries(
            Houdini::Dep::pxr_hd
            Houdini::Dep::pxr_hf
            Houdini::Dep::pxr_plug
+           Houdini::Dep::pxr_pxOsd
            Houdini::Dep::pxr_python
            Houdini::Dep::pxr_sdf
            Houdini::Dep::pxr_tf

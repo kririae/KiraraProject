@@ -1,6 +1,8 @@
 #pragma once
 
+#include <pxr/base/vt/array.h>
 #include <pxr/imaging/hd/mesh.h>
+#include <pxr/imaging/hd/meshTopology.h>
 
 #include <array>
 
@@ -33,9 +35,13 @@ protected:
     pxr::HdDirtyBits _PropagateDirtyBits(pxr::HdDirtyBits bits) const override;
 
 private:
-    /// Both buffers are null when empty. The vertex buffer has spare capacity.
+    /// Null when empty. The buffer has spare capacity.
     flux::Shared<flux::HostBuffer<flux::Vec3f>> points_;
+    pxr::HdMeshTopology topology_;
+
+    /// Null when empty.
     flux::Shared<flux::HostBuffer<flux::Vec3u>> triangles_;
+    pxr::VtIntArray trianglePrimitiveParams_;
 
     /// The last transform that Hydra gave, in the form of \c flux::Primitive.
     std::array<float, 12> transform_;
