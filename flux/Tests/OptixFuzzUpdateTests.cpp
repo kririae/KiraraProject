@@ -26,6 +26,7 @@
 
 #include <gtest/gtest.h>
 
+#include <Eigen/Geometry>
 #include <algorithm>
 #include <array>
 #include <charconv>
@@ -80,8 +81,10 @@ namespace {
 using flux::Spectrum;
 using flux::Vec3f;
 using Xf = std::array<float, 12>;
+using Rotation = std::array<float, 9>;
 
 constexpr std::uint32_t imageSize = 8;
+constexpr float pi = std::numbers::pi_v<float>;
 
 /// An image file a texture may read, relative to the fixtures, and its color components.
 struct ImageFile {
@@ -126,6 +129,19 @@ enum class Kind : std::uint8_t {
     return {c, -s, 0.0F, t.x(), s, c, 0.0F, t.y(), 0.0F, 0.0F, scale, t.z()};
 }
 
+[[nodiscard]] Rotation makeRotation(Vec3f const &angles) {
+    using Eigen::AngleAxisf;
+    using Eigen::Vector3f;
+    auto const product =
+        (AngleAxisf{angles.x(), Vector3f::UnitX()} * AngleAxisf{angles.y(), Vector3f::UnitY()} *
+         AngleAxisf{angles.z(), Vector3f::UnitZ()})
+            .toRotationMatrix();
+
+    Rotation result{};
+    Eigen::Map<Eigen::Matrix<float, 3, 3, Eigen::RowMajor>>{result.data()} = product;
+    return result;
+}
+
 [[nodiscard]] std::string text(Xf const &xf) {
     return std::format(
         "[{:.2f} {:.2f} {:.2f} {:.2f} | {:.2f} {:.2f} {:.2f} {:.2f} | {:.2f} {:.2f} {:.2f} {:.2f}]",
@@ -135,6 +151,13 @@ enum class Kind : std::uint8_t {
 
 [[nodiscard]] std::string text(Vec3f const &v) {
     return std::format("({:.2f} {:.2f} {:.2f})", v.x(), v.y(), v.z());
+}
+
+[[nodiscard]] std::string text(Rotation const &r) {
+    return std::format(
+        "[{:.2f} {:.2f} {:.2f} | {:.2f} {:.2f} {:.2f} | {:.2f} {:.2f} {:.2f}]", r[0], r[1], r[2],
+        r[3], r[4], r[5], r[6], r[7], r[8]
+    );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -160,7 +183,7 @@ struct Spec {
     struct Env {
         Spectrum scale;
         std::optional<Image> image;
-        Vec3f rotation{};
+        Rotation rotation{1.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 1.0F};
     };
 
     /// A diffuse or principled BSDF, whose color is \c color or, when set, \c image.
@@ -325,10 +348,11 @@ createPoint(flux::Context &context, Spec::Point const &point) {
 [[nodiscard]] flux::Ref<flux::EnvMapLight> createEnv(flux::Context &context, Spec::Env const &env) {
     kira::Properties props;
     props.set("scale", env.scale);
-    props.set("rotation", env.rotation);
     if (env.image)
         props.set("texture", textureProperties(*env.image));
-    return context.create<flux::EnvMapLight>(props);
+    auto light = context.create<flux::EnvMapLight>(props);
+    light->setRotation(env.rotation);
+    return light;
 }
 
 [[nodiscard]] flux::Ref<flux::PathIntegrator>
@@ -720,7 +744,7 @@ public:
         model.env->image = image;
     }
 
-    void rotateEnv(Vec3f const &rotation) {
+    void rotateEnv(Rotation const &rotation) {
         note("set the environment rotation to {}", text(rotation));
         context->get<flux::EnvMapLight>(*ids.env)->setRotation(rotation);
         model.env->rotation = rotation;
@@ -1214,7 +1238,7 @@ const std::array ops = {
            r.retextureEnv(image);
        }},
     Op{"rotate environment map", 1, [](Spec const &m) { return m.env.has_value(); },
-       [](Rig &r, Gen &g) { r.rotateEnv(g.point(-180.0F, 180.0F, -180.0F, 180.0F)); }},
+       [](Rig &r, Gen &g) { r.rotateEnv(makeRotation(g.point(-pi, pi, -pi, pi))); }},
     Op{"unset environment map", 1, [](Spec const &m) { return m.env.has_value(); },
        [](Rig &r, Gen &g) { r.unsetEnv(g.chance(50)); }},
     Op{"switch integrator", 1, [](Spec const &) { return true; },
@@ -1481,7 +1505,7 @@ TEST(OptixFuzzUpdateTests, FollowsEveryInputOfTheEnvironmentDistribution) {
     rig.scaleEnv(scale);
     (void)rig.frame();
 
-    rig.rotateEnv({30.0F, 90.0F, 0.0F});
+    rig.rotateEnv(makeRotation({0.5F, pi / 2.0F, 0.0F}));
     (void)rig.frame();
 
     // A zero scale leaves no distribution to sample, and a positive one brings it back.

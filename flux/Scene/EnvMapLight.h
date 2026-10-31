@@ -10,6 +10,9 @@
 
 namespace flux {
 /// \brief Environment-map light.
+///
+/// \par Properties
+/// - \c rotation: optional Euler angles in degrees, applied about X, then Y, then Z.
 class EnvMapLight final : public Light {
     friend class TXContext;
 
@@ -38,11 +41,13 @@ public:
     /// Sets the radiance scale.
     void setScale(Spectrum const &scale);
 
-    /// Euler rotation in degrees, applied around X, Y, then Z.
-    [[nodiscard]] Vec3f const &getRotation() const noexcept { return rotation_; }
+    /// \brief Returns the row-major rotation from the environment map's frame to world space.
+    [[nodiscard]] std::array<float, 9> const &getRotation() const noexcept { return rotation_; }
 
-    /// Sets the Euler rotation in degrees.
-    void setRotation(Vec3f const &rotation);
+    /// \brief Replaces the rotation from the environment map's frame to world space.
+    ///
+    /// \pre \p rotation is a rotation: orthonormal, with determinant +1.
+    void setRotation(std::array<float, 9> const &rotation);
 
     /// \brief Builds the runtime light using backend-owned sampling data.
     [[nodiscard]] Impl getImpl(Distribution2D distribution) const;
@@ -54,7 +59,7 @@ private:
 
     Ref<Texture const> texture_;
     Spectrum scale_{1.0F, 1.0F, 1.0F};
-    Vec3f rotation_{};
+    std::array<float, 9> rotation_{1.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 1.0F};
 };
 
 struct EnvMapLight::Impl {

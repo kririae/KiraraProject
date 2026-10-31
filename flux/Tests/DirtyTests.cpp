@@ -101,7 +101,7 @@ TEST(DirtyTests, EnvMapLightSettersRecordTheirBits) {
     EXPECT_EQ(flux::getDirtyBits(*light), Bits::Scale);
     context->clearDirty();
 
-    light->setRotation({10.0F, 0.0F, 0.0F});
+    light->setRotation({0.0F, -1.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F});
     EXPECT_EQ(flux::getDirtyBits(*light), Bits::Rotation);
 }
 

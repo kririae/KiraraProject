@@ -117,6 +117,18 @@ TEST(LightTests, AppliesEnvironmentMapRotationInDegreesAndXYZOrder) {
     EXPECT_NEAR(sample.wi.z(), 1.0F, 1.0e-6F);
 }
 
+TEST(LightTests, RotationMapsTheEnvironmentFrameToWorld) {
+    auto context = flux::Context::create();
+    auto map = context->create<flux::EnvMapLight>(kira::Properties{});
+    map->setRotation({0.0F, -1.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F});
+
+    auto const sample = map->getImpl({}).sampleDirect<UVTextureEvaluator>({}, {0.25F, 0.5F});
+
+    EXPECT_NEAR(sample.wi.x(), 0.0F, 1.0e-6F);
+    EXPECT_NEAR(sample.wi.y(), -1.0F, 1.0e-6F);
+    EXPECT_NEAR(sample.wi.z(), 0.0F, 1.0e-6F);
+}
+
 TEST(LightTests, KeepsImageEnvironmentPDFConsistent) {
     auto const condCDF = std::array{0.25F, 1.0F, 1.0F / 3.0F, 1.0F};
     auto const rowCDF = std::array{0.4F, 1.0F};
