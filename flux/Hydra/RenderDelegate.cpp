@@ -11,6 +11,7 @@
 #include <memory>
 
 #include "flux/Hydra/AovMapping.h"
+#include "flux/Hydra/Light.h"
 #include "flux/Hydra/Mesh.h"
 #include "flux/Hydra/RenderBuffer.h"
 #include "flux/Hydra/RenderParam.h"
@@ -41,7 +42,8 @@ pxr::TfTokenVector const &HdFluxRenderDelegate::GetSupportedRprimTypes() const {
 }
 
 pxr::TfTokenVector const &HdFluxRenderDelegate::GetSupportedSprimTypes() const {
-    static auto const types = pxr::TfTokenVector{pxr::HdPrimTypeTokens->camera};
+    static auto const types =
+        pxr::TfTokenVector{pxr::HdPrimTypeTokens->camera, pxr::HdPrimTypeTokens->rectLight};
     return types;
 }
 
@@ -82,6 +84,8 @@ pxr::HdSprim *
 HdFluxRenderDelegate::CreateSprim(pxr::TfToken const &typeId, pxr::SdfPath const &sprimId) {
     if (typeId == pxr::HdPrimTypeTokens->camera)
         return new pxr::HdCamera(sprimId);
+    if (typeId == pxr::HdPrimTypeTokens->rectLight)
+        return new HdFluxLight(sprimId);
     return nullptr;
 }
 

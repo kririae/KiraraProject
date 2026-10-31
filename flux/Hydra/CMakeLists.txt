@@ -13,6 +13,7 @@ add_library(
     flux_hydra STATIC
     AovMapping.cpp
     Camera.cpp
+    Light.cpp
     Mesh.cpp
     RenderBuffer.cpp
     RenderDelegate.cpp

@@ -4,6 +4,7 @@
 #include <pxr/base/gf/vec2f.h>
 #include <pxr/base/gf/vec3d.h>
 #include <pxr/base/gf/vec3f.h>
+#include <pxr/base/gf/vec4d.h>
 #include <pxr/base/gf/vec4f.h>
 #include <pxr/base/plug/registry.h>
 #include <pxr/imaging/cameraUtil/framing.h>
@@ -11,6 +12,8 @@
 #include <pxr/imaging/hd/cameraSchema.h>
 #include <pxr/imaging/hd/dataSource.h>
 #include <pxr/imaging/hd/engine.h>
+#include <pxr/imaging/hd/light.h>
+#include <pxr/imaging/hd/lightSchema.h>
 #include <pxr/imaging/hd/meshSchema.h>
 #include <pxr/imaging/hd/meshTopologySchema.h>
 #include <pxr/imaging/hd/overlayContainerDataSource.h>
@@ -49,6 +52,7 @@ constexpr int height{32};
 
 SdfPath const cameraPath{"/cam"};
 SdfPath const meshPath{"/mesh"};
+SdfPath const lightPath{"/light"};
 
 /// Returns a perspective camera that looks down -Z from \p z.
 HdContainerDataSourceHandle makeCamera(double z) {
@@ -586,4 +590,47 @@ TEST_F(RenderTests, KeepsTheTransformOfAMeshThatLosesItsPointsAndGetsThemAgain) 
 
     EXPECT_NEAR(vectorAt(normal, 48)[2], 1.0F, 1e-4F);
     EXPECT_EQ(centerNormal(normal), GfVec3f{0.0F});
+}
+
+namespace {
+/// It emits toward +Z.
+HdContainerDataSourceHandle makeNormalizedLight(float size, double scale) {
+    return HdRetainedContainerDataSource::New(
+        HdLightSchema::GetSchemaToken(),
+        HdRetainedContainerDataSource::New(
+            HdLightTokens->normalize, HdRetainedTypedSampledDataSource<bool>::New(true),
+            HdLightTokens->width, HdRetainedTypedSampledDataSource<float>::New(size),
+            HdLightTokens->height, HdRetainedTypedSampledDataSource<float>::New(size)
+        ),
+        HdXformSchema::GetSchemaToken(),
+        HdXformSchema::Builder()
+            .SetMatrix(
+                HdRetainedTypedSampledDataSource<GfMatrix4d>::New(
+                    GfMatrix4d{GfVec4d{-scale, scale, -scale, 1.0}}
+                )
+            )
+            .Build()
+    );
+}
+} // namespace
+
+TEST_F(RenderTests, DividesTheRadianceOfAnEditedNormalizedLightByItsNewArea) {
+    auto const centerRed = [this] {
+        auto const *const pixels = static_cast<float const *>(buffer_->Map());
+        auto const red = pixels[4 * ((height / 2) * width + width / 2)];
+        buffer_->Unmap();
+        return red;
+    };
+
+    scene_->AddPrims({{lightPath, HdPrimTypeTokens->rectLight, makeNormalizedLight(1.0F, 1.0)}});
+    executeToConvergence();
+    EXPECT_EQ(centerRed(), 1.0F);
+
+    scene_->AddPrims({{lightPath, HdPrimTypeTokens->rectLight, makeNormalizedLight(2.0F, 2.0)}});
+    scene_->DirtyPrims(
+        {{lightPath, HdLightSchema::GetDefaultLocator()},
+         {lightPath, HdXformSchema::GetDefaultLocator()}}
+    );
+    executeToConvergence();
+    EXPECT_EQ(centerRed(), 0.0625F);
 }
