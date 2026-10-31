@@ -13,6 +13,7 @@
 #include "flux/Hydra/AovMapping.h"
 #include "flux/Hydra/AreaLight.h"
 #include "flux/Hydra/DomeLight.h"
+#include "flux/Hydra/Material.h"
 #include "flux/Hydra/Mesh.h"
 #include "flux/Hydra/RenderBuffer.h"
 #include "flux/Hydra/RenderParam.h"
@@ -47,6 +48,7 @@ pxr::TfTokenVector const &HdFluxRenderDelegate::GetSupportedSprimTypes() const {
         pxr::HdPrimTypeTokens->camera,      pxr::HdPrimTypeTokens->domeLight,
         pxr::HdPrimTypeTokens->rectLight,   pxr::HdPrimTypeTokens->diskLight,
         pxr::HdPrimTypeTokens->sphereLight, pxr::HdPrimTypeTokens->cylinderLight,
+        pxr::HdPrimTypeTokens->material,
     };
     return Types;
 }
@@ -55,6 +57,8 @@ pxr::TfTokenVector const &HdFluxRenderDelegate::GetSupportedBprimTypes() const {
     static auto const Types = pxr::TfTokenVector{pxr::HdPrimTypeTokens->renderBuffer};
     return Types;
 }
+
+pxr::TfToken HdFluxRenderDelegate::GetMaterialBindingPurpose() const { return pxr::HdTokens->full; }
 
 pxr::HdResourceRegistrySharedPtr HdFluxRenderDelegate::GetResourceRegistry() const {
     return resourceRegistry_;
@@ -94,6 +98,8 @@ HdFluxRenderDelegate::CreateSprim(pxr::TfToken const &typeId, pxr::SdfPath const
         typeId == pxr::HdPrimTypeTokens->sphereLight ||
         typeId == pxr::HdPrimTypeTokens->cylinderLight)
         return new HdFluxAreaLight(sprimId, typeId);
+    if (typeId == pxr::HdPrimTypeTokens->material)
+        return new HdFluxMaterial(sprimId);
     return nullptr;
 }
 

@@ -15,7 +15,9 @@ add_library(
     AreaLight.cpp
     Camera.cpp
     DomeLight.cpp
+    Material.cpp
     Mesh.cpp
+    PreviewSurface.cpp
     Radiance.cpp
     RenderBuffer.cpp
     RenderDelegate.cpp

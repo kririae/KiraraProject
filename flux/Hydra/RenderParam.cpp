@@ -4,6 +4,7 @@
 
 #include <exception>
 
+#include "flux/Hydra/PreviewSurface.h"
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Context.h"
@@ -21,9 +22,9 @@ flux::Ref<flux::Context> makeContext() {
 }
 
 flux::Ref<flux::BSDF const> makeFallbackBSDF(flux::Context &context) {
-    kira::Properties props;
-    props.set("R", 0.5F);
-    return context.create<flux::DiffuseBSDF>(props);
+    auto bsdf = context.create<flux::PrincipledBSDF>(kira::Properties{});
+    HdFluxWritePreviewSurface(context, *bsdf, HdFluxPreviewSurface{});
+    return bsdf;
 }
 } // namespace
 

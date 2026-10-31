@@ -25,6 +25,8 @@ public:
     pxr::TfTokenVector const &GetSupportedSprimTypes() const override;
     pxr::TfTokenVector const &GetSupportedBprimTypes() const override;
 
+    pxr::TfToken GetMaterialBindingPurpose() const override;
+
     pxr::HdResourceRegistrySharedPtr GetResourceRegistry() const override;
 
     pxr::HdRenderParam *GetRenderParam() const override;

@@ -6,6 +6,7 @@
 #include <pxr/imaging/hd/changeTracker.h>
 #include <pxr/imaging/hd/meshTopology.h>
 #include <pxr/imaging/hd/meshUtil.h>
+#include <pxr/imaging/hd/renderIndex.h>
 #include <pxr/imaging/hd/sceneDelegate.h>
 #include <pxr/imaging/hd/tokens.h>
 #include <pxr/imaging/pxOsd/tokens.h>
@@ -22,6 +23,7 @@
 #include <stdexcept>
 #include <string>
 
+#include "flux/Hydra/Material.h"
 #include "flux/Hydra/RenderParam.h"
 #include "flux/Hydra/Transform.h"
 #include "flux/Scene/Context.h"
@@ -174,6 +176,17 @@ void mapNormals(
     return data;
 }
 
+[[nodiscard]] flux::Ref<flux::BSDF const> findBSDF(
+    HdSceneDelegate &sceneDelegate, SdfPath const &materialId, HdFluxRenderParam const &param
+) {
+    auto const *const material = static_cast<HdFluxMaterial const *>(
+        sceneDelegate.GetRenderIndex().GetSprim(HdPrimTypeTokens->material, materialId)
+    );
+    if (!material || !material->GetBSDF())
+        return param.GetFallbackBSDF();
+    return material->GetBSDF();
+}
+
 void removePrimitive(flux::Context &context, flux::Ref<flux::Primitive> &primitive) {
     if (!primitive)
         return;
@@ -192,7 +205,7 @@ HdDirtyBits HdFluxMesh::GetInitialDirtyBitsMask() const {
     return HdChangeTracker::Clean | HdChangeTracker::InitRepr | HdChangeTracker::DirtyPoints |
            HdChangeTracker::DirtyNormals | HdChangeTracker::DirtyTopology |
            HdChangeTracker::DirtyTransform | HdChangeTracker::DirtyVisibility |
-           HdChangeTracker::DirtyInstancer;
+           HdChangeTracker::DirtyMaterialId | HdChangeTracker::DirtyInstancer;
 }
 
 void HdFluxMesh::Sync(
@@ -208,6 +221,9 @@ void HdFluxMesh::Sync(
         transform_ = HdFluxToTransform(sceneDelegate->GetTransform(id));
     if (HdChangeTracker::IsVisibilityDirty(*dirtyBits, id))
         _UpdateVisibility(sceneDelegate, dirtyBits);
+
+    if ((*dirtyBits & HdChangeTracker::DirtyMaterialId) != 0)
+        SetMaterialId(sceneDelegate->GetMaterialId(id));
 
     try {
         auto const context = param.GetContext();
@@ -241,17 +257,16 @@ void HdFluxMesh::Sync(
             );
             auto const mesh = context->create<flux::TriangleMesh>(std::move(data));
 
-            if (primitive_) {
+            if (primitive_)
                 primitive_->setGeometry(mesh);
-            } else {
+            else
                 primitive_ = context->create<flux::Primitive>(mesh);
-                primitive_->setBSDF(param.GetFallbackBSDF());
-            }
         }
 
         if (primitive_) {
             primitive_->setTransform(transform_);
             primitive_->setVisible(IsVisible());
+            primitive_->setBSDF(findBSDF(*sceneDelegate, GetMaterialId(), param));
         }
     } catch (std::exception const &error) { TF_WARN("%s: %s", id.GetText(), error.what()); }
 
