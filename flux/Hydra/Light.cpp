@@ -1,8 +1,5 @@
 #include "flux/Hydra/Light.h"
 
-#include <pxr/base/gf/color.h>
-#include <pxr/base/gf/colorSpace.h>
-#include <pxr/base/gf/vec3f.h>
 #include <pxr/base/tf/diagnostic.h>
 #include <pxr/imaging/hd/changeTracker.h>
 #include <pxr/imaging/hd/sceneDelegate.h>
@@ -21,6 +18,7 @@
 
 #include "flux/Core/HostBuffer.h"
 #include "flux/Core/MathUtils.h"
+#include "flux/Hydra/Radiance.h"
 #include "flux/Hydra/RenderParam.h"
 #include "flux/Hydra/Transform.h"
 #include "flux/Scene/Context.h"
@@ -177,17 +175,6 @@ worldArea(flux::TriangleMesh const &mesh, std::array<float, 12> const &transform
     return area;
 }
 
-[[nodiscard]] flux::Spectrum blackbody(float kelvin) {
-    static GfColorSpace const rec709{GfColorSpaceNames->LinearRec709};
-    static constexpr GfVec3f rec709Luminance{0.2126F, 0.7152F, 0.0722F};
-
-    GfColor color{rec709};
-    // The range of UsdLuxBlackbodyTemperatureAsRgb.
-    color.SetFromPlanckianLocus(std::clamp(kelvin, 1000.0F, 10000.0F), 1.0F);
-    auto const rgb = color.GetRGB() / GfDot(color.GetRGB(), rec709Luminance);
-    return {rgb[0], rgb[1], rgb[2]};
-}
-
 template <typename T>
 [[nodiscard]] T readParam(
     HdSceneDelegate &sceneDelegate, SdfPath const &id, TfToken const &token, T const &fallback
@@ -197,19 +184,9 @@ template <typename T>
 
 [[nodiscard]] flux::Spectrum
 readRadiance(HdSceneDelegate &sceneDelegate, SdfPath const &id, float area) {
-    auto const read = [&]<typename T>(TfToken const &token, T const &fallback) {
-        return readParam(sceneDelegate, id, token, fallback);
-    };
-
-    auto const color = read(HdLightTokens->color, GfVec3f{1.0F});
-    auto const scale =
-        read(HdLightTokens->intensity, 1.0F) * std::exp2(read(HdLightTokens->exposure, 0.0F));
-    auto radiance = flux::Spectrum{color[0], color[1], color[2]} * scale;
-
-    if (read(HdLightTokens->enableColorTemperature, false))
-        radiance = radiance * blackbody(read(HdLightTokens->colorTemperature, 6500.0F));
-    if (read(HdLightTokens->normalize, false) && area > 0.0F)
-        radiance = radiance / area;
+    auto const radiance = HdFluxReadRadiance(sceneDelegate, id);
+    if (readParam(sceneDelegate, id, HdLightTokens->normalize, false) && area > 0.0F)
+        return radiance / area;
     return radiance;
 }
 } // namespace

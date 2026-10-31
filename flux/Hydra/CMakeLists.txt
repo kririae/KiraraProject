@@ -15,6 +15,7 @@ add_library(
     Camera.cpp
     Light.cpp
     Mesh.cpp
+    Radiance.cpp
     RenderBuffer.cpp
     RenderDelegate.cpp
     RenderParam.cpp
