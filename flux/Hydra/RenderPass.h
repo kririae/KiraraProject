@@ -12,7 +12,7 @@
 
 class HdFluxRenderParam;
 
-/// \brief The render pass of the FLux delegate.
+/// \brief The interface to execute the rendering pipeline of FLux from Hydra.
 class HdFluxRenderPass final : public pxr::HdRenderPass {
 public:
     /// \pre \p param outlives the pass.

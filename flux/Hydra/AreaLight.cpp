@@ -84,8 +84,8 @@ makeRectangle(flux::Context &context, float width, float height) {
     std::vector<flux::Vec3u> triangles;
     for (auto segment = 0U; segment < numSegments; ++segment) {
         auto const rim = pointOnUnitCircle(segment) * radius;
-        points.push_back(flux::Vec3f{rim.x(), rim.y(), 0.0F});
-        triangles.push_back(flux::Vec3u{0, 1 + nextSegment(segment), 1 + segment});
+        points.emplace_back(rim.x(), rim.y(), 0.0F);
+        triangles.emplace_back(0, 1 + nextSegment(segment), 1 + segment);
     }
     return makeTriangleMesh(context, points, triangles);
 }
@@ -100,31 +100,25 @@ makeRectangle(flux::Context &context, float width, float height) {
             std::numbers::pi_v<float> * static_cast<float>(ring) / static_cast<float>(numRings);
         for (auto segment = 0U; segment < numSegments; ++segment) {
             auto const rim = pointOnUnitCircle(segment) * (radius * std::sin(polar));
-            points.push_back(flux::Vec3f{rim.x(), rim.y(), radius * std::cos(polar)});
+            points.emplace_back(rim.x(), rim.y(), radius * std::cos(polar));
         }
     }
 
     auto const first = [](std::uint32_t ring) { return 2 + (ring - 1) * numSegments; };
     std::vector<flux::Vec3u> triangles;
     for (auto segment = 0U; segment < numSegments; ++segment) {
-        triangles.push_back(flux::Vec3u{0, first(1) + segment, first(1) + nextSegment(segment)});
-        triangles.push_back(
-            flux::Vec3u{
-                1, first(numRings - 1) + nextSegment(segment), first(numRings - 1) + segment
-            }
+        triangles.emplace_back(0, first(1) + segment, first(1) + nextSegment(segment));
+        triangles.emplace_back(
+            1, first(numRings - 1) + nextSegment(segment), first(numRings - 1) + segment
         );
     }
     for (auto ring = 1U; ring + 1 < numRings; ++ring) {
         for (auto segment = 0U; segment < numSegments; ++segment) {
             auto const upper = first(ring);
             auto const lower = first(ring + 1);
-            triangles.push_back(
-                flux::Vec3u{upper + segment, lower + segment, upper + nextSegment(segment)}
-            );
-            triangles.push_back(
-                flux::Vec3u{
-                    upper + nextSegment(segment), lower + segment, lower + nextSegment(segment)
-                }
+            triangles.emplace_back(upper + segment, lower + segment, upper + nextSegment(segment));
+            triangles.emplace_back(
+                upper + nextSegment(segment), lower + segment, lower + nextSegment(segment)
             );
         }
     }
@@ -137,7 +131,7 @@ makeCylinder(flux::Context &context, float radius, float length) {
     for (auto const x : {-0.5F * length, 0.5F * length}) {
         for (auto segment = 0U; segment < numSegments; ++segment) {
             auto const rim = pointOnUnitCircle(segment) * radius;
-            points.push_back(flux::Vec3f{x, rim.x(), rim.y()});
+            points.emplace_back(x, rim.x(), rim.y());
         }
     }
 
@@ -147,8 +141,8 @@ makeCylinder(flux::Context &context, float radius, float length) {
         auto const backNext = nextSegment(segment);
         auto const front = numSegments + segment;
         auto const frontNext = numSegments + nextSegment(segment);
-        triangles.push_back(flux::Vec3u{back, backNext, front});
-        triangles.push_back(flux::Vec3u{backNext, frontNext, front});
+        triangles.emplace_back(back, backNext, front);
+        triangles.emplace_back(backNext, frontNext, front);
     }
     return makeTriangleMesh(context, points, triangles);
 }
@@ -245,12 +239,16 @@ HdFluxAreaLight::ShapeSpec HdFluxAreaLight::readShapeSpec(HdSceneDelegate &scene
     return std::visit(
         kira::Overload{
             [&](RectSpec) -> ShapeSpec {
-        return RectSpec{read(HdLightTokens->width, 1.0F), read(HdLightTokens->height, 1.0F)};
+        return RectSpec{
+            .width = read(HdLightTokens->width, 1.0F), .height = read(HdLightTokens->height, 1.0F)
+        };
     },
             [&](DiskSpec) -> ShapeSpec { return DiskSpec{read(HdLightTokens->radius, 0.5F)}; },
             [&](SphereSpec) -> ShapeSpec { return SphereSpec{read(HdLightTokens->radius, 0.5F)}; },
             [&](CylinderSpec) -> ShapeSpec {
-        return CylinderSpec{read(HdLightTokens->radius, 0.5F), read(HdLightTokens->length, 1.0F)};
+        return CylinderSpec{
+            .radius = read(HdLightTokens->radius, 0.5F), .length = read(HdLightTokens->length, 1.0F)
+        };
     },
         },
         shapeSpec_

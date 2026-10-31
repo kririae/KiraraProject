@@ -7,7 +7,7 @@
 
 class HdFluxRenderParam;
 
-/// \brief The FLux Hydra render delegate.
+/// \brief The interface to configure the FLux's context from Hydra.
 class HdFluxRenderDelegate final : public pxr::HdRenderDelegate {
 public:
     /// \brief Creates a delegate that renders with the OptiX IR module at \p modulePath.

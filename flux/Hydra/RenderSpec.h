@@ -7,8 +7,8 @@
 #include "flux/Core/Math.h"
 #include "flux/Scene/Film.h"
 
-/// \brief What a renderer renders: the resolution and the channels of the image, and the view to
-/// see from.
+/// \brief What a renderer renders apart from the scene: the resolution and the
+/// channels of the image, and the view to see from.
 struct HdFluxRenderSpec {
     /// \brief The camera that sees the scene.
     struct View {

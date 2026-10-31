@@ -84,7 +84,8 @@ findNormalsInterpolation(HdSceneDelegate &sceneDelegate, SdfPath const &id) {
         HdInterpolationVertex,   HdInterpolationFaceVarying,
     };
 
-    auto const found = std::ranges::find_if(interpolations, [&](HdInterpolation interpolation) {
+    auto const *const found =
+        std::ranges::find_if(interpolations, [&](HdInterpolation interpolation) {
         auto const descriptors = sceneDelegate.GetPrimvarDescriptors(id, interpolation);
         return std::ranges::any_of(descriptors, [](HdPrimvarDescriptor const &descriptor) {
             return descriptor.name == HdTokens->normals;

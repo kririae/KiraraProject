@@ -12,7 +12,7 @@ class BSDF;
 class Context;
 } // namespace flux
 
-/// \brief The scene and the backend that the delegate shares with its passes and prims.
+/// \brief The instance held by the delegate to share with its passes and prims.
 class HdFluxRenderParam final : public pxr::HdRenderParam {
 public:
     /// \brief Creates a param that renders with the OptiX IR module at \p modulePath.

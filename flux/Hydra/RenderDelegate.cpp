@@ -38,22 +38,22 @@ HdFluxRenderDelegate::HdFluxRenderDelegate(
 HdFluxRenderDelegate::~HdFluxRenderDelegate() = default;
 
 pxr::TfTokenVector const &HdFluxRenderDelegate::GetSupportedRprimTypes() const {
-    static auto const types = pxr::TfTokenVector{pxr::HdPrimTypeTokens->mesh};
-    return types;
+    static auto const Types = pxr::TfTokenVector{pxr::HdPrimTypeTokens->mesh};
+    return Types;
 }
 
 pxr::TfTokenVector const &HdFluxRenderDelegate::GetSupportedSprimTypes() const {
-    static auto const types = pxr::TfTokenVector{
+    static auto const Types = pxr::TfTokenVector{
         pxr::HdPrimTypeTokens->camera,      pxr::HdPrimTypeTokens->domeLight,
         pxr::HdPrimTypeTokens->rectLight,   pxr::HdPrimTypeTokens->diskLight,
         pxr::HdPrimTypeTokens->sphereLight, pxr::HdPrimTypeTokens->cylinderLight,
     };
-    return types;
+    return Types;
 }
 
 pxr::TfTokenVector const &HdFluxRenderDelegate::GetSupportedBprimTypes() const {
-    static auto const types = pxr::TfTokenVector{pxr::HdPrimTypeTokens->renderBuffer};
-    return types;
+    static auto const Types = pxr::TfTokenVector{pxr::HdPrimTypeTokens->renderBuffer};
+    return Types;
 }
 
 pxr::HdResourceRegistrySharedPtr HdFluxRenderDelegate::GetResourceRegistry() const {
@@ -123,6 +123,9 @@ void HdFluxRenderDelegate::CommitResources(pxr::HdChangeTracker *) try {
     auto const context = renderParam_->GetContext();
     context->collectGarbage();
     renderParam_->GetHandler().sync();
+
+    // It is the host's role to manually clear dirty state since multiple handlers might consume the
+    // same context.
     context->clearDirty();
 } catch (...) { renderParam_->ReportFailure(); }
 
@@ -132,8 +135,9 @@ pxr::HdAovDescriptor HdFluxRenderDelegate::GetDefaultAovDescriptor(pxr::TfToken 
 
 pxr::HdRenderSettingDescriptorList HdFluxRenderDelegate::GetRenderSettingDescriptors() const {
     return {
-        {"Converged Samples Per Pixel", pxr::HdRenderSettingsTokens->convergedSamplesPerPixel,
-         pxr::VtValue(HdFluxDefaultConvergedSamplesPerPixel)},
+        {.name = "Converged Samples Per Pixel",
+         .key = pxr::HdRenderSettingsTokens->convergedSamplesPerPixel,
+         .defaultValue = pxr::VtValue(HdFluxDefaultConvergedSamplesPerPixel)},
     };
 }
 

@@ -9,6 +9,7 @@
 #include "flux/Core/EnumFlags.h"
 #include "flux/Scene/RenderObject.h"
 #include "kira/Compiler.h"
+#include "kira/Properties.h"
 
 namespace flux {
 class BSDF;
@@ -38,7 +39,7 @@ public:
     /// \brief Properties of a primitive that a setter can change.
     ///
     /// One bit per setter. A setter records its bit only when the value changes.
-    enum class DirtyBits : std::uint32_t {
+    enum class DirtyBits : std::uint32_t { // NOLINT
         None = 0,
         Geometry = 1U << 0U,
         BSDF = 1U << 1U,
