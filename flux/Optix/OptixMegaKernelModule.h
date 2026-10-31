@@ -20,15 +20,15 @@ class Context;
 /// device keeps resident, which is what sizes a persistent launch.
 inline constexpr unsigned int megakernelMaxRegisterCount = 128;
 
-/// \brief Values specialized while compiling an OptiX program.
-struct OptixProgramSpec {
+/// \brief Values that specialize the megakernel module.
+struct OptixMegaKernelModuleSpec {
     SamplerType samplerType;
     BSDFTypeMask bsdfTypes;
     bool shaderReorder;
     bool hasEnvMap;
     std::uint32_t chunkSize;
 
-    [[nodiscard]] bool operator==(OptixProgramSpec const &) const = default;
+    [[nodiscard]] bool operator==(OptixMegaKernelModuleSpec const &) const = default;
 };
 
 /// \brief Owns the megakernel module and its program groups.
@@ -41,18 +41,18 @@ public:
     /// The module must provide \c __raygen__megakernel and \c __miss__megakernel.
     OptixMegaKernelModule(
         OptixDeviceContext deviceContext, std::filesystem::path const &modulePath,
-        OptixProgramSpec spec
+        OptixMegaKernelModuleSpec spec
     );
 
     /// \brief Returns the specialization required by \p context.
     ///
     /// The active integrator and sampler must be present. Only BSDFs referenced
     /// by visible primitives contribute to the specialization.
-    [[nodiscard]] static OptixProgramSpec makeSpec(Context const &context);
+    [[nodiscard]] static OptixMegaKernelModuleSpec makeSpec(Context const &context);
 
     ~OptixMegaKernelModule();
 
-    [[nodiscard]] OptixProgramSpec const &getSpec() const noexcept { return spec_; }
+    [[nodiscard]] OptixMegaKernelModuleSpec const &getSpec() const noexcept { return spec_; }
 
     /// \brief Returns every group of the module.
     [[nodiscard]] std::span<OptixProgramGroup const> getProgramGroups() const noexcept {
@@ -81,14 +81,14 @@ private:
     struct EmptyState {};
 
     OptixMegaKernelModule(
-        EmptyState, OptixDeviceContext deviceContext, OptixProgramSpec spec
+        EmptyState, OptixDeviceContext deviceContext, OptixMegaKernelModuleSpec spec
     ) noexcept;
 
     void buildModule(std::filesystem::path const &modulePath);
     void buildProgramGroups();
 
     OptixDeviceContext deviceContext_;
-    OptixProgramSpec spec_;
+    OptixMegaKernelModuleSpec spec_;
     OptixModule module_{};
     std::array<OptixProgramGroup, numPrograms> programs_{};
 };

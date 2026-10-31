@@ -22,7 +22,7 @@
 namespace flux {
 class Context;
 class OptixHandler;
-struct OptixProgramSpec;
+struct OptixMegaKernelModuleSpec;
 
 /// \brief Owns the OptiX scene built from a host \c Context.
 class OptixContext final : private Noncopyable {
@@ -57,7 +57,7 @@ private:
     ) const;
 
     [[nodiscard]] Impl getImpl() const noexcept;
-    [[nodiscard]] OptixProgramSpec const &getProgramSpec() const noexcept;
+    [[nodiscard]] OptixMegaKernelModuleSpec const &getMegaKernelModuleSpec() const noexcept;
 
     struct pImpl;
     std::unique_ptr<pImpl> pImpl_;

@@ -200,8 +200,8 @@ RenderStats OptixHandler::pImpl::render(
     if (pixelCount > maxPaths / samples)
         throw std::length_error("OptixHandler: render has more paths than the path index counts");
     auto const pathCount = static_cast<std::uint32_t>(pixelCount * samples);
-    auto const &programSpec = optixContext.getProgramSpec();
-    auto const chunkSize = std::min(programSpec.chunkSize, samples);
+    auto const &moduleSpec = optixContext.getMegaKernelModuleSpec();
+    auto const chunkSize = std::min(moduleSpec.chunkSize, samples);
     auto const chunkCount = (pathCount - 1) / chunkSize + 1;
     auto const launchSize = getLaunchSize(chunkCount);
 
@@ -234,7 +234,7 @@ RenderStats OptixHandler::pImpl::render(
             .integrator = integrator,
             .bsdfDispatcher =
                 {
-                    .types = programSpec.bsdfTypes,
+                    .types = moduleSpec.bsdfTypes,
                 },
             .accumulatedSamples = accumulatedSamples,
             .sampleOffset = sampleOffset,
@@ -242,10 +242,10 @@ RenderStats OptixHandler::pImpl::render(
             .film = film,
             .batchSize = samples,
             .pathCount = pathCount,
-            .chunkSize = programSpec.chunkSize,
+            .chunkSize = moduleSpec.chunkSize,
             .chunkCount = chunkCount,
-            .shaderReorder = programSpec.shaderReorder,
-            .hasEnvMap = programSpec.hasEnvMap,
+            .shaderReorder = moduleSpec.shaderReorder,
+            .hasEnvMap = moduleSpec.hasEnvMap,
         };
         launch(params, launchSize);
         auto const elapsed = timer.stop();

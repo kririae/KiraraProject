@@ -143,7 +143,7 @@ void OptixContext::launch(
     // clang-format on
 }
 
-OptixProgramSpec const &OptixContext::getProgramSpec() const noexcept {
+OptixMegaKernelModuleSpec const &OptixContext::getMegaKernelModuleSpec() const noexcept {
     return pImpl_->megaKernelModule->getSpec();
 }
 

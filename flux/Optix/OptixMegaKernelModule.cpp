@@ -38,7 +38,8 @@ namespace {
 } // namespace
 
 OptixMegaKernelModule::OptixMegaKernelModule(
-    OptixDeviceContext deviceContext, std::filesystem::path const &modulePath, OptixProgramSpec spec
+    OptixDeviceContext deviceContext, std::filesystem::path const &modulePath,
+    OptixMegaKernelModuleSpec spec
 )
     : OptixMegaKernelModule(EmptyState{}, deviceContext, spec) {
     if (!deviceContext_)
@@ -49,7 +50,7 @@ OptixMegaKernelModule::OptixMegaKernelModule(
 }
 
 OptixMegaKernelModule::OptixMegaKernelModule(
-    EmptyState, OptixDeviceContext deviceContext, OptixProgramSpec spec
+    EmptyState, OptixDeviceContext deviceContext, OptixMegaKernelModuleSpec spec
 ) noexcept
     : deviceContext_(deviceContext), spec_(spec) {}
 
@@ -61,7 +62,7 @@ OptixMegaKernelModule::~OptixMegaKernelModule() {
         optixCheck<false>(optixModuleDestroy(module_));
 }
 
-OptixProgramSpec OptixMegaKernelModule::makeSpec(Context const &context) {
+OptixMegaKernelModuleSpec OptixMegaKernelModule::makeSpec(Context const &context) {
     auto const integrator = context.getActiveIntegrator();
     auto const sampler = context.getActiveSampler();
     if (!integrator)
