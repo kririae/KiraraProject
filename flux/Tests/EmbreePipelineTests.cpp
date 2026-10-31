@@ -95,12 +95,12 @@ struct NoisyScene {
     flux::Ref<flux::Camera> camera;
 };
 
-[[nodiscard]] NoisyScene makeNoisyScene() {
+[[nodiscard]] NoisyScene makeNoisyScene(flux::TriangleMesh::Data data = triangleData()) {
     NoisyScene scene{.context = flux::Context::create()};
     auto &context = *scene.context;
     flux::test::setActiveDefaults(context);
     context.setActiveEnvMap(context.create<flux::EnvMapLight>(kira::Properties{}));
-    auto mesh = context.create<flux::TriangleMesh>(triangleData());
+    auto mesh = context.create<flux::TriangleMesh>(std::move(data));
     auto bsdf = context.create<flux::DiffuseBSDF>(kira::Properties{});
     (void)context.create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
     kira::Properties cameraProperties;
@@ -281,31 +281,19 @@ TEST(EmbreePipelineTests, RejectsSingularInstanceTransforms) {
     EXPECT_THROW((void)flux::EmbreeHandler(context), kira::Anyhow);
 }
 
-TEST(EmbreePipelineTests, RejectsAVertexBufferWithoutSpareCapacity) {
-    auto context = flux::Context::create();
-    flux::test::setActiveDefaults(*context);
-    auto const corners = std::array{
-        flux::Vec3f{0.0F, 0.0F, 0.0F},
-        flux::Vec3f{1.0F, 0.0F, 0.0F},
-        flux::Vec3f{0.0F, 1.0F, 0.0F},
+TEST(EmbreePipelineTests, RendersAVertexBufferWithoutSpareCapacityAsOneWithIt) {
+    auto const render = [](flux::TriangleMesh::Data data) {
+        auto scene = makeNoisyScene(std::move(data));
+        flux::EmbreeHandler handler(scene.context);
+        return renderPixel(handler, *scene.camera, 4);
     };
-    auto vertices = std::make_shared<flux::HostBuffer<flux::Vec3f>>();
-    vertices->resize(corners.size());
-    std::ranges::copy(corners, vertices->data());
-    auto mesh = context->create<flux::TriangleMesh>(flux::TriangleMesh::Data{
-        .vertices = std::move(vertices),
-        .triangles = flux::test::sharedBuffer(flux::Vec3u{0, 1, 2}),
-    });
-    auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
-    (void)context->create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
 
-    try {
-        (void)flux::EmbreeHandler(context);
-        ADD_FAILURE() << "Embree accepted a vertex buffer without spare capacity";
-    } catch (kira::Anyhow const &error) {
-        EXPECT_NE(std::string(error.what()).find("spare capacity"), std::string::npos)
-            << error.what();
-    }
+    auto data = triangleData();
+    auto vertices = std::make_shared<flux::HostBuffer<flux::Vec3f>>();
+    vertices->resize(data.vertices->size());
+    std::ranges::copy(data.vertices->span(), vertices->data());
+    data.vertices = std::move(vertices);
+    EXPECT_EQ(render(std::move(data)), render(triangleData()));
 }
 
 TEST(EmbreePipelineTests, RendersWithIndicesThatFollowUnusedObjectsAndAfterAResync) {

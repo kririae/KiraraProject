@@ -17,3 +17,4 @@ How FLux applies the [design skill](../../.agents/skills/design/SKILL.md) to its
 
 - The scene, meaning the `Context` and its objects, is the source of truth. An edit of the scene that throws leaves the scene unchanged.
 - A backend, such as `OptixHandler`, holds state derived from the scene. After a failure, a backend stays valid and destructible, and its caller recovers, for example by creating a new backend. A backend keeps no rollback, staging copy, or other means to return to its state before a failure.
+- The arrays of a mesh carry no layout that a backend requires, and a backend adapts at its own boundary, as [ADR 0001](adr/0001-mesh-array-layout.md) says.

@@ -37,8 +37,7 @@ public:
     /// \c vertices and \c triangles are required. Each other array is optional,
     /// and absent when its handle is null or its buffer is empty.
     struct Data {
-        /// Geometry-space vertex positions, nonempty. The buffer must have spare
-        /// capacity, \c capacity() > \c size(): Embree reads past the last vertex.
+        /// Geometry-space vertex positions, nonempty.
         Shared<HostBuffer<Vec3f>> vertices;
 
         /// Zero-based vertex indices of each triangle, nonempty.

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstring>
 #include <limits>
 #include <utility>
 
@@ -121,13 +122,6 @@ void EmbreeContext::sync() try {
         auto &entry = geometries_[index];
         entry.data = mesh->getData();
 
-        // Embree reads 16 bytes from the last RTC_FORMAT_FLOAT3 vertex.
-        if (entry.data.vertices->capacity() <= entry.data.vertices->size())
-            throw kira::Anyhow(
-                "EmbreeContext: the vertex buffer of mesh {} has no spare capacity",
-                mesh->getContextId()
-            );
-
         // Build the triangle selection distribution.
         auto impl = TriangleMesh::makeImpl(entry.data, mesh->getSurfaceArea());
         auto distribution = TriangleMesh::computeSamplingDistribution(impl);
@@ -147,8 +141,6 @@ void EmbreeContext::sync() try {
         if (!table_.primitives[index].isHole())
             normalTransforms_[index] = makeNormalTransform(table_.transforms[index]);
 
-    // Embree borrows the entry arrays until the next sync. The scenes are
-    // immutable, so they favor traversal over build time.
     for (std::size_t index = 0; index < geometries_.size(); ++index) {
         auto &entry = geometries_[index];
         if (!entry.data.vertices)
@@ -165,11 +157,22 @@ void EmbreeContext::sync() try {
         auto const &vertices = *entry.data.vertices;
         auto const &triangles = *entry.data.triangles;
 
-        rtcSetSharedGeometryBuffer(
-            geometry.get(), RTC_BUFFER_TYPE_VERTEX, 0, RTC_FORMAT_FLOAT3, vertices.data(), 0,
-            sizeof(Vec3f), vertices.size()
-        );
-        embreeCheck(device_);
+        // Embree reads 16 bytes from the last RTC_FORMAT_FLOAT3 vertex, and pads a buffer from
+        // rtcSetNewGeometryBuffer, as its documentation says.
+        if (vertices.capacity() > vertices.size()) {
+            rtcSetSharedGeometryBuffer(
+                geometry.get(), RTC_BUFFER_TYPE_VERTEX, 0, RTC_FORMAT_FLOAT3, vertices.data(), 0,
+                sizeof(Vec3f), vertices.size()
+            );
+            embreeCheck(device_);
+        } else {
+            auto *padded = rtcSetNewGeometryBuffer(
+                geometry.get(), RTC_BUFFER_TYPE_VERTEX, 0, RTC_FORMAT_FLOAT3, sizeof(Vec3f),
+                vertices.size()
+            );
+            embreeCheck(device_);
+            std::memcpy(padded, vertices.data(), vertices.size() * sizeof(Vec3f));
+        }
         rtcSetSharedGeometryBuffer(
             geometry.get(), RTC_BUFFER_TYPE_INDEX, 0, RTC_FORMAT_UINT3, triangles.data(), 0,
             sizeof(Vec3u), triangles.size()

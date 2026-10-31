@@ -24,10 +24,7 @@ class Context;
 
 /// \brief Owns the Embree scene built from one host \c Context.
 ///
-/// The Embree scene holds the shared mesh arrays it reads and owns its
-/// acceleration structures, triangle sampling distributions, and instance
-/// normal transforms. Call \c sync from one thread. Traversal supports
-/// concurrent calls after sync.
+/// Call \c sync from one thread. Traversal supports concurrent calls after sync.
 class EmbreeContext final : private Noncopyable {
 public:
     struct Impl;
