@@ -120,8 +120,6 @@ void HdFluxRenderDelegate::CommitResources(pxr::HdChangeTracker *) try {
     if (renderParam_->HasFailed())
         return;
 
-    // A replaced mesh stays in the context until it is collected. A removed object keeps its index
-    // until the dirty records are cleared.
     auto const context = renderParam_->GetContext();
     context->collectGarbage();
     renderParam_->GetHandler().sync();
@@ -140,7 +138,6 @@ pxr::HdRenderSettingDescriptorList HdFluxRenderDelegate::GetRenderSettingDescrip
 }
 
 pxr::VtDictionary HdFluxRenderDelegate::GetRenderStats() const {
-    // husk ignores diagnostics. It ends a render with the status in this stat when it is nonzero.
     pxr::VtDictionary stats;
     if (renderParam_->HasFailed())
         stats["huskErrorStatus"] = 1;

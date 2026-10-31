@@ -55,7 +55,7 @@ public:
 
     /// \brief Returns the render statistics.
     ///
-    /// After a failure, they hold \c huskErrorStatus 1, which makes husk exit with status 1.
+    /// After a failure, they hold \c huskErrorStatus 1.
     pxr::VtDictionary GetRenderStats() const override;
 
 private:

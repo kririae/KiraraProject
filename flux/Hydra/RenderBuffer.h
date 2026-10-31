@@ -11,9 +11,6 @@
 #include "flux/Core/Math.h"
 
 /// \brief A render buffer in host memory.
-///
-/// Holds formats with 32-bit float components. It never multisamples, since the renderer resolves
-/// its samples before it writes a buffer.
 class HdFluxRenderBuffer final : public pxr::HdRenderBuffer {
 public:
     explicit HdFluxRenderBuffer(pxr::SdfPath const &id);

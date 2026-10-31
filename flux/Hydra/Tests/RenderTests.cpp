@@ -229,7 +229,6 @@ protected:
         );
         ASSERT_TRUE(depthBuffer_->Allocate({width, height, 1}, HdFormatFloat32, false));
 
-        // The index creates its prims when it first syncs.
         syncIndex();
 
         HdRenderPassAovBinding color;
@@ -268,8 +267,6 @@ protected:
     }
 
     HdFluxRenderParam &param() {
-        // The test edits the plugin's Context with its own copy of the flux library. Both copies
-        // come from one build, and the edit needs no state that they would share.
         return *static_cast<HdFluxRenderParam *>(delegate_->GetRenderParam());
     }
 
@@ -397,7 +394,6 @@ TEST_F(RenderTests, RestartsWhenTheBufferIsResized) {
 TEST_F(RenderTests, WritesTheImageIntoANewBufferThatReplacesTheBoundOne) {
     executeToConvergence();
 
-    // The allocator may return the address of the destroyed buffer.
     delegate_->DestroyBprim(buffer_);
     buffer_ = static_cast<HdRenderBuffer *>(
         delegate_->CreateBprim(HdPrimTypeTokens->renderBuffer, SdfPath{"/color"})

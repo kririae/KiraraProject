@@ -41,8 +41,6 @@ bool HdFluxRenderer::IsConverged() const {
 }
 
 void HdFluxRenderer::Render(HdFluxRenderSpec const &spec, std::span<Output const> outputs) {
-    // The buffers of a bound AOV are polled until they converge, so a failure of the param ends
-    // them.
     if (param_.HasFailed()) {
         setConverged(outputs);
         return;
@@ -91,7 +89,6 @@ void HdFluxRenderer::Render(HdFluxRenderSpec const &spec, std::span<Output const
 
     auto const hasSamples = image_ && image_->buffer.getSampleCount() > 0;
 
-    // A buffer that is not converged may not hold the image.
     for (auto const &output : outputs) {
         auto &buffer = *output.buffer;
 

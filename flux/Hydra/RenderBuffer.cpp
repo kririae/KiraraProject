@@ -8,7 +8,6 @@
 #include <cstddef>
 #include <stdexcept>
 
-// The Tf diagnostic macros name Tf without its namespace.
 PXR_NAMESPACE_USING_DIRECTIVE
 
 HdFluxRenderBuffer::HdFluxRenderBuffer(pxr::SdfPath const &id) : pxr::HdRenderBuffer(id) {}
@@ -90,7 +89,6 @@ void HdFluxRenderBuffer::Assign(std::span<flux::Vec3f const> pixels) {
     auto const components = pxr::HdGetComponentCount(format_);
 
     for (std::size_t row = 0; row < height_; ++row) {
-        // The buffer holds the bottom row first.
         auto const source = pixels.subspan((height_ - 1 - row) * width_, width_);
         auto destination = data_.begin() + static_cast<std::ptrdiff_t>(row * width_ * components);
         for (auto const &value : source)

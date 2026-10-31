@@ -25,7 +25,6 @@
 #include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
 
-// The Tf diagnostic macros name Tf without its namespace.
 PXR_NAMESPACE_USING_DIRECTIVE
 
 namespace {
@@ -43,7 +42,6 @@ static_assert(sizeof(GfVec3f) == sizeof(flux::Vec3f));
 
 [[nodiscard]] flux::Shared<flux::HostBuffer<flux::Vec3u>>
 triangulate(HdMeshTopology const &topology, SdfPath const &id) {
-    // The all-triangle path of the triangulation copies by count without this check.
     auto const &counts = topology.GetFaceVertexCounts();
     if (std::reduce(counts.begin(), counts.end(), std::size_t{}) !=
         topology.GetFaceVertexIndices().size())

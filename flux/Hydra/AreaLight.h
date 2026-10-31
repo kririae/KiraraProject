@@ -14,9 +14,6 @@ class TriangleMesh;
 } // namespace flux
 
 /// \brief A Hydra rect, disk, sphere, or cylinder light that renders as an emissive mesh.
-///
-/// The rectangle and the disk lie in the XY plane of the light and emit toward -Z. The sphere and
-/// the cylinder emit outward. The cylinder has its axis on X and no end caps.
 class HdFluxAreaLight final : public pxr::HdLight {
 public:
     /// \pre \p type is \c rectLight, \c diskLight, \c sphereLight, or \c cylinderLight.

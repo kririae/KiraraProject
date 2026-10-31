@@ -15,7 +15,6 @@ struct Aov {
     pxr::HdAovDescriptor descriptor;
 };
 
-// The renderer resolves its samples itself, so no buffer is multisampled.
 std::array<Aov, 3> const &aovs() {
     static std::array<Aov, 3> const table{{
         {pxr::HdAovTokens->color,
@@ -32,7 +31,6 @@ std::array<Aov, 3> const &aovs() {
 }
 
 [[nodiscard]] Aov const *find(pxr::TfToken const &name) {
-    // A host convention: some hosts, such as Houdini, name the color AOV C, not color.
     static pxr::TfToken const colorAlias{"C"};
     auto const &key = name == colorAlias ? pxr::HdAovTokens->color : name;
 

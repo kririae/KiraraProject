@@ -87,7 +87,6 @@ file(WRITE "${packageDir}/dso/usd_plugins/plugInfo.json" "{ \"Includes\": [ \"*/
 configure_file(UsdRenderers.json "${packageDir}/UsdRenderers.json" COPYONLY)
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/packages/flux.json" "{ \"hpath\": \"${packageDir}\" }\n")
 
-# The delegate loads its OptiX IR module from the directory of its library.
 set(moduleName OptixMegaKernel.optixir)
 add_custom_command(
     OUTPUT "${packageDir}/dso/usd/${moduleName}"

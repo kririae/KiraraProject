@@ -13,9 +13,6 @@ class Primitive;
 } // namespace flux
 
 /// \brief A Hydra mesh that renders as triangles.
-///
-/// Faces with more than three vertices are fanned. A mesh with an instancer, without points, or
-/// without triangles is not rendered.
 class HdFluxMesh final : public pxr::HdMesh {
 public:
     explicit HdFluxMesh(pxr::SdfPath const &id);

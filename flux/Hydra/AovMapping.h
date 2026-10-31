@@ -11,6 +11,4 @@
 
 /// \brief Returns the descriptor of the AOV \p name, or an empty descriptor if FLux has no such
 /// AOV.
-///
-/// The clear value is what a pixel that no ray hits reads.
 [[nodiscard]] pxr::HdAovDescriptor HdFluxGetAovDescriptor(pxr::TfToken const &name);

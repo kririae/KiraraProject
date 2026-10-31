@@ -28,7 +28,6 @@
 #include "kira/Properties.h"
 #include "kira/Utils.h"
 
-// The Tf diagnostic macros name Tf without its namespace.
 PXR_NAMESPACE_USING_DIRECTIVE
 
 namespace {

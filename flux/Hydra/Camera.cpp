@@ -19,7 +19,6 @@ void HdFluxSetCamera(
     flux::Camera &camera, pxr::GfMatrix4d const &worldToView, pxr::GfMatrix4d const &projection,
     double filmAspect
 ) {
-    // The inverse of the view places the camera. Its -Z axis looks and its +Y axis is up.
     auto const viewToWorld = worldToView.GetInverse();
     auto const position = viewToWorld.ExtractTranslation();
     auto const forward = viewToWorld.TransformDir(pxr::GfVec3d(0.0, 0.0, -1.0)).GetNormalized();

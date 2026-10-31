@@ -13,9 +13,6 @@ class Texture;
 } // namespace flux
 
 /// \brief A Hydra dome light that renders as the environment map of the Context.
-///
-/// Only the rotation of its transform applies. The dome that syncs last while visible is the one
-/// that renders.
 class HdFluxDomeLight final : public pxr::HdLight {
 public:
     explicit HdFluxDomeLight(pxr::SdfPath const &id);

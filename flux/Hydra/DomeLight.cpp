@@ -21,7 +21,6 @@
 #include "flux/Shading/Texture.h"
 #include "kira/Properties.h"
 
-// The Tf diagnostic macros name Tf without its namespace.
 PXR_NAMESPACE_USING_DIRECTIVE
 
 namespace {

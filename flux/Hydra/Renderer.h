@@ -20,8 +20,6 @@ class HdFluxRenderParam;
 class HdFluxRenderer final {
 public:
     /// \brief A buffer that receives one channel of the image.
-    ///
-    /// Without a channel, the buffer only holds its clear value.
     struct Output {
         HdFluxRenderBuffer *buffer;
         flux::FilmChannels channel;

@@ -97,9 +97,6 @@ void HdFluxRenderPass::_Execute(
     if (auto const version = delegate->GetRenderSettingsVersion(); settingsVersion_ != version) {
         settingsVersion_ = version;
 
-        // A host that renders offline polls IsConverged with a sleep between polls, so a batch
-        // launch adds all the remaining samples at once. Hydra's enableInteractive is false for
-        // such a host. husk does not set it and sets its own renderMode to batch.
         static pxr::TfToken const huskRenderMode{"renderMode"};
         auto const batch = !delegate->GetRenderSetting<bool>(
                                pxr::HdRenderSettingsTokens->enableInteractive, true

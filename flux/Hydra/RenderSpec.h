@@ -9,8 +9,6 @@
 
 /// \brief What a renderer renders: the resolution and the channels of the image, and the view to
 /// see from.
-///
-/// Nothing is rendered if \c channels is empty, or if \c view is empty.
 struct HdFluxRenderSpec {
     /// \brief The camera that sees the scene.
     struct View {

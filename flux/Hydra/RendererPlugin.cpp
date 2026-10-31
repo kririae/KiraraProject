@@ -9,15 +9,11 @@
 #include "flux/Core/Logging.h"
 #include "flux/Hydra/RenderDelegate.h"
 
-// Without NDEBUG, Houdini's pxr.h defines _DEBUG and TBB_USE_DEBUG, which do not match the release
-// USD and TBB that Houdini ships.
 #ifndef NDEBUG
 #error "The Hydra delegate does not support Debug builds"
 #endif
 
 /// \brief Creates FLux render delegates.
-///
-/// Outside any namespace: Houdini keys renderer configuration by the type name.
 class HdFluxRendererPlugin final : public pxr::HdRendererPlugin {
 public:
     pxr::HdRenderDelegate *CreateRenderDelegate() override { return createDelegate({}); }
@@ -46,10 +42,8 @@ private:
         }
     }
 
-    /// \brief Returns the path of the OptiX IR module, which is placed next to the plugin
-    /// library.
+    /// \brief Returns the path of the OptiX IR module.
     static std::filesystem::path getModulePath() {
-        // Plug loaded this library, so it knows the plugin and the path it loaded from.
         auto const plugin = pxr::PlugRegistry::GetInstance().GetPluginForType(
             pxr::TfType::Find<HdFluxRendererPlugin>()
         );
