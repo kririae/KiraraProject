@@ -12,9 +12,9 @@ find_package(Houdini CONFIG REQUIRED)
 add_library(
     flux_hydra STATIC
     AovMapping.cpp
+    AreaLight.cpp
     Camera.cpp
     DomeLight.cpp
-    Light.cpp
     Mesh.cpp
     Radiance.cpp
     RenderBuffer.cpp

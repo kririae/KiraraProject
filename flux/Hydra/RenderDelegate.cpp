@@ -11,8 +11,8 @@
 #include <memory>
 
 #include "flux/Hydra/AovMapping.h"
+#include "flux/Hydra/AreaLight.h"
 #include "flux/Hydra/DomeLight.h"
-#include "flux/Hydra/Light.h"
 #include "flux/Hydra/Mesh.h"
 #include "flux/Hydra/RenderBuffer.h"
 #include "flux/Hydra/RenderParam.h"
@@ -93,7 +93,7 @@ HdFluxRenderDelegate::CreateSprim(pxr::TfToken const &typeId, pxr::SdfPath const
     if (typeId == pxr::HdPrimTypeTokens->rectLight || typeId == pxr::HdPrimTypeTokens->diskLight ||
         typeId == pxr::HdPrimTypeTokens->sphereLight ||
         typeId == pxr::HdPrimTypeTokens->cylinderLight)
-        return new HdFluxLight(sprimId, typeId);
+        return new HdFluxAreaLight(sprimId, typeId);
     return nullptr;
 }
 

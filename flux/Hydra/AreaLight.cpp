@@ -1,4 +1,4 @@
-#include "flux/Hydra/Light.h"
+#include "flux/Hydra/AreaLight.h"
 
 #include <pxr/base/tf/diagnostic.h>
 #include <pxr/imaging/hd/changeTracker.h>
@@ -191,7 +191,7 @@ readRadiance(HdSceneDelegate &sceneDelegate, SdfPath const &id, float area) {
 }
 } // namespace
 
-HdFluxLight::HdFluxLight(SdfPath const &id, TfToken const &type) : HdLight(id) {
+HdFluxAreaLight::HdFluxAreaLight(SdfPath const &id, TfToken const &type) : HdLight(id) {
     if (type == HdPrimTypeTokens->diskLight)
         shapeSpec_ = DiskSpec{};
     else if (type == HdPrimTypeTokens->sphereLight)
@@ -200,9 +200,9 @@ HdFluxLight::HdFluxLight(SdfPath const &id, TfToken const &type) : HdLight(id) {
         shapeSpec_ = CylinderSpec{};
 }
 
-HdFluxLight::~HdFluxLight() = default;
+HdFluxAreaLight::~HdFluxAreaLight() = default;
 
-void HdFluxLight::Sync(
+void HdFluxAreaLight::Sync(
     HdSceneDelegate *sceneDelegate, HdRenderParam *renderParam, HdDirtyBits *dirtyBits
 ) {
     auto const &id = GetId();
@@ -229,9 +229,9 @@ void HdFluxLight::Sync(
     *dirtyBits &= ~AllDirty;
 }
 
-HdDirtyBits HdFluxLight::GetInitialDirtyBitsMask() const { return AllDirty; }
+HdDirtyBits HdFluxAreaLight::GetInitialDirtyBitsMask() const { return AllDirty; }
 
-void HdFluxLight::Finalize(HdRenderParam *renderParam) {
+void HdFluxAreaLight::Finalize(HdRenderParam *renderParam) {
     if (!primitive_)
         return;
 
@@ -239,7 +239,7 @@ void HdFluxLight::Finalize(HdRenderParam *renderParam) {
     context->remove(primitive_->getContextId());
 }
 
-HdFluxLight::ShapeSpec HdFluxLight::readShapeSpec(HdSceneDelegate &sceneDelegate) const {
+HdFluxAreaLight::ShapeSpec HdFluxAreaLight::readShapeSpec(HdSceneDelegate &sceneDelegate) const {
     auto const read = [&](TfToken const &token, float fallback) {
         return std::abs(readParam(sceneDelegate, GetId(), token, fallback));
     };
@@ -259,7 +259,7 @@ HdFluxLight::ShapeSpec HdFluxLight::readShapeSpec(HdSceneDelegate &sceneDelegate
 }
 
 flux::Ref<flux::TriangleMesh>
-HdFluxLight::makeMesh(flux::Context &context, ShapeSpec const &shapeSpec) {
+HdFluxAreaLight::makeMesh(flux::Context &context, ShapeSpec const &shapeSpec) {
     auto const make = kira::Overload{
         [&](RectSpec const &spec) { return makeRectangle(context, spec.width, spec.height); },
         [&](DiskSpec const &spec) { return makeDisk(context, spec.radius); },
@@ -269,7 +269,7 @@ HdFluxLight::makeMesh(flux::Context &context, ShapeSpec const &shapeSpec) {
     return std::visit(make, shapeSpec);
 }
 
-void HdFluxLight::build(flux::Context &context, ShapeSpec const &shapeSpec) {
+void HdFluxAreaLight::build(flux::Context &context, ShapeSpec const &shapeSpec) {
     edf_ = context.create<flux::ConstantEDF>(kira::Properties{});
 
     auto primitive = context.create<flux::Primitive>(makeMesh(context, shapeSpec));
