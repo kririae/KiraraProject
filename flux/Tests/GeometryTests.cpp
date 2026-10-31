@@ -246,11 +246,7 @@ TEST(GeometryTests, BuildsAMeshFromHostArrays) {
     EXPECT_EQ(mesh->getSurfaceArea(), 2.0F);
     ASSERT_EQ(mesh->getTexCoords().size(), 3);
     EXPECT_TRUE(mesh->getTexCoordIndices().empty());
-
-    // Absent normals are generated, as they are for a file.
-    ASSERT_EQ(mesh->getNormals().size(), 3);
-    for (auto const &normal : mesh->getNormals())
-        EXPECT_EQ(normal, (flux::Vec3f{0.0F, 0.0F, 1.0F}));
+    EXPECT_TRUE(mesh->getNormals().empty());
 }
 
 TEST(GeometryTests, RejectsAnEmptyMesh) {
@@ -397,6 +393,7 @@ TEST(GeometryTests, TurnsAbsentArraysIntoNullHandles) {
     auto absent = context->create<flux::TriangleMesh>(triangle());
     EXPECT_TRUE(absent->getTexCoords().empty());
     EXPECT_EQ(absent->getData().texCoords, nullptr);
+    EXPECT_EQ(absent->getData().normals, nullptr);
     EXPECT_EQ(absent->getData().normalIndices, nullptr);
     EXPECT_EQ(absent->getData().texCoordIndices, nullptr);
     EXPECT_EQ(absent->getImpl().texCoords, nullptr);

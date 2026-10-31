@@ -30,12 +30,155 @@ namespace flux {
 namespace {
 template <typename Array> void release(Array &array) { array = std::remove_cvref_t<Array>{}; }
 
-/// \brief Writes angle-weighted vertex normals to \p normals.
-///
-/// \pre \p normals has one element per vertex.
-void generateVertexNormals(
-    std::span<Vec3f const> vertices, std::span<Vec3u const> triangles, std::span<Vec3f> normals
+/// \brief Returns a new buffer of \p count elements and \p capacity readable elements.
+template <typename T>
+[[nodiscard]] std::shared_ptr<HostBuffer<T>> allocate(std::size_t count, std::size_t capacity) {
+    auto buffer = std::make_shared<HostBuffer<T>>();
+    buffer->resize(count, capacity);
+    return buffer;
+}
+
+/// \brief Returns the largest index in \p indices, or zero when it is empty.
+[[nodiscard]] std::uint32_t largestIndex(std::span<Vec3u const> indices) {
+    return tbb::parallel_reduce(
+        tbb::blocked_range<std::size_t>{0, indices.size()}, std::uint32_t{0},
+        [&](auto const &range, std::uint32_t largest) {
+        for (auto index = range.begin(); index != range.end(); ++index)
+            largest =
+                std::max({largest, indices[index][0u], indices[index][1u], indices[index][2u]});
+        return largest;
+    }, [](std::uint32_t left, std::uint32_t right) { return std::max(left, right); }
+    );
+}
+
+[[nodiscard]] TriangleMesh::Data loadObj(std::filesystem::path const &path);
+[[nodiscard]] TriangleMesh::Data loadPly(std::filesystem::path const &path);
+
+/// \brief Loads the mesh file named by the \c path property of \p props.
+[[nodiscard]] TriangleMesh::Data
+loadMeshFile(kira::FileResolver const &resolver, kira::Properties const &props) {
+    auto const authoredPath = props.use<std::filesystem::path>("path");
+    auto const path = resolver.resolve(authoredPath);
+    if (!std::filesystem::exists(path))
+        throw kira::Anyhow("TriangleMesh: failed to resolve '{}'", authoredPath.string());
+
+    auto extension = path.extension().string();
+    std::ranges::transform(extension, extension.begin(), [](unsigned char character) {
+        return static_cast<char>(std::tolower(character));
+    });
+
+    TriangleMesh::Data data;
+    if (extension == ".obj")
+        data = loadObj(path);
+    else if (extension == ".ply")
+        data = loadPly(path);
+    else
+        throw kira::Anyhow(
+            "TriangleMesh: unsupported file extension '{}' for '{}'", extension, path.string()
+        );
+
+    if (!data.normals)
+        data.normals =
+            TriangleMesh::computeVertexNormals(data.vertices->span(), data.triangles->span());
+    return data;
+}
+} // namespace
+
+TriangleMesh::TriangleMesh(TXContext &tx, kira::Properties const &props)
+    : TriangleMesh(tx, loadMeshFile(tx.getFileResolver(), props)) {}
+
+TriangleMesh::TriangleMesh(TXContext &tx, Data &&data)
+    : Geometry(tx, GeometryType::TriangleMesh), data_(std::move(data)) {
+    // Turn each empty buffer into a null handle.
+    auto const dropEmpty = [](auto &handle) {
+        if (handle && handle->empty())
+            handle.reset();
+    };
+    dropEmpty(data_.vertices);
+    dropEmpty(data_.triangles);
+    dropEmpty(data_.normals);
+    dropEmpty(data_.normalIndices);
+    dropEmpty(data_.texCoords);
+    dropEmpty(data_.texCoordIndices);
+
+    // Check the counts. Every consumer would have to handle an empty mesh, and
+    // one that missed it would read out of bounds.
+    auto const vertices = getVertices();
+    if (vertices.empty() || getTriangles().empty())
+        throw kira::Anyhow(
+            "TriangleMesh: {} vertices and {} triangles do not form a mesh", vertices.size(),
+            getTriangles().size()
+        );
+    if (vertices.size() >= std::numeric_limits<std::uint32_t>::max())
+        throw kira::Anyhow(
+            "TriangleMesh: {} vertices exceed the addressable range", vertices.size()
+        );
+    if (getTriangles().size() > std::numeric_limits<std::uint32_t>::max())
+        throw kira::Anyhow(
+            "TriangleMesh: {} triangles exceed the addressable range", getTriangles().size()
+        );
+
+    // Sum the triangle areas.
+    auto const impl = getImpl();
+    surfaceArea_ = tbb::parallel_reduce(
+        tbb::blocked_range<std::uint32_t>{0, impl.numTriangles}, 0.0F,
+        [&](auto const &range, float area) {
+        for (auto triangle = range.begin(); triangle != range.end(); ++triangle)
+            area += impl.getTriangleArea(triangle);
+        return area;
+    }, std::plus<>{}
+    );
+}
+
+void TriangleMesh::checkIndices(Data const &data) {
+    auto const vertices = view(data.vertices);
+    auto const triangles = view(data.triangles);
+    if (vertices.empty() || triangles.empty())
+        throw kira::Anyhow(
+            "TriangleMesh: {} vertices and {} triangles do not form a mesh", vertices.size(),
+            triangles.size()
+        );
+
+    auto const check = [&](std::span<Vec3u const> indices, std::size_t limit, char const *name) {
+        if (indices.empty())
+            return;
+        if (indices.size() != triangles.size())
+            throw kira::Anyhow(
+                "TriangleMesh: {} {} indices do not match {} triangles", indices.size(), name,
+                triangles.size()
+            );
+
+        auto const largest = largestIndex(indices);
+        if (largest >= limit)
+            throw kira::Anyhow(
+                "TriangleMesh: a triangle addresses {} {} of {}", name, largest, limit
+            );
+    };
+
+    auto const checkAttribute = [&](std::span<Vec3u const> indices, std::size_t attributeCount,
+                                    char const *name) {
+        if (attributeCount == 0) {
+            if (!indices.empty())
+                throw kira::Anyhow(
+                    "TriangleMesh: {} {} indices address no {}", indices.size(), name, name
+                );
+            return;
+        }
+        check(indices.empty() ? triangles : indices, attributeCount, name);
+    };
+
+    check(triangles, vertices.size(), "vertex");
+    checkAttribute(view(data.normalIndices), view(data.normals).size(), "normal");
+    checkAttribute(view(data.texCoordIndices), view(data.texCoords).size(), "texture-coordinate");
+}
+
+Shared<HostBuffer<Vec3f>> TriangleMesh::computeVertexNormals(
+    std::span<Vec3f const> vertices, std::span<Vec3u const> triangles
 ) {
+    auto buffer = std::make_shared<HostBuffer<Vec3f>>();
+    buffer->resize(vertices.size());
+    auto const normals = buffer->span();
+
     tbb::parallel_for(std::size_t{0}, normals.size(), [&](std::size_t index) {
         normals[index] = Vec3f{0.0F};
     });
@@ -79,151 +222,8 @@ void generateVertexNormals(
         if (lengthSquared > 0.0F)
             normals[index] = normals[index] / std::sqrt(lengthSquared);
     });
-}
 
-/// \brief Returns a new buffer of \p count elements and \p capacity readable elements.
-template <typename T>
-[[nodiscard]] std::shared_ptr<HostBuffer<T>> allocate(std::size_t count, std::size_t capacity) {
-    auto buffer = std::make_shared<HostBuffer<T>>();
-    buffer->resize(count, capacity);
     return buffer;
-}
-
-/// \brief Returns the largest index in \p indices, or zero when it is empty.
-[[nodiscard]] std::uint32_t largestIndex(std::span<Vec3u const> indices) {
-    return tbb::parallel_reduce(
-        tbb::blocked_range<std::size_t>{0, indices.size()}, std::uint32_t{0},
-        [&](auto const &range, std::uint32_t largest) {
-        for (auto index = range.begin(); index != range.end(); ++index)
-            largest =
-                std::max({largest, indices[index][0u], indices[index][1u], indices[index][2u]});
-        return largest;
-    }, [](std::uint32_t left, std::uint32_t right) { return std::max(left, right); }
-    );
-}
-
-[[nodiscard]] TriangleMesh::Data loadObj(std::filesystem::path const &path);
-[[nodiscard]] TriangleMesh::Data loadPly(std::filesystem::path const &path);
-
-/// \brief Loads the mesh file named by the \c path property of \p props.
-[[nodiscard]] TriangleMesh::Data
-loadMeshFile(kira::FileResolver const &resolver, kira::Properties const &props) {
-    auto const authoredPath = props.use<std::filesystem::path>("path");
-    auto const path = resolver.resolve(authoredPath);
-    if (!std::filesystem::exists(path))
-        throw kira::Anyhow("TriangleMesh: failed to resolve '{}'", authoredPath.string());
-
-    auto extension = path.extension().string();
-    std::ranges::transform(extension, extension.begin(), [](unsigned char character) {
-        return static_cast<char>(std::tolower(character));
-    });
-
-    if (extension == ".obj")
-        return loadObj(path);
-    if (extension == ".ply")
-        return loadPly(path);
-    throw kira::Anyhow(
-        "TriangleMesh: unsupported file extension '{}' for '{}'", extension, path.string()
-    );
-}
-} // namespace
-
-TriangleMesh::TriangleMesh(TXContext &tx, kira::Properties const &props)
-    : TriangleMesh(tx, loadMeshFile(tx.getFileResolver(), props)) {}
-
-TriangleMesh::TriangleMesh(TXContext &tx, Data &&data)
-    : Geometry(tx, GeometryType::TriangleMesh), data_(std::move(data)) {
-    // Turn each empty buffer into a null handle.
-    auto const dropEmpty = [](auto &handle) {
-        if (handle && handle->empty())
-            handle.reset();
-    };
-    dropEmpty(data_.vertices);
-    dropEmpty(data_.triangles);
-    dropEmpty(data_.normals);
-    dropEmpty(data_.normalIndices);
-    dropEmpty(data_.texCoords);
-    dropEmpty(data_.texCoordIndices);
-
-    // Check the counts. Every consumer would have to handle an empty mesh, and
-    // one that missed it would read out of bounds.
-    auto const vertices = getVertices();
-    if (vertices.empty() || getTriangles().empty())
-        throw kira::Anyhow(
-            "TriangleMesh: {} vertices and {} triangles do not form a mesh", vertices.size(),
-            getTriangles().size()
-        );
-    if (vertices.size() >= std::numeric_limits<std::uint32_t>::max())
-        throw kira::Anyhow(
-            "TriangleMesh: {} vertices exceed the addressable range", vertices.size()
-        );
-    if (getTriangles().size() > std::numeric_limits<std::uint32_t>::max())
-        throw kira::Anyhow(
-            "TriangleMesh: {} triangles exceed the addressable range", getTriangles().size()
-        );
-
-    // Generate the normals in a new buffer, which the input data does not share.
-    if (!data_.normals) {
-        auto normals = std::make_shared<HostBuffer<Vec3f>>();
-        normals->resize(vertices.size());
-        generateVertexNormals(vertices, getTriangles(), normals->span());
-        data_.normals = std::move(normals);
-    }
-
-    // Sum the triangle areas.
-    auto const impl = getImpl();
-    surfaceArea_ = tbb::parallel_reduce(
-        tbb::blocked_range<std::uint32_t>{0, impl.numTriangles}, 0.0F,
-        [&](auto const &range, float area) {
-        for (auto triangle = range.begin(); triangle != range.end(); ++triangle)
-            area += impl.getTriangleArea(triangle);
-        return area;
-    }, std::plus<>{}
-    );
-}
-
-void TriangleMesh::checkIndices(Data const &data) {
-    auto const vertices = view(data.vertices);
-    auto const triangles = view(data.triangles);
-    if (vertices.empty() || triangles.empty())
-        throw kira::Anyhow(
-            "TriangleMesh: {} vertices and {} triangles do not form a mesh", vertices.size(),
-            triangles.size()
-        );
-
-    auto const check = [&](std::span<Vec3u const> indices, std::size_t limit, char const *name) {
-        if (indices.empty())
-            return;
-        if (indices.size() != triangles.size())
-            throw kira::Anyhow(
-                "TriangleMesh: {} {} indices do not match {} triangles", indices.size(), name,
-                triangles.size()
-            );
-
-        auto const largest = largestIndex(indices);
-        if (largest >= limit)
-            throw kira::Anyhow(
-                "TriangleMesh: a triangle addresses {} {} of {}", name, largest, limit
-            );
-    };
-
-    // Indices without their attribute array would be published against generated
-    // normals, which are per vertex, or against no array at all.
-    auto const checkAttribute = [&](std::span<Vec3u const> indices, std::size_t attributeCount,
-                                    char const *name) {
-        if (attributeCount == 0) {
-            if (!indices.empty())
-                throw kira::Anyhow(
-                    "TriangleMesh: {} {} indices address no {}", indices.size(), name, name
-                );
-            return;
-        }
-        check(indices.empty() ? triangles : indices, attributeCount, name);
-    };
-
-    check(triangles, vertices.size(), "vertex");
-    checkAttribute(view(data.normalIndices), view(data.normals).size(), "normal");
-    checkAttribute(view(data.texCoordIndices), view(data.texCoords).size(), "texture-coordinate");
 }
 
 TriangleMesh::Impl TriangleMesh::getImpl() const noexcept { return makeImpl(data_, surfaceArea_); }

@@ -17,9 +17,9 @@ namespace flux {
 /// named by the \c path property. TriangleMesh shares its host arrays with
 /// whoever built it, and each backend builds its geometry from them.
 ///
-/// PLY polygons are triangulated. Complete vertex normals and texture coordinates
-/// are imported. Missing or incomplete normals are generated; missing or incomplete
-/// texture coordinates are ignored.
+/// From a file, PLY polygons are triangulated, and complete vertex normals and
+/// texture coordinates are imported. Missing or incomplete normals are generated.
+/// Missing or incomplete texture coordinates are ignored.
 class TriangleMesh final : public Geometry {
     friend class TXContext;
 
@@ -30,8 +30,7 @@ public:
     ///
     /// \c triangles indexes \c vertices. Present \c normals are indexed by
     /// \c normalIndices, or by \c triangles when those are absent; \c texCoords
-    /// and \c texCoordIndices pair with \c triangles the same way. Absent
-    /// \c normals request generated angle-weighted vertex normals, and an index
+    /// and \c texCoordIndices pair with \c triangles the same way. An index
     /// array whose attribute array is absent is not a mesh.
     ///
     /// \c vertices and \c triangles are required. Each other array is optional,
@@ -56,6 +55,12 @@ public:
         Shared<HostBuffer<Vec3u>> texCoordIndices;
     };
 
+    /// \brief Returns angle-weighted vertex normals, one per vertex of \p vertices.
+    ///
+    /// \pre Every index in \p triangles addresses \p vertices.
+    [[nodiscard]] static Shared<HostBuffer<Vec3f>>
+    computeVertexNormals(std::span<Vec3f const> vertices, std::span<Vec3u const> triangles);
+
     /// \brief Checks that every index in \p data addresses its array.
     ///
     /// Construction does not check indices, so a caller that did not produce
@@ -69,9 +74,8 @@ public:
 
     /// \brief Returns the shared arrays the mesh was built from.
     ///
-    /// \c vertices, \c triangles, and \c normals are never null; generated
-    /// normals replace absent ones. Another handle is null exactly when its
-    /// array is absent.
+    /// \c vertices and \c triangles are never null. Another handle is null
+    /// exactly when its array is absent.
     [[nodiscard]] Data const &getData() const noexcept { return data_; }
 
     /// \brief Returns geometry-space vertex positions.
@@ -84,7 +88,7 @@ public:
         return view(data_.triangles);
     }
 
-    /// \brief Returns geometry-space shading normals.
+    /// \brief Returns geometry-space shading normals, or an empty span when absent.
     [[nodiscard]] std::span<Vec3f const> getNormals() const noexcept { return view(data_.normals); }
 
     /// \brief Returns face-varying normal indices.
@@ -148,7 +152,6 @@ private:
         return buffer ? buffer->span() : std::span<T const>{};
     }
 
-    /// Arrays built from, with generated normals in place of absent ones.
     Data data_;
     float surfaceArea_{};
 };
