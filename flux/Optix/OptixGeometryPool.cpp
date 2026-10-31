@@ -28,11 +28,11 @@ void OptixGeometryPool::add(std::span<Ref<TriangleMesh const> const> meshes) {
         auto const hostImpl = mesh->getImpl();
         auto const distribution = TriangleMesh::computeSamplingDistribution(hostImpl);
 
-        entry.triangleAreaCDF.copyFromHost(
-            {distribution.areaCDF.data(), distribution.areaCDF.size()}, deletionQueue_
+        entry.triangleAreaCDF.copyFromHostAndWait(
+            {distribution.areaCDF.data(), distribution.areaCDF.size()}
         );
-        entry.triangleAreaPDF.copyFromHost(
-            {distribution.areaPDF.data(), distribution.areaPDF.size()}, deletionQueue_
+        entry.triangleAreaPDF.copyFromHostAndWait(
+            {distribution.areaPDF.data(), distribution.areaPDF.size()}
         );
         entry.surfaceArea =
             distribution.areaCDF.empty() ? hostImpl.surfaceArea : distribution.areaCDF.back();
