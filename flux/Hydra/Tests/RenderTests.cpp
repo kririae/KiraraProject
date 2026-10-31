@@ -30,10 +30,13 @@
 #include <pxr/imaging/hd/rprimCollection.h>
 #include <pxr/imaging/hd/task.h>
 #include <pxr/imaging/hd/tokens.h>
+#include <pxr/imaging/hd/visibilitySchema.h>
 #include <pxr/imaging/hd/xformSchema.h>
+#include <pxr/usd/sdf/assetPath.h>
 
 #include <memory>
 #include <mutex>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -612,19 +615,19 @@ HdContainerDataSourceHandle makeNormalizedLight(float size, double scale) {
             .Build()
     );
 }
+
+float centerChannel(HdRenderBuffer *buffer, int channel) {
+    auto const *const pixels = static_cast<float const *>(buffer->Map());
+    auto const value = pixels[4 * ((height / 2) * width + width / 2) + channel];
+    buffer->Unmap();
+    return value;
+}
 } // namespace
 
 TEST_F(RenderTests, DividesTheRadianceOfAnEditedNormalizedLightByItsNewArea) {
-    auto const centerRed = [this] {
-        auto const *const pixels = static_cast<float const *>(buffer_->Map());
-        auto const red = pixels[4 * ((height / 2) * width + width / 2)];
-        buffer_->Unmap();
-        return red;
-    };
-
     scene_->AddPrims({{lightPath, HdPrimTypeTokens->rectLight, makeNormalizedLight(1.0F, 1.0)}});
     executeToConvergence();
-    EXPECT_EQ(centerRed(), 1.0F);
+    EXPECT_EQ(centerChannel(buffer_, 0), 1.0F);
 
     scene_->AddPrims({{lightPath, HdPrimTypeTokens->rectLight, makeNormalizedLight(2.0F, 2.0)}});
     scene_->DirtyPrims(
@@ -632,5 +635,58 @@ TEST_F(RenderTests, DividesTheRadianceOfAnEditedNormalizedLightByItsNewArea) {
          {lightPath, HdXformSchema::GetDefaultLocator()}}
     );
     executeToConvergence();
-    EXPECT_EQ(centerRed(), 0.0625F);
+    EXPECT_EQ(centerChannel(buffer_, 0), 0.0625F);
+}
+
+namespace {
+HdContainerDataSourceHandle makeDomeLight(std::string const &file, bool visible) {
+    return HdRetainedContainerDataSource::New(
+        HdLightSchema::GetSchemaToken(),
+        HdRetainedContainerDataSource::New(
+            HdLightTokens->textureFile,
+            HdRetainedTypedSampledDataSource<SdfAssetPath>::New(SdfAssetPath{file})
+        ),
+        HdVisibilitySchema::GetSchemaToken(),
+        HdVisibilitySchema::Builder()
+            .SetVisibility(HdRetainedTypedSampledDataSource<bool>::New(visible))
+            .Build()
+    );
+}
+} // namespace
+
+TEST_F(RenderTests, LeavesTheBackgroundWhenTheDomeLightIsHidden) {
+    scene_->AddPrims({{lightPath, HdPrimTypeTokens->domeLight, makeDomeLight("", true)}});
+    executeToConvergence();
+    EXPECT_EQ(centerChannel(buffer_, 0), 1.0F);
+
+    scene_->AddPrims({{lightPath, HdPrimTypeTokens->domeLight, makeDomeLight("", false)}});
+    scene_->DirtyPrims({{lightPath, HdVisibilitySchema::GetDefaultLocator()}});
+    executeToConvergence();
+
+    EXPECT_EQ(centerChannel(buffer_, 0), 0.0F);
+}
+
+TEST_F(RenderTests, LeavesTheBackgroundWhenTheDomeLightIsRemoved) {
+    scene_->AddPrims({{lightPath, HdPrimTypeTokens->domeLight, makeDomeLight("", true)}});
+    executeToConvergence();
+    EXPECT_EQ(centerChannel(buffer_, 0), 1.0F);
+
+    scene_->RemovePrims({{lightPath}});
+    executeToConvergence();
+
+    EXPECT_EQ(centerChannel(buffer_, 0), 0.0F);
+}
+
+TEST_F(RenderTests, ShowsTheDefaultTextureWhenTheDomeLightLosesItsFile) {
+    scene_->AddPrims(
+        {{lightPath, HdPrimTypeTokens->domeLight, makeDomeLight("/nonexistent.png", true)}}
+    );
+    executeToConvergence();
+    EXPECT_EQ(centerChannel(buffer_, 1), 0.0F);
+
+    scene_->AddPrims({{lightPath, HdPrimTypeTokens->domeLight, makeDomeLight("", true)}});
+    scene_->DirtyPrims({{lightPath, HdLightSchema::GetDefaultLocator()}});
+    executeToConvergence();
+
+    EXPECT_EQ(centerChannel(buffer_, 1), 1.0F);
 }

@@ -13,6 +13,7 @@ add_library(
     flux_hydra STATIC
     AovMapping.cpp
     Camera.cpp
+    DomeLight.cpp
     Light.cpp
     Mesh.cpp
     Radiance.cpp
@@ -41,7 +42,8 @@ target_link_libraries(
            Houdini::Dep::pxr_sdf
            Houdini::Dep::pxr_tf
            Houdini::Dep::pxr_vt
-           Houdini::Dep::python${_houdini_python_version})
+           Houdini::Dep::python${_houdini_python_version}
+    PRIVATE Eigen3::Eigen)
 
 # tf/hashset.h includes libstdc++'s deprecated <ext/hash_set>.
 target_compile_definitions(flux_hydra PUBLIC _GLIBCXX_PERMIT_BACKWARD_HASH)
