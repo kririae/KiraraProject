@@ -2,21 +2,25 @@
 
 #include <pxr/imaging/hd/light.h>
 
-#include "flux/Core/Math.h"
+#include <variant>
+
 #include "flux/Core/Object.h"
 
 namespace flux {
 class ConstantEDF;
 class Context;
 class Primitive;
+class TriangleMesh;
 } // namespace flux
 
-/// \brief A Hydra rect light that renders as an emissive rectangle.
+/// \brief A Hydra rect, disk, sphere, or cylinder light that renders as an emissive mesh.
 ///
-/// The rectangle lies in the XY plane of the light and emits toward -Z.
+/// The rectangle and the disk lie in the XY plane of the light and emit toward -Z. The sphere and
+/// the cylinder emit outward. The cylinder has its axis on X and no end caps.
 class HdFluxLight final : public pxr::HdLight {
 public:
-    explicit HdFluxLight(pxr::SdfPath const &id);
+    /// \pre \p type is \c rectLight, \c diskLight, \c sphereLight, or \c cylinderLight.
+    HdFluxLight(pxr::SdfPath const &id, pxr::TfToken const &type);
     ~HdFluxLight() override;
 
     void Sync(
@@ -29,12 +33,40 @@ public:
     void Finalize(pxr::HdRenderParam *renderParam) override;
 
 private:
-    void build(flux::Context &context, flux::Vec2f const &size);
+    struct RectSpec {
+        float width{};
+        float height{};
+        friend bool operator==(RectSpec const &, RectSpec const &) = default;
+    };
+
+    struct DiskSpec {
+        float radius{};
+        friend bool operator==(DiskSpec const &, DiskSpec const &) = default;
+    };
+
+    struct SphereSpec {
+        float radius{};
+        friend bool operator==(SphereSpec const &, SphereSpec const &) = default;
+    };
+
+    struct CylinderSpec {
+        float radius{};
+        float length{};
+        friend bool operator==(CylinderSpec const &, CylinderSpec const &) = default;
+    };
+
+    using ShapeSpec = std::variant<RectSpec, DiskSpec, SphereSpec, CylinderSpec>;
+
+    [[nodiscard]] ShapeSpec readShapeSpec(pxr::HdSceneDelegate &sceneDelegate) const;
+    [[nodiscard]] static flux::Ref<flux::TriangleMesh>
+    makeMesh(flux::Context &context, ShapeSpec const &shapeSpec);
+
+    void build(flux::Context &context, ShapeSpec const &shapeSpec);
 
     /// Null until a sync builds the light.
     flux::Ref<flux::Primitive> primitive_;
     flux::Ref<flux::ConstantEDF> edf_;
 
-    /// The width and the height of the rectangle in the geometry of \c primitive_.
-    flux::Vec2f size_{};
+    /// The shape in the geometry of \c primitive_. Its type is the type of the light.
+    ShapeSpec shapeSpec_;
 };
