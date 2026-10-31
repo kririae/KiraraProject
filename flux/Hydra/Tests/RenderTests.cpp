@@ -148,23 +148,23 @@ HdContainerDataSourceHandle translateAlongX(HdContainerDataSourceHandle const &p
     );
 }
 
-/// Holds points that the test can change after the scene read them.
-class EditablePoints final : public HdTypedSampledDataSource<VtVec3fArray> {
+/// Holds an array that the test can change after the scene read it.
+class EditableArray final : public HdTypedSampledDataSource<VtVec3fArray> {
 public:
-    explicit EditablePoints(VtVec3fArray points) : points_{std::move(points)} {}
+    explicit EditableArray(VtVec3fArray array) : array_{std::move(array)} {}
 
-    void set(VtVec3fArray points) { points_ = std::move(points); }
+    void set(VtVec3fArray array) { array_ = std::move(array); }
 
-    VtValue GetValue(Time) override { return VtValue{points_}; }
+    VtValue GetValue(Time) override { return VtValue{array_}; }
 
-    VtVec3fArray GetTypedValue(Time) override { return points_; }
+    VtVec3fArray GetTypedValue(Time) override { return array_; }
 
     bool GetContributingSampleTimesForInterval(Time, Time, std::vector<Time> *) override {
         return false;
     }
 
 private:
-    VtVec3fArray points_;
+    VtVec3fArray array_;
 };
 
 /// Syncs, prepares, and executes one render pass, as testHdPrman does.
@@ -510,7 +510,7 @@ TEST_F(RenderTests, WritesTheNormalOfAMeshThatCoversThePixel) {
 
 TEST_F(RenderTests, MovesTheHitWhenOnlyThePointsChange) {
     auto *const normal = bindNormal();
-    auto const points = std::make_shared<EditablePoints>(makeQuad(0.0F));
+    auto const points = std::make_shared<EditableArray>(makeQuad(0.0F));
     scene_->AddPrims({{meshPath, HdPrimTypeTokens->mesh, makeMesh(points)}});
     executeToConvergence();
     EXPECT_NEAR(centerNormal(normal)[2], 1.0F, 1e-4F);
@@ -572,7 +572,7 @@ TEST_F(RenderTests, KeepsRenderingWhenTheMeshContentIsInvalid) {
 
 TEST_F(RenderTests, KeepsTheTransformOfAMeshThatLosesItsPointsAndGetsThemAgain) {
     auto *const normal = bindNormal();
-    auto const points = std::make_shared<EditablePoints>(makeQuad(0.0F));
+    auto const points = std::make_shared<EditableArray>(makeQuad(0.0F));
     scene_->AddPrims({{meshPath, HdPrimTypeTokens->mesh, translateAlongX(makeMesh(points), 1.5)}});
     executeToConvergence();
     EXPECT_NEAR(vectorAt(normal, 48)[2], 1.0F, 1e-4F);
