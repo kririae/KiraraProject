@@ -5,6 +5,7 @@
 #include <optional>
 #include <type_traits>
 
+#include "flux/Core/EnumFlags.h"
 #include "flux/Core/Math.h"
 #include "flux/Scene/RenderObject.h"
 #include "flux/Shading/Interaction.h"
@@ -179,17 +180,74 @@ private:
 /// - \c flatness: optional fake-subsurface weight in \f$[0,1]\f$.
 /// - \c clearcoat and \c clearcoat_roughness: optional clearcoat controls in \f$[0,1]\f$.
 /// - \c eta or \c specular: dielectric reflectance control; these are mutually exclusive.
+///
+/// A texture setter requires a texture that is not empty and belongs to the same Context.
 class PrincipledBSDF final : public BSDF {
     friend class TXContext;
 
 public:
     struct Impl;
 
+    /// \brief Parameters of a Principled BSDF that a setter can change.
+    ///
+    /// One bit per setter. A setter records its bit only when the value changes.
+    enum class DirtyBits : std::uint32_t {
+        None = 0,
+        BaseColor = 1U << 0U,
+        Roughness = 1U << 1U,
+        Metallic = 1U << 2U,
+        SpecTrans = 1U << 3U,
+        SpecTint = 1U << 4U,
+        Sheen = 1U << 5U,
+        SheenTint = 1U << 6U,
+        Flatness = 1U << 7U,
+        Clearcoat = 1U << 8U,
+        ClearcoatRoughness = 1U << 9U,
+        Eta = 1U << 10U,
+    };
+
+    [[nodiscard]] Ref<Texture const> const &getBaseColor() const noexcept { return baseColor_; }
+    void setBaseColor(Ref<Texture const> texture);
+
+    [[nodiscard]] Ref<Texture const> const &getRoughness() const noexcept { return roughness_; }
+    void setRoughness(Ref<Texture const> texture);
+
+    [[nodiscard]] Ref<Texture const> const &getMetallic() const noexcept { return metallic_; }
+    void setMetallic(Ref<Texture const> texture);
+
+    [[nodiscard]] Ref<Texture const> const &getSpecTrans() const noexcept { return specTrans_; }
+    void setSpecTrans(Ref<Texture const> texture);
+
+    [[nodiscard]] Ref<Texture const> const &getSpecTint() const noexcept { return specTint_; }
+    void setSpecTint(Ref<Texture const> texture);
+
+    [[nodiscard]] Ref<Texture const> const &getSheen() const noexcept { return sheen_; }
+    void setSheen(Ref<Texture const> texture);
+
+    [[nodiscard]] Ref<Texture const> const &getSheenTint() const noexcept { return sheenTint_; }
+    void setSheenTint(Ref<Texture const> texture);
+
+    [[nodiscard]] Ref<Texture const> const &getFlatness() const noexcept { return flatness_; }
+    void setFlatness(Ref<Texture const> texture);
+
+    [[nodiscard]] Ref<Texture const> const &getClearcoat() const noexcept { return clearcoat_; }
+    void setClearcoat(Ref<Texture const> texture);
+
+    [[nodiscard]] Ref<Texture const> const &getClearcoatRoughness() const noexcept {
+        return clearcoatRoughness_;
+    }
+    void setClearcoatRoughness(Ref<Texture const> texture);
+
+    [[nodiscard]] float getEta() const noexcept { return eta_; }
+    void setEta(float eta);
+
     /// \brief Builds the scattering implementation.
     [[nodiscard]] Impl getImpl() const noexcept;
 
 private:
     PrincipledBSDF(TXContext &tx, kira::Properties const &props);
+
+    void replaceTexture(Ref<Texture const> &property, Ref<Texture const> texture, DirtyBits bits);
 
     Ref<Texture const> baseColor_;
     Ref<Texture const> roughness_;
@@ -272,6 +330,8 @@ public:
         bool eval, float u1, Vec2f const &u2
     ) const noexcept;
 };
+
+template <> inline constexpr bool isEnumFlags<PrincipledBSDF::DirtyBits> = true;
 
 static_assert(std::is_standard_layout_v<DiffuseBSDF::Impl>);
 static_assert(std::is_trivially_copyable_v<DiffuseBSDF::Impl>);

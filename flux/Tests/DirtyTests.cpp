@@ -4,6 +4,7 @@
 #include <array>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <stdexcept>
 #include <vector>
 
@@ -103,6 +104,51 @@ TEST(DirtyTests, EnvMapLightSettersRecordTheirBits) {
 
     light->setRotation({0.0F, -1.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F});
     EXPECT_EQ(flux::getDirtyBits(*light), Bits::Rotation);
+}
+
+TEST(DirtyTests, PrincipledBSDFSettersRecordTheirBits) {
+    using Bits = flux::PrincipledBSDF::DirtyBits;
+    auto context = flux::Context::create();
+    auto bsdf = context->create<flux::PrincipledBSDF>(kira::Properties{});
+    kira::Properties properties;
+    properties.set("value", 0.5F);
+    auto other = context->create<flux::ConstantTexture>(properties);
+    context->clearDirty();
+
+    auto const expectTextureSetter = [&](auto setter, auto getter, Bits bit) {
+        std::invoke(setter, *bsdf, other);
+        EXPECT_EQ(flux::getDirtyBits(*bsdf), bit);
+        EXPECT_EQ(std::invoke(getter, *bsdf), other);
+        context->clearDirty();
+    };
+    using flux::PrincipledBSDF;
+    expectTextureSetter(
+        &PrincipledBSDF::setBaseColor, &PrincipledBSDF::getBaseColor, Bits::BaseColor
+    );
+    expectTextureSetter(
+        &PrincipledBSDF::setRoughness, &PrincipledBSDF::getRoughness, Bits::Roughness
+    );
+    expectTextureSetter(&PrincipledBSDF::setMetallic, &PrincipledBSDF::getMetallic, Bits::Metallic);
+    expectTextureSetter(
+        &PrincipledBSDF::setSpecTrans, &PrincipledBSDF::getSpecTrans, Bits::SpecTrans
+    );
+    expectTextureSetter(&PrincipledBSDF::setSpecTint, &PrincipledBSDF::getSpecTint, Bits::SpecTint);
+    expectTextureSetter(&PrincipledBSDF::setSheen, &PrincipledBSDF::getSheen, Bits::Sheen);
+    expectTextureSetter(
+        &PrincipledBSDF::setSheenTint, &PrincipledBSDF::getSheenTint, Bits::SheenTint
+    );
+    expectTextureSetter(&PrincipledBSDF::setFlatness, &PrincipledBSDF::getFlatness, Bits::Flatness);
+    expectTextureSetter(
+        &PrincipledBSDF::setClearcoat, &PrincipledBSDF::getClearcoat, Bits::Clearcoat
+    );
+    expectTextureSetter(
+        &PrincipledBSDF::setClearcoatRoughness, &PrincipledBSDF::getClearcoatRoughness,
+        Bits::ClearcoatRoughness
+    );
+
+    bsdf->setEta(1.25F);
+    EXPECT_EQ(flux::getDirtyBits(*bsdf), Bits::Eta);
+    EXPECT_EQ(bsdf->getEta(), 1.25F);
 }
 
 TEST(DirtyTests, ConstantEDFSetterRecordsItsBit) {

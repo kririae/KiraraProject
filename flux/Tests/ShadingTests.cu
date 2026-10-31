@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <limits>
 #include <numbers>
+#include <stdexcept>
 
 #include "TestUtils.h"
 #include "flux/Optix/DeviceBuffer.h"
@@ -351,6 +352,21 @@ TEST(ShadingTests, CreatesPrincipledWithConstantParameters) {
     EXPECT_EQ(impl.clearcoat.eval1f<TestImageTextureEvaluator>({}), 0.5F);
     EXPECT_EQ(impl.clearcoatRoughness.eval1f<TestImageTextureEvaluator>({}), 0.15F);
     EXPECT_EQ(impl.eta, 1.45F);
+}
+
+TEST(ShadingTests, PrincipledSetterRejectsNullAndForeignTextures) {
+    auto context = flux::Context::create();
+    auto other = flux::Context::create();
+    auto bsdf = context->create<flux::PrincipledBSDF>(kira::Properties{});
+    auto const texture = bsdf->getBaseColor();
+    kira::Properties textureProperties;
+    textureProperties.set("value", 0.5F);
+    auto foreign = other->create<flux::ConstantTexture>(textureProperties);
+
+    EXPECT_THROW(bsdf->setBaseColor(nullptr), std::invalid_argument);
+    EXPECT_THROW(bsdf->setBaseColor(foreign), std::invalid_argument);
+
+    EXPECT_EQ(bsdf->getBaseColor(), texture);
 }
 
 TEST(ShadingTests, ResolvesPrincipledEta) {

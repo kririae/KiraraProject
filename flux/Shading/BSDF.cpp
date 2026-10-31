@@ -1,7 +1,9 @@
 #include "flux/Shading/BSDF.h"
 
 #include <cmath>
+#include <stdexcept>
 #include <string>
+#include <utility>
 
 #include "flux/Core/Logging.h"
 #include "flux/Scene/TXContext.h"
@@ -73,6 +75,58 @@ PrincipledBSDF::PrincipledBSDF(TXContext &tx, kira::Properties const &props)
     else
         eta_ = etaFromSpecular(props.use_or<float>("specular", 0.5F));
 }
+
+void PrincipledBSDF::replaceTexture(
+    Ref<Texture const> &property, Ref<Texture const> texture, DirtyBits bits
+) {
+    if (!texture)
+        throw std::invalid_argument("PrincipledBSDF: texture must not be null");
+    if (!getContext() || texture->getContext() != getContext())
+        throw std::invalid_argument("PrincipledBSDF: texture belongs to another context");
+    setIfDifferent(property, texture, bits);
+}
+
+void PrincipledBSDF::setBaseColor(Ref<Texture const> texture) {
+    replaceTexture(baseColor_, std::move(texture), DirtyBits::BaseColor);
+}
+
+void PrincipledBSDF::setRoughness(Ref<Texture const> texture) {
+    replaceTexture(roughness_, std::move(texture), DirtyBits::Roughness);
+}
+
+void PrincipledBSDF::setMetallic(Ref<Texture const> texture) {
+    replaceTexture(metallic_, std::move(texture), DirtyBits::Metallic);
+}
+
+void PrincipledBSDF::setSpecTrans(Ref<Texture const> texture) {
+    replaceTexture(specTrans_, std::move(texture), DirtyBits::SpecTrans);
+}
+
+void PrincipledBSDF::setSpecTint(Ref<Texture const> texture) {
+    replaceTexture(specTint_, std::move(texture), DirtyBits::SpecTint);
+}
+
+void PrincipledBSDF::setSheen(Ref<Texture const> texture) {
+    replaceTexture(sheen_, std::move(texture), DirtyBits::Sheen);
+}
+
+void PrincipledBSDF::setSheenTint(Ref<Texture const> texture) {
+    replaceTexture(sheenTint_, std::move(texture), DirtyBits::SheenTint);
+}
+
+void PrincipledBSDF::setFlatness(Ref<Texture const> texture) {
+    replaceTexture(flatness_, std::move(texture), DirtyBits::Flatness);
+}
+
+void PrincipledBSDF::setClearcoat(Ref<Texture const> texture) {
+    replaceTexture(clearcoat_, std::move(texture), DirtyBits::Clearcoat);
+}
+
+void PrincipledBSDF::setClearcoatRoughness(Ref<Texture const> texture) {
+    replaceTexture(clearcoatRoughness_, std::move(texture), DirtyBits::ClearcoatRoughness);
+}
+
+void PrincipledBSDF::setEta(float eta) { setIfDifferent(eta_, eta, DirtyBits::Eta); }
 
 PrincipledBSDF::Impl PrincipledBSDF::getImpl() const noexcept {
     return {
