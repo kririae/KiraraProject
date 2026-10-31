@@ -41,10 +41,19 @@ std::array<Aov, 3> const &aovs() {
 } // namespace
 
 flux::FilmChannels HdFluxGetAovChannel(pxr::HdRenderPassAovBinding const &binding) {
-    auto name = binding.aovName;
+    static pxr::TfToken const sourceNameKey{"sourceName"};
+    static pxr::TfToken const sourceTypeKey{"sourceType"};
+    static pxr::TfToken const raw{"raw"};
 
-    if (auto const source = binding.aovSettings.find(pxr::TfToken{"sourceName"});
-        source != binding.aovSettings.end() && source->second.IsHolding<std::string>())
+    auto const &settings = binding.aovSettings;
+    auto const sourceType = settings.find(sourceTypeKey);
+    auto const isRaw =
+        sourceType == settings.end() || (sourceType->second.IsHolding<pxr::TfToken>() &&
+                                         sourceType->second.UncheckedGet<pxr::TfToken>() == raw);
+
+    auto name = binding.aovName;
+    if (auto const source = settings.find(sourceNameKey);
+        isRaw && source != settings.end() && source->second.IsHolding<std::string>())
         name = pxr::TfToken{source->second.UncheckedGet<std::string>()};
 
     auto const *const aov = find(name);

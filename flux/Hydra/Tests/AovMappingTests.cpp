@@ -19,6 +19,12 @@ TEST(AovMappingTests, SourceNameTakesThePlaceOfTheAovName) {
     EXPECT_EQ(HdFluxGetAovChannel(binding("color", "normal")), flux::FilmChannels::Normal);
 }
 
+TEST(AovMappingTests, AnLpeSourceLeavesTheAovName) {
+    auto lpe = binding("color", "C.*[LO]");
+    lpe.aovSettings[pxr::TfToken{"sourceType"}] = pxr::TfToken{"lpe"};
+    EXPECT_EQ(HdFluxGetAovChannel(lpe), flux::FilmChannels::Color);
+}
+
 TEST(AovMappingTests, MapsTheColorAliasToColor) {
     EXPECT_EQ(HdFluxGetAovChannel(binding("C")), flux::FilmChannels::Color);
 }
