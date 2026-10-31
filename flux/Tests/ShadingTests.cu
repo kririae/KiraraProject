@@ -7,6 +7,8 @@
 #include <limits>
 #include <numbers>
 #include <stdexcept>
+#include <string>
+#include <utility>
 
 #include "TestUtils.h"
 #include "flux/Optix/DeviceBuffer.h"
@@ -107,6 +109,16 @@ struct EvaluatePrincipled {
     props.set("clearcoat_roughness", 0.15F);
     props.set("eta", 1.45F);
     return props;
+}
+
+void expectSameResult(flux::BSDFResult const &actual, flux::BSDFResult const &expected) {
+    EXPECT_EQ(actual.evaluation.value, expected.evaluation.value);
+    EXPECT_EQ(actual.evaluation.pdf, expected.evaluation.pdf);
+    EXPECT_EQ(actual.sample.weight, expected.sample.weight);
+    EXPECT_EQ(actual.sample.wi, expected.sample.wi);
+    EXPECT_EQ(actual.sample.pdf, expected.sample.pdf);
+    EXPECT_EQ(actual.sample.eta, expected.sample.eta);
+    EXPECT_EQ(actual.sample.lobe, expected.sample.lobe);
 }
 } // namespace
 
@@ -290,6 +302,67 @@ TEST(ShadingTests, MatchesPrincipledExecutionOnDevice) {
     EXPECT_NEAR(actual[0].sample.pdf, expected.sample.pdf, pdfTolerance(expected.sample.pdf));
     EXPECT_NEAR(actual[0].sample.eta, expected.sample.eta, 1.0e-5F);
     EXPECT_EQ(actual[0].sample.lobe, expected.sample.lobe);
+}
+
+TEST(ShadingTests, BoundsDiffuseReflectanceToUnitRange) {
+    auto const bsdf = flux::DiffuseBSDF::Impl{
+        .R = constantTexture(flux::Spectrum{-0.5F, 0.5F, 2.0F}),
+    };
+    auto const result = bsdf.execute<TestImageTextureEvaluator>(
+        {}, {0.0F, 0.0F, 1.0F}, {0.0F, 0.0F, 1.0F}, true, 0.5F, {0.5F, 0.5F}
+    );
+
+    EXPECT_EQ(result.sample.weight, (flux::Spectrum{0.0F, 0.5F, 1.0F}));
+}
+
+TEST(ShadingTests, BoundsPrincipledParametersToTheirRanges) {
+    using Impl = flux::PrincipledBSDF::Impl;
+    struct Parameter {
+        char const *name;
+        flux::Texture::Impl Impl::*member;
+    };
+    constexpr auto parameters = std::array{
+        Parameter{"roughness", &Impl::roughness},
+        Parameter{"metallic", &Impl::metallic},
+        Parameter{"specTrans", &Impl::specTrans},
+        Parameter{"specTint", &Impl::specTint},
+        Parameter{"sheen", &Impl::sheen},
+        Parameter{"sheenTint", &Impl::sheenTint},
+        Parameter{"flatness", &Impl::flatness},
+        Parameter{"clearcoat", &Impl::clearcoat},
+        Parameter{"clearcoatRoughness", &Impl::clearcoatRoughness},
+    };
+    auto const execute = [](Impl const &bsdf) {
+        return bsdf.execute<TestImageTextureEvaluator>(
+            {}, flux::Vec3f{0.8F, -0.1F, 0.3F}.normalize(),
+            flux::Vec3f{-0.7F, 0.2F, 0.3F}.normalize(), true, 0.45F, {0.3F, 0.7F}
+        );
+    };
+
+    auto context = flux::Context::create();
+    auto const impl = context->create<flux::PrincipledBSDF>(principledProperties())->getImpl();
+
+    for (auto const &[name, member] : parameters)
+        for (auto const &[outside, bounded] : {std::pair{-0.5F, 0.0F}, std::pair{1.5F, 1.0F}}) {
+            SCOPED_TRACE(std::string{name} + " = " + std::to_string(outside));
+            auto outsideImpl = impl;
+            auto boundedImpl = impl;
+            outsideImpl.*member = constantTexture(flux::Spectrum{outside});
+            boundedImpl.*member = constantTexture(flux::Spectrum{bounded});
+            expectSameResult(execute(outsideImpl), execute(boundedImpl));
+        }
+
+    auto outsideColor = impl;
+    auto boundedColor = impl;
+    outsideColor.baseColor = constantTexture({-0.5F, 0.5F, 2.0F});
+    boundedColor.baseColor = constantTexture({0.0F, 0.5F, 1.0F});
+    expectSameResult(execute(outsideColor), execute(boundedColor));
+
+    auto outsideEta = impl;
+    auto boundedEta = impl;
+    outsideEta.eta = -1.45F;
+    boundedEta.eta = std::numeric_limits<float>::denorm_min();
+    expectSameResult(execute(outsideEta), execute(boundedEta));
 }
 
 TEST(ShadingTests, PreservesDiffuseReflectance) {

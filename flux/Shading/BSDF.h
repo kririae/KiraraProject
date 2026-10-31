@@ -116,6 +116,8 @@ public:
 };
 
 /// \brief Host-side base for surface scattering models.
+///
+/// A parameter outside the range that a BSDF supports is bounded to the nearest supported value.
 class BSDF : public RenderObject {
     friend class TXContext;
 
@@ -149,7 +151,7 @@ private:
 /// \brief Lambertian reflection with textured reflectance.
 ///
 /// \par Properties
-/// - \c R: optional RGB reflectance; defaults to 0.5.
+/// - \c R: optional RGB reflectance in \f$[0,1]\f$ per channel; defaults to 0.5.
 class DiffuseBSDF final : public BSDF {
     friend class TXContext;
 
@@ -171,7 +173,7 @@ private:
 /// \brief Disney Principled BSDF with textured parameters.
 ///
 /// \par Properties
-/// - \c base_color: optional RGB base color; defaults to 0.5.
+/// - \c base_color: optional RGB base color in \f$[0,1]\f$ per channel; defaults to 0.5.
 /// - \c roughness: optional surface roughness in \f$[0,1]\f$; defaults to 0.5.
 /// - \c metallic: optional metallic weight in \f$[0,1]\f$; defaults to zero.
 /// - \c spec_trans: optional transmission weight in \f$[0,1]\f$; defaults to zero.
@@ -179,7 +181,8 @@ private:
 /// - \c sheen and \c sheen_tint: optional sheen controls in \f$[0,1]\f$.
 /// - \c flatness: optional fake-subsurface weight in \f$[0,1]\f$.
 /// - \c clearcoat and \c clearcoat_roughness: optional clearcoat controls in \f$[0,1]\f$.
-/// - \c eta or \c specular: dielectric reflectance control; these are mutually exclusive.
+/// - \c eta or \c specular: dielectric reflectance control. They are mutually exclusive, and \c eta
+///   is positive.
 ///
 /// A texture setter requires a texture that is not empty and belongs to the same Context.
 class PrincipledBSDF final : public BSDF {

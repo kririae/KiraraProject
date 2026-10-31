@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <numbers>
 
 #include "flux/Core/MathUtils.h"
@@ -290,17 +291,17 @@ KIRA_HOST_DEVICE inline BSDFResult PrincipledBSDF::Impl::execute(
     Vec2f const &u2
 ) const noexcept {
     auto const params = principled::Parameters{
-        .baseColor = baseColor.template eval3f<Evaluator>(ctx),                   // (1)
-        .roughness = roughness.template eval1f<Evaluator>(ctx),                   // (2)
-        .metallic = metallic.template eval1f<Evaluator>(ctx),                     // (3)
-        .specTrans = specTrans.template eval1f<Evaluator>(ctx),                   // (4)
-        .specTint = specTint.template eval1f<Evaluator>(ctx),                     // (5)
-        .sheen = sheen.template eval1f<Evaluator>(ctx),                           // (6)
-        .sheenTint = sheenTint.template eval1f<Evaluator>(ctx),                   // (7)
-        .flatness = flatness.template eval1f<Evaluator>(ctx),                     // (8)
-        .clearcoat = clearcoat.template eval1f<Evaluator>(ctx),                   // (9)
-        .clearcoatRoughness = clearcoatRoughness.template eval1f<Evaluator>(ctx), // (10)
-        .eta = eta,                                                               // (11)
+        .baseColor = saturate(baseColor.template eval3f<Evaluator>(ctx)),                   // (1)
+        .roughness = saturate(roughness.template eval1f<Evaluator>(ctx)),                   // (2)
+        .metallic = saturate(metallic.template eval1f<Evaluator>(ctx)),                     // (3)
+        .specTrans = saturate(specTrans.template eval1f<Evaluator>(ctx)),                   // (4)
+        .specTint = saturate(specTint.template eval1f<Evaluator>(ctx)),                     // (5)
+        .sheen = saturate(sheen.template eval1f<Evaluator>(ctx)),                           // (6)
+        .sheenTint = saturate(sheenTint.template eval1f<Evaluator>(ctx)),                   // (7)
+        .flatness = saturate(flatness.template eval1f<Evaluator>(ctx)),                     // (8)
+        .clearcoat = saturate(clearcoat.template eval1f<Evaluator>(ctx)),                   // (9)
+        .clearcoatRoughness = saturate(clearcoatRoughness.template eval1f<Evaluator>(ctx)), // (10)
+        .eta = std::max(eta, std::numeric_limits<float>::denorm_min()),                     // (11)
     };
     auto const frontSide = wo.z() > 0.0F;
     if (wo.z() == 0.0F)

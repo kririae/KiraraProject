@@ -14,7 +14,7 @@ KIRA_HOST_DEVICE inline BSDFResult DiffuseBSDF::Impl::execute(
     if (wo.z() <= 0.0F)
         return {};
 
-    auto const value = R.template eval3f<Evaluator>(ctx);
+    auto const value = saturate(R.template eval3f<Evaluator>(ctx));
     auto result = BSDFResult{};
     if (eval && wi.z() > 0.0F) {
         constexpr auto inversePi = std::numbers::inv_pi_v<float>;

@@ -82,6 +82,16 @@ upperBoundIndex(T const *values, std::size_t size, U const &value) noexcept {
     return 0.2126F * value.x() + 0.7152F * value.y() + 0.0722F * value.z();
 }
 
+/// \brief Bounds \p value to \f$[0,1]\f$.
+[[nodiscard]] KIRA_HOST_DEVICE constexpr float saturate(float value) noexcept {
+    return std::clamp(value, 0.0F, 1.0F);
+}
+
+/// \brief Bounds each channel of \p value to \f$[0,1]\f$.
+[[nodiscard]] KIRA_HOST_DEVICE constexpr Spectrum saturate(Spectrum const &value) noexcept {
+    return value.max(0.0F).min(1.0F);
+}
+
 KIRA_HOST_DEVICE inline void sinCos(float angle, float &sinValue, float &cosValue) noexcept {
 #if defined(__CUDA_ARCH__)
     __sincosf(angle, &sinValue, &cosValue);
