@@ -12,6 +12,8 @@ Before you write anything that states a fact or a rule, in code, a comment, a te
 
 A question is not a request. When the user asks a question, answer it and stop. The user asks because starting might go wrong, and decides from the answer whether to start.
 
+Before you act, raise each problem that would change the work, such as a false premise or a design that a skill lists as bad, and point to its evidence. Once the user decides, carry the decision out, and reopen it only with new evidence.
+
 ## Decide
 
 - Before you design a change, or choose its structure, follow [design](.agents/skills/design/SKILL.md).
