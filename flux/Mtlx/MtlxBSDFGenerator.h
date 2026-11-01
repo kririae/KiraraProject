@@ -2,12 +2,14 @@
 
 #include <MaterialXCore/Document.h>
 #include <MaterialXFormat/File.h>
-#include <MaterialXGenShader/GenOptions.h>
 
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
+#include <vector>
 
 #include "flux/Scene/ShaderAsset.h"
 
@@ -19,32 +21,41 @@ class FluxShaderGenerator;
 /// The generated source imports \c flux_bsdf and \c flux_context, which a backend provides.
 class MtlxBSDFGenerator final {
 public:
+    struct Instance {
+        ShaderAssetSpec spec;
+
+        std::vector<std::uint32_t> words;
+    };
+
     /// \brief Loads the MaterialX libraries of \p mtlxRoot, and FLux's data.
     ///
     /// \param mtlxRoot The MaterialX installation whose libraries the documents read.
-    /// \param interfaceType The inputs that MaterialX publishes as the shader's interface.
     /// \throw kira::Anyhow If the libraries cannot be loaded.
-    MtlxBSDFGenerator(
-        std::filesystem::path const &mtlxRoot, MaterialX::ShaderInterfaceType interfaceType
-    );
+    explicit MtlxBSDFGenerator(std::filesystem::path const &mtlxRoot);
 
-    /// \brief Returns the spec of the material \p materialName of \p document.
+    /// \brief Generates the material \p materialName of \p document.
     ///
-    /// A material that MaterialX cannot build, and a node that \c genflux cannot run, generate
-    /// nothing and warn. A published value that no emission reads keeps the value MaterialX gave
-    /// it, and warns.
+    /// The source holds every value of the material as a constant, except the inputs in
+    /// \p interactive: each of those becomes a parameter, and its words hold its current value.
+    /// An authored value that the material never reads warns.
     ///
-    /// \return Nothing if the material is absent, or if its content cannot be generated.
-    [[nodiscard]] std::optional<ShaderAssetSpec>
-    generate(MaterialX::DocumentPtr const &document, std::string const &materialName) const;
+    /// \param interactive Paths of inputs, such as \c oren/color. A path that names no input the
+    ///        material reads, or an input that words cannot hold, warns and is ignored.
+    /// \return Nothing if the material is absent. Nothing, with a warning, if MaterialX cannot
+    ///         build it or \c genflux cannot run one of its nodes.
+    [[nodiscard]] std::optional<Instance> generate(
+        MaterialX::DocumentPtr const &document, std::string const &materialName,
+        std::span<std::string const> interactive = {}
+    ) const;
 
 private:
     /// \throw MaterialX::Exception If the content cannot be generated.
-    [[nodiscard]] ShaderAssetSpec
-    makeSpec(MaterialX::DocumentPtr const &document, std::string const &materialName) const;
+    [[nodiscard]] Instance makeInstance(
+        MaterialX::DocumentPtr const &document, std::string const &materialName,
+        std::span<std::string const> interactive
+    ) const;
 
     MaterialX::FilePath mtlxRoot_;
-    MaterialX::ShaderInterfaceType interfaceType_;
     MaterialX::DocumentPtr libraries_;
     std::shared_ptr<FluxShaderGenerator> generator_;
 };

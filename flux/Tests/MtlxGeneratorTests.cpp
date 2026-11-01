@@ -2,10 +2,13 @@
 #include <MaterialXFormat/XmlIo.h>
 #include <gtest/gtest.h>
 
+#include <bit>
 #include <cstddef>
 #include <fstream>
 #include <optional>
+#include <ranges>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "flux/Mtlx/MtlxBSDFGenerator.h"
@@ -143,19 +146,20 @@ constexpr auto malformedDocument = R"mtlx(<?xml version="1.0"?>
   </surfacematerial>
 </materialx>)mtlx";
 
-[[nodiscard]] std::optional<flux::ShaderAssetSpec>
-tryGenerate(std::string const &document, MaterialX::ShaderInterfaceType interfaceType) {
-    auto const generator = flux::MtlxBSDFGenerator{FLUX_MATERIALX_DIR, interfaceType};
+[[nodiscard]] std::optional<flux::MtlxBSDFGenerator::Instance>
+tryGenerate(std::string const &document, std::vector<std::string> const &interactive = {}) {
+    auto const generator = flux::MtlxBSDFGenerator{FLUX_MATERIALX_DIR};
     auto parsed = MaterialX::createDocument();
     MaterialX::readFromXmlString(parsed, document);
-    return generator.generate(parsed, "M");
+    return generator.generate(parsed, "M", interactive);
 }
 
-[[nodiscard]] flux::ShaderAssetSpec generate(std::string const &document) {
-    auto const spec = tryGenerate(document, MaterialX::SHADER_INTERFACE_COMPLETE);
-    if (!spec)
+[[nodiscard]] flux::MtlxBSDFGenerator::Instance
+generate(std::string const &document, std::vector<std::string> const &interactive = {}) {
+    auto instance = tryGenerate(document, interactive);
+    if (!instance)
         throw kira::Anyhow{"the material generated nothing"};
-    return *spec;
+    return *std::move(instance);
 }
 
 [[nodiscard]] std::string readLibrary() {
@@ -177,27 +181,31 @@ tryGenerate(std::string const &document, MaterialX::ShaderInterfaceType interfac
     return compiler.compile(modules, "entry");
 }
 
-void expectOneConcreteType(flux::ShaderAssetSpec const &spec) {
-    auto const code = compile(spec);
+void expectOneConcreteType(flux::MtlxBSDFGenerator::Instance const &instance) {
+    auto const code = compile(instance.spec);
 
     EXPECT_EQ(code.find("AnyValue"), std::string::npos);
 }
 } // namespace
 
-TEST(MtlxGeneratorTests, TheParametersHoldDisjointRangesOfWords) {
-    auto const spec = generate(mixedDocument);
+TEST(MtlxGeneratorTests, OnlyTheInteractiveInputsBecomeParametersWithTheirValuesAsWords) {
+    auto const instance = generate(mixedDocument, {"fg/color", "m/mix"});
 
-    EXPECT_FALSE(spec.parameters.empty());
-    auto next = std::size_t{};
-    for (auto const &parameter : spec.parameters) {
-        EXPECT_EQ(parameter.wordCount, parameter.type == "color3" ? 3U : 1U) << parameter.path;
-        EXPECT_EQ(parameter.offset, next) << parameter.path;
-        next += parameter.wordCount;
+    ASSERT_EQ(instance.spec.parameters.size(), 2U);
+    EXPECT_EQ(instance.words.size(), 4U);
+    for (auto const &parameter : instance.spec.parameters) {
+        auto const expected = parameter.path == "fg/color" ? std::vector<float>{0.8F, 0.2F, 0.2F}
+                                                           : std::vector<float>{0.25F};
+        ASSERT_EQ(parameter.wordCount, expected.size()) << parameter.path;
+        for (auto const index : std::views::iota(std::size_t{}, expected.size()))
+            EXPECT_EQ(
+                std::bit_cast<float>(instance.words[parameter.offset + index]), expected[index]
+            ) << parameter.path;
     }
 }
 
 TEST(MtlxGeneratorTests, CompilesAMixedMaterialToOneConcreteType) {
-    expectOneConcreteType(generate(mixedDocument));
+    expectOneConcreteType(generate(mixedDocument, {"fg/color"}));
 }
 
 TEST(MtlxGeneratorTests, CompilesAnUnconnectedClosureInputToOneConcreteType) {
@@ -208,18 +216,10 @@ TEST(MtlxGeneratorTests, CompilesTheNodesThatTheTargetInherits) {
     expectOneConcreteType(generate(inheritedDocument));
 }
 
-TEST(MtlxGeneratorTests, FoldsEveryValueThatTheMaterialDoesNotDeclare) {
-    auto const spec = tryGenerate(mixedDocument, MaterialX::SHADER_INTERFACE_REDUCED);
-
-    ASSERT_TRUE(spec.has_value());
-    EXPECT_TRUE(spec->parameters.empty());
-    expectOneConcreteType(*spec);
-}
-
 TEST(MtlxGeneratorTests, GeneratesNothingForANodeThatGenfluxCannotRun) {
-    EXPECT_FALSE(tryGenerate(unsupportedDocument, MaterialX::SHADER_INTERFACE_COMPLETE));
+    EXPECT_FALSE(tryGenerate(unsupportedDocument));
 }
 
 TEST(MtlxGeneratorTests, GeneratesNothingForADocumentThatMaterialXCannotBuild) {
-    EXPECT_FALSE(tryGenerate(malformedDocument, MaterialX::SHADER_INTERFACE_COMPLETE));
+    EXPECT_FALSE(tryGenerate(malformedDocument));
 }

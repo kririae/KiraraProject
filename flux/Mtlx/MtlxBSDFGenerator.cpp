@@ -15,10 +15,16 @@
 #include <fmt/ranges.h>
 
 #include <algorithm>
+#include <bit>
 #include <cstddef>
+#include <cstdint>
+#include <functional>
 #include <optional>
 #include <ranges>
+#include <set>
+#include <span>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -64,43 +70,76 @@ constexpr auto libraryFiles = std::to_array<std::pair<char const *, char const *
     }
 }
 
-struct WordRead {
-    std::string variable;
-    std::string slangType;
-    std::size_t wordCount{};
-    std::size_t offset{};
-};
+/// \brief Declares the variable of \p socket as the parameter at word \p offset.
+void emitWordRead(
+    MaterialX::ShaderGenerator const &shadergen, MaterialX::ShaderGraphInputSocket const &socket,
+    std::size_t count, std::size_t offset, MaterialX::ShaderStage &stage
+) {
+    auto const slangType = shadergen.getSyntax().getTypeName(socket.getType());
+    auto value = fmt::format("asfloat(words[{}])", offset);
+    if (count > 1) {
+        auto const indices = std::views::iota(offset, offset + count);
+        auto const components = indices | std::views::transform([](std::size_t index) {
+            return fmt::format("asfloat(words[{}])", index);
+        });
+        value = fmt::format("{}({})", slangType, fmt::join(components, ", "));
+    }
+    shadergen.emitLine(
+        fmt::format("{} {} = {};", slangType, socket.getVariable(), value), stage, false
+    );
+}
 
-void emitWordReads(
-    MaterialX::ShaderGenerator const &shadergen, std::vector<WordRead> const &reads,
+/// \brief Declares the variable of \p socket as the constant that \p socket holds.
+void emitConstant(
+    MaterialX::ShaderGenerator const &shadergen, MaterialX::ShaderGraphInputSocket const &socket,
     MaterialX::ShaderStage &stage
 ) {
-    for (auto const &read : reads) {
-        auto line = std::string{};
-        if (read.wordCount == 1) {
-            line = fmt::format(
-                "{} {} = asfloat(words[{}]);", read.slangType, read.variable, read.offset
-            );
-        } else {
-            auto const indices = std::views::iota(std::size_t{}, read.wordCount);
-            auto const values = indices | std::views::transform([&](std::size_t index) {
-                return fmt::format("asfloat(words[{}])", read.offset + index);
-            });
-            line = fmt::format(
-                "{} {} = {}({});", read.slangType, read.variable, read.slangType,
-                fmt::join(values, ", ")
-            );
-        }
-        shadergen.emitLine(line, stage, false);
+    auto const &syntax = shadergen.getSyntax();
+    auto const type = socket.getType();
+    auto const literal = socket.getValue() ? syntax.getValue(type, *socket.getValue())
+                                           : syntax.getDefaultValue(type);
+    auto line = fmt::format("{} {}", syntax.getTypeName(type), socket.getVariable());
+    if (!literal.empty())
+        line += " = " + literal;
+    shadergen.emitLine(line + ";", stage, false);
+}
+
+template <class T>
+bool appendComponents(MaterialX::Value const &value, std::vector<std::uint32_t> &words) {
+    if (!value.isA<T>())
+        return false;
+    auto const &typed = value.asA<T>();
+    if constexpr (std::is_same_v<T, float>)
+        words.push_back(std::bit_cast<std::uint32_t>(typed));
+    else
+        for (auto const component : std::span{typed.data(), T::numElements()})
+            words.push_back(std::bit_cast<std::uint32_t>(component));
+    return true;
+}
+
+/// \brief Appends the words of \p value, or \p count zeros if the socket holds no value.
+void appendWords(
+    MaterialX::ValuePtr const &value, std::size_t count, std::vector<std::uint32_t> &words
+) {
+    if (!value) {
+        words.insert(words.end(), count, 0U);
+        return;
     }
+    auto const appended = appendComponents<float>(*value, words) ||
+                          appendComponents<MaterialX::Vector2>(*value, words) ||
+                          appendComponents<MaterialX::Vector3>(*value, words) ||
+                          appendComponents<MaterialX::Color3>(*value, words) ||
+                          appendComponents<MaterialX::Vector4>(*value, words) ||
+                          appendComponents<MaterialX::Color4>(*value, words);
+    if (!appended)
+        throw MaterialX::ExceptionShaderGenError{
+            fmt::format("no word holds the value '{}'", value->getValueString())
+        };
 }
 } // namespace
 
-MtlxBSDFGenerator::MtlxBSDFGenerator(
-    std::filesystem::path const &mtlxRoot, MaterialX::ShaderInterfaceType interfaceType
-)
-    : mtlxRoot_{mtlxRoot.string()}, interfaceType_{interfaceType},
-      libraries_{MaterialX::createDocument()} {
+MtlxBSDFGenerator::MtlxBSDFGenerator(std::filesystem::path const &mtlxRoot)
+    : mtlxRoot_{mtlxRoot.string()}, libraries_{MaterialX::createDocument()} {
     auto const searchPath = MaterialX::FileSearchPath{mtlxRoot_};
     MaterialX::StringSet loaded;
     try {
@@ -118,23 +157,25 @@ MtlxBSDFGenerator::MtlxBSDFGenerator(
     generator_ = std::make_shared<FluxShaderGenerator>(MaterialX::TypeSystem::create());
 }
 
-std::optional<ShaderAssetSpec> MtlxBSDFGenerator::generate(
-    MaterialX::DocumentPtr const &document, std::string const &materialName
+std::optional<MtlxBSDFGenerator::Instance> MtlxBSDFGenerator::generate(
+    MaterialX::DocumentPtr const &document, std::string const &materialName,
+    std::span<std::string const> interactive
 ) const {
     auto const element = document->getChild(materialName);
     if (!element || element->getCategory() != "surfacematerial")
         return std::nullopt;
 
     try {
-        return makeSpec(document, materialName);
+        return makeInstance(document, materialName, interactive);
     } catch (MaterialX::Exception const &error) {
         LogWarn("MaterialX material '{}': {}", materialName, error.what());
         return std::nullopt;
     }
 }
 
-ShaderAssetSpec MtlxBSDFGenerator::makeSpec(
-    MaterialX::DocumentPtr const &document, std::string const &materialName
+MtlxBSDFGenerator::Instance MtlxBSDFGenerator::makeInstance(
+    MaterialX::DocumentPtr const &document, std::string const &materialName,
+    std::span<std::string const> interactive
 ) const {
     auto const copy = document->copy();
     copy->setDataLibrary(libraries_);
@@ -146,15 +187,25 @@ ShaderAssetSpec MtlxBSDFGenerator::makeSpec(
     auto context = MaterialX::GenContext{generator_};
     context.registerSourceCodeSearchPath(MaterialX::FileSearchPath{mtlxRoot_});
     context.getOptions().premultipliedBsdfAdd = false;
-    context.getOptions().shaderInterfaceType = interfaceType_;
+    context.getOptions().shaderInterfaceType = MaterialX::SHADER_INTERFACE_COMPLETE;
 
     auto const shader =
         generator_->createShader(materialName, copy->getChild(materialName), context);
     auto const &graph = shader->getGraph();
 
+    auto const stage = generator_->makeStage();
+    generator_->emitLine("import flux_bsdf;", *stage, false);
+    generator_->emitLine("import flux_context;", *stage, false);
+    generator_->emitLineBreak(*stage);
+    generator_->emitLibraryInclude("stdlib/genslang/lib/mx_math.slang", context, *stage);
+    generator_->emitLineBreak(*stage);
+    generator_->emitFunctionDefinitions(graph, context, *stage);
+    generator_->emitLine("public IBSDF makeBSDF(uint* words, ShadingContext ctx)", *stage, false);
+    stage->beginScope();
+
+    auto unmatched = std::set<std::string, std::less<>>{interactive.begin(), interactive.end()};
     auto parameters = std::vector<ShaderParameter>{};
-    auto reads = std::vector<WordRead>{};
-    auto offset = std::size_t{};
+    auto words = std::vector<std::uint32_t>{};
     for (auto const *socket : graph.getInputSockets()) {
         if (!isRead(*socket)) {
             if (!socket->getConnections().empty() && writesValue(copy, socket->getPath()))
@@ -166,37 +217,30 @@ ShaderAssetSpec MtlxBSDFGenerator::makeSpec(
 
         auto const typeDesc = socket->getType();
         auto const count = wordCount(typeDesc);
-        if (!count)
-            throw MaterialX::ExceptionShaderGenError{fmt::format(
-                "'{}' is read, and no word holds the type '{}'", socket->getPath(),
-                typeDesc.getName()
-            )};
+        auto const isInteractive = unmatched.erase(socket->getPath()) > 0;
+        if (isInteractive && !count)
+            LogWarn(
+                "MaterialX material '{}': '{}' cannot be interactive, since no word holds the type "
+                "'{}'",
+                materialName, socket->getPath(), typeDesc.getName()
+            );
+        if (!isInteractive || !count) {
+            emitConstant(*generator_, *socket, *stage);
+            continue;
+        }
 
         parameters.push_back(
             {.path = socket->getPath(),
              .type = typeDesc.getName(),
              .wordCount = *count,
-             .offset = offset}
+             .offset = words.size()}
         );
-        reads.push_back(
-            {.variable = socket->getVariable(),
-             .slangType = generator_->getSyntax().getTypeName(typeDesc),
-             .wordCount = *count,
-             .offset = offset}
-        );
-        offset += *count;
+        emitWordRead(*generator_, *socket, *count, words.size(), *stage);
+        appendWords(socket->getValue(), *count, words);
     }
+    for (auto const &path : unmatched)
+        LogWarn("MaterialX material '{}': '{}' names no input that is read", materialName, path);
 
-    auto const stage = generator_->makeStage();
-    generator_->emitLine("import flux_bsdf;", *stage, false);
-    generator_->emitLine("import flux_context;", *stage, false);
-    generator_->emitLineBreak(*stage);
-    generator_->emitLibraryInclude("stdlib/genslang/lib/mx_math.slang", context, *stage);
-    generator_->emitLineBreak(*stage);
-    generator_->emitFunctionDefinitions(graph, context, *stage);
-    generator_->emitLine("public IBSDF makeBSDF(uint* words, ShadingContext ctx)", *stage, false);
-    stage->beginScope();
-    emitWordReads(*generator_, reads, *stage);
     generator_->emitFunctionCalls(graph, context, *stage);
     generator_->emitLine(
         fmt::format("return {};", generator_->getUpstreamResult(graph.getOutputSocket(), context)),
@@ -205,6 +249,9 @@ ShaderAssetSpec MtlxBSDFGenerator::makeSpec(
     stage->endScope();
     generator_->substituteTokens(*stage);
 
-    return ShaderAssetSpec{.source = stage->getSourceCode(), .parameters = std::move(parameters)};
+    return Instance{
+        .spec = {.source = stage->getSourceCode(), .parameters = std::move(parameters)},
+        .words = std::move(words)
+    };
 }
 } // namespace flux
