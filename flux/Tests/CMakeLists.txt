@@ -10,6 +10,11 @@ krr_add_test(
     SOURCES TomlSceneTests.cpp ../FLux/TomlScene.cpp
     HARD_DEPENDENCIES flux)
 
+krr_add_test(
+    flux Slang CompilerTests
+    SOURCES SlangCompilerTests.cpp
+    HARD_DEPENDENCIES flux)
+
 add_test(NAME flux.CLI.CboxSmoke
          COMMAND $<TARGET_FILE:flux_cli> ${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/Cbox/Cbox.toml --backend embree --spp 1
                  --output ${CMAKE_CURRENT_BINARY_DIR}/FluxCLISmoke/cbox.exr)

@@ -20,6 +20,7 @@
     "magic-enum",
     "miniply",
     "openimageio",
+    "shader-slang",
     "spdlog",
     "tbb",
     "tomlplusplus"
@@ -31,7 +32,6 @@
         "assimp",
         "glfw3",
         "range-v3",
-        "shader-slang",
         "tbb",
         "usd"
       ]

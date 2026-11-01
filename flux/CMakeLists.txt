@@ -8,6 +8,7 @@ find_package(Eigen3 CONFIG REQUIRED)
 find_package(embree 4 REQUIRED)
 find_package(unofficial-miniply CONFIG REQUIRED)
 find_package(OpenImageIO CONFIG REQUIRED)
+find_package(slang CONFIG REQUIRED)
 find_package(TBB CONFIG REQUIRED)
 
 add_compile_options($<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
@@ -88,7 +89,8 @@ add_library(
     Scene/TXContext.cpp
     Shading/BSDF.cpp
     Shading/EDF.cpp
-    Shading/Texture.cpp)
+    Shading/Texture.cpp
+    Slang/SlangCompiler.cpp)
 
 target_include_directories(flux PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(
@@ -104,6 +106,7 @@ target_link_libraries(
             Eigen3::Eigen
             flux_oiio
             rapidobj::rapidobj
+            slang::slang
             TBB::tbb
             unofficial::miniply::miniply)
 
