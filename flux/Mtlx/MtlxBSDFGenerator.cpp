@@ -188,6 +188,7 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::makeInstance(
     context.registerSourceCodeSearchPath(MaterialX::FileSearchPath{mtlxRoot_});
     context.getOptions().premultipliedBsdfAdd = false;
     context.getOptions().shaderInterfaceType = MaterialX::SHADER_INTERFACE_COMPLETE;
+    context.getOptions().elideConstantNodes = false;
 
     auto const shader =
         generator_->createShader(materialName, copy->getChild(materialName), context);
