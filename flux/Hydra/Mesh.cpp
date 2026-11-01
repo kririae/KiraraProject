@@ -1,7 +1,9 @@
 #include "flux/Hydra/Mesh.h"
 
 #include <pxr/base/gf/matrix4d.h>
+#include <pxr/base/gf/vec2f.h>
 #include <pxr/base/tf/diagnostic.h>
+#include <pxr/base/tf/staticTokens.h>
 #include <pxr/base/vt/array.h>
 #include <pxr/imaging/hd/changeTracker.h>
 #include <pxr/imaging/hd/meshTopology.h>
@@ -34,15 +36,23 @@
 PXR_NAMESPACE_USING_DIRECTIVE
 
 namespace {
-static_assert(sizeof(GfVec3f) == sizeof(flux::Vec3f));
+// clang-format off
+TF_DEFINE_PRIVATE_TOKENS(
+    Tokens,
+    (st)
+);
+// clang-format on
 
-[[nodiscard]] flux::Shared<flux::HostBuffer<flux::Vec3f>> copyVectors(VtVec3fArray const &vectors) {
+template <typename Element, typename Array>
+[[nodiscard]] flux::Shared<flux::HostBuffer<Element>> copyVectors(Array const &vectors) {
+    static_assert(sizeof(Element) == sizeof(typename Array::value_type));
+
     if (vectors.empty())
         return nullptr;
 
-    auto buffer = std::make_shared<flux::HostBuffer<flux::Vec3f>>();
+    auto buffer = std::make_shared<flux::HostBuffer<Element>>();
     buffer->resize(vectors.size(), vectors.size() + 1);
-    std::memcpy(buffer->data(), vectors.cdata(), vectors.size() * sizeof(flux::Vec3f));
+    std::memcpy(buffer->data(), vectors.cdata(), vectors.size() * sizeof(Element));
     return buffer;
 }
 
@@ -80,7 +90,7 @@ struct Triangulation {
 }
 
 [[nodiscard]] std::optional<HdInterpolation>
-findNormalsInterpolation(HdSceneDelegate &sceneDelegate, SdfPath const &id) {
+findInterpolation(HdSceneDelegate &sceneDelegate, SdfPath const &id, TfToken const &name) {
     static constexpr std::array interpolations{
         HdInterpolationConstant, HdInterpolationUniform,     HdInterpolationVarying,
         HdInterpolationVertex,   HdInterpolationFaceVarying,
@@ -89,8 +99,8 @@ findNormalsInterpolation(HdSceneDelegate &sceneDelegate, SdfPath const &id) {
     auto const *const found =
         std::ranges::find_if(interpolations, [&](HdInterpolation interpolation) {
         auto const descriptors = sceneDelegate.GetPrimvarDescriptors(id, interpolation);
-        return std::ranges::any_of(descriptors, [](HdPrimvarDescriptor const &descriptor) {
-            return descriptor.name == HdTokens->normals;
+        return std::ranges::any_of(descriptors, [&](HdPrimvarDescriptor const &descriptor) {
+            return descriptor.name == name;
         });
     });
     if (found == interpolations.end())
@@ -98,13 +108,22 @@ findNormalsInterpolation(HdSceneDelegate &sceneDelegate, SdfPath const &id) {
     return *found;
 }
 
-void mapNormals(
-    flux::TriangleMesh::Data &data, VtValue const &value, HdInterpolation interpolation,
-    HdMeshTopology const &topology, VtIntArray const &primitiveParams, SdfPath const &id
+template <typename Element> struct MappedPrimvar {
+    flux::Shared<flux::HostBuffer<Element>> values;
+    flux::Shared<flux::HostBuffer<flux::Vec3u>> indices;
+};
+
+template <typename Element, typename Array>
+[[nodiscard]] MappedPrimvar<Element> mapPrimvar(
+    TfToken const &name, flux::TriangleMesh::Data const &data, VtValue const &value,
+    HdInterpolation interpolation, HdMeshTopology const &topology,
+    VtIntArray const &primitiveParams, SdfPath const &id
 ) {
-    if (!value.IsHolding<VtVec3fArray>())
-        throw std::invalid_argument("The normals are not a float3 array");
-    auto const &normals = value.UncheckedGet<VtVec3fArray>();
+    if (!value.IsHolding<Array>())
+        throw std::invalid_argument(
+            "The primvar " + name.GetString() + " does not hold " + VtValue{Array{}}.GetTypeName()
+        );
+    auto const &values = value.UncheckedGet<Array>();
 
     std::size_t count{};
     VtVec3iArray indices;
@@ -140,14 +159,13 @@ void mapNormals(
     default: count = data.vertices->size(); break;
     }
 
-    if (normals.size() != count)
+    if (values.size() != count)
         throw std::invalid_argument(
-            "The normals have " + std::to_string(normals.size()) +
-            " values, but their interpolation needs " + std::to_string(count)
+            "The primvar " + name.GetString() + " has " + std::to_string(values.size()) +
+            " values, but its interpolation needs " + std::to_string(count)
         );
 
-    data.normals = copyVectors(normals);
-    data.normalIndices = toBuffer(indices);
+    return {copyVectors<Element>(values), toBuffer(indices)};
 }
 
 [[nodiscard]] flux::TriangleMesh::Data makeData(
@@ -159,17 +177,29 @@ void mapNormals(
     data.vertices = points;
     data.triangles = triangles;
 
-    auto const interpolation = findNormalsInterpolation(sceneDelegate, id);
-    if (interpolation)
-        mapNormals(
-            data, sceneDelegate.Get(id, HdTokens->normals), *interpolation, topology,
+    auto const normalsInterpolation = findInterpolation(sceneDelegate, id, HdTokens->normals);
+    if (normalsInterpolation) {
+        auto mapped = mapPrimvar<flux::Vec3f, VtVec3fArray>(
+            HdTokens->normals, data, sceneDelegate.Get(id, HdTokens->normals),
+            *normalsInterpolation, topology, primitiveParams, id
+        );
+        data.normals = std::move(mapped.values);
+        data.normalIndices = std::move(mapped.indices);
+    }
+
+    if (auto const stInterpolation = findInterpolation(sceneDelegate, id, Tokens->st)) {
+        auto mapped = mapPrimvar<flux::Vec2f, VtVec2fArray>(
+            Tokens->st, data, sceneDelegate.Get(id, Tokens->st), *stInterpolation, topology,
             primitiveParams, id
         );
+        data.texCoords = std::move(mapped.values);
+        data.texCoordIndices = std::move(mapped.indices);
+    }
 
     flux::TriangleMesh::checkIndices(data);
 
     auto const scheme = topology.GetScheme();
-    if (!interpolation && scheme != PxOsdOpenSubdivTokens->none &&
+    if (!normalsInterpolation && scheme != PxOsdOpenSubdivTokens->none &&
         scheme != PxOsdOpenSubdivTokens->bilinear)
         data.normals =
             flux::TriangleMesh::computeVertexNormals(data.vertices->span(), data.triangles->span());
@@ -203,9 +233,10 @@ HdFluxMesh::~HdFluxMesh() = default;
 
 HdDirtyBits HdFluxMesh::GetInitialDirtyBitsMask() const {
     return HdChangeTracker::Clean | HdChangeTracker::InitRepr | HdChangeTracker::DirtyPoints |
-           HdChangeTracker::DirtyNormals | HdChangeTracker::DirtyTopology |
-           HdChangeTracker::DirtyTransform | HdChangeTracker::DirtyVisibility |
-           HdChangeTracker::DirtyMaterialId | HdChangeTracker::DirtyInstancer;
+           HdChangeTracker::DirtyNormals | HdChangeTracker::DirtyPrimvar |
+           HdChangeTracker::DirtyTopology | HdChangeTracker::DirtyTransform |
+           HdChangeTracker::DirtyVisibility | HdChangeTracker::DirtyMaterialId |
+           HdChangeTracker::DirtyInstancer;
 }
 
 void HdFluxMesh::Sync(
@@ -232,9 +263,10 @@ void HdFluxMesh::Sync(
         auto const topologyDirty = HdChangeTracker::IsTopologyDirty(*dirtyBits, id);
         auto const normalsDirty =
             HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->normals);
+        auto const stDirty = HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, Tokens->st);
 
         if (pointsDirty)
-            points_ = copyVectors(
+            points_ = copyVectors<flux::Vec3f>(
                 sceneDelegate->Get(id, HdTokens->points).GetWithDefault<VtVec3fArray>()
             );
         if (topologyDirty) {
@@ -251,7 +283,7 @@ void HdFluxMesh::Sync(
 
         if (instanced || !points_ || !triangles_) {
             removePrimitive(*context, primitive_);
-        } else if (pointsDirty || topologyDirty || normalsDirty || !primitive_) {
+        } else if (pointsDirty || topologyDirty || normalsDirty || stDirty || !primitive_) {
             auto data = makeData(
                 *sceneDelegate, id, topology_, points_, triangles_, trianglePrimitiveParams_
             );
