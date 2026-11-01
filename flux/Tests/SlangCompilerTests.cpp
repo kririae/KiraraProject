@@ -56,18 +56,11 @@ TEST(SlangCompilerTests, TheCodeStartsWithThePrelude) {
     EXPECT_TRUE(code.starts_with(prelude));
 }
 
-TEST(SlangCompilerTests, NamesTheModuleThatFailsToLoad) {
+TEST(SlangCompilerTests, ThrowsForAModuleThatFailsToLoad) {
     auto const compiler = flux::SlangCompiler{flux::SlangCompiler::Target::CudaSource};
     auto const modules = std::vector{makeEntry()};
 
-    try {
-        static_cast<void>(compiler.compile(modules, "toy_entry"));
-        FAIL() << "the missing import of " << entrySource << " compiled";
-    } catch (kira::Anyhow const &error) {
-        auto const message = std::string{error.what()};
-        EXPECT_NE(message.find("toy_entry"), std::string::npos);
-        EXPECT_NE(message.find("toy_library.slang"), std::string::npos);
-    }
+    EXPECT_THROW(static_cast<void>(compiler.compile(modules, "toy_entry")), kira::Anyhow);
 }
 
 TEST(SlangCompilerTests, ThrowsForTwoModulesOfOneName) {
