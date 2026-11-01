@@ -136,6 +136,9 @@ public struct MixBSDF<A : IBSDF, B : IBSDF> : IBSDF
         else
             child = bg.sample(wo, (u1 - mix) / (1.0 - mix), u2);
 
+        if (all(child.weight == float3(0.0)))
+            return child;
+
         let ef = fg.evalAndPdf(wo, child.wi);
         let eb = bg.evalAndPdf(wo, child.wi);
         let density = mix * ef.pdf + (1.0 - mix) * eb.pdf;
