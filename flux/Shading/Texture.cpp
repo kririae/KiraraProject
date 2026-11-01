@@ -99,12 +99,15 @@ ImageTexture::ImageTexture(TXContext &tx, kira::Properties const &props)
     auto const inputPath = props.use<std::filesystem::path>("path");
     auto const path = tx.getFileResolver().resolve(inputPath);
     auto const colorSpace = props.use_or<std::string>("color_space", "linear");
+    auto &imageAssetPool = tx.getImageAssetPool();
     auto imageColorSpace = ImageColorSpace::Linear;
-    if (colorSpace == "srgb")
+    if (colorSpace == "auto")
+        imageColorSpace = imageAssetPool.chooseColorSpace(path);
+    else if (colorSpace == "srgb")
         imageColorSpace = ImageColorSpace::SRGB;
     else if (colorSpace != "linear")
         throw kira::Anyhow("ImageTexture: unsupported color space '{}'", colorSpace);
-    imageAsset_ = tx.getImageAssetPool().getOrCreate({
+    imageAsset_ = imageAssetPool.getOrCreate({
         .path = path,
         .colorSpace = imageColorSpace,
     });

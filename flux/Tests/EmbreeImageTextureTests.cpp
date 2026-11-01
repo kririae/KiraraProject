@@ -139,6 +139,7 @@ INSTANTIATE_TEST_SUITE_P(
     Defects, EmbreeBadAssetTests,
     testing::Values(
         BadAssetCase{"MissingFile", "linear", nullptr},
+        BadAssetCase{"MissingFileAuto", "auto", nullptr},
         BadAssetCase{"TwoChannelSRGB", "srgb", writeTwoChannelImage},
         BadAssetCase{"OffsetDataWindow", "linear", writeOffsetDataWindow},
         BadAssetCase{"BadOrientation", "linear", writeInvalidOrientation}
@@ -187,6 +188,21 @@ INSTANTIATE_TEST_SUITE_P(
     ),
     [](testing::TestParamInfo<ImageOrientationCase> const &info) { return info.param.name; }
 );
+
+TEST_F(EmbreeImageTextureTests, AutoColorSpaceSharesTheAssetOfTheColorSpaceItChooses) {
+    auto const fixtures = std::filesystem::path{FLUX_TEST_FIXTURES_DIR};
+    auto const create = [&](std::filesystem::path const &imagePath, std::string const &colorSpace) {
+        kira::Properties props;
+        props.set("type", "image");
+        props.set("path", imagePath);
+        props.set("color_space", colorSpace);
+        (void)context->create<flux::Texture>(props);
+        return context->getObjects<flux::ImageTexture>().back()->getImageAsset();
+    };
+
+    EXPECT_EQ(create(fixtures / "SRGB.ppm", "auto"), create(fixtures / "SRGB.ppm", "srgb"));
+    EXPECT_EQ(create(fixtures / "Gray2x2.pgm", "auto"), create(fixtures / "Gray2x2.pgm", "linear"));
+}
 
 TEST_F(EmbreeImageTextureTests, EvaluatesPointSamplesOfALinearlyFilteredTexture) {
     build(std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "Texture2x2.ppm", "srgb", "linear");

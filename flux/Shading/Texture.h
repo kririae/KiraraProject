@@ -170,7 +170,8 @@ private:
 ///
 /// \par Properties
 /// - \c path: required path of the image file.
-/// - \c color_space: optional \c linear or \c srgb, defaults to \c linear.
+/// - \c color_space: optional \c linear, \c srgb, or \c auto, defaults to \c linear. \c auto
+///   is the color space that \c ImageAssetPool::chooseColorSpace returns for the file.
 /// - \c address_mode: optional \c wrap, \c clamp, \c mirror, or \c border, defaults to \c wrap.
 /// - \c filter_mode: optional \c linear or \c point, defaults to \c linear.
 /// - \c component_mapping: optional four selectors of \c x, \c y, \c z, \c w, \c 0, and \c 1,

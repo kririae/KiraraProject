@@ -48,6 +48,42 @@ TEST_F(ImageAssetTests, UsesColorSpaceInPoolKey) {
     EXPECT_NE(linear->getId(), srgb->getId());
 }
 
+TEST_F(ImageAssetTests, ChoosesSRGBForUNorm8WithAtLeastThreeChannels) {
+    struct Case {
+        std::uint8_t channels;
+        flux::ImageComponentType type;
+        flux::ImageColorSpace expected;
+    };
+    using flux::ImageColorSpace;
+    using flux::ImageComponentType;
+    auto const componentNames = std::array<std::string_view, 4>{"R", "G", "B", "A"};
+    auto const pixels = std::array{0.25F, 0.5F, 0.75F, 1.0F};
+    auto const cases = std::array{
+        Case{1, ImageComponentType::UNorm8, ImageColorSpace::Linear},
+        Case{2, ImageComponentType::UNorm8, ImageColorSpace::Linear},
+        Case{3, ImageComponentType::UNorm8, ImageColorSpace::SRGB},
+        Case{4, ImageComponentType::UNorm8, ImageColorSpace::SRGB},
+        Case{3, ImageComponentType::Float16, ImageColorSpace::Linear},
+        Case{3, ImageComponentType::Float32, ImageColorSpace::Linear},
+    };
+    for (auto const &[channels, type, expected] : cases) {
+        SCOPED_TRACE(
+            testing::Message{} << "channels = " << static_cast<int>(channels)
+                               << ", type = " << static_cast<int>(type)
+        );
+        auto const extension = type == ImageComponentType::UNorm8 ? ".tif" : ".exr";
+        auto const imagePath = path(
+            "color-space-" + std::to_string(channels) + "-" +
+            std::to_string(static_cast<int>(type)) + extension
+        );
+        flux::test::writeFloatImage(
+            imagePath, {pixels.data(), channels}, {1, 1}, {componentNames.data(), channels}, type
+        );
+
+        EXPECT_EQ(pool.chooseColorSpace(imagePath), expected);
+    }
+}
+
 TEST_F(ImageAssetTests, DefaultMappingFollowsChannelPosition) {
     using Source = flux::ImageComponentSource;
     // Alpha-like names do not change the mapping.

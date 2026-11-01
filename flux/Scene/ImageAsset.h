@@ -145,6 +145,12 @@ public:
     /// \brief Returns the shared asset for \p spec.
     [[nodiscard]] Ref<ImageAsset const> getOrCreate(ImageAssetSpec const &spec);
 
+    /// \brief Returns the color space that the header of the file at \p path implies.
+    ///
+    /// An image of 8-bit components with at least three channels is sRGB. Any other image, and a
+    /// file with no readable header, is linear.
+    [[nodiscard]] ImageColorSpace chooseColorSpace(std::filesystem::path const &path) const;
+
     /// \brief Drops every asset that only this pool references.
     ///
     /// \pre No call to \c getOrCreate runs concurrently.

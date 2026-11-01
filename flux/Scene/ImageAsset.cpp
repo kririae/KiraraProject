@@ -89,6 +89,10 @@ void validateImageSpec(OIIO::ImageSpec const &spec) {
     return result;
 }
 
+[[nodiscard]] std::filesystem::path canonicalize(std::filesystem::path const &path) {
+    return std::filesystem::weakly_canonical(std::filesystem::absolute(path));
+}
+
 [[nodiscard]] ImageComponentMapping makeDefaultComponentMapping(std::uint8_t componentCount) {
     using Source = ImageComponentSource;
     switch (componentCount) {
@@ -307,7 +311,7 @@ ImageAssetPool::~ImageAssetPool() = default;
 
 Ref<ImageAsset const> ImageAssetPool::getOrCreate(ImageAssetSpec const &spec) {
     auto canonical = spec;
-    canonical.path = std::filesystem::weakly_canonical(std::filesystem::absolute(spec.path));
+    canonical.path = canonicalize(spec.path);
     return assets_.acquire(canonical, [&] {
         auto const &textureSystem = canonical.colorSpace == ImageColorSpace::SRGB
                                         ? pImpl_->srgbTextureSystem
@@ -328,6 +332,18 @@ Ref<ImageAsset const> ImageAssetPool::getOrCreate(ImageAssetSpec const &spec) {
         }
         return create(magentaName, true);
     });
+}
+
+ImageColorSpace ImageAssetPool::chooseColorSpace(std::filesystem::path const &path) const {
+    auto const imageCache = pImpl_->linearTextureSystem->imagecache();
+    auto const *spec = imageCache->imagespec(OIIO::ustring{canonicalize(path).string()});
+    if (!spec) {
+        (void)imageCache->geterror();
+        return ImageColorSpace::Linear;
+    }
+
+    auto const isUNorm8 = chooseComponentType(*spec) == ImageComponentType::UNorm8;
+    return isUNorm8 && spec->nchannels >= 3 ? ImageColorSpace::SRGB : ImageColorSpace::Linear;
 }
 
 void ImageAssetPool::collectGarbage() {
