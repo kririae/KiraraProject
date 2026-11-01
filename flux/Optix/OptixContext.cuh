@@ -32,15 +32,18 @@ OptixContext::Impl::intersect(Ray const &ray, Hit &hit, bool shaderReorder) cons
     // clang-format on
     if (!optixHitObjectIsHit())
         return false;
+    auto const primitiveIndex = optixHitObjectGetInstanceId();
+    auto const &primitive = table.getPrimitive(primitiveIndex);
     if (shaderReorder) {
-        // Sort by the outgoing hit object alone. It already carries the SBT record, so a
-        // coherence hint built from that record would only take sort bits away from it.
-        optixReorder();
+        // Sort by the SBT record, then by the slot of a shader BSDF. Every other hit hints 0.
+        auto const hint =
+            primitive.hasBSDF() && table.getBSDF(primitive.getBSDFIndex()).type == BSDFType::Shader
+                ? shaderBSDFBindings[primitive.getBSDFIndex()].slot
+                : 0U;
+        optixReorder(hint, shaderSlotBits);
     }
 
     // Capture the world-space interaction while the outgoing hit object provides its transform.
-    auto const primitiveIndex = optixHitObjectGetInstanceId();
-    auto const &primitive = table.getPrimitive(primitiveIndex);
     auto const &geometry = table.getGeometry(primitive.getGeometryIndex());
     auto const barycentrics = optixHitObjectGetTriangleBarycentrics();
     auto const preliminary = PreliminaryIntersection{

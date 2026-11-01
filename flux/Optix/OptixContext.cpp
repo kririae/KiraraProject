@@ -3,6 +3,7 @@
 #include <optix_stubs.h>
 
 #include <algorithm>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -110,6 +111,7 @@ public:
 
     DeviceBuffer<std::uint32_t> shaderWords{getStream()};
     DeviceBuffer<OptixShaderBSDFBinding> shaderBSDFBindings{getStream()};
+    unsigned int shaderSlotBits{};
 
 public:
     // Megakernel module. Memoized by specialization. The program and the SBT follow it.
@@ -185,6 +187,7 @@ OptixContext::Impl OptixContext::getImpl() const noexcept {
                 .edfs = pImpl_->edfs.data(),
             },
         .shaderBSDFBindings = pImpl_->shaderBSDFBindings.data(),
+        .shaderSlotBits = pImpl_->shaderSlotBits,
         .lightSampler = pImpl_->lightSampler.getImpl(),
     };
 }
@@ -273,6 +276,9 @@ void OptixContext::pImpl::syncShaders() {
 
     shaderWords.copyFromHost({hostWords.data(), hostWords.size()}, deletionQueue);
     shaderBSDFBindings.copyFromHost({hostBindings.data(), hostBindings.size()}, deletionQueue);
+    shaderSlotBits = shaderSlotIds.size() > 1
+                         ? static_cast<unsigned int>(std::bit_width(shaderSlotIds.size() - 1))
+                         : 0U;
 }
 
 void OptixContext::pImpl::syncTextures() {

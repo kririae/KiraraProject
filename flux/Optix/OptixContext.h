@@ -94,6 +94,9 @@ struct OptixContext::Impl {
     /// zero binding.
     OptixShaderBSDFBinding const *shaderBSDFBindings{};
 
+    /// The number of bits that hold every shader slot, which is 0 for at most one slot.
+    unsigned int shaderSlotBits{};
+
     OptixLightSampler::Impl lightSampler{};
 
 public:
