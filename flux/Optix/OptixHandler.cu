@@ -22,7 +22,7 @@
 #include "flux/Optix/OptixDeviceSession.h"
 #include "flux/Optix/OptixHandler.h"
 #include "flux/Optix/OptixLaunchParams.h"
-#include "flux/Optix/OptixProgram.h"
+#include "flux/Optix/OptixMegaKernelModule.h"
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
@@ -234,7 +234,7 @@ RenderStats OptixHandler::pImpl::render(
             .integrator = integrator,
             .bsdfDispatcher =
                 {
-                    .types = programSpec.bsdfTypes, // (2)
+                    .types = programSpec.bsdfTypes,
                 },
             .accumulatedSamples = accumulatedSamples,
             .sampleOffset = sampleOffset,
@@ -242,10 +242,10 @@ RenderStats OptixHandler::pImpl::render(
             .film = film,
             .batchSize = samples,
             .pathCount = pathCount,
-            .chunkSize = programSpec.chunkSize, // (5)
+            .chunkSize = programSpec.chunkSize,
             .chunkCount = chunkCount,
-            .shaderReorder = programSpec.shaderReorder, // (3)
-            .hasEnvMap = programSpec.hasEnvMap,         // (4)
+            .shaderReorder = programSpec.shaderReorder,
+            .hasEnvMap = programSpec.hasEnvMap,
         };
         launch(params, launchSize);
         auto const elapsed = timer.stop();

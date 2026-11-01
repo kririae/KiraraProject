@@ -13,7 +13,7 @@
 #include "flux/Shading/BSDF.h"
 
 namespace flux {
-class OptixProgram;
+class OptixMegaKernelModule;
 
 /// \brief Owns the records for the current OptiX pipeline.
 class OptixSbt final : private Noncopyable {
@@ -24,7 +24,7 @@ public:
         : deletionQueue_(deletionQueue), records_(deletionQueue.getStream()) {}
 
     /// \brief Rebuilds the fixed program-type SBT layout.
-    void build(OptixProgram const &program);
+    void build(OptixMegaKernelModule const &module);
 
     /// \brief Returns the populated shader binding table.
     [[nodiscard]] OptixShaderBindingTable const &getTable() const noexcept { return table_; }

@@ -4,9 +4,13 @@
 #include <cuda_runtime_api.h>
 #include <optix_stubs.h>
 
+#include <algorithm>
+#include <array>
 #include <chrono>
+#include <cstddef>
 #include <new>
 #include <source_location>
+#include <string_view>
 #include <utility>
 
 #include "flux/Core/Logging.h"
@@ -196,6 +200,54 @@ inline void optixCheck(
         throw kira::Anyhow("{}", message);
     else
         LogError("{}", message);
+}
+
+/// \brief Checks an OptiX API result of a call that writes a log.
+///
+/// \param result OptiX result to check.
+/// \param log Buffer that the call wrote its log to.
+/// \param logSize Size that the call returned for its log, with the terminator.
+/// \param location Call site reported on failure.
+/// \throw kira::Anyhow if \p result is an error. The message holds the log.
+inline void optixCheck(
+    OptixResult result, std::array<char, 4096> const &log, std::size_t logSize,
+    std::source_location location = std::source_location::current()
+) {
+    if (result == OPTIX_SUCCESS)
+        return;
+    if (logSize <= 1) {
+        optixCheck(result, location);
+        return;
+    }
+
+    auto const output = std::string_view(log.data(), std::min(logSize - 1, log.size()));
+    throw kira::Anyhow(
+        "optixCheck(): OptiX API call error {} ({}): \"{}\" at {}:{}\n{}", static_cast<int>(result),
+        optixGetErrorName(result), optixGetErrorString(result), location.file_name(),
+        location.line(), output
+    );
+}
+
+/// \brief Creates one program group from \p description.
+/// \throw kira::Anyhow If OptiX rejects it.
+[[nodiscard]] inline OptixProgramGroup
+createProgramGroup(OptixDeviceContext deviceContext, OptixProgramGroupDesc const &description) {
+    OptixProgramGroupOptions options{};
+    OptixProgramGroup program{};
+    std::array<char, 4096> log{};
+    std::size_t logSize = log.size();
+    // clang-format off
+    auto const result = optixProgramGroupCreate(
+        /* context =             */ deviceContext,
+        /* programDescriptions = */ &description,
+        /* numProgramGroups =    */ 1,
+        /* options =             */ &options,
+        /* logString =           */ log.data(),
+        /* logStringSize =       */ &logSize,
+        /* programGroups =       */ &program);
+    // clang-format on
+    optixCheck(result, log, logSize);
+    return program;
 }
 
 /// \brief Returns the device limit \p property of \p context.

@@ -66,6 +66,7 @@ add_library(
     Optix/OptixHandler.cu
     Optix/OptixIas.cpp
     Optix/OptixLightSampler.cu
+    Optix/OptixMegaKernelModule.cpp
     Optix/OptixProgram.cpp
     Optix/OptixSbt.cpp
     Optix/OptixTextureObject.cpp

@@ -15,6 +15,7 @@
 #include "flux/Optix/OptixImagePool.h"
 #include "flux/Optix/OptixImageTexture.h"
 #include "flux/Optix/OptixLightSampler.h"
+#include "flux/Optix/OptixMegaKernelModule.h"
 #include "flux/Optix/OptixProgram.h"
 #include "flux/Optix/OptixSbt.h"
 #include "flux/Optix/OptixTextureObject.h"
@@ -92,12 +93,13 @@ public:
     DeviceBuffer<OptixImageTexture> imageTextures{getStream()};
 
 public:
-    // Program. Memoized by specialization. The SBT follows it.
+    // Megakernel module. Memoized by specialization. The program and the SBT follow it.
 
-    /// Rebuilds the program and SBT when the specialization differs.
+    /// Rebuilds the module, the program, and the SBT when the specialization differs.
     void syncProgram();
 
     std::filesystem::path modulePath;
+    std::shared_ptr<OptixMegaKernelModule const> megaKernelModule;
     std::unique_ptr<OptixProgram> program;
     OptixSbt sbt{deletionQueue};
 
@@ -142,7 +144,7 @@ void OptixContext::launch(
 }
 
 OptixProgramSpec const &OptixContext::getProgramSpec() const noexcept {
-    return pImpl_->program->getSpec();
+    return pImpl_->megaKernelModule->getSpec();
 }
 
 OptixContext::Impl OptixContext::getImpl() const noexcept {
@@ -162,8 +164,6 @@ OptixContext::Impl OptixContext::getImpl() const noexcept {
 }
 
 void OptixContext::pImpl::sync() {
-    // Meshes and images are memoized by ID, and the program and the environment map's sampling
-    // distribution by key. The rest is rebuilt in dependency order.
     syncGeometry();
     buildTables();
     syncTextures();
@@ -267,16 +267,15 @@ void OptixContext::pImpl::syncTextures() {
 }
 
 void OptixContext::pImpl::syncProgram() {
-    auto const spec = OptixProgram::makeSpec(context);
-    if (program && program->getSpec() == spec)
+    auto const spec = OptixMegaKernelModule::makeSpec(context);
+    if (megaKernelModule && megaKernelModule->getSpec() == spec)
         return;
 
-    // Queued launches may still run the old program. The SBT packs the program-group headers, so it
-    // follows the program.
     if (program)
         deletionQueue.deleteLater(std::shared_ptr<OptixProgram const>(std::move(program)));
-    program = std::make_unique<OptixProgram>(deviceContext, modulePath, spec);
-    sbt.build(*program);
+    megaKernelModule = std::make_shared<OptixMegaKernelModule>(deviceContext, modulePath, spec);
+    program = std::make_unique<OptixProgram>(deviceContext, megaKernelModule);
+    sbt.build(*megaKernelModule);
 }
 
 void OptixContext::pImpl::buildIas() {

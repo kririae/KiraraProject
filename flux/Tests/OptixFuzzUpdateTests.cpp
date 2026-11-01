@@ -1616,8 +1616,8 @@ namespace {
 
 // A sync that fails before the OptiX scene update leaves the handler failed for good. A new handler
 // on the same context renders the edits.
-// Building the program reads the module file. Without its module, the live handler can sync only
-// while the program is kept, and a failed sync leaves it failed for good.
+// Building the megakernel module reads the IR file. Without that file, the live handler can sync
+// only while the module is kept, and a failed sync leaves it failed for good.
 // A failed update of the OptiX scene leaves the handler failed for good, even after the cause is
 // gone and a clear dropped the tracked changes of the failed edits. A new handler renders them.
 TEST(OptixFuzzUpdateTests, FailsForGoodAfterAFailedSync) {

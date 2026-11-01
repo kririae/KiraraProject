@@ -2,79 +2,40 @@
 
 #include <optix_types.h>
 
-#include <array>
-#include <cstdint>
-#include <filesystem>
+#include <memory>
 
 #include "flux/Core/Object.h"
-#include "flux/Sampling/Sampler.h"
-#include "flux/Scene/Geometry.h"
-#include "flux/Shading/BSDF.h"
+#include "flux/Optix/OptixMegaKernelModule.h"
 
 namespace flux {
-class Context;
-
-/// Register budget the megakernel module is compiled against. Also bounds how many threads the
-/// device keeps resident, which is what sizes a persistent launch.
-inline constexpr unsigned int megakernelMaxRegisterCount = 128;
-
-/// \brief Values specialized while compiling an OptiX program.
-struct OptixProgramSpec {
-    SamplerType samplerType; // (1)
-    BSDFTypeMask bsdfTypes;  // (2)
-    bool shaderReorder;      // (3)
-    bool hasEnvMap;          // (4)
-    std::uint32_t chunkSize; // (5)
-
-    [[nodiscard]] bool operator==(OptixProgramSpec const &) const = default;
-};
-
-/// \brief Owns the module, program groups, and pipeline for an OptiX scene.
+/// \brief Owns the OptiX pipeline of its modules.
 ///
 /// The program borrows its OptiX device context, which must outlive it.
 class OptixProgram final : private Noncopyable {
 public:
-    /// \brief Builds a triangle-intersection pipeline from \p modulePath.
-    ///
-    /// The module must provide \c __raygen__megakernel and \c __miss__megakernel.
+    /// \brief Links the groups of the modules into a pipeline.
+    /// \pre \p megaKernelModule is not null.
     OptixProgram(
-        OptixDeviceContext deviceContext, std::filesystem::path const &modulePath,
-        OptixProgramSpec spec
+        OptixDeviceContext deviceContext,
+        std::shared_ptr<OptixMegaKernelModule const> megaKernelModule
     );
-
-    /// \brief Returns the specialization required by \p context.
-    ///
-    /// The active integrator and sampler must be present. Only BSDFs referenced
-    /// by visible primitives contribute to the specialization.
-    [[nodiscard]] static OptixProgramSpec makeSpec(Context const &context);
 
     ~OptixProgram();
 
     [[nodiscard]] OptixPipeline getPipeline() const noexcept { return pipeline_; }
-    [[nodiscard]] OptixProgramSpec const &getSpec() const noexcept { return spec_; }
-    [[nodiscard]] OptixProgramGroup getRaygenProgram() const noexcept { return raygenProgram_; }
-    [[nodiscard]] OptixProgramGroup getMissProgram() const noexcept { return missProgram_; }
-
-    [[nodiscard]] OptixProgramGroup getHitgroupProgram(GeometryType geometry) const noexcept {
-        return hitgroupPrograms_[static_cast<std::size_t>(geometry)];
-    }
 
 private:
     struct EmptyState {};
 
-    OptixProgram(EmptyState, OptixDeviceContext deviceContext, OptixProgramSpec spec) noexcept;
+    OptixProgram(
+        EmptyState, OptixDeviceContext deviceContext,
+        std::shared_ptr<OptixMegaKernelModule const> megaKernelModule
+    ) noexcept;
 
-    void buildModule(std::filesystem::path const &modulePath);
-    void buildProgramGroups();
     void buildPipeline();
 
     OptixDeviceContext deviceContext_;
-    OptixProgramSpec spec_;
-    OptixModule module_{};
-    OptixProgramGroup raygenProgram_{};
-    OptixProgramGroup missProgram_{};
-    std::array<OptixProgramGroup, static_cast<std::size_t>(GeometryType::Count)>
-        hitgroupPrograms_{};
+    std::shared_ptr<OptixMegaKernelModule const> megaKernelModule_;
     OptixPipeline pipeline_{};
 };
 } // namespace flux

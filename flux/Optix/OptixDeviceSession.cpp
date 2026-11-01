@@ -7,7 +7,7 @@
 #include <string_view>
 
 #include "flux/Core/Logging.h"
-#include "flux/Optix/OptixProgram.h"
+#include "flux/Optix/OptixMegaKernelModule.h"
 #include "flux/Optix/OptixUtils.h"
 #include "kira/Anyhow.h"
 

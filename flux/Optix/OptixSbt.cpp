@@ -2,14 +2,14 @@
 
 #include <optix_stubs.h>
 
-#include "flux/Optix/OptixProgram.h"
+#include "flux/Optix/OptixMegaKernelModule.h"
 #include "flux/Optix/OptixUtils.h"
 
 namespace flux {
-void OptixSbt::build(OptixProgram const &program) {
+void OptixSbt::build(OptixMegaKernelModule const &module) {
     std::array<Record, numRecords> records{};
-    optixCheck(optixSbtRecordPackHeader(program.getRaygenProgram(), &records[raygenRecord]));
-    optixCheck(optixSbtRecordPackHeader(program.getMissProgram(), &records[missRecord]));
+    optixCheck(optixSbtRecordPackHeader(module.getRaygenProgram(), &records[raygenRecord]));
+    optixCheck(optixSbtRecordPackHeader(module.getMissProgram(), &records[missRecord]));
 
     for (std::size_t bsdf = 0; bsdf < numBSDFTypes; ++bsdf) {
         auto const bsdfType = static_cast<BSDFType>(bsdf);
@@ -17,7 +17,7 @@ void OptixSbt::build(OptixProgram const &program) {
             auto const geometryType = static_cast<GeometryType>(geometry);
             auto &record =
                 records[hitgroupRecords + getHitgroupRecordIndex(bsdfType, geometryType)];
-            optixCheck(optixSbtRecordPackHeader(program.getHitgroupProgram(geometryType), &record));
+            optixCheck(optixSbtRecordPackHeader(module.getHitgroupProgram(geometryType), &record));
         }
     }
 
