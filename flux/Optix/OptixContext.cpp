@@ -251,14 +251,17 @@ void OptixContext::pImpl::syncTextures() {
                             createTextureObject(image, addressModes, ImageTextureFilterMode::Point)
                         )
                         .get();
+        auto const &fallback = texture->getFallback();
+        auto const &scale = texture->getScale();
+        auto const &bias = texture->getBias();
         hostImageTextures[context.getIndex<ImageTexture>(texture->getContextId())] = {
             .texture = filtered,
             .pointTexture = point,
             .componentMapping = texture->getComponentMapping(),
             .placeholder = texture->getImageAsset()->isPlaceholder(),
-            .fallback = texture->getFallback(),
-            .scale = texture->getScale(),
-            .bias = texture->getBias(),
+            .fallback = {fallback.x(), fallback.y(), fallback.z(), fallback.w()},
+            .scale = {scale.x(), scale.y(), scale.z(), scale.w()},
+            .bias = {bias.x(), bias.y(), bias.z(), bias.w()},
             .componentCount = image.componentCount,
         };
     }

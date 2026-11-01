@@ -1,37 +1,29 @@
 #pragma once
 
-#include <cuda_runtime.h>
+/// \file flux/Optix/OptixImageTexture.cuh
+/// \brief The device sampling of image textures.
+///
+/// Includes only headers that NVRTC compiles: no kira and no standard library header.
 
 #include "flux/Optix/OptixImageTexture.h"
 
 namespace flux {
-KIRA_DEVICE inline Vec4f
-OptixImageTexture::sample(Vec2f uv, Vec2f const &duvdx, Vec2f const &duvdy) const noexcept {
-    return sample(texture, uv, duvdx, duvdy);
+__device__ inline float4
+OptixImageTexture::sample(float2 uv, float2 duvdx, float2 duvdy) const noexcept {
+    return tex2DGrad<float4>(texture, uv.x, uv.y, duvdx, duvdy);
 }
 
-KIRA_DEVICE inline Vec4f OptixImageTexture::samplePoint(Vec2f uv) const noexcept {
-    return sample(pointTexture, uv);
-}
-
-KIRA_DEVICE inline Vec4f
-OptixImageTexture::sample(cudaTextureObject_t textureObject, Vec2f uv) const noexcept {
-    if (componentCount == 1)
-        return {tex2D<float>(textureObject, uv.x(), uv.y()), 0.0F, 0.0F, 0.0F};
-    if (componentCount == 2) {
-        auto const value = tex2D<float2>(textureObject, uv.x(), uv.y());
-        return {value.x, value.y, 0.0F, 0.0F};
+__device__ inline float4 OptixImageTexture::samplePoint(float2 uv) const noexcept {
+    auto value = float4{};
+    if (componentCount == 1) {
+        value.x = tex2D<float>(pointTexture, uv.x, uv.y);
+    } else if (componentCount == 2) {
+        auto const stored = tex2D<float2>(pointTexture, uv.x, uv.y);
+        value.x = stored.x;
+        value.y = stored.y;
+    } else {
+        value = tex2D<float4>(pointTexture, uv.x, uv.y);
     }
-    auto const value = tex2D<float4>(textureObject, uv.x(), uv.y());
-    return {value.x, value.y, value.z, value.w};
-}
-
-KIRA_DEVICE inline Vec4f OptixImageTexture::sample(
-    cudaTextureObject_t textureObject, Vec2f uv, Vec2f const &duvdx, Vec2f const &duvdy
-) const noexcept {
-    auto const dx = make_float2(duvdx.x(), duvdx.y());
-    auto const dy = make_float2(duvdy.x(), duvdy.y());
-    auto const value = tex2DGrad<float4>(textureObject, uv.x(), uv.y(), dx, dy);
-    return {value.x, value.y, value.z, value.w};
+    return value;
 }
 } // namespace flux

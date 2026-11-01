@@ -34,9 +34,14 @@ struct SampleImageTexture {
 
     KIRA_DEVICE void operator()(std::size_t index) const noexcept {
         auto const &texture = table.getTexture(0);
+        auto const uv = make_float2(uvs[index].x(), uvs[index].y());
         auto const value =
-            point ? texture.samplePoint(uvs[index]) : texture.sample(uvs[index], duvdx, duvdy);
-        samples[index] = texture.apply(value);
+            point ? texture.samplePoint(uv)
+                  : texture.sample(
+                        uv, make_float2(duvdx.x(), duvdx.y()), make_float2(duvdy.x(), duvdy.y())
+                    );
+        auto const applied = texture.apply(value);
+        samples[index] = flux::Vec4f{applied.x, applied.y, applied.z, applied.w};
     }
 };
 
@@ -80,14 +85,17 @@ protected:
         point = flux::createTextureObject(
             image, texture->getAddressModes(), flux::ImageTextureFilterMode::Point
         );
+        auto const &fallback = texture->getFallback();
+        auto const &scale = texture->getScale();
+        auto const &bias = texture->getBias();
         auto const entry = flux::OptixImageTexture{
             .texture = filtered.get(),
             .pointTexture = point.get(),
             .componentMapping = texture->getComponentMapping(),
             .placeholder = texture->getImageAsset()->isPlaceholder(),
-            .fallback = texture->getFallback(),
-            .scale = texture->getScale(),
-            .bias = texture->getBias(),
+            .fallback = {fallback.x(), fallback.y(), fallback.z(), fallback.w()},
+            .scale = {scale.x(), scale.y(), scale.z(), scale.w()},
+            .bias = {bias.x(), bias.y(), bias.z(), bias.w()},
             .componentCount = image.componentCount,
         };
         textures.copyFromHostAndWait({&entry, 1});
@@ -184,17 +192,20 @@ TEST_P(OptixImageStorageTests, SamplesStoredComponents) {
     ASSERT_EQ(asset->getComponentType(), parameter.componentType);
     ASSERT_EQ(asset->getComponentCount(), parameter.componentCount);
 
-    auto const value = sample({0.5F, 0.5F});
     auto expected = flux::Vec4f{pixels[0], pixels[0], pixels[0], 1.0F};
     if (parameter.componentCount == 2)
         expected = flux::Vec4f{pixels[0], pixels[0], pixels[0], pixels[1]};
     else if (parameter.componentCount == 4)
         expected = flux::Vec4f{pixels[0], pixels[1], pixels[2], pixels[3]};
 
-    EXPECT_NEAR(value.x(), expected.x(), parameter.tolerance);
-    EXPECT_NEAR(value.y(), expected.y(), parameter.tolerance);
-    EXPECT_NEAR(value.z(), expected.z(), parameter.tolerance);
-    EXPECT_NEAR(value.w(), expected.w(), parameter.tolerance);
+    for (auto const point : {false, true}) {
+        SCOPED_TRACE(point ? "point" : "filtered");
+        auto const value = sample({0.5F, 0.5F}, point);
+        EXPECT_NEAR(value.x(), expected.x(), parameter.tolerance);
+        EXPECT_NEAR(value.y(), expected.y(), parameter.tolerance);
+        EXPECT_NEAR(value.z(), expected.z(), parameter.tolerance);
+        EXPECT_NEAR(value.w(), expected.w(), parameter.tolerance);
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(

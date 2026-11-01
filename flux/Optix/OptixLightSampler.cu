@@ -31,8 +31,8 @@ struct SampleEnvMapWeights {
             1.0F - (static_cast<float>(y) + 0.5F) / static_cast<float>(extent.y()),
         };
         auto const &texture = imageTextures.getTexture(textureIndex);
-        auto const value = texture.apply(texture.samplePoint(uv));
-        auto const radiance = Spectrum{value.x(), value.y(), value.z()} * scale;
+        auto const value = texture.apply(texture.samplePoint(make_float2(uv.x(), uv.y())));
+        auto const radiance = Spectrum{value.x, value.y, value.z} * scale;
         auto const theta = std::numbers::pi_v<float> * (static_cast<float>(y) + 0.5F) /
                            static_cast<float>(extent.y());
         weights[index] = std::max(luminance(radiance), 0.0F) * std::sin(theta);

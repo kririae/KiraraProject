@@ -29,7 +29,9 @@ struct EmbreeImageTexturePool::Entry {
     /// The value is the component mapping of the texel, or \c fallback instead if the image is a
     /// placeholder, times \c scale, plus \c bias.
     [[nodiscard]] Vec4f apply(Vec4f const &texel) const noexcept {
-        auto const mapped = placeholder ? fallback : componentMapping.apply(texel);
+        auto const mapped =
+            placeholder ? fallback
+                        : componentMapping.apply<Vec4f>(texel.x(), texel.y(), texel.z(), texel.w());
         return mapped * scale + bias;
     }
 };

@@ -10,7 +10,7 @@
 #include "flux/Core/Math.h"
 #include "flux/Core/Object.h"
 #include "flux/IO/Image.h"
-#include "kira/Compiler.h"
+#include "flux/Scene/ImageComponentMapping.h"
 
 namespace flux {
 class EmbreeImageTexturePool;
@@ -22,53 +22,6 @@ class OptixImagePool;
 enum class ImageColorSpace : std::uint8_t {
     Linear,
     SRGB,
-};
-
-/// \brief Input for one component of a texture value.
-enum class ImageComponentSource : std::uint8_t {
-    X,
-    Y,
-    Z,
-    W,
-    Zero,
-    One,
-};
-
-/// \brief Maps image components to a four-component texture value.
-struct ImageComponentMapping {
-    ImageComponentSource r{ImageComponentSource::X};
-    ImageComponentSource g{ImageComponentSource::Y};
-    ImageComponentSource b{ImageComponentSource::Z};
-    ImageComponentSource a{ImageComponentSource::W};
-
-    [[nodiscard]] constexpr bool isValid(std::uint8_t componentCount) const noexcept {
-        auto const sourceIsValid = [componentCount](ImageComponentSource source) {
-            auto const value = static_cast<std::uint8_t>(source);
-            return value < componentCount || source == ImageComponentSource::Zero ||
-                   source == ImageComponentSource::One;
-        };
-        return sourceIsValid(r) && sourceIsValid(g) && sourceIsValid(b) && sourceIsValid(a);
-    }
-
-    [[nodiscard]] KIRA_HOST_DEVICE Vec4f apply(Vec4f const &value) const noexcept {
-        auto const select = [&](ImageComponentSource source) {
-            if (source == ImageComponentSource::X)
-                return value.x();
-            if (source == ImageComponentSource::Y)
-                return value.y();
-            if (source == ImageComponentSource::Z)
-                return value.z();
-            if (source == ImageComponentSource::W)
-                return value.w();
-            if (source == ImageComponentSource::Zero)
-                return 0.0F;
-            return 1.0F;
-        };
-        return {select(r), select(g), select(b), select(a)};
-    }
-
-    [[nodiscard]] friend bool
-    operator==(ImageComponentMapping const &, ImageComponentMapping const &) = default;
 };
 
 /// \brief Image file and its color space.
