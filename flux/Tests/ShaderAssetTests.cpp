@@ -19,10 +19,7 @@ TEST(ShaderAssetTests, SharesOneAssetForEachSource) {
 
 TEST(ShaderAssetTests, RejectsWordsThatDoNotFillTheParameters) {
     auto context = flux::Context::create();
-    flux::ShaderAssetSpec const spec{
-        .source = "a",
-        .parameters = {{.path = "p", .type = "color3", .wordCount = 3, .offset = 0}},
-    };
+    flux::ShaderAssetSpec const spec{.source = "a", .wordCount = 3};
 
     EXPECT_THROW(
         (void)context->create<flux::ShaderBSDF>(spec, std::vector<std::uint32_t>(2)), kira::Anyhow

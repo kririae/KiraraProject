@@ -191,9 +191,9 @@ void expectOneConcreteType(flux::MtlxBSDFGenerator::Instance const &instance) {
 TEST(MtlxGeneratorTests, OnlyTheInteractiveInputsBecomeParametersWithTheirValuesAsWords) {
     auto const instance = generate(mixedDocument, {"fg/color", "m/mix"});
 
-    ASSERT_EQ(instance.spec.parameters.size(), 2U);
+    ASSERT_EQ(instance.parameters.size(), 2U);
     EXPECT_EQ(instance.words.size(), 4U);
-    for (auto const &parameter : instance.spec.parameters) {
+    for (auto const &parameter : instance.parameters) {
         auto const expected = parameter.path == "fg/color" ? std::vector<float>{0.8F, 0.2F, 0.2F}
                                                            : std::vector<float>{0.25F};
         ASSERT_EQ(parameter.wordCount, expected.size()) << parameter.path;

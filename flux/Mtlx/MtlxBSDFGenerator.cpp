@@ -205,7 +205,7 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::makeInstance(
     stage->beginScope();
 
     auto unmatched = std::set<std::string, std::less<>>{interactive.begin(), interactive.end()};
-    auto parameters = std::vector<ShaderParameter>{};
+    auto parameters = std::vector<MtlxBSDFGenerator::Parameter>{};
     auto words = std::vector<std::uint32_t>{};
     for (auto const *socket : graph.getInputSockets()) {
         if (!isRead(*socket)) {
@@ -251,7 +251,8 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::makeInstance(
     generator_->substituteTokens(*stage);
 
     return Instance{
-        .spec = {.source = stage->getSourceCode(), .parameters = std::move(parameters)},
+        .spec = {.source = stage->getSourceCode(), .wordCount = words.size()},
+        .parameters = std::move(parameters),
         .words = std::move(words)
     };
 }

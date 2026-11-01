@@ -155,12 +155,10 @@ PrincipledBSDF::Impl PrincipledBSDF::getImpl() const noexcept {
 ShaderBSDF::ShaderBSDF(TXContext &tx, ShaderAssetSpec const &spec, std::vector<std::uint32_t> words)
     : BSDF(tx, BSDFType::Shader), asset_(tx.getShaderAssetPool().getOrCreate(spec)),
       words_(std::move(words)) {
-    auto wordCount = std::size_t{};
-    for (auto const &parameter : asset_->getSpec().parameters)
-        wordCount += parameter.wordCount;
+    auto const wordCount = asset_->getSpec().wordCount;
     if (words_.size() != wordCount)
         throw kira::Anyhow(
-            "ShaderBSDF: the parameters take {} words, got {}", wordCount, words_.size()
+            "ShaderBSDF: the shader reads {} words, got {}", wordCount, words_.size()
         );
 }
 

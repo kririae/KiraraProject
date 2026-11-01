@@ -21,8 +21,24 @@ class FluxShaderGenerator;
 /// The generated source imports \c flux_bsdf and \c flux_context, which a backend provides.
 class MtlxBSDFGenerator final {
 public:
+    /// \brief One input of a material, and where its value lives in the words.
+    struct Parameter {
+        /// \brief The path of the input inside the material, such as \c oren/color.
+        std::string path;
+
+        /// \brief The type of the value, such as \c color3.
+        std::string type;
+
+        std::size_t wordCount{};
+
+        /// \brief The index of its first word.
+        std::size_t offset{};
+    };
+
     struct Instance {
         ShaderAssetSpec spec;
+
+        std::vector<Parameter> parameters;
 
         std::vector<std::uint32_t> words;
     };

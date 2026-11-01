@@ -285,7 +285,7 @@ public:
 private:
     /// \brief Creates a BSDF of the shader that \p spec describes.
     ///
-    /// \throws kira::Anyhow if \p words does not hold the words of every parameter of \p spec.
+    /// \throws kira::Anyhow if \p words does not hold \c ShaderAssetSpec::wordCount words.
     ShaderBSDF(TXContext &tx, ShaderAssetSpec const &spec, std::vector<std::uint32_t> words);
 
     Ref<ShaderAsset const> asset_;
