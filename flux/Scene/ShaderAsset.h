@@ -28,9 +28,6 @@ struct ShaderAssetSpec {
     std::string source;
 
     std::vector<ShaderParameter> parameters;
-
-    [[nodiscard]] friend bool
-    operator==(ShaderAssetSpec const &, ShaderAssetSpec const &) = default;
 };
 
 /// \brief Generated shader shared by materials.
