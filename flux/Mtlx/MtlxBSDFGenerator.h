@@ -30,7 +30,11 @@ public:
 
     /// \brief Returns the spec of the material \p materialName of \p document.
     ///
-    /// \return Nothing if the material is absent or unsupported.
+    /// A material that MaterialX cannot build, and a node that \c genflux cannot run, generate
+    /// nothing and warn. A published value that no emission reads keeps the value MaterialX gave
+    /// it, and warns.
+    ///
+    /// \return Nothing if the material is absent, or if its content cannot be generated.
     [[nodiscard]] std::optional<ShaderAssetSpec>
     generate(MaterialX::DocumentPtr const &document, std::string const &materialName) const;
 

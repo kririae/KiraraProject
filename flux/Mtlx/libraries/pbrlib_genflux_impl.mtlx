@@ -2,7 +2,7 @@
 <materialx version="1.39">
 
   <implementation name="IM_oren_nayar_diffuse_bsdf_genflux" nodedef="ND_oren_nayar_diffuse_bsdf" target="genflux"
-                  sourcecode="makeOrenNayarDiffuseBSDF({{color}}, {{roughness}}, fluxToShadingFrame(ctx, {{normal}}))"/>
+                  sourcecode="makeOrenNayarDiffuseBSDF({{color}} * {{weight}}, {{roughness}}, fluxToShadingFrame(ctx, {{normal}}))"/>
   <implementation name="IM_mix_bsdf_genflux" nodedef="ND_mix_bsdf" target="genflux"
                   sourcecode="makeMixBSDF({{fg}}, {{bg}}, {{mix}})"/>
   <implementation name="IM_surface_genflux" nodedef="ND_surface" target="genflux"

@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "flux/Core/Logging.h"
 #include "flux/Mtlx/FluxShaderGenerator.h"
 #include "flux/Mtlx/FluxSourceCodeNode.h"
 #include "kira/Anyhow.h"
@@ -31,6 +32,16 @@ namespace {
 constexpr auto libraryFiles = std::to_array<std::pair<char const *, char const *>>({
 #include "flux/Mtlx/MtlxLibraries.inc"
 });
+
+/// \brief Whether \p document itself writes the value of the published input \p path.
+[[nodiscard]] bool writesValue(MaterialX::DocumentPtr const &document, std::string const &path) {
+    auto const slash = path.rfind('/');
+    if (slash == std::string::npos)
+        return false;
+    auto const node = document->getDescendant(path.substr(0, slash));
+    return node && node->asA<MaterialX::Node>() &&
+           node->asA<MaterialX::Node>()->getInput(path.substr(slash + 1));
+}
 
 /// \brief Whether the emission reads an input that \p socket publishes.
 [[nodiscard]] bool isRead(MaterialX::ShaderGraphInputSocket const &socket) {
@@ -116,7 +127,10 @@ std::optional<ShaderAssetSpec> MtlxBSDFGenerator::generate(
 
     try {
         return makeSpec(document, materialName);
-    } catch (MaterialX::Exception const &) { return std::nullopt; }
+    } catch (MaterialX::Exception const &error) {
+        LogWarn("MaterialX material '{}': {}", materialName, error.what());
+        return std::nullopt;
+    }
 }
 
 ShaderAssetSpec MtlxBSDFGenerator::makeSpec(
@@ -142,8 +156,13 @@ ShaderAssetSpec MtlxBSDFGenerator::makeSpec(
     auto reads = std::vector<WordRead>{};
     auto offset = std::size_t{};
     for (auto const *socket : graph.getInputSockets()) {
-        if (!isRead(*socket))
+        if (!isRead(*socket)) {
+            if (!socket->getConnections().empty() && writesValue(copy, socket->getPath()))
+                LogWarn(
+                    "MaterialX material '{}': '{}' is not read", materialName, socket->getPath()
+                );
             continue;
+        }
 
         auto const typeDesc = socket->getType();
         auto const count = wordCount(typeDesc);
