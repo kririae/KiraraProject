@@ -15,6 +15,12 @@ krr_add_test(
     SOURCES SlangCompilerTests.cpp
     HARD_DEPENDENCIES flux)
 
+krr_add_test(
+    flux Slang BsdfLibraryTests
+    SOURCES SlangBsdfLibraryTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(flux.Slang.BsdfLibraryTests PRIVATE FLUX_SLANG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../Slang")
+
 add_test(NAME flux.CLI.CboxSmoke
          COMMAND $<TARGET_FILE:flux_cli> ${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/Cbox/Cbox.toml --backend embree --spp 1
                  --output ${CMAKE_CURRENT_BINARY_DIR}/FluxCLISmoke/cbox.exr)
