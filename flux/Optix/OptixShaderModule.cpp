@@ -4,17 +4,17 @@
 
 #include <array>
 #include <cstddef>
+#include <stdexcept>
 
 #include "flux/Optix/OptixBSDFCompiler.h"
 #include "flux/Optix/OptixPipelineCompileOptions.h"
 #include "flux/Optix/OptixUtils.h"
-#include "kira/Anyhow.h"
 
 namespace flux {
 OptixShaderModule::OptixShaderModule(OptixDeviceContext deviceContext, std::span<char const> ir)
     : OptixShaderModule(EmptyState{}) {
     if (!deviceContext)
-        throw kira::Anyhow("OptixShaderModule: device context must not be null");
+        throw std::invalid_argument("OptixShaderModule: device context must not be null");
 
     OptixModuleCompileOptions moduleOptions{};
     moduleOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_3;

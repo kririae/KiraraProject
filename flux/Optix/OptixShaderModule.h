@@ -14,7 +14,8 @@ class OptixShaderModule final : private Noncopyable {
 public:
     /// \brief Builds the module from \p ir, which \c OptixBSDFCompiler::compile returns.
     ///
-    /// \throw kira::Anyhow If \p deviceContext is null or OptiX rejects \p ir.
+    /// \throw std::invalid_argument If \p deviceContext is null.
+    /// \throw kira::Anyhow If OptiX rejects \p ir.
     OptixShaderModule(OptixDeviceContext deviceContext, std::span<char const> ir);
 
     ~OptixShaderModule();
