@@ -11,7 +11,15 @@
 #include "flux/Shading/Frame.h"
 
 namespace flux::embree {
-struct EmbreeImageTextureEvaluator {
+struct EmbreeEvaluator {
+    /// Never runs: sync throws on a scene with a shader BSDF.
+    [[nodiscard]] static BSDFResult execute(
+        std::uint32_t, ShadingContext const &, Vec3f const &, Vec3f const &, bool, float,
+        Vec2f const &
+    ) noexcept {
+        KIRA_UNREACHABLE();
+    }
+
     [[nodiscard]] static Vec4f
     eval4f(std::uint32_t index, Vec2f uv, Vec2f const &duvdx, Vec2f const &duvdy) noexcept {
         return getLaunchParams().scene.imageTexturePool.eval4f(index, uv, duvdx, duvdy);
@@ -56,7 +64,7 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
             auto const traced = state.getRay();
             if (!params.scene.intersect(traced, hit)) {
                 if (writesColor)
-                    params.integrator.onMiss<EmbreeImageTextureEvaluator>(state, params.scene);
+                    params.integrator.onMiss<EmbreeEvaluator>(state, params.scene);
                 else
                     params.integrator.onMiss(state);
                 break;
@@ -84,7 +92,7 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
 
             auto directLight = DirectLightSample{};
             if (continues) {
-                directLight = params.integrator.sampleDirectLight<EmbreeImageTextureEvaluator>(
+                directLight = params.integrator.sampleDirectLight<EmbreeEvaluator>(
                     state, params.scene,
                     {
                         .position = isect.position,
@@ -106,7 +114,7 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
                 auto footprint = state.footprint.unpack();
                 footprint.propagate(hit.preliminary.distance);
                 auto const ctx = makeShadingContext(isect, traced.direction, footprint);
-                auto const result = bsdfDispatcher.execute<EmbreeImageTextureEvaluator>(
+                auto const result = bsdfDispatcher.execute<EmbreeEvaluator>(
                     bsdf, ctx, localWo, localLightWi, directLight.pdf > 0.0F, uLobe, uDirection
                 );
 

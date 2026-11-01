@@ -26,6 +26,13 @@ struct TestImageTextureEvaluator {
     eval4f(std::uint32_t index, flux::Vec2f uv, flux::Vec2f const &, flux::Vec2f const &) noexcept {
         return {static_cast<float>(index) + uv.x(), uv.y(), 3.0F, 4.0F};
     }
+
+    [[nodiscard]] KIRA_HOST_DEVICE static flux::BSDFResult execute(
+        std::uint32_t, flux::ShadingContext const &, flux::Vec3f const &, flux::Vec3f const &, bool,
+        float, flux::Vec2f const &
+    ) noexcept {
+        KIRA_UNREACHABLE();
+    }
 };
 
 [[nodiscard]] flux::Texture::Impl constantTexture(flux::Spectrum const &value) {

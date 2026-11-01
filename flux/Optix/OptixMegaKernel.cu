@@ -1,6 +1,7 @@
 #include <optix_device.h>
 
 #include "flux/Integrator/PathIntegrator.h"
+#include "flux/Optix/OptixBSDFCallable.h"
 #include "flux/Optix/OptixContext.cuh"
 #include "flux/Optix/OptixImageTexture.cuh"
 #include "flux/Optix/OptixLaunchParams.h"
@@ -16,7 +17,7 @@ __constant__ flux::OptixLaunchParams optixLaunchParams{};
 }
 
 namespace {
-struct OptixImageTextureEvaluator {
+struct OptixEvaluator {
     [[nodiscard]] KIRA_DEVICE static flux::Vec4f eval4f(
         std::uint32_t index, flux::Vec2f uv, flux::Vec2f const &duvdx, flux::Vec2f const &duvdy
     ) noexcept {
@@ -26,6 +27,42 @@ struct OptixImageTextureEvaluator {
             make_float2(duvdy.x(), duvdy.y())
         ));
         return {value.x, value.y, value.z, value.w};
+    }
+
+    /// \brief Runs the callable of the shader BSDF at BSDF index \p index.
+    [[nodiscard]] KIRA_DEVICE static flux::BSDFResult execute(
+        std::uint32_t index, flux::ShadingContext const &ctx, flux::Vec3f const &wo,
+        flux::Vec3f const &wi, bool eval, float u1, flux::Vec2f const &u2
+    ) noexcept {
+        auto const binding = optixLaunchParams.scene.shaderBSDFBindings[index];
+        auto const result = optixDirectCall<
+            flux::OptixBSDFResult, unsigned int, flux::OptixShadingContext, float3, float3, bool,
+            float, float2>(
+            binding.slot, binding.wordOffset,
+            flux::OptixShadingContext{
+                .position = make_float3(ctx.position.x(), ctx.position.y(), ctx.position.z()),
+                .normal = make_float3(ctx.normal.x(), ctx.normal.y(), ctx.normal.z()),
+                .uv = make_float2(ctx.texture.uv.x(), ctx.texture.uv.y()),
+                .duvdx = make_float2(ctx.texture.duvdx.x(), ctx.texture.duvdx.y()),
+                .duvdy = make_float2(ctx.texture.duvdy.x(), ctx.texture.duvdy.y()),
+            },
+            make_float3(wo.x(), wo.y(), wo.z()), make_float3(wi.x(), wi.y(), wi.z()), eval, u1,
+            make_float2(u2.x(), u2.y())
+        );
+        return {
+            .evaluation =
+                {.value =
+                     {result.evaluation.value.x, result.evaluation.value.y,
+                      result.evaluation.value.z},
+                 .pdf = result.evaluation.pdf},
+            .sample = {
+                .weight = {result.sample.weight.x, result.sample.weight.y, result.sample.weight.z},
+                .wi = {result.sample.wi.x, result.sample.wi.y, result.sample.wi.z},
+                .pdf = result.sample.pdf,
+                .eta = result.sample.eta,
+                .lobe = static_cast<flux::BSDFLobe>(result.sample.lobe)
+            },
+        };
     }
 };
 
@@ -113,7 +150,7 @@ struct ShadowQuery {
 
     auto directLight = flux::DirectLightSample{};
     if (continues) {
-        directLight = optixLaunchParams.integrator.sampleDirectLight<OptixImageTextureEvaluator>(
+        directLight = optixLaunchParams.integrator.sampleDirectLight<OptixEvaluator>(
             state, optixLaunchParams.scene,
             {
                 .position = isect.position,
@@ -133,7 +170,7 @@ struct ShadowQuery {
     auto const uDirection = flux::Vec2f{u.y(), u.z()};
     auto const &bsdf = optixLaunchParams.scene.table.getBSDF(primitive.getBSDFIndex());
     auto const ctx = flux::makeShadingContext(isect, state.rayDirection, footprint);
-    auto const result = optixLaunchParams.bsdfDispatcher.execute<OptixImageTextureEvaluator>(
+    auto const result = optixLaunchParams.bsdfDispatcher.execute<OptixEvaluator>(
         bsdf, ctx, localWo, localLightWi, directLight.pdf > 0.0F, uLobe, uDirection
     );
 
@@ -176,17 +213,12 @@ KIRA_DEVICE __forceinline__ void step(flux::PathState &state, std::uint32_t inde
     // Reorder on every hit, primary ones included. Guarding this on depth would give the shading
     // two static predecessors, one per continuation, so the compiler would emit a second copy of
     // it, and the guard would stop being warp-uniform once lanes claim new chunks.
-    if (optixLaunchParams.scene.intersect(state.getRay(), hit, optixLaunchParams.shaderReorder)) {
+    if (optixLaunchParams.scene.intersect(state.getRay(), hit, optixLaunchParams.shaderReorder))
         query = shade(state, hit, index);
-    } else if (
-        optixLaunchParams.film.hasChannel<flux::ColorChannel>() && optixLaunchParams.hasEnvMap
-    ) {
-        optixLaunchParams.integrator.onMiss<OptixImageTextureEvaluator>(
-            state, optixLaunchParams.scene
-        );
-    } else {
+    else if (optixLaunchParams.film.hasChannel<flux::ColorChannel>() && optixLaunchParams.hasEnvMap)
+        optixLaunchParams.integrator.onMiss<OptixEvaluator>(state, optixLaunchParams.scene);
+    else
         optixLaunchParams.integrator.onMiss(state);
-    }
 
     // The one shadow traversal, kept outside shade so no early return there can skip it. A lane
     // that skipped it would suspend at the next extension traversal instead and resume in a

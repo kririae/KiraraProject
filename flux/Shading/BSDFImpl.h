@@ -15,11 +15,15 @@ KIRA_HOST_DEVICE inline BSDFResult BSDF::Dispatcher::execute(
         selectedType = BSDFType::Diffuse;
     else if (types == bsdfTypeBit(BSDFType::Principled))
         selectedType = BSDFType::Principled;
+    else if (types == bsdfTypeBit(BSDFType::Shader))
+        selectedType = BSDFType::Shader;
 
     if (selectedType == BSDFType::Diffuse)
         return bsdf.storage.diffuse.template execute<Evaluator>(ctx, wo, wi, eval, u1, u2);
     else if (selectedType == BSDFType::Principled)
         return bsdf.storage.principled.template execute<Evaluator>(ctx, wo, wi, eval, u1, u2);
+    else if (selectedType == BSDFType::Shader)
+        return Evaluator::execute(bsdf.storage.shader.index, ctx, wo, wi, eval, u1, u2);
     KIRA_UNREACHABLE();
 }
 } // namespace flux
