@@ -8,7 +8,8 @@ description: Use when you say that a change works, or when you run a test, a ben
 Before you say a change works, run the narrowest checks that could fail it, in bounded time. A check that you did not run proves nothing, and neither does one that could not fail.
 
 - Build and run only the unit tests that the change touches. Run the full suite only when the user asks.
-- Every process has a timeout. An experiment takes about a minute. Wait in the foreground, or for the notification that comes when the process exits, and never poll with `sleep`. Check whether the result already exists before you wait.
+- Every process has a timeout. An experiment takes about a minute. Check whether the result already exists before you wait.
+- Never run `sleep`, in any form. Wait in the foreground, or for the notification that comes when the process exits. A subagent runs every process in the foreground.
 - Size the checks by the risk of the change. A change that very likely cannot break, such as a rename, a comment, or a constant that nothing reads, gets no dedicated test. The careful checks stay for concurrency, ordering, schedules, and numerics.
 - Measure only what is in question.
 - To compare two versions, build each with its own artifacts, and turn caches off.

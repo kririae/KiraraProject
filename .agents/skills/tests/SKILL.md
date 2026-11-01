@@ -9,6 +9,7 @@ A unit test locks one promise: a documented result or error, or a rule that the 
 
 - A unit test earns its place where integration tests do not easily reach: the edges of a contract, failure states, behavior that depends on history, and [invariants](../design/SKILL.md).
 - A mutation, such as a flipped condition, an off-by-one, a dropped clear, or a missing check, judges a test. Mutations are not part of the suite.
+- A throwaway check verifies one change once: a run, a script, or a test deleted after it ran, reported with its command and its numbers. It protects nothing later. A mutation that only a throwaway check kills is an open task, recorded with the work that will add a test that kills it.
 - A missing test is better than a low-value one.
 - Where the arithmetic allows, make the oracle exact by construction. Fill the inputs with small integers that the arithmetic holds without rounding, and compare for equality. A tolerance passes an error as large as itself.
 
