@@ -7,6 +7,8 @@
 
 #include "flux/Core/Math.h"
 #include "flux/Core/Ray.h"
+#include "flux/Core/RayFootprint.h"
+#include "flux/Shading/Texture.h"
 #include "kira/Compiler.h"
 
 namespace flux {
@@ -82,4 +84,37 @@ public:
 
 static_assert(std::is_standard_layout_v<SurfaceInteraction>);
 static_assert(std::is_trivially_copyable_v<SurfaceInteraction>);
+
+/// \brief The surface point that a BSDF is executed at.
+struct ShadingContext {
+    Vec3f position{};
+
+    /// The shading normal, which determines the shading frame as in \c Frame.
+    Vec3f normal{};
+
+    TextureEvalContext texture{};
+};
+
+/// \brief Returns the shading context at \p isect.
+///
+/// \p footprint is projected to the plane of \p isect.
+[[nodiscard]] KIRA_HOST_DEVICE inline ShadingContext makeShadingContext(
+    SurfaceInteraction const &isect, Vec3f const &direction, RayFootprint const &footprint
+) noexcept {
+    auto dpdx = Vec3f{};
+    auto dpdy = Vec3f{};
+    footprint.project(direction, isect.geometricNormal, dpdx, dpdy);
+    return {
+        .position = isect.position,
+        .normal = isect.shadingNormal,
+        .texture = {
+            .uv = isect.uv,
+            .duvdx = {dpdx.dot(isect.uvGradU), dpdx.dot(isect.uvGradV)},
+            .duvdy = {dpdy.dot(isect.uvGradU), dpdy.dot(isect.uvGradV)},
+        },
+    };
+}
+
+static_assert(std::is_standard_layout_v<ShadingContext>);
+static_assert(std::is_trivially_copyable_v<ShadingContext>);
 } // namespace flux

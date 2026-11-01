@@ -7,6 +7,7 @@
 #include "flux/Scene/GeometryImpl.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Shading/EDF.h"
+#include "flux/Shading/Interaction.h"
 
 namespace flux {
 namespace detail {

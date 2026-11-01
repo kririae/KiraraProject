@@ -7,8 +7,8 @@
 namespace flux {
 template <typename Evaluator>
 KIRA_HOST_DEVICE inline BSDFResult BSDF::Dispatcher::execute(
-    BSDF::Impl const &bsdf, TextureEvalContext const &ctx, Vec3f const &wo, Vec3f const &wi,
-    bool eval, float u1, Vec2f const &u2
+    BSDF::Impl const &bsdf, ShadingContext const &ctx, Vec3f const &wo, Vec3f const &wi, bool eval,
+    float u1, Vec2f const &u2
 ) const noexcept {
     auto selectedType = bsdf.type;
     if (types == bsdfTypeBit(BSDFType::Diffuse))

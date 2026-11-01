@@ -105,9 +105,9 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
                 auto const &bsdf = params.scene.table.getBSDF(primitive.getBSDFIndex());
                 auto footprint = state.footprint.unpack();
                 footprint.propagate(hit.preliminary.distance);
-                auto const texCtx = makeTextureEvalContext(isect, traced.direction, footprint);
+                auto const ctx = makeShadingContext(isect, traced.direction, footprint);
                 auto const result = bsdfDispatcher.execute<EmbreeImageTextureEvaluator>(
-                    bsdf, texCtx, localWo, localLightWi, directLight.pdf > 0.0F, uLobe, uDirection
+                    bsdf, ctx, localWo, localLightWi, directLight.pdf > 0.0F, uLobe, uDirection
                 );
 
                 if (writesAlbedo)

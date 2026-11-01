@@ -287,21 +287,22 @@ specularWeights(bool frontSide, float bsdfWeight, float F) noexcept {
 namespace flux {
 template <typename Evaluator>
 KIRA_HOST_DEVICE inline BSDFResult PrincipledBSDF::Impl::execute(
-    TextureEvalContext const &ctx, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
+    ShadingContext const &ctx, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
     Vec2f const &u2
 ) const noexcept {
     auto const params = principled::Parameters{
-        .baseColor = saturate(baseColor.template eval3f<Evaluator>(ctx)),                   // (1)
-        .roughness = saturate(roughness.template eval1f<Evaluator>(ctx)),                   // (2)
-        .metallic = saturate(metallic.template eval1f<Evaluator>(ctx)),                     // (3)
-        .specTrans = saturate(specTrans.template eval1f<Evaluator>(ctx)),                   // (4)
-        .specTint = saturate(specTint.template eval1f<Evaluator>(ctx)),                     // (5)
-        .sheen = saturate(sheen.template eval1f<Evaluator>(ctx)),                           // (6)
-        .sheenTint = saturate(sheenTint.template eval1f<Evaluator>(ctx)),                   // (7)
-        .flatness = saturate(flatness.template eval1f<Evaluator>(ctx)),                     // (8)
-        .clearcoat = saturate(clearcoat.template eval1f<Evaluator>(ctx)),                   // (9)
-        .clearcoatRoughness = saturate(clearcoatRoughness.template eval1f<Evaluator>(ctx)), // (10)
-        .eta = std::max(eta, std::numeric_limits<float>::denorm_min()),                     // (11)
+        .baseColor = saturate(baseColor.template eval3f<Evaluator>(ctx.texture)), // (1)
+        .roughness = saturate(roughness.template eval1f<Evaluator>(ctx.texture)), // (2)
+        .metallic = saturate(metallic.template eval1f<Evaluator>(ctx.texture)),   // (3)
+        .specTrans = saturate(specTrans.template eval1f<Evaluator>(ctx.texture)), // (4)
+        .specTint = saturate(specTint.template eval1f<Evaluator>(ctx.texture)),   // (5)
+        .sheen = saturate(sheen.template eval1f<Evaluator>(ctx.texture)),         // (6)
+        .sheenTint = saturate(sheenTint.template eval1f<Evaluator>(ctx.texture)), // (7)
+        .flatness = saturate(flatness.template eval1f<Evaluator>(ctx.texture)),   // (8)
+        .clearcoat = saturate(clearcoat.template eval1f<Evaluator>(ctx.texture)), // (9)
+        .clearcoatRoughness =
+            saturate(clearcoatRoughness.template eval1f<Evaluator>(ctx.texture)), // (10)
+        .eta = std::max(eta, std::numeric_limits<float>::denorm_min()),           // (11)
     };
     auto const frontSide = wo.z() > 0.0F;
     if (wo.z() == 0.0F)

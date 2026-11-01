@@ -104,7 +104,7 @@ public:
     /// \pre \p wo is normalized; \p wi is normalized when \p eval is true.
     /// \pre Samples are in \f$[0,1)\f$.
     [[nodiscard]] KIRA_HOST_DEVICE BSDFResult execute(
-        TextureEvalContext const &ctx, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
+        ShadingContext const &ctx, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
         Vec2f const &u2
     ) const noexcept {
         auto result = BSDFResult{};
@@ -272,7 +272,7 @@ struct DiffuseBSDF::Impl {
 public:
     template <typename Evaluator>
     [[nodiscard]] KIRA_HOST_DEVICE BSDFResult execute(
-        TextureEvalContext const &ctx, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
+        ShadingContext const &ctx, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
         Vec2f const &u2
     ) const noexcept;
 };
@@ -295,7 +295,7 @@ public:
     /// \brief Evaluates and samples the Principled model for one hit.
     template <typename Evaluator>
     [[nodiscard]] KIRA_HOST_DEVICE BSDFResult execute(
-        TextureEvalContext const &ctx, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
+        ShadingContext const &ctx, Vec3f const &wo, Vec3f const &wi, bool eval, float u1,
         Vec2f const &u2
     ) const noexcept;
 };
@@ -329,7 +329,7 @@ public:
     /// \pre \c types contains \p bsdf's implementation type.
     template <typename Evaluator>
     [[nodiscard]] KIRA_HOST_DEVICE BSDFResult execute(
-        BSDF::Impl const &bsdf, TextureEvalContext const &ctx, Vec3f const &wo, Vec3f const &wi,
+        BSDF::Impl const &bsdf, ShadingContext const &ctx, Vec3f const &wo, Vec3f const &wi,
         bool eval, float u1, Vec2f const &u2
     ) const noexcept;
 };

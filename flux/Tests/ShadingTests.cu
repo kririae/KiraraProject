@@ -189,7 +189,7 @@ TEST(ShadingTests, StopsVisibilityRaysBeforeTheEmitterAfterOffsetting) {
 TEST(ShadingTests, EvaluatesDiffuseOnHost) {
     constexpr auto dispatcher =
         flux::BSDF::Dispatcher{.types = flux::bsdfTypeBit(flux::BSDFType::Diffuse)};
-    auto const texCtx = flux::TextureEvalContext{};
+    auto const ctx = flux::ShadingContext{};
     auto const bsdf = flux::BSDF::Impl{
         .type = flux::BSDFType::Diffuse,
         .storage = {
@@ -197,10 +197,10 @@ TEST(ShadingTests, EvaluatesDiffuseOnHost) {
         },
     };
     auto const result = dispatcher.execute<TestImageTextureEvaluator>(
-        bsdf, texCtx, {0.0F, 0.0F, 1.0F}, {0.0F, 0.0F, 1.0F}, true, 0.5F, {0.5F, 0.5F}
+        bsdf, ctx, {0.0F, 0.0F, 1.0F}, {0.0F, 0.0F, 1.0F}, true, 0.5F, {0.5F, 0.5F}
     );
     auto const angledResult = dispatcher.execute<TestImageTextureEvaluator>(
-        bsdf, texCtx, {0.0F, 0.0F, 1.0F}, {0.6F, 0.0F, 0.8F}, true, 0.5F, {0.5F, 0.5F}
+        bsdf, ctx, {0.0F, 0.0F, 1.0F}, {0.6F, 0.0F, 0.8F}, true, 0.5F, {0.5F, 0.5F}
     );
     auto const &evaluation = result.evaluation;
     auto const &angledEvaluation = angledResult.evaluation;

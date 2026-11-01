@@ -132,9 +132,9 @@ struct ShadowQuery {
     auto const uLobe = u.x();
     auto const uDirection = flux::Vec2f{u.y(), u.z()};
     auto const &bsdf = optixLaunchParams.scene.table.getBSDF(primitive.getBSDFIndex());
-    auto const texCtx = flux::makeTextureEvalContext(isect, state.rayDirection, footprint);
+    auto const ctx = flux::makeShadingContext(isect, state.rayDirection, footprint);
     auto const result = optixLaunchParams.bsdfDispatcher.execute<OptixImageTextureEvaluator>(
-        bsdf, texCtx, localWo, localLightWi, directLight.pdf > 0.0F, uLobe, uDirection
+        bsdf, ctx, localWo, localLightWi, directLight.pdf > 0.0F, uLobe, uDirection
     );
 
     if (writesAlbedo) {
