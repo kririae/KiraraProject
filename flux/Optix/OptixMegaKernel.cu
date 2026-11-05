@@ -40,11 +40,10 @@ struct OptixEvaluator {
             float, float2>(
             binding.slot, binding.wordOffset,
             flux::OptixShadingContext{
-                .position = make_float3(ctx.position.x(), ctx.position.y(), ctx.position.z()),
-                .normal = make_float3(ctx.normal.x(), ctx.normal.y(), ctx.normal.z()),
                 .uv = make_float2(ctx.texture.uv.x(), ctx.texture.uv.y()),
                 .duvdx = make_float2(ctx.texture.duvdx.x(), ctx.texture.duvdx.y()),
                 .duvdy = make_float2(ctx.texture.duvdy.x(), ctx.texture.duvdy.y()),
+                .normal = make_float3(ctx.normal.x(), ctx.normal.y(), ctx.normal.z()),
                 .textureOffset = binding.textureOffset,
             },
             make_float3(wo.x(), wo.y(), wo.z()), make_float3(wi.x(), wi.y(), wi.z()), eval, u1,
