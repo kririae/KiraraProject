@@ -12,6 +12,11 @@ if(KRR_BUILD_TESTS)
         HARD_DEPENDENCIES kira::Core)
 
     krr_add_test(
+        kira Core FileResolverTests
+        SOURCES FileResolverTests.cpp
+        HARD_DEPENDENCIES kira::Core)
+
+    krr_add_test(
         kira Core LoggerTests
         SOURCES LoggerTests.cpp
         HARD_DEPENDENCIES kira::Core)

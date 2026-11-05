@@ -19,7 +19,7 @@ bool FileResolver::contains(std::filesystem::path const &p) const {
 }
 
 std::filesystem::path FileResolver::resolve(std::filesystem::path const &path) const {
-    if (!path.is_absolute()) {
+    if (!path.empty() && !path.is_absolute()) {
         for (auto const &base : paths) {
             std::filesystem::path combined = base / path;
             if (std::filesystem::exists(combined))
