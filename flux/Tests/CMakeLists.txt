@@ -154,6 +154,8 @@ krr_add_test(
     flux Scene ShaderAssetTests
     SOURCES ShaderAssetTests.cpp
     HARD_DEPENDENCIES flux)
+target_compile_definitions(
+    flux.Scene.ShaderAssetTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures")
 
 krr_add_test(
     flux Embree ImageTextureTests

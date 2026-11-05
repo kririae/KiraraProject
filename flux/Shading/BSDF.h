@@ -269,6 +269,8 @@ private:
 };
 
 /// \brief A BSDF that a generated shader computes.
+///
+/// Texture k is the texture that slot k of the source samples.
 class ShaderBSDF final : public BSDF {
     friend class TXContext;
 
@@ -279,17 +281,27 @@ public:
 
     [[nodiscard]] std::vector<std::uint32_t> const &getWords() const noexcept { return words_; }
 
+    [[nodiscard]] std::vector<Ref<ImageTexture const>> const &getTextures() const noexcept {
+        return textures_;
+    }
+
     /// \brief Builds the scattering implementation.
     [[nodiscard]] Impl getImpl() const;
 
 private:
     /// \brief Creates a BSDF of the shader that \p spec describes.
     ///
-    /// \throws kira::Anyhow if \p words does not hold \c ShaderAssetSpec::wordCount words.
-    ShaderBSDF(TXContext &tx, ShaderAssetSpec const &spec, std::vector<std::uint32_t> words);
+    /// \throw kira::Anyhow if \p words does not hold \c ShaderAssetSpec::wordCount words.
+    /// \throw std::invalid_argument if a texture is null, or is not an object of the context or
+    ///        of \p tx.
+    ShaderBSDF(
+        TXContext &tx, ShaderAssetSpec const &spec, std::vector<std::uint32_t> words,
+        std::vector<Ref<ImageTexture const>> textures = {}
+    );
 
     Ref<ShaderAsset const> asset_;
     std::vector<std::uint32_t> words_;
+    std::vector<Ref<ImageTexture const>> textures_;
 };
 
 /// \brief Lambertian reflection implementation.

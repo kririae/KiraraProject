@@ -13,6 +13,13 @@ Ref<ContextObject> TXContext::getObject(std::size_t contextId) const {
     return context_.get<ContextObject>(contextId);
 }
 
+bool TXContext::contains(ContextObject const &object) const {
+    if (object.getContext() == &context_)
+        return true;
+    auto const iterator = objects_.find(object.getContextId());
+    return iterator != objects_.end() && iterator->second.get() == &object;
+}
+
 kira::FileResolver const &TXContext::getFileResolver() const noexcept {
     return context_.getFileResolver();
 }

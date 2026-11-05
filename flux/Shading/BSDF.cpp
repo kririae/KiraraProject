@@ -152,14 +152,24 @@ PrincipledBSDF::Impl PrincipledBSDF::getImpl() const noexcept {
     };
 }
 
-ShaderBSDF::ShaderBSDF(TXContext &tx, ShaderAssetSpec const &spec, std::vector<std::uint32_t> words)
+ShaderBSDF::ShaderBSDF(
+    TXContext &tx, ShaderAssetSpec const &spec, std::vector<std::uint32_t> words,
+    std::vector<Ref<ImageTexture const>> textures
+)
     : BSDF(tx, BSDFType::Shader), asset_(tx.getShaderAssetPool().getOrCreate(spec)),
-      words_(std::move(words)) {
+      words_(std::move(words)), textures_(std::move(textures)) {
     auto const wordCount = asset_->getSpec().wordCount;
     if (words_.size() != wordCount)
         throw kira::Anyhow(
             "ShaderBSDF: the shader reads {} words, got {}", wordCount, words_.size()
         );
+
+    for (auto const &texture : textures_) {
+        if (!texture)
+            throw std::invalid_argument("ShaderBSDF: texture must not be null");
+        if (!tx.contains(*texture))
+            throw std::invalid_argument("ShaderBSDF: texture belongs to another context");
+    }
 }
 
 ShaderBSDF::Impl ShaderBSDF::getImpl() const {

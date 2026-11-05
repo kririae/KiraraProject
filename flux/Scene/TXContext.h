@@ -60,6 +60,9 @@ public:
         return object;
     }
 
+    /// \brief Returns whether \p object is an object of this transaction or of its owning context.
+    [[nodiscard]] bool contains(ContextObject const &object) const;
+
     /// \brief Returns the resolver for the files a constructor loads.
     [[nodiscard]] kira::FileResolver const &getFileResolver() const noexcept;
 
