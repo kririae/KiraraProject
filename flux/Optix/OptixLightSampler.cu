@@ -55,12 +55,14 @@ void OptixLightSampler::sync(
     auto const image = envMap ? envMap->getTexture().dynamicCast<ImageTexture const>() : nullptr;
     std::optional<EnvMapKey> key;
     // The weights read texel centers with point filtering, so the filter and address modes do not
-    // change them, and the rotation applies only when rendering. The extent, components, and color
-    // space belong to the ImageAsset, which is immutable and whose ID never repeats.
+    // change them, and the rotation applies only when rendering. The extent, components, color
+    // space, and whether the image is a placeholder belong to the ImageAsset, which is immutable
+    // and whose ID never repeats.
     if (image)
         key = EnvMapKey{
             .imageId = image->getImageAsset()->getId(),
             .componentMapping = image->getComponentMapping(),
+            .fallback = image->getFallback(),
             .scale = image->getScale(),
             .bias = image->getBias(),
             .envMapScale = envMap->getScale(),

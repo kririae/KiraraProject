@@ -139,6 +139,7 @@ ImageTexture::ImageTexture(TXContext &tx, kira::Properties const &props)
     }
     scale_ = props.use_or<Vec4f>("scale", scale_);
     bias_ = props.use_or<Vec4f>("bias", bias_);
+    fallback_ = props.use_or<Vec4f>("fallback", fallback_);
 }
 
 Texture::Impl ImageTexture::getImpl() const {

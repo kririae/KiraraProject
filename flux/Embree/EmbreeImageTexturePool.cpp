@@ -19,12 +19,18 @@ struct EmbreeImageTexturePool::Entry {
     std::uint8_t sampleComponentCount{};
     std::uint8_t orientation{};
     ImageComponentMapping componentMapping;
+    bool placeholder{};
+    Vec4f fallback;
     Vec4f scale;
     Vec4f bias;
 
-    /// \brief Returns the value of \p texel: its component mapping, times \c scale, plus \c bias.
+    /// \brief Returns the value of \p texel.
+    ///
+    /// The value is the component mapping of the texel, or \c fallback instead if the image is a
+    /// placeholder, times \c scale, plus \c bias.
     [[nodiscard]] Vec4f apply(Vec4f const &texel) const noexcept {
-        return componentMapping.apply(texel) * scale + bias;
+        auto const mapped = placeholder ? fallback : componentMapping.apply(texel);
+        return mapped * scale + bias;
     }
 };
 
@@ -75,6 +81,8 @@ void EmbreeImageTexturePool::build(Context const &context) {
             .sampleComponentCount = sampleComponentCount,
             .orientation = asset->pImpl_->orientation,
             .componentMapping = texture->getComponentMapping(),
+            .placeholder = asset->isPlaceholder(),
+            .fallback = texture->getFallback(),
             .scale = texture->getScale(),
             .bias = texture->getBias(),
         };

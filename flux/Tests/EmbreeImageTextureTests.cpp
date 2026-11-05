@@ -274,3 +274,31 @@ TEST_F(EmbreeImageTextureTests, AppliesScaleAndBiasAfterComponentMapping) {
 
     EXPECT_EQ(sample({0.5F, 0.5F}), (flux::Vec4f{2.5F, 2.25F, 1.0F, 0.75F}));
 }
+
+TEST_F(EmbreeImageTextureTests, FallbackReplacesComponentMappingOfAnImageThatFailsToLoad) {
+    kira::Properties props;
+    props.set("type", "image");
+    props.set("path", path("MissingFallback.exr"));
+    props.set("component_mapping", std::string{"0000"});
+    props.set("scale", flux::Vec4f{2.0F, 4.0F, 8.0F, 0.5F});
+    props.set("bias", flux::Vec4f{1.0F, 0.25F, -1.0F, 0.25F});
+    props.set("fallback", flux::Vec4f{0.5F, 0.25F, 0.125F, 0.75F});
+    build(props);
+
+    EXPECT_EQ(sample({0.5F, 0.5F}), (flux::Vec4f{2.0F, 1.25F, 0.0F, 0.625F}));
+}
+
+TEST_F(EmbreeImageTextureTests, FallbackLeavesALoadedImage) {
+    auto const imagePath = path("fallback-loaded.exr");
+    auto const componentNames = std::array<std::string_view, 4>{"R", "G", "B", "A"};
+    auto const pixels = std::array{0.25F, 0.5F, 0.75F, 1.0F};
+    flux::test::writeFloatImage(imagePath, pixels, {1, 1}, componentNames);
+    kira::Properties props;
+    props.set("type", "image");
+    props.set("path", imagePath);
+    props.set("filter_mode", std::string{"point"});
+    props.set("fallback", flux::Vec4f{9.0F, 9.0F, 9.0F, 9.0F});
+    build(props);
+
+    EXPECT_EQ(sample({0.5F, 0.5F}), (flux::Vec4f{0.25F, 0.5F, 0.75F, 1.0F}));
+}

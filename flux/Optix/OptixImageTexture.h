@@ -20,7 +20,13 @@ struct OptixImageTexture {
     /// Component mapping applied to a sampled texel.
     ImageComponentMapping componentMapping;
 
-    /// Factor that multiplies the component mapping of a texel.
+    /// Whether the image is the placeholder of a file that failed to load.
+    bool placeholder;
+
+    /// Value that replaces the component mapping of a texel of a placeholder.
+    Vec4f fallback;
+
+    /// Factor that multiplies the component mapping or the fallback.
     Vec4f scale;
 
     /// Term that \c apply adds after the scale.
@@ -29,9 +35,13 @@ struct OptixImageTexture {
     /// Number of components stored in the CUDA array.
     std::uint8_t componentCount;
 
-    /// \brief Returns the value of \p texel: its component mapping, times \c scale, plus \c bias.
+    /// \brief Returns the value of \p texel.
+    ///
+    /// The value is the component mapping of the texel, or \c fallback instead if the image is a
+    /// placeholder, times \c scale, plus \c bias.
     [[nodiscard]] KIRA_HOST_DEVICE Vec4f apply(Vec4f const &texel) const noexcept {
-        return componentMapping.apply(texel) * scale + bias;
+        auto const mapped = placeholder ? fallback : componentMapping.apply(texel);
+        return mapped * scale + bias;
     }
 
     /// \brief Samples stored components before \c apply.

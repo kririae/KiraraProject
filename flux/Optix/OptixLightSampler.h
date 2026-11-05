@@ -38,6 +38,7 @@ private:
     struct EnvMapKey {
         std::size_t imageId{};
         ImageComponentMapping componentMapping;
+        Vec4f fallback;
         Vec4f scale;
         Vec4f bias;
         Spectrum envMapScale;

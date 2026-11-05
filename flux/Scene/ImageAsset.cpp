@@ -199,8 +199,9 @@ ImageAsset::pImpl::pImpl(
         throw kira::Anyhow("ImageAsset: failed to create a texture handle for '{}'", path.string());
 }
 
-ImageAsset::ImageAsset(std::unique_ptr<pImpl> pImpl) noexcept
-    : pImpl_(std::move(pImpl)), id_(nextImageAssetId.fetch_add(1, std::memory_order_relaxed)) {}
+ImageAsset::ImageAsset(std::unique_ptr<pImpl> pImpl, bool placeholder) noexcept
+    : pImpl_(std::move(pImpl)), id_(nextImageAssetId.fetch_add(1, std::memory_order_relaxed)),
+      placeholder_(placeholder) {}
 ImageAsset::~ImageAsset() = default;
 
 Vec2u ImageAsset::getExtent() const noexcept { return pImpl_->extent; }
@@ -311,20 +312,21 @@ Ref<ImageAsset const> ImageAssetPool::getOrCreate(ImageAssetSpec const &spec) {
         auto const &textureSystem = canonical.colorSpace == ImageColorSpace::SRGB
                                         ? pImpl_->srgbTextureSystem
                                         : pImpl_->linearTextureSystem;
-        auto const create = [&](std::filesystem::path const &path) {
+        auto const create = [&](std::filesystem::path const &path, bool placeholder) {
             return Ref<ImageAsset const>{new ImageAsset(
-                std::make_unique<ImageAsset::pImpl>(textureSystem, path, canonical.colorSpace)
+                std::make_unique<ImageAsset::pImpl>(textureSystem, path, canonical.colorSpace),
+                placeholder
             )};
         };
         try {
-            return create(canonical.path);
+            return create(canonical.path, false);
         } catch (BadImage const &bad) {
             LogWarn(
                 "ImageAsset: '{}' is not a well-formed image ({}), using a magenta pixel",
                 canonical.path.string(), bad.what()
             );
         }
-        return create(magentaName);
+        return create(magentaName, true);
     });
 }
 
