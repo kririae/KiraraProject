@@ -11,9 +11,6 @@ namespace flux {
 struct ShaderAssetSpec {
     /// \brief The Slang module that declares \c makeBSDF.
     std::string source;
-
-    /// \brief The number of words that the source reads.
-    std::size_t wordCount{};
 };
 
 /// \brief Generated shader shared by materials.

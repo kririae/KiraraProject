@@ -291,7 +291,6 @@ public:
 private:
     /// \brief Creates a BSDF of the shader that \p spec describes.
     ///
-    /// \throw kira::Anyhow if \p words does not hold \c ShaderAssetSpec::wordCount words.
     /// \throw std::invalid_argument if a texture is null, or is not an object of the context or
     ///        of \p tx.
     ShaderBSDF(

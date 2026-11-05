@@ -243,9 +243,6 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::makeInstance(
     stage->endScope();
     generator_->substituteTokens(*stage);
 
-    return Instance{
-        .spec = {.source = stage->getSourceCode(), .wordCount = words.size()},
-        .words = std::move(words)
-    };
+    return Instance{.spec = {.source = stage->getSourceCode()}, .words = std::move(words)};
 }
 } // namespace flux

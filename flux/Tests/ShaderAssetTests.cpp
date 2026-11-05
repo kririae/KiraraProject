@@ -9,7 +9,6 @@
 #include "flux/Scene/ShaderAsset.h"
 #include "flux/Shading/BSDF.h"
 #include "flux/Shading/Texture.h"
-#include "kira/Anyhow.h"
 #include "kira/Properties.h"
 
 TEST(ShaderAssetTests, SharesOneAssetForEachSource) {
@@ -19,16 +18,6 @@ TEST(ShaderAssetTests, SharesOneAssetForEachSource) {
 
     EXPECT_EQ(pool.getOrCreate({.source = "a"}), asset);
     EXPECT_NE(pool.getOrCreate({.source = "b"}), asset);
-}
-
-TEST(ShaderAssetTests, RejectsWordsThatDoNotFillTheParameters) {
-    auto context = flux::Context::create();
-    flux::ShaderAssetSpec const spec{.source = "a", .wordCount = 3};
-
-    EXPECT_THROW(
-        (void)context->create<flux::ShaderBSDF>(spec, std::vector<std::uint32_t>(2)), kira::Anyhow
-    );
-    EXPECT_NO_THROW((void)context->create<flux::ShaderBSDF>(spec, std::vector<std::uint32_t>(3)));
 }
 
 TEST(ShaderAssetTests, RejectsATextureOfAnotherContext) {

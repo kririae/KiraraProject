@@ -195,7 +195,6 @@ TEST(MtlxGeneratorTests, OnlyTheInteractiveInputsBecomeWordsHoldingTheirValues) 
         values.push_back(std::bit_cast<float>(word));
     std::ranges::sort(values);
     EXPECT_EQ(values, (std::vector<float>{0.2F, 0.2F, 0.25F, 0.8F}));
-    EXPECT_EQ(instance.spec.wordCount, 4U);
 }
 
 TEST(MtlxGeneratorTests, CompilesAMixedMaterialToOneConcreteType) {
