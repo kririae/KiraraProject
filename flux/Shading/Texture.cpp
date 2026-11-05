@@ -137,6 +137,8 @@ ImageTexture::ImageTexture(TXContext &tx, kira::Properties const &props)
         if (!componentMapping_.isValid(imageAsset_->getComponentCount()))
             throw kira::Anyhow("ImageTexture: component mapping references a missing component");
     }
+    scale_ = props.use_or<Vec4f>("scale", scale_);
+    bias_ = props.use_or<Vec4f>("bias", bias_);
 }
 
 Texture::Impl ImageTexture::getImpl() const {

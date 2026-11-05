@@ -176,6 +176,10 @@ struct Spec {
         std::size_t addressMode{};
         /// Component mapping, such as "zyx1", or empty for the image's default.
         std::string mapping;
+        /// Texture scale, or empty for one.
+        std::optional<flux::Vec4f> scale;
+        /// Texture bias, or empty for zero.
+        std::optional<flux::Vec4f> bias;
     };
 
     /// An environment map with a constant color or an image, scaled by \c scale and rotated by
@@ -272,9 +276,19 @@ createMesh(flux::Context &context, Spec::Mesh const &mesh) {
 
 [[nodiscard]] std::string text(Spec::Image const &image) {
     return std::format(
-        "{} {} {} {} {}", imageFiles[image.file].path, image.srgb ? "srgb" : "linear",
+        "{} {} {} {} {}{}{}", imageFiles[image.file].path, image.srgb ? "srgb" : "linear",
         image.point ? "point" : "linear", addressModes[image.addressMode],
-        image.mapping.empty() ? "default" : image.mapping
+        image.mapping.empty() ? "default" : image.mapping,
+        image.scale ? std::format(
+                          " scale ({:.2f} {:.2f} {:.2f} {:.2f})", image.scale->x(),
+                          image.scale->y(), image.scale->z(), image.scale->w()
+                      )
+                    : "",
+        image.bias ? std::format(
+                         " bias ({:.2f} {:.2f} {:.2f} {:.2f})", image.bias->x(), image.bias->y(),
+                         image.bias->z(), image.bias->w()
+                     )
+                   : ""
     );
 }
 
@@ -287,6 +301,10 @@ createMesh(flux::Context &context, Spec::Mesh const &mesh) {
     props.set("address_mode", std::string(addressModes[image.addressMode]));
     if (!image.mapping.empty())
         props.set("component_mapping", image.mapping);
+    if (image.scale)
+        props.set("scale", *image.scale);
+    if (image.bias)
+        props.set("bias", *image.bias);
     return props;
 }
 
@@ -1481,9 +1499,9 @@ TEST(OptixFuzzUpdateTests, TwoSyncsWithoutAClearMatchOne) {
     EXPECT_TRUE(once.ok && twice.ok);
 }
 
-// The environment map's sampling distribution depends on its image, component mapping, and
-// scale, and exists only while an image map is active. Each edit below changes one of them, or
-// none, as a rotation does.
+// The environment map's sampling distribution depends on its image, the component mapping, scale,
+// and bias of its texture, and its scale, and exists only while an image map is active. Each edit
+// below changes one of them, or none, as a rotation does.
 TEST(OptixFuzzUpdateTests, FollowsEveryInputOfTheEnvironmentDistribution) {
     if (skipWithoutCuda())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
@@ -1499,7 +1517,21 @@ TEST(OptixFuzzUpdateTests, FollowsEveryInputOfTheEnvironmentDistribution) {
     swapped.mapping = "zyx1";
     rig.unsetEnv(true);
     rig.setEnv(Spectrum{0.5F}, swapped);
-    EXPECT_FALSE(rig.frame() == before);
+    auto const afterSwap = rig.frame();
+    EXPECT_FALSE(afterSwap == before);
+
+    // A new texture of the same image and mapping, whose scale differs per channel.
+    auto scaled = swapped;
+    scaled.scale = flux::Vec4f{0.2F, 1.0F, 3.0F, 1.0F};
+    rig.retextureEnv(scaled);
+    auto const afterScale = rig.frame();
+    EXPECT_FALSE(afterScale == afterSwap);
+
+    // A new texture of the same image, mapping, and scale, whose bias differs per channel.
+    auto biased = scaled;
+    biased.bias = flux::Vec4f{0.5F, 0.0F, 0.1F, 0.0F};
+    rig.retextureEnv(biased);
+    EXPECT_FALSE(rig.frame() == afterScale);
 
     auto const scale = Spectrum{0.2F, 0.6F, 0.9F};
     rig.scaleEnv(scale);

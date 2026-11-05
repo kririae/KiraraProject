@@ -21,7 +21,7 @@ struct OptixImageTextureEvaluator {
         std::uint32_t index, flux::Vec2f uv, flux::Vec2f const &duvdx, flux::Vec2f const &duvdy
     ) noexcept {
         auto const &texture = optixLaunchParams.scene.imageTextures.getTexture(index);
-        return texture.componentMapping.apply(texture.sample(uv, duvdx, duvdy));
+        return texture.apply(texture.sample(uv, duvdx, duvdy));
     }
 };
 

@@ -17,13 +17,24 @@ struct OptixImageTexture {
     /// CUDA texture object using point filtering.
     cudaTextureObject_t pointTexture;
 
-    /// Mapping applied after sampling.
+    /// Component mapping applied to a sampled texel.
     ImageComponentMapping componentMapping;
+
+    /// Factor that multiplies the component mapping of a texel.
+    Vec4f scale;
+
+    /// Term that \c apply adds after the scale.
+    Vec4f bias;
 
     /// Number of components stored in the CUDA array.
     std::uint8_t componentCount;
 
-    /// \brief Samples stored components before component mapping.
+    /// \brief Returns the value of \p texel: its component mapping, times \c scale, plus \c bias.
+    [[nodiscard]] KIRA_HOST_DEVICE Vec4f apply(Vec4f const &texel) const noexcept {
+        return componentMapping.apply(texel) * scale + bias;
+    }
+
+    /// \brief Samples stored components before \c apply.
     [[nodiscard]] KIRA_DEVICE Vec4f
     sample(Vec2f uv, Vec2f const &duvdx, Vec2f const &duvdy) const noexcept;
 

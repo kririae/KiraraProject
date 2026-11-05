@@ -164,6 +164,17 @@ private:
 ///
 /// Color components are converted before filtering and component mapping.
 /// Alpha keeps its stored value.
+///
+/// The value of a sampled texel is its component mapping, times \c scale, plus \c bias.
+///
+/// \par Properties
+/// - \c path: required path of the image file.
+/// - \c color_space: optional \c linear or \c srgb, defaults to \c linear.
+/// - \c address_mode: optional \c wrap, \c clamp, \c mirror, or \c border, defaults to \c wrap.
+/// - \c filter_mode: optional \c linear or \c point, defaults to \c linear.
+/// - \c component_mapping: optional four selectors of \c x, \c y, \c z, \c w, \c 0, and \c 1,
+///   defaults to the default mapping of the image.
+/// - \c scale and \c bias: optional RGBA vectors, default to 1 and 0.
 class ImageTexture final : public Texture {
     friend class TXContext;
 
@@ -185,6 +196,8 @@ public:
     [[nodiscard]] ImageComponentMapping getComponentMapping() const noexcept {
         return componentMapping_;
     }
+    [[nodiscard]] Vec4f const &getScale() const noexcept { return scale_; }
+    [[nodiscard]] Vec4f const &getBias() const noexcept { return bias_; }
     [[nodiscard]] Texture::Impl getImpl() const override;
 
 private:
@@ -194,6 +207,8 @@ private:
     ImageTextureAddressMode addressMode_;
     ImageTextureFilterMode filterMode_;
     ImageComponentMapping componentMapping_;
+    Vec4f scale_{1.0F};
+    Vec4f bias_{0.0F};
 };
 
 struct ConstantTexture::Impl : TextureMixin<Impl> {

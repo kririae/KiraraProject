@@ -36,7 +36,7 @@ struct SampleImageTexture {
         auto const &texture = table.getTexture(0);
         auto const value =
             point ? texture.samplePoint(uvs[index]) : texture.sample(uvs[index], duvdx, duvdy);
-        samples[index] = texture.componentMapping.apply(value);
+        samples[index] = texture.apply(value);
     }
 };
 
@@ -64,6 +64,10 @@ protected:
         props.set("address_mode", std::string{addressMode});
         if (!componentMapping.empty())
             props.set("component_mapping", std::string{componentMapping});
+        build(props);
+    }
+
+    void build(kira::Properties const &props) {
         (void)context->create<flux::Texture>(props);
 
         // Place the one texture at index zero, as the texture stage of OptixContext does.
@@ -80,6 +84,8 @@ protected:
             .texture = filtered.get(),
             .pointTexture = point.get(),
             .componentMapping = texture->getComponentMapping(),
+            .scale = texture->getScale(),
+            .bias = texture->getBias(),
             .componentCount = image.componentCount,
         };
         textures.copyFromHostAndWait({&entry, 1});
@@ -324,6 +330,23 @@ TEST_F(OptixImageTextureTests, AppliesComponentMappingAfterBorderFiltering) {
     EXPECT_FLOAT_EQ(edge.y(), 0.0F);
     EXPECT_FLOAT_EQ(edge.z(), 0.0F);
     EXPECT_NEAR(edge.w(), 0.5F, 1.0e-4F);
+}
+
+TEST_F(OptixImageTextureTests, AppliesScaleAndBiasAfterComponentMapping) {
+    auto const imagePath = path("optix-scale-bias.exr");
+    auto const componentNames = std::array<std::string_view, 4>{"R", "G", "B", "A"};
+    auto const pixels = std::array{0.25F, 0.5F, 0.75F, 1.0F};
+    flux::test::writeFloatImage(imagePath, pixels, {1, 1}, componentNames);
+    kira::Properties props;
+    props.set("type", "image");
+    props.set("path", imagePath);
+    props.set("filter_mode", std::string{"point"});
+    props.set("component_mapping", std::string{"zyx1"});
+    props.set("scale", flux::Vec4f{2.0F, 4.0F, 8.0F, 0.5F});
+    props.set("bias", flux::Vec4f{1.0F, 0.0F, -1.0F, 0.25F});
+    build(props);
+
+    EXPECT_EQ(sample({0.5F, 0.5F}), (flux::Vec4f{2.5F, 2.0F, 1.0F, 0.75F}));
 }
 
 TEST_F(OptixImageTextureTests, DecodesUNorm8SRGB) {

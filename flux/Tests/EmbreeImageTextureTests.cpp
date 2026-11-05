@@ -35,6 +35,10 @@ protected:
         props.set("address_mode", std::string{addressMode});
         if (!componentMapping.empty())
             props.set("component_mapping", std::string{componentMapping});
+        build(props);
+    }
+
+    void build(kira::Properties const &props) {
         (void)context->create<flux::Texture>(props);
         pool.build(*context);
     }
@@ -252,4 +256,21 @@ TEST_F(EmbreeImageTextureTests, AppliesComponentMappingAfterBorderFiltering) {
 
     EXPECT_EQ(sample({-0.25F, 0.25F}), (flux::Vec4f{1.0F, 0.0F, 0.0F, 0.0F}));
     expectNear(sample({0.0F, 0.25F}), {1.0F, 0.0F, 0.0F, 0.5F});
+}
+
+TEST_F(EmbreeImageTextureTests, AppliesScaleAndBiasAfterComponentMapping) {
+    auto const imagePath = path("scale-bias.exr");
+    auto const componentNames = std::array<std::string_view, 4>{"R", "G", "B", "A"};
+    auto const pixels = std::array{0.25F, 0.5F, 0.75F, 1.0F};
+    flux::test::writeFloatImage(imagePath, pixels, {1, 1}, componentNames);
+    kira::Properties props;
+    props.set("type", "image");
+    props.set("path", imagePath);
+    props.set("filter_mode", std::string{"point"});
+    props.set("component_mapping", std::string{"zyx1"});
+    props.set("scale", flux::Vec4f{2.0F, 4.0F, 8.0F, 0.5F});
+    props.set("bias", flux::Vec4f{1.0F, 0.25F, -1.0F, 0.25F});
+    build(props);
+
+    EXPECT_EQ(sample({0.5F, 0.5F}), (flux::Vec4f{2.5F, 2.25F, 1.0F, 0.75F}));
 }

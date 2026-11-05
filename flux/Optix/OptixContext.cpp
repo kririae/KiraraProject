@@ -255,6 +255,8 @@ void OptixContext::pImpl::syncTextures() {
             .texture = filtered,
             .pointTexture = point,
             .componentMapping = texture->getComponentMapping(),
+            .scale = texture->getScale(),
+            .bias = texture->getBias(),
             .componentCount = image.componentCount,
         };
     }

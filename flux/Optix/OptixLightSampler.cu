@@ -31,7 +31,7 @@ struct SampleEnvMapWeights {
             1.0F - (static_cast<float>(y) + 0.5F) / static_cast<float>(extent.y()),
         };
         auto const &texture = imageTextures.getTexture(textureIndex);
-        auto const value = texture.componentMapping.apply(texture.samplePoint(uv));
+        auto const value = texture.apply(texture.samplePoint(uv));
         auto const radiance = Spectrum{value.x(), value.y(), value.z()} * scale;
         auto const theta = std::numbers::pi_v<float> * (static_cast<float>(y) + 0.5F) /
                            static_cast<float>(extent.y());
@@ -61,7 +61,9 @@ void OptixLightSampler::sync(
         key = EnvMapKey{
             .imageId = image->getImageAsset()->getId(),
             .componentMapping = image->getComponentMapping(),
-            .scale = envMap->getScale(),
+            .scale = image->getScale(),
+            .bias = image->getBias(),
+            .envMapScale = envMap->getScale(),
         };
     // Reset before building, so that the old and the new distribution never coexist in memory.
     if (envMapDistribution_ && envMapDistribution_->key != key)
@@ -95,7 +97,7 @@ OptixLightSampler::EnvMapDistribution OptixLightSampler::buildEnvMapDistribution
         SampleEnvMapWeights{
             .imageTextures = imageTextures,
             .textureIndex = image.getImpl().storage.image.imageTextureIndex,
-            .scale = key.scale,
+            .scale = key.envMapScale,
             .weights = weights.data(),
             .extent = extent,
         },

@@ -38,7 +38,9 @@ private:
     struct EnvMapKey {
         std::size_t imageId{};
         ImageComponentMapping componentMapping;
-        Spectrum scale;
+        Vec4f scale;
+        Vec4f bias;
+        Spectrum envMapScale;
 
         friend bool operator==(EnvMapKey const &, EnvMapKey const &) = default;
     };

@@ -19,6 +19,13 @@ struct EmbreeImageTexturePool::Entry {
     std::uint8_t sampleComponentCount{};
     std::uint8_t orientation{};
     ImageComponentMapping componentMapping;
+    Vec4f scale;
+    Vec4f bias;
+
+    /// \brief Returns the value of \p texel: its component mapping, times \c scale, plus \c bias.
+    [[nodiscard]] Vec4f apply(Vec4f const &texel) const noexcept {
+        return componentMapping.apply(texel) * scale + bias;
+    }
 };
 
 EmbreeImageTexturePool::EmbreeImageTexturePool() = default;
@@ -68,6 +75,8 @@ void EmbreeImageTexturePool::build(Context const &context) {
             .sampleComponentCount = sampleComponentCount,
             .orientation = asset->pImpl_->orientation,
             .componentMapping = texture->getComponentMapping(),
+            .scale = texture->getScale(),
+            .bias = texture->getBias(),
         };
     }
 }
@@ -142,6 +151,6 @@ Vec4f EmbreeImageTexturePool::Impl::eval4f(
     if (!found)
         return {};
 
-    return texture.componentMapping.apply(sampled);
+    return texture.apply(sampled);
 }
 } // namespace flux
