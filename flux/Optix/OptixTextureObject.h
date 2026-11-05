@@ -37,11 +37,12 @@ private:
     cudaTextureObject_t handle_{};
 };
 
-/// \brief Creates a texture object that samples \p image with \p addressMode and \p filterMode.
+/// \brief Creates a texture object that samples \p image with \p addressModes and \p filterMode.
 ///
 /// The texture object reads \p image when a launch samples it, so the image must outlive it.
 /// \throw kira::Anyhow If CUDA fails.
 [[nodiscard]] CudaTextureObject createTextureObject(
-    OptixImage const &image, ImageTextureAddressMode addressMode, ImageTextureFilterMode filterMode
+    OptixImage const &image, ImageTextureAddressModes const &addressModes,
+    ImageTextureFilterMode filterMode
 );
 } // namespace flux

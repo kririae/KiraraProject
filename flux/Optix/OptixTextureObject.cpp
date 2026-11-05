@@ -4,9 +4,10 @@
 
 namespace flux {
 CudaTextureObject createTextureObject(
-    OptixImage const &image, ImageTextureAddressMode addressMode, ImageTextureFilterMode filterMode
+    OptixImage const &image, ImageTextureAddressModes const &addressModes,
+    ImageTextureFilterMode filterMode
 ) {
-    auto const cudaAddressMode = [&] {
+    auto const cudaAddressMode = [](ImageTextureAddressMode addressMode) {
         switch (addressMode) {
         case ImageTextureAddressMode::Wrap: return cudaAddressModeWrap;
         case ImageTextureAddressMode::Clamp: return cudaAddressModeClamp;
@@ -14,15 +15,15 @@ CudaTextureObject createTextureObject(
         case ImageTextureAddressMode::Border: return cudaAddressModeBorder;
         }
         KIRA_UNREACHABLE();
-    }();
+    };
 
     auto resource = cudaResourceDesc{};
     resource.resType = cudaResourceTypeMipmappedArray;
     resource.res.mipmap.mipmap = image.array;
 
     auto texture = cudaTextureDesc{};
-    texture.addressMode[0] = cudaAddressMode;
-    texture.addressMode[1] = cudaAddressMode;
+    texture.addressMode[0] = cudaAddressMode(addressModes[0]);
+    texture.addressMode[1] = cudaAddressMode(addressModes[1]);
     texture.filterMode =
         filterMode == ImageTextureFilterMode::Linear ? cudaFilterModeLinear : cudaFilterModePoint;
     texture.mipmapFilterMode = cudaFilterModeLinear;

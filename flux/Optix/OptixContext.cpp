@@ -239,16 +239,16 @@ void OptixContext::pImpl::syncTextures() {
     std::vector<OptixImageTexture> hostImageTextures(context.getIndexLimit<ImageTexture>());
     for (auto const &texture : textures) {
         auto const image = imagePool.getImpl(texture->getImageAsset()->getId());
-        auto const addressMode = texture->getAddressMode();
+        auto const &addressModes = texture->getAddressModes();
         auto const filtered =
             textureObjects
-                .emplace_back(createTextureObject(image, addressMode, texture->getFilterMode()))
+                .emplace_back(createTextureObject(image, addressModes, texture->getFilterMode()))
                 .get();
         auto point = filtered;
         if (texture->getFilterMode() != ImageTextureFilterMode::Point)
             point = textureObjects
                         .emplace_back(
-                            createTextureObject(image, addressMode, ImageTextureFilterMode::Point)
+                            createTextureObject(image, addressModes, ImageTextureFilterMode::Point)
                         )
                         .get();
         hostImageTextures[context.getIndex<ImageTexture>(texture->getContextId())] = {

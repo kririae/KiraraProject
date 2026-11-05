@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <concepts>
 #include <cstdint>
 #include <optional>
@@ -49,6 +50,9 @@ enum class ImageTextureAddressMode : std::uint8_t {
     Mirror,
     Border,
 };
+
+/// \brief Address modes of the u and v axes, in that order.
+using ImageTextureAddressModes = std::array<ImageTextureAddressMode, 2>;
 
 enum class ImageTextureFilterMode : std::uint8_t {
     Linear,
@@ -173,6 +177,8 @@ private:
 /// - \c color_space: optional \c linear, \c srgb, or \c auto, defaults to \c linear. \c auto
 ///   is the color space that \c ImageAssetPool::chooseColorSpace returns for the file.
 /// - \c address_mode: optional \c wrap, \c clamp, \c mirror, or \c border, defaults to \c wrap.
+/// - \c address_mode_u and \c address_mode_v: optional address mode of one axis, defaults to
+///   \c address_mode.
 /// - \c filter_mode: optional \c linear or \c point, defaults to \c linear.
 /// - \c component_mapping: optional four selectors of \c x, \c y, \c z, \c w, \c 0, and \c 1,
 ///   defaults to the default mapping of the image.
@@ -194,7 +200,9 @@ public:
     [[nodiscard]] Ref<ImageAsset const> const &getImageAsset() const noexcept {
         return imageAsset_;
     }
-    [[nodiscard]] ImageTextureAddressMode getAddressMode() const noexcept { return addressMode_; }
+    [[nodiscard]] ImageTextureAddressModes const &getAddressModes() const noexcept {
+        return addressModes_;
+    }
     [[nodiscard]] ImageTextureFilterMode getFilterMode() const noexcept { return filterMode_; }
     [[nodiscard]] ImageComponentMapping getComponentMapping() const noexcept {
         return componentMapping_;
@@ -208,7 +216,7 @@ private:
     ImageTexture(TXContext &tx, kira::Properties const &props);
 
     Ref<ImageAsset const> imageAsset_;
-    ImageTextureAddressMode addressMode_;
+    ImageTextureAddressModes addressModes_;
     ImageTextureFilterMode filterMode_;
     ImageComponentMapping componentMapping_;
     Vec4f scale_{1.0F};

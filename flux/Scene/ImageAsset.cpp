@@ -179,7 +179,7 @@ ImageAsset::pImpl::pImpl(
     auto width = spec.width;
     auto height = spec.height;
     orientation = static_cast<std::uint8_t>(spec.get_int_attribute("Orientation", 1));
-    if (orientation >= 5 && orientation <= 8)
+    if (transposesAxes(orientation))
         std::swap(width, height);
     extent = Vec2u{static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)};
     fileComponentCount = static_cast<std::uint8_t>(spec.nchannels);
@@ -232,7 +232,7 @@ std::vector<ImageAsset::ImageBuffer> ImageAsset::readMipChain() const {
     auto result = std::vector<ImageBuffer>{};
     auto width = pImpl_->extent.x();
     auto height = pImpl_->extent.y();
-    if (pImpl_->orientation >= 5 && pImpl_->orientation <= 8)
+    if (transposesAxes(pImpl_->orientation))
         std::swap(width, height);
     auto options = OIIO::TextureOpt{};
     options.colortransformid = pImpl_->colorTransformId;

@@ -98,6 +98,16 @@ void writeInvalidOrientation(std::filesystem::path const &imagePath) {
     writeSinglePixel(imagePath, spec);
 }
 
+/// A texture whose address mode is border, except on the axis that \c property sets to clamp.
+struct AxisAddressModeCase {
+    char const *property;
+    flux::Vec2f outsideOnClampedAxis;
+    flux::Vec2f outsideOnOtherAxis;
+};
+
+class EmbreeAxisAddressModeTests : public EmbreeImageTextureTests,
+                                   public testing::WithParamInterface<AxisAddressModeCase> {};
+
 class EmbreeBadAssetTests : public EmbreeImageTextureTests,
                             public testing::WithParamInterface<BadAssetCase> {};
 
@@ -252,6 +262,53 @@ TEST_F(EmbreeImageTextureTests, WrapsCoordinates) {
     build(std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "Texture2x2.ppm", "srgb");
 
     EXPECT_EQ(sample({1.25F, 0.25F}), sample({0.25F, 0.25F}));
+}
+
+TEST_P(EmbreeAxisAddressModeTests, AppliesAddressModeToEachAxis) {
+    auto const &parameter = GetParam();
+    kira::Properties props;
+    props.set("type", "image");
+    props.set("path", std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "Texture2x2.ppm");
+    props.set("filter_mode", std::string{"point"});
+    props.set("address_mode", std::string{"border"});
+    props.set(parameter.property, std::string{"clamp"});
+    build(props);
+
+    auto const inside = sample({0.25F, 0.25F});
+    EXPECT_NE(inside, flux::Vec4f{});
+    EXPECT_EQ(sample(parameter.outsideOnClampedAxis), inside);
+    EXPECT_EQ(sample(parameter.outsideOnOtherAxis), flux::Vec4f{});
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Axes, EmbreeAxisAddressModeTests,
+    testing::Values(
+        AxisAddressModeCase{"address_mode_u", {-0.25F, 0.25F}, {0.25F, -0.25F}},
+        AxisAddressModeCase{"address_mode_v", {0.25F, -0.25F}, {-0.25F, 0.25F}}
+    ),
+    [](testing::TestParamInfo<AxisAddressModeCase> const &info) { return info.param.property; }
+);
+
+TEST_P(EmbreeAxisAddressModeTests, AppliesAddressModeToEachAxisOfATransposedImage) {
+    auto const &parameter = GetParam();
+    auto const imagePath = path("transposed-address-mode.exr");
+    auto const componentNames = std::array<std::string_view, 1>{"Y"};
+    auto const pixels = std::array{1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F};
+    flux::test::writeFloatImage(
+        imagePath, pixels, {3, 2}, componentNames, flux::ImageComponentType::Float32, 6
+    );
+    kira::Properties props;
+    props.set("type", "image");
+    props.set("path", imagePath);
+    props.set("filter_mode", std::string{"point"});
+    props.set("address_mode", std::string{"border"});
+    props.set(parameter.property, std::string{"clamp"});
+    build(props);
+
+    auto const inside = sample({0.25F, 0.25F}).x();
+    EXPECT_NE(inside, 0.0F);
+    EXPECT_EQ(sample(parameter.outsideOnClampedAxis).x(), inside);
+    EXPECT_EQ(sample(parameter.outsideOnOtherAxis).x(), 0.0F);
 }
 
 TEST_F(EmbreeImageTextureTests, FiltersAcrossBorder) {

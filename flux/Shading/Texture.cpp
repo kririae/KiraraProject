@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <string>
+#include <string_view>
 
 #include "flux/Scene/Context.h"
 #include "flux/Scene/ImageAsset.h"
@@ -10,8 +11,11 @@
 
 namespace flux {
 namespace {
-[[nodiscard]] ImageTextureAddressMode parseAddressMode(kira::Properties const &props) {
-    auto const value = props.use_or<std::string>("address_mode", "wrap");
+/// Parses the address mode that the property \p property sets, which defaults to \c address_mode.
+[[nodiscard]] ImageTextureAddressMode
+parseAddressMode(kira::Properties const &props, std::string_view property) {
+    auto const both = props.use_or<std::string>("address_mode", "wrap");
+    auto const value = props.use_or<std::string>(property, both);
     if (value == "wrap")
         return ImageTextureAddressMode::Wrap;
     if (value == "clamp")
@@ -95,7 +99,11 @@ Texture::Impl ConstantTexture::getImpl() const {
 }
 
 ImageTexture::ImageTexture(TXContext &tx, kira::Properties const &props)
-    : Texture(tx), addressMode_(parseAddressMode(props)), filterMode_(parseFilterMode(props)) {
+    : Texture(tx),
+      addressModes_{
+          parseAddressMode(props, "address_mode_u"), parseAddressMode(props, "address_mode_v")
+      },
+      filterMode_(parseFilterMode(props)) {
     auto const inputPath = props.use<std::filesystem::path>("path");
     auto const path = tx.getFileResolver().resolve(inputPath);
     auto const colorSpace = props.use_or<std::string>("color_space", "linear");

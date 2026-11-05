@@ -12,6 +12,11 @@
 #include "flux/Scene/ImageAsset.h"
 
 namespace flux {
+/// \brief Returns whether \p orientation swaps the axes of the file to get those of the image.
+[[nodiscard]] constexpr bool transposesAxes(std::uint8_t orientation) noexcept {
+    return orientation >= 5 && orientation <= 8;
+}
+
 /// \brief Complete image pixels in host memory.
 struct ImageAsset::ImageBuffer {
     OIIO::ImageBuf image;

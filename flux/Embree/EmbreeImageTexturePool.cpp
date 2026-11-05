@@ -55,8 +55,12 @@ void EmbreeImageTexturePool::build(Context const &context) {
     for (auto const &texture : textures) {
         auto const &asset = texture->getImageAsset();
         auto options = OIIO::TextureOpt{};
-        options.swrap = addressMode(texture->getAddressMode());
-        options.twrap = options.swrap;
+        auto const &addressModes = texture->getAddressModes();
+        auto const [sMode, tMode] = transposesAxes(asset->pImpl_->orientation)
+                                        ? std::pair{addressModes[1], addressModes[0]}
+                                        : std::pair{addressModes[0], addressModes[1]};
+        options.swrap = addressMode(sMode);
+        options.twrap = addressMode(tMode);
         options.mipmode = OIIO::Tex::MipMode::Aniso;
         options.anisotropic = RayFootprint::maxAnisotropy;
         options.interpmode = texture->getFilterMode() == ImageTextureFilterMode::Linear

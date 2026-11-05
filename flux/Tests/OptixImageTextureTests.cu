@@ -76,9 +76,9 @@ protected:
         pool.add(assets);
         auto const image = pool.getImpl(texture->getImageAsset()->getId());
         filtered =
-            flux::createTextureObject(image, texture->getAddressMode(), texture->getFilterMode());
+            flux::createTextureObject(image, texture->getAddressModes(), texture->getFilterMode());
         point = flux::createTextureObject(
-            image, texture->getAddressMode(), flux::ImageTextureFilterMode::Point
+            image, texture->getAddressModes(), flux::ImageTextureFilterMode::Point
         );
         auto const entry = flux::OptixImageTexture{
             .texture = filtered.get(),
@@ -154,6 +154,16 @@ struct ImageOrientationCase {
     flux::Vec2u extent;
     std::array<float, 6> bottomUp;
 };
+
+/// A texture whose address mode is border, except on the axis that \c property sets to clamp.
+struct AxisAddressModeCase {
+    char const *property;
+    flux::Vec2f outsideOnClampedAxis;
+    flux::Vec2f outsideOnOtherAxis;
+};
+
+class OptixAxisAddressModeTests : public OptixImageTextureTests,
+                                  public testing::WithParamInterface<AxisAddressModeCase> {};
 
 class OptixImageOrientationTests : public OptixImageTextureTests,
                                    public testing::WithParamInterface<ImageOrientationCase> {};
@@ -305,6 +315,31 @@ TEST_F(OptixImageTextureTests, WrapsCoordinates) {
 
     EXPECT_EQ(sample({1.25F, 0.25F}), sample({0.25F, 0.25F}));
 }
+
+TEST_P(OptixAxisAddressModeTests, AppliesAddressModeToEachAxis) {
+    auto const &parameter = GetParam();
+    kira::Properties props;
+    props.set("type", "image");
+    props.set("path", std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "Texture2x2.ppm");
+    props.set("filter_mode", std::string{"point"});
+    props.set("address_mode", std::string{"border"});
+    props.set(parameter.property, std::string{"clamp"});
+    build(props);
+
+    auto const inside = sample({0.25F, 0.25F});
+    EXPECT_NE(inside, flux::Vec4f{});
+    EXPECT_EQ(sample(parameter.outsideOnClampedAxis), inside);
+    EXPECT_EQ(sample(parameter.outsideOnOtherAxis), flux::Vec4f{});
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Axes, OptixAxisAddressModeTests,
+    testing::Values(
+        AxisAddressModeCase{"address_mode_u", {-0.25F, 0.25F}, {0.25F, -0.25F}},
+        AxisAddressModeCase{"address_mode_v", {0.25F, -0.25F}, {-0.25F, 0.25F}}
+    ),
+    [](testing::TestParamInfo<AxisAddressModeCase> const &info) { return info.param.property; }
+);
 
 TEST_F(OptixImageTextureTests, FiltersAcrossBorder) {
     build(
