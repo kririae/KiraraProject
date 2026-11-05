@@ -146,6 +146,22 @@ private:
     Spectrum value_;
 };
 
+/// \brief The image, sampling, and fallback of an image texture.
+///
+/// The texture takes the default component mapping of the image, scale 1, and bias 0. An empty
+/// image path means no image, so the texture returns \c fallback.
+struct ImageTextureSpec {
+    ImageAssetSpec image;
+    ImageTextureAddressModes addressModes{
+        ImageTextureAddressMode::Wrap, ImageTextureAddressMode::Wrap
+    };
+    ImageTextureFilterMode filterMode{ImageTextureFilterMode::Linear};
+    Vec4f fallback{1.0F, 0.0F, 1.0F, 1.0F};
+
+    [[nodiscard]] friend bool
+    operator==(ImageTextureSpec const &, ImageTextureSpec const &) = default;
+};
+
 /// \brief Image-based texture.
 ///
 /// Color components are converted before filtering and component mapping.
@@ -155,7 +171,7 @@ private:
 /// image failed to load, \c fallback replaces the component mapping.
 ///
 /// \par Properties
-/// - \c path: required path of the image file.
+/// - \c path: required path of the image file. An empty path means no image.
 /// - \c color_space: optional \c linear, \c srgb, or \c auto, defaults to \c linear. \c auto
 ///   is the color space that \c ImageAssetPool::chooseColorSpace returns for the file.
 /// - \c address_mode: optional \c wrap, \c clamp, \c mirror, or \c border, defaults to \c wrap.
@@ -196,6 +212,7 @@ public:
 
 private:
     ImageTexture(TXContext &tx, kira::Properties const &props);
+    ImageTexture(TXContext &tx, ImageTextureSpec const &spec);
 
     Ref<ImageAsset const> imageAsset_;
     ImageTextureAddressModes addressModes_;

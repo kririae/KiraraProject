@@ -311,7 +311,8 @@ ImageAssetPool::~ImageAssetPool() = default;
 
 Ref<ImageAsset const> ImageAssetPool::getOrCreate(ImageAssetSpec const &spec) {
     auto canonical = spec;
-    canonical.path = canonicalize(spec.path);
+    if (!spec.path.empty())
+        canonical.path = canonicalize(spec.path);
     return assets_.acquire(canonical, [&] {
         auto const &textureSystem = canonical.colorSpace == ImageColorSpace::SRGB
                                         ? pImpl_->srgbTextureSystem
@@ -322,6 +323,8 @@ Ref<ImageAsset const> ImageAssetPool::getOrCreate(ImageAssetSpec const &spec) {
                 placeholder
             )};
         };
+        if (canonical.path.empty())
+            return create(magentaName, true);
         try {
             return create(canonical.path, false);
         } catch (BadImage const &bad) {

@@ -36,6 +36,25 @@ parseAddressMode(kira::Properties const &props, std::string_view property) {
     throw kira::Anyhow("ImageTexture: unsupported filter mode '{}'", value);
 }
 
+[[nodiscard]] ImageTextureSpec parseSpec(TXContext &tx, kira::Properties const &props) {
+    auto const path = props.use<std::filesystem::path>("path");
+    auto const colorSpace = props.use_or<std::string>("color_space", "linear");
+    auto imageColorSpace = ImageColorSpace::Linear;
+    if (colorSpace == "auto")
+        imageColorSpace =
+            tx.getImageAssetPool().chooseColorSpace(tx.getFileResolver().resolve(path));
+    else if (colorSpace == "srgb")
+        imageColorSpace = ImageColorSpace::SRGB;
+    else if (colorSpace != "linear")
+        throw kira::Anyhow("ImageTexture: unsupported color space '{}'", colorSpace);
+    return {
+        .image = {.path = path, .colorSpace = imageColorSpace},
+        .addressModes =
+            {parseAddressMode(props, "address_mode_u"), parseAddressMode(props, "address_mode_v")},
+        .filterMode = parseFilterMode(props),
+        .fallback = props.use_or<Vec4f>("fallback", ImageTextureSpec{}.fallback),
+    };
+}
 } // namespace
 
 Ref<Texture> Texture::create(TXContext &tx, kira::Properties const &props) {
@@ -98,28 +117,16 @@ Texture::Impl ConstantTexture::getImpl() const {
     };
 }
 
+ImageTexture::ImageTexture(TXContext &tx, ImageTextureSpec const &spec)
+    : Texture(tx), imageAsset_(tx.getImageAssetPool().getOrCreate({
+                       .path = tx.getFileResolver().resolve(spec.image.path),
+                       .colorSpace = spec.image.colorSpace,
+                   })),
+      addressModes_(spec.addressModes), filterMode_(spec.filterMode),
+      componentMapping_(imageAsset_->getDefaultComponentMapping()), fallback_(spec.fallback) {}
+
 ImageTexture::ImageTexture(TXContext &tx, kira::Properties const &props)
-    : Texture(tx),
-      addressModes_{
-          parseAddressMode(props, "address_mode_u"), parseAddressMode(props, "address_mode_v")
-      },
-      filterMode_(parseFilterMode(props)) {
-    auto const inputPath = props.use<std::filesystem::path>("path");
-    auto const path = tx.getFileResolver().resolve(inputPath);
-    auto const colorSpace = props.use_or<std::string>("color_space", "linear");
-    auto &imageAssetPool = tx.getImageAssetPool();
-    auto imageColorSpace = ImageColorSpace::Linear;
-    if (colorSpace == "auto")
-        imageColorSpace = imageAssetPool.chooseColorSpace(path);
-    else if (colorSpace == "srgb")
-        imageColorSpace = ImageColorSpace::SRGB;
-    else if (colorSpace != "linear")
-        throw kira::Anyhow("ImageTexture: unsupported color space '{}'", colorSpace);
-    imageAsset_ = imageAssetPool.getOrCreate({
-        .path = path,
-        .colorSpace = imageColorSpace,
-    });
-    componentMapping_ = imageAsset_->getDefaultComponentMapping();
+    : ImageTexture(tx, parseSpec(tx, props)) {
     if (props.contains("component_mapping")) {
         auto const value = props.use<std::string>("component_mapping");
         auto const parseSource = [](char source) {
@@ -150,7 +157,6 @@ ImageTexture::ImageTexture(TXContext &tx, kira::Properties const &props)
     }
     scale_ = props.use_or<Vec4f>("scale", scale_);
     bias_ = props.use_or<Vec4f>("bias", bias_);
-    fallback_ = props.use_or<Vec4f>("fallback", fallback_);
 }
 
 Texture::Impl ImageTexture::getImpl() const {

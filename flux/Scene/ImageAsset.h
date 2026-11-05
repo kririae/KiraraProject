@@ -88,8 +88,9 @@ private:
 /// \brief Shares ImageAsset objects by canonical path and color space.
 ///
 /// A file that is missing, unreadable, or not a well-formed image gets a 1x1
-/// magenta placeholder asset, and the pool warns once for the spec. Concurrent
-/// calls share one creation for each canonical path and color space.
+/// magenta placeholder asset, and the pool warns once for the spec. An empty path means no image,
+/// so it gets the placeholder with no warning. Concurrent calls share one creation for each
+/// canonical path and color space.
 class ImageAssetPool {
 public:
     ImageAssetPool();
