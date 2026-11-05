@@ -59,7 +59,8 @@ constexpr auto smoothDocument = R"mtlx(<?xml version="1.0"?>
     return *std::move(instance);
 }
 
-/// \brief A triangle that fills the view of \c renderMean's camera.
+/// \brief A triangle that fills the view of \c renderMean's camera, with the texture coordinates
+/// (0.5 + x / 2, 0.5 + y / 4) at each point (x, y, 0).
 [[nodiscard]] flux::TriangleMesh::Data largeTriangleData() {
     return {
         .vertices = flux::test::sharedBuffer(
@@ -67,6 +68,9 @@ constexpr auto smoothDocument = R"mtlx(<?xml version="1.0"?>
             flux::Vec3f{0.0F, 10.0F, 0.0F}
         ),
         .triangles = flux::test::sharedBuffer(flux::Vec3u{0, 1, 2}),
+        .texCoords = flux::test::sharedBuffer(
+            flux::Vec2f{-4.5F, -2.0F}, flux::Vec2f{5.5F, -2.0F}, flux::Vec2f{0.5F, 3.0F}
+        ),
     };
 }
 
@@ -177,4 +181,31 @@ public IBSDF makeBSDF(uint* words, ShadingContext ctx)
 
     for (int axis = 0; axis < 3; ++axis)
         EXPECT_NEAR(mean[axis], color[axis], tolerance * color[axis]) << axis;
+}
+
+TEST(OptixShaderTests, TheTextureCoordinatesVaryOverTheSurface) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    constexpr auto source = R"slang(
+import flux_bsdf;
+import flux_context;
+
+public IBSDF makeBSDF(uint* words, ShadingContext ctx)
+{
+    let uv = fluxGetTexCoord(ctx);
+    return makeOrenNayarDiffuseBSDF(
+        float3(uv.x, uv.x * uv.x, uv.y), 0, fluxToShadingFrame(ctx, fluxGetWorldNormal(ctx)));
+}
+)slang";
+
+    auto const mean = renderMean({.source = source}, {});
+
+    // The view covers x and y uniformly in [-h, h], with h = tan(30 degrees) and h^2 = 1/3. So u =
+    // 0.5 + x / 2 has the mean 0.5 and the mean square 0.25 + h^2 / 12, and v = 0.5 + y / 4 has the
+    // mean 0.5. A constant u cannot match both the mean and the mean square of u. The color varies
+    // over the image, which adds about 1% of noise to the mean square, and the tolerance is 3%.
+    constexpr std::array expected{0.5F, 0.25F + 1.0F / 36.0F, 0.5F};
+    for (int axis = 0; axis < 3; ++axis)
+        EXPECT_NEAR(mean[axis], expected[axis], 0.03F * expected[axis]) << axis;
 }

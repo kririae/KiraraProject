@@ -7,5 +7,7 @@
   <!-- A geometric node: the expression reads the shell's `ctx` parameter by name. -->
   <implementation name="IM_normal_vector3_genflux" nodedef="ND_normal_vector3" target="genflux"
                   sourcecode="fluxGetWorldNormal(ctx)"/>
+  <implementation name="IM_texcoord_vector2_genflux" nodedef="ND_texcoord_vector2" target="genflux"
+                  sourcecode="fluxGetTexCoord(ctx)"/>
 
 </materialx>
