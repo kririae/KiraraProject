@@ -12,6 +12,7 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "flux/FLux/FLuxCLI.h"
 #include "flux/Integrator/PathIntegrator.h"
@@ -22,6 +23,7 @@
 #include "flux/Scene/EnvMapLight.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Shading/BSDF.h"
+#include "flux/Shading/Texture.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
@@ -46,12 +48,19 @@ namespace {
         throw kira::Anyhow("failed to read MaterialX file '{}': {}", path.string(), error.what());
     }
 
-    auto instance = generator->generate(document, materialName);
+    auto searchPath = MaterialX::FileSearchPath{};
+    searchPath.append(MaterialX::FilePath{path.parent_path().string()});
+    auto instance = generator->generate(document, materialName, searchPath);
     if (!instance)
         throw kira::Anyhow(
             "MaterialX file '{}' generated nothing for material '{}'", path.string(), materialName
         );
-    return context.create<ShaderBSDF>(instance->spec, std::move(instance->words));
+    auto textures = std::vector<Ref<ImageTexture const>>{};
+    for (auto const &spec : instance->textures)
+        textures.push_back(context.create<ImageTexture>(spec));
+    return context.create<ShaderBSDF>(
+        instance->spec, std::move(instance->words), std::move(textures)
+    );
 }
 } // namespace
 

@@ -1,6 +1,7 @@
 #include "flux/Mtlx/MtlxBSDFGenerator.h"
 
 #include <MaterialXCore/Definition.h>
+#include <MaterialXCore/Node.h>
 #include <MaterialXCore/Types.h>
 #include <MaterialXFormat/Util.h>
 #include <MaterialXFormat/XmlIo.h>
@@ -19,11 +20,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <iterator>
 #include <optional>
 #include <ranges>
 #include <set>
 #include <span>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -39,14 +42,41 @@ constexpr auto libraryFiles = std::to_array<std::pair<char const *, char const *
 #include "flux/Mtlx/MtlxLibraries.inc"
 });
 
-/// \brief Whether \p document itself writes the value of the published input \p path.
-[[nodiscard]] bool writesValue(MaterialX::DocumentPtr const &document, std::string const &path) {
+/// \brief An input of a node, named by its path in the document, such as \c img/file.
+///
+/// \c node is null if the document has no node at the path.
+struct InputPath {
+    MaterialX::NodePtr node;
+    std::string input;
+};
+
+[[nodiscard]] InputPath
+splitInputPath(MaterialX::DocumentPtr const &document, std::string const &path) {
     auto const slash = path.rfind('/');
     if (slash == std::string::npos)
-        return false;
-    auto const node = document->getDescendant(path.substr(0, slash));
-    return node && node->asA<MaterialX::Node>() &&
-           node->asA<MaterialX::Node>()->getInput(path.substr(slash + 1));
+        return {};
+    auto const element = document->getDescendant(path.substr(0, slash));
+    return {element ? element->asA<MaterialX::Node>() : nullptr, path.substr(slash + 1)};
+}
+
+/// \brief Whether the document itself writes the value of the input \p path.
+[[nodiscard]] bool writesValue(InputPath const &path) {
+    return path.node && path.node->getInput(path.input);
+}
+
+[[nodiscard]] bool isImageNodeInput(InputPath const &path) {
+    return path.node && path.node->getCategory() == "image";
+}
+
+/// \brief The inputs of an image node that the texture spec consumes.
+///
+/// The source reads none of them.
+constexpr auto imageTextureInputs =
+    std::to_array<std::string_view>({"uaddressmode", "vaddressmode", "filtertype", "default"});
+
+[[nodiscard]] bool isImageTextureInput(InputPath const &path) {
+    return isImageNodeInput(path) &&
+           std::ranges::find(imageTextureInputs, path.input) != imageTextureInputs.end();
 }
 
 /// \brief Whether the emission reads an input that \p socket publishes.
@@ -105,16 +135,27 @@ void emitConstant(
 }
 
 template <class T>
-bool appendComponents(MaterialX::Value const &value, std::vector<std::uint32_t> &words) {
+bool appendComponents(MaterialX::Value const &value, std::vector<float> &components) {
     if (!value.isA<T>())
         return false;
     auto const &typed = value.asA<T>();
     if constexpr (std::is_same_v<T, float>)
-        words.push_back(std::bit_cast<std::uint32_t>(typed));
+        components.push_back(typed);
     else
-        for (auto const component : std::span{typed.data(), T::numElements()})
-            words.push_back(std::bit_cast<std::uint32_t>(component));
+        components.insert(components.end(), typed.data(), typed.data() + T::numElements());
     return true;
+}
+
+/// \brief The components of \p value, or none if its type has no float components.
+[[nodiscard]] std::vector<float> getComponents(MaterialX::Value const &value) {
+    auto components = std::vector<float>{};
+    appendComponents<float>(value, components) ||
+        appendComponents<MaterialX::Vector2>(value, components) ||
+        appendComponents<MaterialX::Vector3>(value, components) ||
+        appendComponents<MaterialX::Color3>(value, components) ||
+        appendComponents<MaterialX::Vector4>(value, components) ||
+        appendComponents<MaterialX::Color4>(value, components);
+    return components;
 }
 
 /// \brief Appends the words of \p value, or \p count zeros if the socket holds no value.
@@ -125,16 +166,105 @@ void appendWords(
         words.insert(words.end(), count, 0U);
         return;
     }
-    auto const appended = appendComponents<float>(*value, words) ||
-                          appendComponents<MaterialX::Vector2>(*value, words) ||
-                          appendComponents<MaterialX::Vector3>(*value, words) ||
-                          appendComponents<MaterialX::Color3>(*value, words) ||
-                          appendComponents<MaterialX::Vector4>(*value, words) ||
-                          appendComponents<MaterialX::Color4>(*value, words);
-    if (!appended)
+    auto const components = getComponents(*value);
+    if (components.empty())
         throw MaterialX::ExceptionShaderGenError{
             fmt::format("no word holds the value '{}'", value->getValueString())
         };
+    std::ranges::transform(components, std::back_inserter(words), [](float component) {
+        return std::bit_cast<std::uint32_t>(component);
+    });
+}
+
+/// \brief The image node that reads the filename that \p socket publishes.
+///
+/// \throw MaterialX::ExceptionShaderGenError if \p socket feeds anything but the \c file input of
+/// one image node.
+[[nodiscard]] MaterialX::NodePtr getImageNode(
+    MaterialX::DocumentPtr const &document, MaterialX::ShaderGraphInputSocket const &socket
+) {
+    auto const &connections = socket.getConnections();
+    if (connections.size() == 1 && connections[0]->getName() == "file") {
+        auto const element = document->getDescendant(connections[0]->getNode()->getUniqueId());
+        auto node = element ? element->asA<MaterialX::Node>() : nullptr;
+        if (node && node->getCategory() == "image")
+            return node;
+    }
+    throw MaterialX::ExceptionShaderGenError{fmt::format(
+        "the filename '{}' feeds more than the file of one image node", socket.getPath()
+    )};
+}
+
+/// \brief The string that \p node holds for the input \p name, or an empty string if the input
+/// has no value.
+[[nodiscard]] std::string getInputString(MaterialX::Node const &node, std::string const &name) {
+    auto const value = node.getInputValue(name);
+    return value ? value->getValueString() : std::string{};
+}
+
+/// \brief The RGBA that a texture returns for the value of an image node's \c default input.
+///
+/// One component fills RGB, and alpha is 1 unless \p components holds it. Any other missing
+/// component is 0.
+[[nodiscard]] Vec4f makeFallback(std::vector<float> const &components) {
+    switch (components.size()) {
+    case 1: return {components[0], components[0], components[0], 1.0F};
+    case 2: return {components[0], components[1], 0.0F, 1.0F};
+    case 3: return {components[0], components[1], components[2], 1.0F};
+    default: return {components[0], components[1], components[2], components[3]};
+    }
+}
+
+/// \brief The texture that the image node \p node samples from the file \p file.
+[[nodiscard]] ImageTextureSpec makeImageTextureSpec(
+    MaterialX::Node const &node, std::string const &file, std::string const &materialName
+) {
+    auto const warn = [&](std::string const &message) {
+        LogWarn("MaterialX material '{}': '{}' {}", materialName, node.getNamePath(), message);
+    };
+
+    auto spec = ImageTextureSpec{};
+    spec.image.path = file;
+
+    // MaterialX transforms only a color output, so the other outputs are linear.
+    auto const isColor = node.getType() == "color3" || node.getType() == "color4";
+    auto const fileInput = node.getInput("file");
+    auto const colorSpace =
+        fileInput ? fileInput->getActiveColorSpace() : node.getActiveColorSpace();
+    if (isColor && colorSpace == "srgb_texture")
+        spec.image.colorSpace = ImageColorSpace::SRGB;
+    else if (isColor && !colorSpace.empty() && colorSpace != "lin_rec709")
+        warn(fmt::format("has the color space '{}', which becomes linear", colorSpace));
+
+    auto const addressMode = [&](std::string const &input) {
+        auto const mode = getInputString(node, input);
+        if (mode == "clamp")
+            return ImageTextureAddressMode::Clamp;
+        if (mode == "mirror")
+            return ImageTextureAddressMode::Mirror;
+        if (mode == "constant") {
+            warn(fmt::format("has {} 'constant', which becomes border", input));
+            return ImageTextureAddressMode::Border;
+        }
+        if (mode != "periodic")
+            warn(fmt::format("has {} '{}', which becomes periodic", input, mode));
+        return ImageTextureAddressMode::Wrap;
+    };
+    spec.addressModes = {addressMode("uaddressmode"), addressMode("vaddressmode")};
+
+    auto const filter = getInputString(node, "filtertype");
+    if (filter == "closest")
+        spec.filterMode = ImageTextureFilterMode::Point;
+    else if (filter != "linear")
+        warn(fmt::format("has filtertype '{}', which becomes linear", filter));
+
+    auto const fallback = node.getInputValue("default");
+    if (fallback)
+        spec.fallback = makeFallback(getComponents(*fallback));
+    else
+        warn("has a connected default, which the texture does not read");
+
+    return spec;
 }
 } // namespace
 
@@ -159,14 +289,14 @@ MtlxBSDFGenerator::MtlxBSDFGenerator(std::filesystem::path const &mtlxRoot)
 
 std::optional<MtlxBSDFGenerator::Instance> MtlxBSDFGenerator::generate(
     MaterialX::DocumentPtr const &document, std::string const &materialName,
-    std::span<std::string const> interactive
+    MaterialX::FileSearchPath const &searchPath, std::span<std::string const> interactive
 ) const {
     auto const element = document->getChild(materialName);
     if (!element || element->getCategory() != "surfacematerial")
         return std::nullopt;
 
     try {
-        return makeInstance(document, materialName, interactive);
+        return makeInstance(document, materialName, searchPath, interactive);
     } catch (MaterialX::Exception const &error) {
         LogWarn("MaterialX material '{}': {}", materialName, error.what());
         return std::nullopt;
@@ -175,9 +305,10 @@ std::optional<MtlxBSDFGenerator::Instance> MtlxBSDFGenerator::generate(
 
 MtlxBSDFGenerator::Instance MtlxBSDFGenerator::makeInstance(
     MaterialX::DocumentPtr const &document, std::string const &materialName,
-    std::span<std::string const> interactive
+    MaterialX::FileSearchPath const &searchPath, std::span<std::string const> interactive
 ) const {
     auto const copy = document->copy();
+    MaterialX::flattenFilenames(copy, searchPath);
     copy->setDataLibrary(libraries_);
 
     auto message = std::string{};
@@ -206,9 +337,12 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::makeInstance(
 
     auto unmatched = std::set<std::string, std::less<>>{interactive.begin(), interactive.end()};
     auto words = std::vector<std::uint32_t>{};
+    auto textures = std::vector<ImageTextureSpec>{};
     for (auto const *socket : graph.getInputSockets()) {
+        auto const path = splitInputPath(copy, socket->getPath());
         if (!isRead(*socket)) {
-            if (!socket->getConnections().empty() && writesValue(copy, socket->getPath()))
+            if (!socket->getConnections().empty() && writesValue(path) &&
+                !isImageTextureInput(path))
                 LogWarn(
                     "MaterialX material '{}': '{}' is not read", materialName, socket->getPath()
                 );
@@ -224,6 +358,15 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::makeInstance(
                 "'{}'",
                 materialName, socket->getPath(), typeDesc.getName()
             );
+        if (typeDesc == MaterialX::Type::FILENAME) {
+            auto const image = getImageNode(copy, *socket);
+            generator_->emitLine(
+                fmt::format("uint {} = {};", socket->getVariable(), textures.size()), *stage, false
+            );
+            auto const file = socket->getValue() ? socket->getValue()->getValueString() : "";
+            textures.push_back(makeImageTextureSpec(*image, file, materialName));
+            continue;
+        }
         if (!isInteractive || !count) {
             emitConstant(*generator_, *socket, *stage);
             continue;
@@ -243,6 +386,10 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::makeInstance(
     stage->endScope();
     generator_->substituteTokens(*stage);
 
-    return Instance{.spec = {.source = stage->getSourceCode()}, .words = std::move(words)};
+    return Instance{
+        .spec = {.source = stage->getSourceCode()},
+        .words = std::move(words),
+        .textures = std::move(textures)
+    };
 }
 } // namespace flux

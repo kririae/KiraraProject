@@ -53,7 +53,7 @@ constexpr auto smoothDocument = R"mtlx(<?xml version="1.0"?>
     auto document = MaterialX::createDocument();
     MaterialX::readFromXmlString(document, smoothDocument);
     auto const interactive = std::array<std::string, 1>{"fg/color"};
-    auto instance = generator.generate(document, "M", interactive);
+    auto instance = generator.generate(document, "M", {}, interactive);
     if (!instance)
         throw kira::Anyhow{"the material generated nothing"};
     return *std::move(instance);

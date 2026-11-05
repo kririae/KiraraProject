@@ -17,6 +17,14 @@ expected = [0.5, 0.5, 0.5]
 mae = 0.0045
 rmse = 0.0055
 
+[[case]]
+id = "mtlx_checker"
+scene = "TextureFootprint/MtlxChecker.toml"
+spp = 1024
+expected = [0.5, 0.5, 0.5]
+mae = 0.0045
+rmse = 0.0055
+
 # Zero samples render nothing, so the image is the all-zero film.
 [[case]]
 id = "zero_samples"

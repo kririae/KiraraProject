@@ -10,4 +10,18 @@
   <implementation name="IM_texcoord_vector2_genflux" nodedef="ND_texcoord_vector2" target="genflux"
                   sourcecode="fluxGetTexCoord(ctx)"/>
 
+  <!-- An image node samples the texture whose slot its `file` input holds. -->
+  <implementation name="IM_image_float_genflux" nodedef="ND_image_float" target="genflux"
+                  sourcecode="fluxSampleTexture(ctx, {{file}}, {{texcoord}}).r"/>
+  <implementation name="IM_image_color3_genflux" nodedef="ND_image_color3" target="genflux"
+                  sourcecode="fluxSampleTexture(ctx, {{file}}, {{texcoord}}).rgb"/>
+  <implementation name="IM_image_color4_genflux" nodedef="ND_image_color4" target="genflux"
+                  sourcecode="fluxSampleTexture(ctx, {{file}}, {{texcoord}})"/>
+  <implementation name="IM_image_vector2_genflux" nodedef="ND_image_vector2" target="genflux"
+                  sourcecode="fluxSampleTexture(ctx, {{file}}, {{texcoord}}).rg"/>
+  <implementation name="IM_image_vector3_genflux" nodedef="ND_image_vector3" target="genflux"
+                  sourcecode="fluxSampleTexture(ctx, {{file}}, {{texcoord}}).rgb"/>
+  <implementation name="IM_image_vector4_genflux" nodedef="ND_image_vector4" target="genflux"
+                  sourcecode="fluxSampleTexture(ctx, {{file}}, {{texcoord}})"/>
+
 </materialx>

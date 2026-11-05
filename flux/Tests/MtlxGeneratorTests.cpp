@@ -1,5 +1,6 @@
 #include <MaterialXCore/Document.h> // NOLINT(llvm-include-order)
 #include <MaterialXFormat/XmlIo.h>
+#include <fmt/format.h>
 #include <gtest/gtest.h>
 
 #include <algorithm>
@@ -57,14 +58,102 @@ constexpr auto unconnectedDocument = R"mtlx(<?xml version="1.0"?>
   </surfacematerial>
 </materialx>)mtlx";
 
+/// \brief A material whose color is the image \p file.
+[[nodiscard]] std::string imageDocument(std::string const &file) {
+    return fmt::format(
+        R"mtlx(<?xml version="1.0"?>
+<materialx version="1.39">
+  <image name="tex" type="color3">
+    <input name="file" type="filename" value="{}" />
+  </image>
+  <oren_nayar_diffuse_bsdf name="fg" type="BSDF">
+    <input name="color" type="color3" nodename="tex" />
+  </oren_nayar_diffuse_bsdf>
+  <surface name="s" type="surfaceshader">
+    <input name="bsdf" type="BSDF" nodename="fg" />
+  </surface>
+  <surfacematerial name="M" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="s" />
+  </surfacematerial>
+</materialx>)mtlx",
+        file
+    );
+}
+
+/// \brief A material whose image gets its file from a constant, which MaterialX elides.
+constexpr auto constantFileDocument = R"mtlx(<?xml version="1.0"?>
+<materialx version="1.39">
+  <constant name="path" type="filename">
+    <input name="value" type="filename" value="a.png" />
+  </constant>
+  <image name="tex" type="color3">
+    <input name="file" type="filename" nodename="path" />
+  </image>
+  <oren_nayar_diffuse_bsdf name="fg" type="BSDF">
+    <input name="color" type="color3" nodename="tex" />
+  </oren_nayar_diffuse_bsdf>
+  <surface name="s" type="surfaceshader">
+    <input name="bsdf" type="BSDF" nodename="fg" />
+  </surface>
+  <surfacematerial name="M" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="s" />
+  </surfacematerial>
+</materialx>)mtlx";
+
+/// \brief A material whose roughness is a float image of an sRGB file.
+constexpr auto dataImageDocument = R"mtlx(<?xml version="1.0"?>
+<materialx version="1.39">
+  <image name="tex" type="float">
+    <input name="file" type="filename" value="a.png" colorspace="srgb_texture" />
+  </image>
+  <oren_nayar_diffuse_bsdf name="fg" type="BSDF">
+    <input name="roughness" type="float" nodename="tex" />
+  </oren_nayar_diffuse_bsdf>
+  <surface name="s" type="surfaceshader">
+    <input name="bsdf" type="BSDF" nodename="fg" />
+  </surface>
+  <surfacematerial name="M" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="s" />
+  </surfacematerial>
+</materialx>)mtlx";
+
+/// \brief A material whose image node sets every input that a texture reads.
+constexpr auto imageSettingsDocument = R"mtlx(<?xml version="1.0"?>
+<materialx version="1.39">
+  <image name="tex" type="color3">
+    <input name="file" type="filename" value="a.png" colorspace="srgb_texture" />
+    <input name="uaddressmode" type="string" value="clamp" />
+    <input name="vaddressmode" type="string" value="mirror" />
+    <input name="filtertype" type="string" value="closest" />
+    <input name="default" type="color3" value="0.25, 0.5, 0.75" />
+  </image>
+  <oren_nayar_diffuse_bsdf name="fg" type="BSDF">
+    <input name="color" type="color3" nodename="tex" />
+  </oren_nayar_diffuse_bsdf>
+  <surface name="s" type="surfaceshader">
+    <input name="bsdf" type="BSDF" nodename="fg" />
+  </surface>
+  <surfacematerial name="M" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="s" />
+  </surfacematerial>
+</materialx>)mtlx";
+
 /// \brief The part of a backend that the generated source needs.
 constexpr auto contextSource = R"slang(
 public struct ShadingContext
 {
     public float3 normal;
+    public float2 uv;
 };
 
 public float3 fluxGetWorldNormal(ShadingContext ctx) { return ctx.normal; }
+
+public float2 fluxGetTexCoord(ShadingContext ctx) { return ctx.uv; }
+
+public float4 fluxSampleTexture(ShadingContext ctx, uint slot, float2 uv)
+{
+    return float4(uv, float(slot), 1.0);
+}
 
 public float3 fluxToShadingFrame(ShadingContext ctx, float3 v)
 {
@@ -150,7 +239,7 @@ tryGenerate(std::string const &document, std::vector<std::string> const &interac
     auto const generator = flux::MtlxBSDFGenerator{FLUX_MATERIALX_DIR};
     auto parsed = MaterialX::createDocument();
     MaterialX::readFromXmlString(parsed, document);
-    return generator.generate(parsed, "M", interactive);
+    return generator.generate(parsed, "M", {}, interactive);
 }
 
 [[nodiscard]] flux::MtlxBSDFGenerator::Instance
@@ -215,4 +304,47 @@ TEST(MtlxGeneratorTests, GeneratesNothingForANodeThatGenfluxCannotRun) {
 
 TEST(MtlxGeneratorTests, GeneratesNothingForADocumentThatMaterialXCannotBuild) {
     EXPECT_FALSE(tryGenerate(malformedDocument));
+}
+
+TEST(MtlxGeneratorTests, AnImageFileChangesTheTexturesAndNotTheSource) {
+    auto const first = generate(imageDocument("a.png"));
+    auto const second = generate(imageDocument("b.png"));
+
+    EXPECT_EQ(first.spec.source, second.spec.source);
+    ASSERT_EQ(first.textures.size(), 1U);
+    ASSERT_EQ(second.textures.size(), 1U);
+    EXPECT_EQ(first.textures[0].image.path, "a.png");
+    EXPECT_EQ(second.textures[0].image.path, "b.png");
+    expectOneConcreteType(first);
+}
+
+TEST(MtlxGeneratorTests, AnImageNodeSetsTheSpecOfItsTexture) {
+    auto const instance = generate(imageSettingsDocument);
+
+    ASSERT_EQ(instance.textures.size(), 1U);
+    EXPECT_EQ(
+        instance.textures[0],
+        (flux::ImageTextureSpec{
+            .image = {.path = "a.png", .colorSpace = flux::ImageColorSpace::SRGB},
+            .addressModes =
+                {flux::ImageTextureAddressMode::Clamp, flux::ImageTextureAddressMode::Mirror},
+            .filterMode = flux::ImageTextureFilterMode::Point,
+            .fallback = {0.25F, 0.5F, 0.75F, 1.0F},
+        })
+    );
+}
+
+TEST(MtlxGeneratorTests, AConstantFeedsTheFileOfAnImage) {
+    auto const instance = generate(constantFileDocument);
+
+    ASSERT_EQ(instance.textures.size(), 1U);
+    EXPECT_EQ(instance.textures[0].image.path, "a.png");
+    expectOneConcreteType(instance);
+}
+
+TEST(MtlxGeneratorTests, AFloatImageIsLinearWhateverItsFileSays) {
+    auto const instance = generate(dataImageDocument);
+
+    ASSERT_EQ(instance.textures.size(), 1U);
+    EXPECT_EQ(instance.textures[0].image.colorSpace, flux::ImageColorSpace::Linear);
 }
