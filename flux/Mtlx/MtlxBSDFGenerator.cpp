@@ -70,7 +70,7 @@ constexpr auto libraryFiles = std::to_array<std::pair<char const *, char const *
     }
 }
 
-/// \brief Declares the variable of \p socket as the parameter at word \p offset.
+/// \brief Declares the variable of \p socket as the value that the words hold at \p offset.
 void emitWordRead(
     MaterialX::ShaderGenerator const &shadergen, MaterialX::ShaderGraphInputSocket const &socket,
     std::size_t count, std::size_t offset, MaterialX::ShaderStage &stage
@@ -205,7 +205,6 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::makeInstance(
     stage->beginScope();
 
     auto unmatched = std::set<std::string, std::less<>>{interactive.begin(), interactive.end()};
-    auto parameters = std::vector<MtlxBSDFGenerator::Parameter>{};
     auto words = std::vector<std::uint32_t>{};
     for (auto const *socket : graph.getInputSockets()) {
         if (!isRead(*socket)) {
@@ -230,12 +229,6 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::makeInstance(
             continue;
         }
 
-        parameters.push_back(
-            {.path = socket->getPath(),
-             .type = typeDesc.getName(),
-             .wordCount = *count,
-             .offset = words.size()}
-        );
         emitWordRead(*generator_, *socket, *count, words.size(), *stage);
         appendWords(socket->getValue(), *count, words);
     }
@@ -252,7 +245,6 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::makeInstance(
 
     return Instance{
         .spec = {.source = stage->getSourceCode(), .wordCount = words.size()},
-        .parameters = std::move(parameters),
         .words = std::move(words)
     };
 }

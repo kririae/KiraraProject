@@ -5,6 +5,7 @@
 #include <array>
 #include <cstdint>
 #include <filesystem>
+#include <string>
 
 #include "SceneUtils.h"
 #include "TestUtils.h"
@@ -43,11 +44,13 @@ constexpr auto smoothDocument = R"mtlx(<?xml version="1.0"?>
   </surfacematerial>
 </materialx>)mtlx";
 
+/// \brief The reflector, with its color read from the words.
 [[nodiscard]] flux::MtlxBSDFGenerator::Instance generateSmoothDiffuse() {
     auto const generator = flux::MtlxBSDFGenerator{FLUX_MATERIALX_DIR};
     auto document = MaterialX::createDocument();
     MaterialX::readFromXmlString(document, smoothDocument);
-    auto instance = generator.generate(document, "M");
+    auto const interactive = std::array<std::string, 1>{"fg/color"};
+    auto instance = generator.generate(document, "M", interactive);
     if (!instance)
         throw kira::Anyhow{"the material generated nothing"};
     return *std::move(instance);

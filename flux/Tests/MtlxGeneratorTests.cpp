@@ -2,11 +2,10 @@
 #include <MaterialXFormat/XmlIo.h>
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <bit>
-#include <cstddef>
 #include <fstream>
 #include <optional>
-#include <ranges>
 #include <string>
 #include <utility>
 #include <vector>
@@ -188,20 +187,15 @@ void expectOneConcreteType(flux::MtlxBSDFGenerator::Instance const &instance) {
 }
 } // namespace
 
-TEST(MtlxGeneratorTests, OnlyTheInteractiveInputsBecomeParametersWithTheirValuesAsWords) {
+TEST(MtlxGeneratorTests, OnlyTheInteractiveInputsBecomeWordsHoldingTheirValues) {
     auto const instance = generate(mixedDocument, {"fg/color", "m/mix"});
 
-    ASSERT_EQ(instance.parameters.size(), 2U);
-    EXPECT_EQ(instance.words.size(), 4U);
-    for (auto const &parameter : instance.parameters) {
-        auto const expected = parameter.path == "fg/color" ? std::vector<float>{0.8F, 0.2F, 0.2F}
-                                                           : std::vector<float>{0.25F};
-        ASSERT_EQ(parameter.wordCount, expected.size()) << parameter.path;
-        for (auto const index : std::views::iota(std::size_t{}, expected.size()))
-            EXPECT_EQ(
-                std::bit_cast<float>(instance.words[parameter.offset + index]), expected[index]
-            ) << parameter.path;
-    }
+    auto values = std::vector<float>{};
+    for (auto const word : instance.words)
+        values.push_back(std::bit_cast<float>(word));
+    std::ranges::sort(values);
+    EXPECT_EQ(values, (std::vector<float>{0.2F, 0.2F, 0.25F, 0.8F}));
+    EXPECT_EQ(instance.spec.wordCount, 4U);
 }
 
 TEST(MtlxGeneratorTests, CompilesAMixedMaterialToOneConcreteType) {
