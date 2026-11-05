@@ -111,6 +111,7 @@ public:
     std::vector<std::size_t> shaderSlotIds;
 
     DeviceBuffer<std::uint32_t> shaderWords{getStream()};
+    DeviceBuffer<std::uint32_t> shaderTextureIndices{getStream()};
     DeviceBuffer<OptixShaderBSDFBinding> shaderBSDFBindings{getStream()};
     unsigned int shaderSlotBits{};
 
@@ -173,6 +174,7 @@ OptixCallableLaunchParams OptixContext::getCallableLaunchParams() const noexcept
     return {
         .imageTextures = {.textures = pImpl_->imageTextures.data()},
         .words = pImpl_->shaderWords.data(),
+        .textureIndices = pImpl_->shaderTextureIndices.data(),
     };
 }
 
@@ -260,6 +262,7 @@ void OptixContext::pImpl::syncShaders() {
     }
 
     std::vector<std::uint32_t> hostWords;
+    std::vector<std::uint32_t> hostTextureIndices;
     std::vector<OptixShaderBSDFBinding> hostBindings(context.getIndexLimit<BSDF>());
     for (auto const &bsdf : context.getObjects<BSDF>()) {
         if (bsdf->getType() != BSDFType::Shader)
@@ -269,8 +272,11 @@ void OptixContext::pImpl::syncShaders() {
         hostBindings[context.getIndex<BSDF>(bsdf->getContextId())] = {
             .slot = slotsById.at(shader.getAsset()->getId()),
             .wordOffset = static_cast<std::uint32_t>(hostWords.size()),
+            .textureOffset = static_cast<std::uint32_t>(hostTextureIndices.size()),
         };
         hostWords.insert(hostWords.end(), shader.getWords().begin(), shader.getWords().end());
+        for (auto const &texture : shader.getTextures())
+            hostTextureIndices.push_back(context.getIndex<ImageTexture>(texture->getContextId()));
     }
 
     std::vector<std::size_t> removed;
@@ -281,6 +287,9 @@ void OptixContext::pImpl::syncShaders() {
     shaderPool.add({added.data(), added.size()});
 
     shaderWords.copyFromHost({hostWords.data(), hostWords.size()}, deletionQueue);
+    shaderTextureIndices.copyFromHost(
+        {hostTextureIndices.data(), hostTextureIndices.size()}, deletionQueue
+    );
     shaderBSDFBindings.copyFromHost({hostBindings.data(), hostBindings.size()}, deletionQueue);
     shaderSlotBits = shaderSlotIds.size() > 1
                          ? static_cast<unsigned int>(std::bit_width(shaderSlotIds.size() - 1))

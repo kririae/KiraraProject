@@ -20,6 +20,9 @@ struct OptixShadingContext {
     float2 uv;
     float2 duvdx;
     float2 duvdy;
+
+    /// The index of the first texture of the BSDF in \c OptixCallableLaunchParams::textureIndices.
+    unsigned int textureOffset;
 };
 
 /// \brief A \c BSDFResult.

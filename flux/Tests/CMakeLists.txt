@@ -244,6 +244,7 @@ krr_add_test(
     HARD_DEPENDENCIES flux flux_mtlx)
 target_compile_definitions(
     flux.Optix.ShaderTests PRIVATE FLUX_MATERIALX_DIR="${flux_materialx_root}"
+                                   FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
                                    FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
 add_dependencies(flux.Optix.ShaderTests flux_megakernel_ir)
 

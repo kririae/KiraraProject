@@ -12,6 +12,10 @@ struct OptixShaderBSDFBinding {
 
     /// The index of the first parameter word of the BSDF in \c OptixCallableLaunchParams::words.
     std::uint32_t wordOffset;
+
+    /// The index of the first texture of the BSDF in
+    /// \c OptixCallableLaunchParams::textureIndices.
+    std::uint32_t textureOffset;
 };
 
 static_assert(std::is_standard_layout_v<OptixShaderBSDFBinding>);

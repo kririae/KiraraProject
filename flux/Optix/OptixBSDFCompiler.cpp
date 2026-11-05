@@ -53,12 +53,23 @@ using NvrtcProgram = std::unique_ptr<_nvrtcProgram, decltype([](nvrtcProgram pro
         R"cuda(#include "{prelude}"
 #include "flux/Optix/OptixBSDFCallable.h"
 #include "flux/Optix/OptixCallableLaunchParams.h"
+#include "flux/Optix/OptixImageTexture.cuh"
 
 struct OptixLaunchParamsView {{
     flux::OptixCallableLaunchParams callable;
     char padding[FLUX_LAUNCH_PARAMS_SIZE - sizeof(flux::OptixCallableLaunchParams)];
 }};
 extern "C" __constant__ OptixLaunchParamsView optixLaunchParams;
+
+namespace flux {{
+static __device__ float4
+sampleImageTexture(OptixShadingContext const &context, unsigned int slot, float2 uv) {{
+    auto const &texture = optixLaunchParams.callable.imageTextures.getTexture(
+        optixLaunchParams.callable.textureIndices[context.textureOffset + slot]
+    );
+    return texture.apply(texture.sample(uv, context.duvdx, context.duvdy));
+}}
+}}
 
 namespace {{
 #include "{material}"

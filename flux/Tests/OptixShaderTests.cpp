@@ -5,7 +5,9 @@
 #include <array>
 #include <cstdint>
 #include <filesystem>
+#include <span>
 #include <string>
+#include <vector>
 
 #include "SceneUtils.h"
 #include "TestUtils.h"
@@ -18,6 +20,7 @@
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
+#include "flux/Shading/Texture.h"
 #include "kira/Anyhow.h"
 
 #ifndef FLUX_TEST_OPTIX_IR
@@ -67,14 +70,45 @@ constexpr auto smoothDocument = R"mtlx(<?xml version="1.0"?>
     };
 }
 
-/// \brief Renders the triangle with the shader of \p instance under a constant environment, and
-/// returns the mean of the pixels.
-[[nodiscard]] flux::Spectrum renderMean(flux::MtlxBSDFGenerator::Instance const &instance) {
+/// \brief The properties of an image texture whose value is \p color at every uv.
+[[nodiscard]] kira::Properties constantTexture(flux::Vec4f const &color) {
+    kira::Properties properties;
+    properties.set(
+        "path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Shared/Textures/Checker.png"
+    );
+    properties.set("scale", flux::Vec4f{0.0F});
+    properties.set("bias", color);
+    return properties;
+}
+
+/// \brief Renders the triangle with the shader of \p spec and \p words under a constant
+/// environment, and returns the mean of the pixels.
+///
+/// The shader samples \p textures. An image texture that nothing samples precedes them, so that
+/// the image-texture index of a texture is not its slot. A shader BSDF of the same source, which no
+/// primitive uses, binds black textures before and after the visible one.
+[[nodiscard]] flux::Spectrum renderMean(
+    flux::ShaderAssetSpec const &spec, std::vector<std::uint32_t> const &words,
+    std::span<kira::Properties const> textures = {}
+) {
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
     context->setActiveEnvMap(context->create<flux::EnvMapLight>(kira::Properties{}));
+    auto const unused =
+        context->create<flux::ImageTexture>(constantTexture({0.0F, 0.0F, 0.0F, 1.0F}));
+    std::vector<flux::Ref<flux::ImageTexture const>> shaderTextures;
+    for (auto const &properties : textures)
+        shaderTextures.push_back(context->create<flux::ImageTexture>(properties));
     auto mesh = context->create<flux::TriangleMesh>(largeTriangleData());
-    auto bsdf = context->create<flux::ShaderBSDF>(instance.spec, instance.words);
+    std::vector<flux::Ref<flux::ImageTexture const>> const blackTextures(
+        shaderTextures.size(), unused
+    );
+    auto const createHidden = [&] {
+        (void)context->create<flux::ShaderBSDF>(spec, words, blackTextures);
+    };
+    createHidden();
+    auto bsdf = context->create<flux::ShaderBSDF>(spec, words, shaderTextures);
+    createHidden();
     kira::Properties primitive;
     primitive.set("geometry_ctx_id", static_cast<std::int64_t>(mesh->getContextId()));
     primitive.set("bsdf_ctx_id", static_cast<std::int64_t>(bsdf->getContextId()));
@@ -108,11 +142,39 @@ TEST(OptixShaderTests, ASmoothMaterialXDiffuseReflectsTheEnvironmentTimesItsColo
     if (!flux::test::hasCudaMemoryPoolSupport())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
-    auto const mean = renderMean(generateSmoothDiffuse());
+    auto const instance = generateSmoothDiffuse();
+    auto const mean = renderMean(instance.spec, instance.words);
 
     // A pixel of 16 samples has a standard deviation of 6.5% of the color. The mean of 256 pixels
     // has 0.41%, and the tolerance is 3 of that.
     constexpr std::array color{0.8F, 0.2F, 0.2F};
+    for (int axis = 0; axis < 3; ++axis)
+        EXPECT_NEAR(mean[axis], color[axis], tolerance * color[axis]) << axis;
+}
+
+TEST(OptixShaderTests, ASampledTextureColorsTheDiffuseReflection) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    constexpr auto source = R"slang(
+import flux_bsdf;
+import flux_context;
+
+public IBSDF makeBSDF(uint* words, ShadingContext ctx)
+{
+    return makeOrenNayarDiffuseBSDF(
+        fluxSampleTexture(ctx, 1, float2(0.5)).rgb, 0,
+        fluxToShadingFrame(ctx, fluxGetWorldNormal(ctx)));
+}
+)slang";
+    constexpr std::array color{0.8F, 0.5F, 0.2F};
+    auto const textures = std::array{
+        constantTexture({0.0F, 0.0F, 0.0F, 1.0F}),
+        constantTexture({color[0], color[1], color[2], 1.0F}),
+    };
+
+    auto const mean = renderMean({.source = source}, {}, textures);
+
     for (int axis = 0; axis < 3; ++axis)
         EXPECT_NEAR(mean[axis], color[axis], tolerance * color[axis]) << axis;
 }

@@ -17,6 +17,10 @@ struct OptixCallableLaunchParams {
 
     /// Parameter words of the callables, each at its BSDF's word offset.
     unsigned int const *words{};
+
+    /// The image-texture index of each texture of the callables, starting at each BSDF's texture
+    /// offset, in slot order.
+    unsigned int const *textureIndices{};
 };
 
 static_assert(__is_standard_layout(OptixCallableLaunchParams));
