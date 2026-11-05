@@ -18,7 +18,7 @@ class Context;
 
 /// Register budget the megakernel module is compiled against. Also bounds how many threads the
 /// device keeps resident, which is what sizes a persistent launch.
-inline constexpr unsigned int megakernelMaxRegisterCount = 128;
+inline constexpr unsigned int megakernelMaxRegisterCount = 160;
 
 /// \brief Values that specialize the megakernel module.
 struct OptixMegaKernelModuleSpec {
