@@ -107,6 +107,7 @@ void Context::collectGarbage() {
 
     // Drop the images that the collected textures were the last to use.
     imageAssetPool_.collectGarbage();
+    shaderAssetPool_.collectGarbage();
 }
 
 void Context::setActiveIntegrator(Ref<PathIntegrator const> integrator) {

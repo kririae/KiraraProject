@@ -23,6 +23,14 @@
 
 namespace flux {
 namespace {
+/// \brief Returns whether a visible primitive of \p context has a \c ShaderBSDF.
+[[nodiscard]] bool hasVisibleShaderBSDF(Context const &context) {
+    return std::ranges::any_of(context.getObjects<Primitive>(), [](auto const &primitive) {
+        auto const bsdf = primitive->getBSDF();
+        return primitive->isVisible() && bsdf && bsdf->getType() == BSDFType::Shader;
+    });
+}
+
 static_assert(sizeof(Vec3f) == 3 * sizeof(float));
 static_assert(sizeof(Vec3u) == 3 * sizeof(std::uint32_t));
 
@@ -104,7 +112,13 @@ void EmbreeContext::reset() noexcept {
     lightSampler_.clear();
 }
 
-void EmbreeContext::sync() try {
+void EmbreeContext::sync() {
+    if (hasVisibleShaderBSDF(context_))
+        throw kira::Anyhow("EmbreeContext: shader BSDFs do not run here yet");
+    rebuild();
+}
+
+void EmbreeContext::rebuild() try {
     reset();
 
     table_.build(context_);

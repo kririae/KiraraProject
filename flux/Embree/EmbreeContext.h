@@ -49,8 +49,11 @@ public:
 
     /// \brief Commits the host \c Context and rebuilds the Embree scene.
     ///
-    /// Rebuilding clears the current scene first. A failed sync leaves this
-    /// context unusable.
+    /// Rebuilding clears the current scene first, so a failed sync leaves this context unusable.
+    /// A scene with a visible \c ShaderBSDF, which this backend does not run yet, throws before
+    /// the scene is cleared.
+    ///
+    /// \throws kira::Anyhow
     void sync();
 
     [[nodiscard]] Impl getImpl() const noexcept;
@@ -75,6 +78,7 @@ private:
 
     EmbreeContext(EmptyState, Context &context) noexcept;
     void reset() noexcept;
+    void rebuild();
 
     /// Host \c Context borrowed from the owning handler.
     Context &context_;

@@ -17,6 +17,7 @@ class FileResolver;
 namespace flux {
 class Context;
 class ImageAssetPool;
+class ShaderAssetPool;
 
 /// \brief Holds the objects of one \c Context::create call before they join the scene.
 ///
@@ -64,6 +65,9 @@ public:
 
     /// \brief Returns the pool that shares loaded images.
     [[nodiscard]] ImageAssetPool &getImageAssetPool() const noexcept;
+
+    /// \brief Returns the pool that shares generated shaders.
+    [[nodiscard]] ShaderAssetPool &getShaderAssetPool() const noexcept;
 
 private:
     explicit TXContext(Context &context) noexcept;

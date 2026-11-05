@@ -4,10 +4,12 @@
 #include <limits>
 #include <optional>
 #include <type_traits>
+#include <vector>
 
 #include "flux/Core/EnumFlags.h"
 #include "flux/Core/Math.h"
 #include "flux/Scene/RenderObject.h"
+#include "flux/Scene/ShaderAsset.h"
 #include "flux/Shading/Interaction.h"
 #include "flux/Shading/Texture.h"
 #include "kira/Compiler.h"
@@ -17,6 +19,7 @@ namespace flux {
 enum class BSDFType : std::uint8_t {
     Diffuse,
     Principled,
+    Shader,
     Count,
 };
 
@@ -265,6 +268,30 @@ private:
     float eta_;
 };
 
+/// \brief A BSDF that a generated shader computes.
+class ShaderBSDF final : public BSDF {
+    friend class TXContext;
+
+public:
+    struct Impl;
+
+    [[nodiscard]] Ref<ShaderAsset const> const &getAsset() const noexcept { return asset_; }
+
+    [[nodiscard]] std::vector<std::uint32_t> const &getWords() const noexcept { return words_; }
+
+    /// \brief Builds the scattering implementation.
+    [[nodiscard]] Impl getImpl() const;
+
+private:
+    /// \brief Creates a BSDF of the shader that \p spec describes.
+    ///
+    /// \throws kira::Anyhow if \p words does not hold the words of every parameter of \p spec.
+    ShaderBSDF(TXContext &tx, ShaderAssetSpec const &spec, std::vector<std::uint32_t> words);
+
+    Ref<ShaderAsset const> asset_;
+    std::vector<std::uint32_t> words_;
+};
+
 /// \brief Lambertian reflection implementation.
 struct DiffuseBSDF::Impl {
     Texture::Impl R;
@@ -300,6 +327,12 @@ public:
     ) const noexcept;
 };
 
+/// \brief Shader scattering implementation.
+struct ShaderBSDF::Impl {
+    /// The BSDF's own index in the context.
+    std::uint32_t index;
+};
+
 /// \brief Stores one BSDF implementation.
 ///
 /// A value-initialized Impl is the empty BSDF: a valid diffuse BSDF with zero
@@ -310,6 +343,7 @@ struct BSDF::Impl {
     union Storage {
         DiffuseBSDF::Impl diffuse;
         PrincipledBSDF::Impl principled;
+        ShaderBSDF::Impl shader;
     } storage;
 };
 
@@ -340,6 +374,8 @@ static_assert(std::is_standard_layout_v<DiffuseBSDF::Impl>);
 static_assert(std::is_trivially_copyable_v<DiffuseBSDF::Impl>);
 static_assert(std::is_standard_layout_v<PrincipledBSDF::Impl>);
 static_assert(std::is_trivially_copyable_v<PrincipledBSDF::Impl>);
+static_assert(std::is_standard_layout_v<ShaderBSDF::Impl>);
+static_assert(std::is_trivially_copyable_v<ShaderBSDF::Impl>);
 static_assert(std::is_trivially_copyable_v<BSDF::Impl>);
 static_assert(std::is_standard_layout_v<BSDF::Dispatcher>);
 static_assert(std::is_trivially_copyable_v<BSDF::Dispatcher>);

@@ -2,6 +2,7 @@
 
 #include <optix_stubs.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -27,9 +28,20 @@
 #include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
 #include "flux/Shading/EDF.h"
+#include "kira/Anyhow.h"
 #include "kira/SmallVector.h"
 
 namespace flux {
+namespace {
+/// \brief Returns whether a visible primitive of \p context has a \c ShaderBSDF.
+[[nodiscard]] bool hasVisibleShaderBSDF(Context const &context) {
+    return std::ranges::any_of(context.getObjects<Primitive>(), [](auto const &primitive) {
+        auto const bsdf = primitive->getBSDF();
+        return primitive->isVisible() && bsdf && bsdf->getType() == BSDFType::Shader;
+    });
+}
+} // namespace
+
 struct OptixContext::pImpl final : private CudaStreamMixin {
 public:
     pImpl(
@@ -167,6 +179,9 @@ OptixContext::Impl OptixContext::getImpl() const noexcept {
 }
 
 void OptixContext::pImpl::sync() {
+    if (hasVisibleShaderBSDF(context))
+        throw kira::Anyhow("OptixContext: shader BSDFs do not run here yet");
+
     syncGeometry();
     buildTables();
     syncTextures();

@@ -144,6 +144,11 @@ target_compile_definitions(
                                        FLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/ImageAssetTests")
 
 krr_add_test(
+    flux Scene ShaderAssetTests
+    SOURCES ShaderAssetTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
     flux Embree ImageTextureTests
     SOURCES EmbreeImageTextureTests.cpp
     HARD_DEPENDENCIES flux)

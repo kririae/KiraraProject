@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "flux/Core/Logging.h"
+#include "flux/Scene/Context.h"
 #include "flux/Scene/TXContext.h"
 #include "kira/Anyhow.h"
 
@@ -41,6 +42,13 @@ BSDF::Impl BSDF::getImpl() const {
         return {
             .type = type_,
             .storage = {.principled = impl},
+        };
+    }
+    case BSDFType::Shader: {
+        auto const impl = static_cast<ShaderBSDF const &>(*this).getImpl();
+        return {
+            .type = type_,
+            .storage = {.shader = impl},
         };
     }
     case BSDFType::Count: break;
@@ -142,5 +150,21 @@ PrincipledBSDF::Impl PrincipledBSDF::getImpl() const noexcept {
         .clearcoatRoughness = clearcoatRoughness_->getImpl(),
         .eta = eta_,
     };
+}
+
+ShaderBSDF::ShaderBSDF(TXContext &tx, ShaderAssetSpec const &spec, std::vector<std::uint32_t> words)
+    : BSDF(tx, BSDFType::Shader), asset_(tx.getShaderAssetPool().getOrCreate(spec)),
+      words_(std::move(words)) {
+    auto wordCount = std::size_t{};
+    for (auto const &parameter : asset_->getSpec().parameters)
+        wordCount += parameter.wordCount;
+    if (words_.size() != wordCount)
+        throw kira::Anyhow(
+            "ShaderBSDF: the parameters take {} words, got {}", wordCount, words_.size()
+        );
+}
+
+ShaderBSDF::Impl ShaderBSDF::getImpl() const {
+    return {.index = getContext()->getIndex<BSDF>(getContextId())};
 }
 } // namespace flux

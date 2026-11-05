@@ -21,6 +21,10 @@ ImageAssetPool &TXContext::getImageAssetPool() const noexcept {
     return context_.getImageAssetPool();
 }
 
+ShaderAssetPool &TXContext::getShaderAssetPool() const noexcept {
+    return context_.getShaderAssetPool();
+}
+
 void TXContext::registerObject(Ref<ContextObject> object) {
     auto const contextId = object->getContextId();
     auto const [iterator, inserted] = objects_.emplace(contextId, std::move(object));

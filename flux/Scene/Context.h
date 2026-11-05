@@ -16,6 +16,7 @@
 #include "flux/Core/EnumFlags.h"
 #include "flux/Scene/ContextIndexMap.h"
 #include "flux/Scene/ImageAsset.h"
+#include "flux/Scene/ShaderAsset.h"
 #include "flux/Scene/TXContext.h"
 #include "kira/FileResolver.h"
 #include "kira/SmallVector.h"
@@ -266,6 +267,7 @@ public:
     }
 
     [[nodiscard]] ImageAssetPool &getImageAssetPool() noexcept { return imageAssetPool_; }
+    [[nodiscard]] ShaderAssetPool &getShaderAssetPool() noexcept { return shaderAssetPool_; }
 
 private:
     Context() = default;
@@ -318,6 +320,7 @@ private:
     Ref<Sampler const> activeSampler_;
     Ref<EnvMapLight const> activeEnvMap_;
     ImageAssetPool imageAssetPool_;
+    ShaderAssetPool shaderAssetPool_;
     kira::FileResolver fileResolver_;
     /// Next context ID. Transactions on different threads allocate IDs concurrently.
     std::atomic_size_t nextId_{0};
