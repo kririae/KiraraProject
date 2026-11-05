@@ -6,6 +6,7 @@
 #include <bit>
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
@@ -241,9 +242,23 @@ void OptixContext::pImpl::buildTables() {
 }
 
 void OptixContext::pImpl::syncShaders() {
+    std::map<std::size_t, Ref<ShaderAsset const>> live;
+    for (auto const &bsdf : context.getObjects<BSDF>())
+        if (bsdf->getType() == BSDFType::Shader) {
+            auto const &asset = static_cast<ShaderBSDF const &>(*bsdf).getAsset();
+            live.try_emplace(asset->getId(), asset);
+        }
+
     std::unordered_map<std::size_t, std::uint32_t> slotsById;
     kira::SmallVector<Ref<ShaderAsset const>> added;
     shaderSlotIds.clear();
+    for (auto const &[id, asset] : live) {
+        slotsById.emplace(id, static_cast<std::uint32_t>(shaderSlotIds.size()));
+        shaderSlotIds.push_back(id);
+        if (!shaderPool.contains(id))
+            added.push_back(asset);
+    }
+
     std::vector<std::uint32_t> hostWords;
     std::vector<OptixShaderBSDFBinding> hostBindings(context.getIndexLimit<BSDF>());
     for (auto const &bsdf : context.getObjects<BSDF>()) {
@@ -251,17 +266,8 @@ void OptixContext::pImpl::syncShaders() {
             continue;
 
         auto const &shader = static_cast<ShaderBSDF const &>(*bsdf);
-        auto const &asset = shader.getAsset();
-        auto const [slot, inserted] =
-            slotsById.try_emplace(asset->getId(), static_cast<std::uint32_t>(shaderSlotIds.size()));
-        if (inserted) {
-            shaderSlotIds.push_back(asset->getId());
-            if (!shaderPool.contains(asset->getId()))
-                added.push_back(asset);
-        }
-
         hostBindings[context.getIndex<BSDF>(bsdf->getContextId())] = {
-            .slot = slot->second,
+            .slot = slotsById.at(shader.getAsset()->getId()),
             .wordOffset = static_cast<std::uint32_t>(hostWords.size()),
         };
         hostWords.insert(hostWords.end(), shader.getWords().begin(), shader.getWords().end());
