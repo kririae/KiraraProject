@@ -69,12 +69,12 @@ void HdFluxMaterial::Sync(
     auto const &id = GetId();
     auto &param = *static_cast<HdFluxRenderParam *>(renderParam);
 
-    if (!bsdf_) {
-        auto const &fallback = param.GetFallbackShader();
-        bsdf_ = param.GetContext()->create<flux::ShaderBSDF>(fallback.spec, fallback.words);
-    }
-
     try {
+        if (!bsdf_) {
+            auto const &fallback = param.GetFallbackShader();
+            bsdf_ = param.GetContext()->create<flux::ShaderBSDF>(fallback.spec, fallback.words);
+        }
+
         updateShader(*bsdf_, param, generate(*sceneDelegate, param, id));
     } catch (std::exception const &error) { TF_WARN("%s: %s", id.GetText(), error.what()); }
 
