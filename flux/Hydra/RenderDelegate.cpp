@@ -27,6 +27,17 @@ TF_DEFINE_PUBLIC_TOKENS(HdFluxRenderSettingsTokens, HDFLUX_RENDER_SETTINGS_TOKEN
 
 PXR_NAMESPACE_CLOSE_SCOPE
 
+PXR_NAMESPACE_USING_DIRECTIVE
+
+namespace {
+// clang-format off
+TF_DEFINE_PRIVATE_TOKENS(
+    Tokens,
+    (mtlx)
+);
+// clang-format on
+} // namespace
+
 HdFluxRenderDelegate::HdFluxRenderDelegate(
     std::filesystem::path const &modulePath, std::filesystem::path const &resourcePath,
     pxr::HdRenderSettingsMap const &settingsMap
@@ -62,7 +73,7 @@ pxr::TfTokenVector const &HdFluxRenderDelegate::GetSupportedBprimTypes() const {
 pxr::TfToken HdFluxRenderDelegate::GetMaterialBindingPurpose() const { return pxr::HdTokens->full; }
 
 pxr::TfTokenVector HdFluxRenderDelegate::GetMaterialRenderContexts() const {
-    return {pxr::TfToken{"mtlx"}};
+    return {Tokens->mtlx};
 }
 
 pxr::HdResourceRegistrySharedPtr HdFluxRenderDelegate::GetResourceRegistry() const {
