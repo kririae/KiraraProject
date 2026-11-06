@@ -9,6 +9,13 @@ endif()
 set(Houdini_DIR "$ENV{HFS}/toolkit/cmake")
 find_package(Houdini CONFIG REQUIRED)
 
+# Houdini's toolkit gives no target for these libraries of its USD.
+foreach(library MaterialXCore MaterialXFormat pxr_hdMtlx)
+    add_library(Houdini::Dep::${library} SHARED IMPORTED)
+    set_target_properties(Houdini::Dep::${library} PROPERTIES IMPORTED_LOCATION
+                                                              "$ENV{HFS}/dsolib/lib${library}.so")
+endforeach()
+
 add_library(
     flux_hydra STATIC
     AovMapping.cpp
@@ -16,6 +23,7 @@ add_library(
     Camera.cpp
     DomeLight.cpp
     Material.cpp
+    MaterialXDocument.cpp
     Mesh.cpp
     PreviewSurface.cpp
     Radiance.cpp
@@ -36,8 +44,11 @@ target_include_directories(flux_hydra SYSTEM
 target_link_libraries(
     flux_hydra
     PUBLIC flux
+           Houdini::Dep::MaterialXCore
+           Houdini::Dep::MaterialXFormat
            Houdini::Dep::pxr_gf
            Houdini::Dep::pxr_hd
+           Houdini::Dep::pxr_hdMtlx
            Houdini::Dep::pxr_hf
            Houdini::Dep::pxr_plug
            Houdini::Dep::pxr_pxOsd
