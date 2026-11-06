@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-#include "flux/Hydra/MaterialXDocument.h"
+#include "flux/Hydra/MaterialXXml.h"
 #include "flux/Hydra/RenderParam.h"
 #include "flux/Scene/Context.h"
 #include "flux/Shading/BSDF.h"
@@ -29,13 +29,15 @@ generate(HdSceneDelegate &sceneDelegate, HdFluxRenderParam const &param, SdfPath
     if (terminal == network.terminals.end())
         return std::nullopt;
 
-    auto const document = HdFluxCreateMaterialXDocument(network, terminal->second.upstreamNode, id);
-    if (!document)
+    auto const materialXml = HdFluxCreateMaterialXXml(network, terminal->second.upstreamNode, id);
+    if (!materialXml)
         return std::nullopt;
 
     // TODO: generate the material with constant values at its first sync, and make an input that
     // a later edit changes interactive.
-    return param.GetMaterialXGenerator().generate(document->xml, document->surfaceMaterialName);
+    return param.GetMaterialXGenerator().generate(
+        materialXml->xml, materialXml->surfaceMaterialName
+    );
 }
 
 void updateShader(

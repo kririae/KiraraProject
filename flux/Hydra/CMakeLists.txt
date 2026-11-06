@@ -29,7 +29,7 @@ add_library(
     Camera.cpp
     DomeLight.cpp
     Material.cpp
-    MaterialXDocument.cpp
+    MaterialXXml.cpp
     Mesh.cpp
     Radiance.cpp
     RenderBuffer.cpp

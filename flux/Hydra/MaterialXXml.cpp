@@ -1,4 +1,4 @@
-#include "flux/Hydra/MaterialXDocument.h"
+#include "flux/Hydra/MaterialXXml.h"
 
 #include <MaterialXFormat/XmlIo.h>
 #include <pxr/imaging/hd/material.h>
@@ -25,7 +25,7 @@ HdMaterialNetwork2 withResolvedAssetPaths(HdMaterialNetwork2 network) {
 }
 } // namespace
 
-std::optional<HdFluxMaterialXDocument> HdFluxCreateMaterialXDocument(
+std::optional<HdFluxMaterialXXml> HdFluxCreateMaterialXXml(
     HdMaterialNetwork2 const &network, SdfPath const &terminalPath, SdfPath const &materialPath
 ) {
     auto const resolved = withResolvedAssetPaths(network);
@@ -44,7 +44,7 @@ std::optional<HdFluxMaterialXDocument> HdFluxCreateMaterialXDocument(
     options.elementPredicate = [](mx::ConstElementPtr const &element) {
         return !element->hasSourceUri();
     };
-    return HdFluxMaterialXDocument{
+    return HdFluxMaterialXXml{
         mx::writeToXmlString(document, &options), surfaceMaterials.front()->getName()
     };
 }
