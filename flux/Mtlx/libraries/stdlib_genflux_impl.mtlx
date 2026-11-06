@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<materialx version="1.39">
+
+  <implementation name="IM_surfacematerial_genflux" nodedef="ND_surfacematerial" target="genflux"
+                  sourcecode="{{surfaceshader}}"/>
+
+  <!-- A geometric node: the expression reads the shell's `ctx` parameter by name. -->
+  <implementation name="IM_normal_vector3_genflux" nodedef="ND_normal_vector3" target="genflux"
+                  sourcecode="fluxGetWorldNormal(ctx)"/>
+
+</materialx>
