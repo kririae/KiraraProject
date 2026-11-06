@@ -4,7 +4,6 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
-#include <span>
 #include <string>
 #include <vector>
 
@@ -34,12 +33,8 @@ public:
     ///
     /// Every value of the material is a constant. Returns nothing if the material cannot be
     /// generated.
-    ///
-    /// \param searchPath The folders that a relative image file is found in.
-    [[nodiscard]] std::optional<Material> generate(
-        std::string const &xml, std::string const &surfaceMaterialName,
-        std::span<std::filesystem::path const> searchPath
-    ) const;
+    [[nodiscard]] std::optional<Material>
+    generate(std::string const &xml, std::string const &surfaceMaterialName) const;
 
 private:
     struct Impl;

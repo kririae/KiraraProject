@@ -37,7 +37,7 @@ HdFluxMaterialXGenerator::Material makeFallbackShader(HdFluxMaterialXGenerator c
     <input name="surfaceshader" type="surfaceshader" nodename="surface" />
   </surfacematerial>
 </materialx>)",
-            "fallback", {}
+            "fallback"
         )
         .value();
 }

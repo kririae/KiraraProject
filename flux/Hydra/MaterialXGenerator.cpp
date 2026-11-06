@@ -24,19 +24,14 @@ HdFluxMaterialXGenerator &
 HdFluxMaterialXGenerator::operator=(HdFluxMaterialXGenerator &&) noexcept = default;
 
 std::optional<HdFluxMaterialXGenerator::Material> HdFluxMaterialXGenerator::generate(
-    std::string const &xml, std::string const &surfaceMaterialName,
-    std::span<std::filesystem::path const> searchPath
+    std::string const &xml, std::string const &surfaceMaterialName
 ) const {
     auto const document = mx::createDocument();
     try {
         mx::readFromXmlString(document, xml);
     } catch (mx::Exception const &) { return std::nullopt; }
 
-    auto files = mx::FileSearchPath{};
-    for (auto const &folder : searchPath)
-        files.append(mx::FilePath{folder.string()});
-
-    auto result = impl_->generator.generate(document, surfaceMaterialName, files);
+    auto result = impl_->generator.generate(document, surfaceMaterialName, mx::FileSearchPath{});
     if (!result.instance)
         return std::nullopt;
 

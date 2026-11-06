@@ -35,7 +35,7 @@ generate(HdSceneDelegate &sceneDelegate, HdFluxRenderParam const &param, SdfPath
 
     // TODO: generate the material with constant values at its first sync, and make an input that
     // a later edit changes interactive.
-    return param.GetMaterialXGenerator().generate(document->xml, document->surfaceMaterialName, {});
+    return param.GetMaterialXGenerator().generate(document->xml, document->surfaceMaterialName);
 }
 } // namespace
 
