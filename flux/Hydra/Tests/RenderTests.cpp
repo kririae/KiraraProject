@@ -873,7 +873,7 @@ TEST_F(RenderTests, RendersTheImageAtTheResolvedPathOfAnAssetPath) {
     EXPECT_EQ(vectorAt(albedo, width / 2), GfVec3f(pixel[0], pixel[1], pixel[2]));
 }
 
-TEST_F(RenderTests, RendersTheNewMaterialWhenAnEditMakesAnUnsupportedMaterialGenerate) {
+TEST_F(RenderTests, RendersTheFallbackThenTheMaterialThenTheFallbackAsEditsMakeItGenerateAndFail) {
     auto *const albedo = bindAlbedo();
     scene_->AddPrims(
         {{materialPath, HdPrimTypeTokens->material, makeUnsupportedMaterial()},
