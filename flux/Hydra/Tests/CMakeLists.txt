@@ -23,8 +23,10 @@ add_dependencies(flux.Hydra.RenderTests hdFlux)
 
 target_link_libraries(flux.Hydra.RenderTests PRIVATE Houdini::Dep::pxr_cameraUtil)
 
-target_compile_definitions(flux.Hydra.RenderTests
-                           PRIVATE HDFLUX_PLUGIN_PATH="${packageDir}/dso/usd_plugins")
+target_compile_definitions(
+    flux.Hydra.RenderTests
+    PRIVATE HDFLUX_PLUGIN_PATH="${packageDir}/dso/usd_plugins"
+            HDFLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/RenderTests")
 
 set_tests_properties(flux.Hydra.RenderTests PROPERTIES LABELS integration TIMEOUT 120
                                                        RESOURCE_LOCK flux_render)
