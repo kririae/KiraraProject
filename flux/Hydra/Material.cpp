@@ -37,6 +37,24 @@ generate(HdSceneDelegate &sceneDelegate, HdFluxRenderParam const &param, SdfPath
     // a later edit changes interactive.
     return param.GetMaterialXGenerator().generate(document->xml, document->surfaceMaterialName);
 }
+
+void updateShader(
+    flux::ShaderBSDF &bsdf, HdFluxRenderParam const &param,
+    std::optional<HdFluxMaterialXGenerator::Material> material
+) {
+    if (!material) {
+        auto const &fallback = param.GetFallbackShader();
+        bsdf.setShader(fallback.spec, fallback.words, {});
+        return;
+    }
+
+    auto const context = param.GetContext();
+    std::vector<flux::Ref<flux::ImageTexture const>> textures;
+    for (auto const &spec : material->textures)
+        textures.push_back(context->create<flux::ImageTexture>(spec));
+
+    bsdf.setShader(material->spec, std::move(material->words), std::move(textures));
+}
 } // namespace
 
 HdFluxMaterial::HdFluxMaterial(SdfPath const &id) : HdMaterial(id) {}
@@ -55,18 +73,7 @@ void HdFluxMaterial::Sync(
     }
 
     try {
-        auto material = generate(*sceneDelegate, param, id);
-        if (material) {
-            auto const context = param.GetContext();
-            std::vector<flux::Ref<flux::ImageTexture const>> textures;
-            for (auto const &spec : material->textures)
-                textures.push_back(context->create<flux::ImageTexture>(spec));
-
-            bsdf_->setShader(material->spec, std::move(material->words), std::move(textures));
-        } else {
-            auto const &fallback = param.GetFallbackShader();
-            bsdf_->setShader(fallback.spec, fallback.words, {});
-        }
+        updateShader(*bsdf_, param, generate(*sceneDelegate, param, id));
     } catch (std::exception const &error) { TF_WARN("%s: %s", id.GetText(), error.what()); }
 
     *dirtyBits = Clean;
