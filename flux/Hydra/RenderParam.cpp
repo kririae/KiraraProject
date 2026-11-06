@@ -21,7 +21,7 @@ flux::Ref<flux::Context> makeContext() {
     return context;
 }
 
-HdFluxMaterialXGenerator::Material makeFallbackShader(HdFluxMaterialXGenerator const &generator) {
+HdFluxMaterialXGenerator::Instance makeFallbackShader(HdFluxMaterialXGenerator const &generator) {
     return generator
         .generate(
             R"(<?xml version="1.0"?>
@@ -43,7 +43,7 @@ HdFluxMaterialXGenerator::Material makeFallbackShader(HdFluxMaterialXGenerator c
 }
 
 flux::Ref<flux::ShaderBSDF>
-makeFallbackBSDF(flux::Context &context, HdFluxMaterialXGenerator::Material fallbackShader) {
+makeFallbackBSDF(flux::Context &context, HdFluxMaterialXGenerator::Instance fallbackShader) {
     return context.create<flux::ShaderBSDF>(fallbackShader.spec, std::move(fallbackShader.words));
 }
 } // namespace
@@ -61,7 +61,7 @@ flux::Ref<flux::Context> HdFluxRenderParam::GetContext() const { return handler_
 
 flux::Ref<flux::BSDF const> HdFluxRenderParam::GetFallbackBSDF() const { return fallbackBSDF_; }
 
-HdFluxMaterialXGenerator::Material const &HdFluxRenderParam::GetFallbackShader() const noexcept {
+HdFluxMaterialXGenerator::Instance const &HdFluxRenderParam::GetFallbackShader() const noexcept {
     return fallbackShader_;
 }
 

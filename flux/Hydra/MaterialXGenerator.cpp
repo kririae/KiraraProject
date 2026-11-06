@@ -18,7 +18,7 @@ HdFluxMaterialXGenerator::HdFluxMaterialXGenerator(std::filesystem::path const &
 
 HdFluxMaterialXGenerator::~HdFluxMaterialXGenerator() = default;
 
-std::optional<HdFluxMaterialXGenerator::Material> HdFluxMaterialXGenerator::generate(
+std::optional<HdFluxMaterialXGenerator::Instance> HdFluxMaterialXGenerator::generate(
     std::string const &xml, std::string const &surfaceMaterialName
 ) const {
     auto const document = mx::createDocument();
@@ -31,7 +31,7 @@ std::optional<HdFluxMaterialXGenerator::Material> HdFluxMaterialXGenerator::gene
         return std::nullopt;
 
     auto &instance = *result.instance;
-    return Material{
+    return Instance{
         .spec = std::move(instance.spec),
         .words = std::move(instance.words),
         .textures = std::move(instance.textures)

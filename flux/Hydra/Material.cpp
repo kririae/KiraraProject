@@ -17,7 +17,7 @@
 PXR_NAMESPACE_USING_DIRECTIVE
 
 namespace {
-[[nodiscard]] std::optional<HdFluxMaterialXGenerator::Material>
+[[nodiscard]] std::optional<HdFluxMaterialXGenerator::Instance>
 generate(HdSceneDelegate &sceneDelegate, HdFluxRenderParam const &param, SdfPath const &id) {
     auto const resource = sceneDelegate.GetMaterialResource(id);
     if (!resource.IsHolding<HdMaterialNetworkMap>())
@@ -40,9 +40,9 @@ generate(HdSceneDelegate &sceneDelegate, HdFluxRenderParam const &param, SdfPath
 
 void updateShader(
     flux::ShaderBSDF &bsdf, HdFluxRenderParam const &param,
-    std::optional<HdFluxMaterialXGenerator::Material> material
+    std::optional<HdFluxMaterialXGenerator::Instance> instance
 ) {
-    if (!material) {
+    if (!instance) {
         auto const &fallback = param.GetFallbackShader();
         bsdf.setShader(fallback.spec, fallback.words, {});
         return;
@@ -50,10 +50,10 @@ void updateShader(
 
     auto const context = param.GetContext();
     std::vector<flux::Ref<flux::ImageTexture const>> textures;
-    for (auto const &spec : material->textures)
+    for (auto const &spec : instance->textures)
         textures.push_back(context->create<flux::ImageTexture>(spec));
 
-    bsdf.setShader(material->spec, std::move(material->words), std::move(textures));
+    bsdf.setShader(instance->spec, std::move(instance->words), std::move(textures));
 }
 } // namespace
 

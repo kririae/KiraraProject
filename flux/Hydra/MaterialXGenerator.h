@@ -13,7 +13,7 @@
 /// \brief Generates the BSDF of a MaterialX material with FLux's MaterialX.
 class HdFluxMaterialXGenerator final {
 public:
-    struct Material {
+    struct Instance {
         flux::ShaderAssetSpec spec;
         std::vector<std::uint32_t> words;
         std::vector<flux::ImageTextureSpec> textures;
@@ -28,7 +28,7 @@ public:
     ///
     /// Every value of the material is a constant. Returns nothing if the material cannot be
     /// generated.
-    [[nodiscard]] std::optional<Material>
+    [[nodiscard]] std::optional<Instance>
     generate(std::string const &xml, std::string const &surfaceMaterialName) const;
 
 private:

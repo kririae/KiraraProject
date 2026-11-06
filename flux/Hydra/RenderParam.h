@@ -30,7 +30,7 @@ public:
 
     [[nodiscard]] flux::Ref<flux::BSDF const> GetFallbackBSDF() const;
 
-    [[nodiscard]] HdFluxMaterialXGenerator::Material const &GetFallbackShader() const noexcept;
+    [[nodiscard]] HdFluxMaterialXGenerator::Instance const &GetFallbackShader() const noexcept;
 
     [[nodiscard]] HdFluxMaterialXGenerator const &GetMaterialXGenerator() const noexcept {
         return materialXGenerator_;
@@ -52,7 +52,7 @@ public:
 private:
     flux::OptixHandler handler_;
     HdFluxMaterialXGenerator materialXGenerator_;
-    HdFluxMaterialXGenerator::Material fallbackShader_;
+    HdFluxMaterialXGenerator::Instance fallbackShader_;
     flux::Ref<flux::ShaderBSDF> fallbackBSDF_;
     bool failed_{false};
 };
