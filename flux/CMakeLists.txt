@@ -93,6 +93,7 @@ add_library(
     Optix/DeletionQueue.cpp
     Optix/OptixAccumulationBuffer.cu
     Optix/OptixShaderModule.cpp
+    Optix/OptixShaderPool.cpp
     Optix/OptixBSDFCompiler.cpp
     Optix/OptixContext.cpp
     Optix/OptixDeviceSession.cpp

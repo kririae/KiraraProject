@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -19,6 +20,8 @@
 #include "flux/Optix/OptixMegaKernelModule.h"
 #include "flux/Optix/OptixProgram.h"
 #include "flux/Optix/OptixSbt.h"
+#include "flux/Optix/OptixShaderBSDFBinding.h"
+#include "flux/Optix/OptixShaderPool.h"
 #include "flux/Optix/OptixTextureObject.h"
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Scene/Context.h"
@@ -105,6 +108,21 @@ public:
     DeviceBuffer<OptixImageTexture> imageTextures{getStream()};
 
 public:
+    // Shaders. Modules are memoized by ShaderAsset ID. The rest is rebuilt on every sync.
+
+    /// Makes the pool hold exactly the assets of the live shader BSDFs, gives each a slot, and
+    /// uploads the buffers that the callables read.
+    void syncShaders();
+
+    OptixShaderPool shaderPool{deviceContext};
+
+    /// The ID of the asset at each slot.
+    std::vector<std::size_t> shaderSlotIds;
+
+    DeviceBuffer<std::uint32_t> shaderWords{getStream()};
+    DeviceBuffer<OptixShaderBSDFBinding> shaderBSDFBindings{getStream()};
+
+public:
     // Megakernel module. Memoized by specialization. The program and the SBT follow it.
 
     /// Rebuilds the module, the program, and the SBT when the specialization differs.
@@ -160,7 +178,10 @@ OptixMegaKernelModuleSpec const &OptixContext::getMegaKernelModuleSpec() const n
 }
 
 OptixCallableLaunchParams OptixContext::getCallableLaunchParams() const noexcept {
-    return {.imageTextures = {.textures = pImpl_->imageTextures.data()}};
+    return {
+        .imageTextures = {.textures = pImpl_->imageTextures.data()},
+        .words = pImpl_->shaderWords.data(),
+    };
 }
 
 OptixContext::Impl OptixContext::getImpl() const noexcept {
@@ -174,17 +195,18 @@ OptixContext::Impl OptixContext::getImpl() const noexcept {
                 .bsdfs = pImpl_->bsdfs.data(),
                 .edfs = pImpl_->edfs.data(),
             },
+        .shaderBSDFBindings = pImpl_->shaderBSDFBindings.data(),
         .lightSampler = pImpl_->lightSampler.getImpl(),
     };
 }
 
 void OptixContext::pImpl::sync() {
-    if (hasVisibleShaderBSDF(context))
-        throw kira::Anyhow("OptixContext: shader BSDFs do not run here yet");
-
     syncGeometry();
     buildTables();
+    syncShaders();
     syncTextures();
+    if (hasVisibleShaderBSDF(context))
+        throw kira::Anyhow("OptixContext: shader BSDFs do not run here yet");
     syncProgram();
     buildIas();
     lightSampler.sync(context, {.textures = imageTextures.data()}, ias.getSceneRadius());
@@ -226,6 +248,44 @@ void OptixContext::pImpl::buildTables() {
     primitives.copyFromHost({table.primitives.data(), table.primitives.size()}, deletionQueue);
     bsdfs.copyFromHost({table.bsdfs.data(), table.bsdfs.size()}, deletionQueue);
     edfs.copyFromHost({table.edfs.data(), table.edfs.size()}, deletionQueue);
+}
+
+void OptixContext::pImpl::syncShaders() {
+    std::unordered_map<std::size_t, std::uint32_t> slotsById;
+    kira::SmallVector<Ref<ShaderAsset const>> added;
+    shaderSlotIds.clear();
+    std::vector<std::uint32_t> hostWords;
+    std::vector<OptixShaderBSDFBinding> hostBindings(context.getIndexLimit<BSDF>());
+    for (auto const &bsdf : context.getObjects<BSDF>()) {
+        if (bsdf->getType() != BSDFType::Shader)
+            continue;
+
+        auto const &shader = static_cast<ShaderBSDF const &>(*bsdf);
+        auto const &asset = shader.getAsset();
+        auto const [slot, inserted] =
+            slotsById.try_emplace(asset->getId(), static_cast<std::uint32_t>(shaderSlotIds.size()));
+        if (inserted) {
+            shaderSlotIds.push_back(asset->getId());
+            if (!shaderPool.contains(asset->getId()))
+                added.push_back(asset);
+        }
+
+        hostBindings[context.getIndex<BSDF>(bsdf->getContextId())] = {
+            .slot = slot->second,
+            .wordOffset = static_cast<std::uint32_t>(hostWords.size()),
+        };
+        hostWords.insert(hostWords.end(), shader.getWords().begin(), shader.getWords().end());
+    }
+
+    std::vector<std::size_t> removed;
+    for (auto const id : shaderPool.getIds())
+        if (!slotsById.contains(id))
+            removed.push_back(id);
+    shaderPool.remove(removed);
+    shaderPool.add({added.data(), added.size()});
+
+    shaderWords.copyFromHost({hostWords.data(), hostWords.size()}, deletionQueue);
+    shaderBSDFBindings.copyFromHost({hostBindings.data(), hostBindings.size()}, deletionQueue);
 }
 
 void OptixContext::pImpl::syncTextures() {

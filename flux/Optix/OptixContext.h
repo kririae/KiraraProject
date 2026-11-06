@@ -15,6 +15,7 @@
 #include "flux/Optix/OptixCallableLaunchParams.h"
 #include "flux/Optix/OptixImageTexture.h"
 #include "flux/Optix/OptixLightSampler.h"
+#include "flux/Optix/OptixShaderBSDFBinding.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/SceneTable.h"
 #include "flux/Shading/Interaction.h"
@@ -88,6 +89,10 @@ struct OptixContext::Impl {
 
     /// Scene tables in device memory.
     SceneTable table{};
+
+    /// Shader binding of each BSDF, by BSDF index. An index without a live shader BSDF holds a
+    /// zero binding.
+    OptixShaderBSDFBinding const *shaderBSDFBindings{};
 
     OptixLightSampler::Impl lightSampler{};
 
