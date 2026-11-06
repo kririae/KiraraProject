@@ -55,3 +55,4 @@ For each new or changed comment, list in your reasoning each thing that it state
 - "A backend provides `flux_context`: `ShadingContext`, `fluxGetWorldNormal`, `fluxGetTexCoord`, `fluxToShadingFrame`, and `fluxSampleTexture`." on a generator. Three commits edited the list as the backend grew.
 - "Why: the cache is cleared so that stale entries cannot be read." A comment never says why. The invariant says what holds: every entry matches its file.
 - The compare-and-swap loop of a lock-free queue, with no comment on what each step expects. Reading it costs far more than one sentence.
+- "A backend provides `flux_context`: `ShadingContext`, `fluxGetWorldNormal`, `fluxGetTexCoord`, `fluxToShadingFrame`, and `fluxSampleTexture`." on a generator. Three commits edited the list as the backend grew.
