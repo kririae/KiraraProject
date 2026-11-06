@@ -277,6 +277,12 @@ class ShaderBSDF final : public BSDF {
 public:
     struct Impl;
 
+    /// \brief Parameters of a shader BSDF that a setter can change.
+    enum class DirtyBits : std::uint32_t {
+        None = 0,
+        Shader = 1U << 0U,
+    };
+
     [[nodiscard]] Ref<ShaderAsset const> const &getAsset() const noexcept { return asset_; }
 
     [[nodiscard]] std::vector<std::uint32_t> const &getWords() const noexcept { return words_; }
@@ -284,6 +290,14 @@ public:
     [[nodiscard]] std::vector<Ref<ImageTexture const>> const &getTextures() const noexcept {
         return textures_;
     }
+
+    /// \brief Replaces the shader of the BSDF, with the words and textures it reads.
+    ///
+    /// \throw std::invalid_argument If a texture is null or not of the context of the BSDF.
+    void setShader(
+        ShaderAssetSpec const &spec, std::vector<std::uint32_t> words,
+        std::vector<Ref<ImageTexture const>> textures
+    );
 
     /// \brief Builds the scattering implementation.
     [[nodiscard]] Impl getImpl() const;
@@ -383,6 +397,7 @@ public:
 };
 
 template <> inline constexpr bool isEnumFlags<PrincipledBSDF::DirtyBits> = true;
+template <> inline constexpr bool isEnumFlags<ShaderBSDF::DirtyBits> = true;
 
 static_assert(std::is_standard_layout_v<DiffuseBSDF::Impl>);
 static_assert(std::is_trivially_copyable_v<DiffuseBSDF::Impl>);

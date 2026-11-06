@@ -5,6 +5,7 @@
 #include <array>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <span>
 #include <string>
 #include <vector>
@@ -91,9 +92,12 @@ constexpr auto smoothDocument = R"mtlx(<?xml version="1.0"?>
 /// The shader samples \p textures. An image texture that nothing samples precedes them, so that
 /// the image-texture index of a texture is not its slot. A shader BSDF of the same source, which no
 /// primitive uses, binds black textures before and after the visible one.
+///
+/// If \p edit is set, the mean is that of a second render, after \p edit edits the BSDF.
 [[nodiscard]] flux::Spectrum renderMean(
     flux::ShaderAssetSpec const &spec, std::vector<std::uint32_t> const &words,
-    std::span<kira::Properties const> textures = {}
+    std::span<kira::Properties const> textures = {},
+    std::function<void(flux::ShaderBSDF &)> const &edit = {}
 ) {
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
@@ -127,18 +131,28 @@ constexpr auto smoothDocument = R"mtlx(<?xml version="1.0"?>
     flux::OptixAccumulationBuffer buffer(
         handler, flux::FilmSpec{resolution, flux::FilmChannels::Color}
     );
-    handler.render(*camera, buffer, samples);
-    flux::Film film{buffer.getSpec()};
-    buffer.download(film);
-    std::array<double, 3> sum{};
-    for (auto const &pixel : film.getChannel<flux::ColorChannel>())
-        for (int axis = 0; axis < 3; ++axis)
-            sum[axis] += pixel[axis];
-    auto const count = static_cast<double>(resolution.x() * resolution.y());
-    return {
-        static_cast<float>(sum[0] / count), static_cast<float>(sum[1] / count),
-        static_cast<float>(sum[2] / count)
+    auto const render = [&] {
+        handler.render(*camera, buffer, samples);
+        flux::Film film{buffer.getSpec()};
+        buffer.download(film);
+        std::array<double, 3> sum{};
+        for (auto const &pixel : film.getChannel<flux::ColorChannel>())
+            for (int axis = 0; axis < 3; ++axis)
+                sum[axis] += pixel[axis];
+        auto const count = static_cast<double>(resolution.x() * resolution.y());
+        return flux::Spectrum{
+            static_cast<float>(sum[0] / count), static_cast<float>(sum[1] / count),
+            static_cast<float>(sum[2] / count)
+        };
     };
+    auto mean = render();
+    if (edit) {
+        edit(*bsdf);
+        handler.sync();
+        buffer.clear();
+        mean = render();
+    }
+    return mean;
 }
 } // namespace
 
@@ -208,4 +222,29 @@ public IBSDF makeBSDF(uint* words, ShadingContext ctx)
     constexpr std::array expected{0.5F, 0.25F + 1.0F / 36.0F, 0.5F};
     for (int axis = 0; axis < 3; ++axis)
         EXPECT_NEAR(mean[axis], expected[axis], 0.03F * expected[axis]) << axis;
+}
+
+TEST(OptixShaderTests, ReplacingTheShaderOfABSDFRendersTheNewShader) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    constexpr auto source = R"slang(
+import flux_bsdf;
+import flux_context;
+
+public IBSDF makeBSDF(uint* words, ShadingContext ctx)
+{
+    return makeOrenNayarDiffuseBSDF(
+        float3(0.2, 0.5, 0.8), 0, fluxToShadingFrame(ctx, fluxGetWorldNormal(ctx)));
+}
+)slang";
+    constexpr std::array color{0.2F, 0.5F, 0.8F};
+    auto const instance = generateSmoothDiffuse();
+
+    auto const mean = renderMean(instance.spec, instance.words, {}, [&](flux::ShaderBSDF &bsdf) {
+        bsdf.setShader({.source = source}, {}, {});
+    });
+
+    for (int axis = 0; axis < 3; ++axis)
+        EXPECT_NEAR(mean[axis], color[axis], tolerance * color[axis]) << axis;
 }
