@@ -31,20 +31,9 @@
 #include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
 #include "flux/Shading/EDF.h"
-#include "kira/Anyhow.h"
 #include "kira/SmallVector.h"
 
 namespace flux {
-namespace {
-/// \brief Returns whether a visible primitive of \p context has a \c ShaderBSDF.
-[[nodiscard]] bool hasVisibleShaderBSDF(Context const &context) {
-    return std::ranges::any_of(context.getObjects<Primitive>(), [](auto const &primitive) {
-        auto const bsdf = primitive->getBSDF();
-        return primitive->isVisible() && bsdf && bsdf->getType() == BSDFType::Shader;
-    });
-}
-} // namespace
-
 struct OptixContext::pImpl final : private CudaStreamMixin {
 public:
     pImpl(
@@ -205,8 +194,6 @@ void OptixContext::pImpl::sync() {
     buildTables();
     syncShaders();
     syncTextures();
-    if (hasVisibleShaderBSDF(context))
-        throw kira::Anyhow("OptixContext: shader BSDFs do not run here yet");
     syncProgram();
     buildIas();
     lightSampler.sync(context, {.textures = imageTextures.data()}, ias.getSceneRadius());
@@ -348,15 +335,22 @@ void OptixContext::pImpl::syncTextures() {
 }
 
 void OptixContext::pImpl::syncProgram() {
+    // The program links the module of each slot, so it follows the slots.
     auto const spec = OptixMegaKernelModule::makeSpec(context);
-    if (megaKernelModule && megaKernelModule->getSpec() == spec)
+    std::vector<std::shared_ptr<OptixShaderModule const>> shaderModules;
+    shaderModules.reserve(shaderSlotIds.size());
+    for (auto const id : shaderSlotIds)
+        shaderModules.push_back(shaderPool.getModule(id));
+    if (program && megaKernelModule->getSpec() == spec &&
+        std::ranges::equal(program->getShaderModules(), shaderModules))
         return;
 
     if (program)
         deletionQueue.deleteLater(std::shared_ptr<OptixProgram const>(std::move(program)));
-    megaKernelModule = std::make_shared<OptixMegaKernelModule>(deviceContext, modulePath, spec);
-    program = std::make_unique<OptixProgram>(deviceContext, megaKernelModule);
-    sbt.build(*megaKernelModule);
+    if (!megaKernelModule || megaKernelModule->getSpec() != spec)
+        megaKernelModule = std::make_shared<OptixMegaKernelModule>(deviceContext, modulePath, spec);
+    program = std::make_unique<OptixProgram>(deviceContext, megaKernelModule, shaderModules);
+    sbt.build(*megaKernelModule, shaderModules);
 }
 
 void OptixContext::pImpl::buildIas() {

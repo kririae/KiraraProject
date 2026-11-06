@@ -6,6 +6,7 @@
 #include <array>
 #include <cstddef>
 #include <utility>
+#include <vector>
 
 #include "flux/Core/Logging.h"
 #include "flux/Optix/OptixPipelineCompileOptions.h"
@@ -14,9 +15,12 @@
 
 namespace flux {
 OptixProgram::OptixProgram(
-    OptixDeviceContext deviceContext, std::shared_ptr<OptixMegaKernelModule const> megaKernelModule
+    OptixDeviceContext deviceContext, std::shared_ptr<OptixMegaKernelModule const> megaKernelModule,
+    std::vector<std::shared_ptr<OptixShaderModule const>> shaderModules
 )
-    : OptixProgram(EmptyState{}, deviceContext, std::move(megaKernelModule)) {
+    : OptixProgram(
+          EmptyState{}, deviceContext, std::move(megaKernelModule), std::move(shaderModules)
+      ) {
     if (!deviceContext_)
         throw kira::Anyhow("OptixProgram: device context must not be null");
 
@@ -25,9 +29,11 @@ OptixProgram::OptixProgram(
 
 OptixProgram::OptixProgram(
     EmptyState, OptixDeviceContext deviceContext,
-    std::shared_ptr<OptixMegaKernelModule const> megaKernelModule
+    std::shared_ptr<OptixMegaKernelModule const> megaKernelModule,
+    std::vector<std::shared_ptr<OptixShaderModule const>> shaderModules
 ) noexcept
-    : deviceContext_(deviceContext), megaKernelModule_(std::move(megaKernelModule)) {}
+    : deviceContext_(deviceContext), megaKernelModule_(std::move(megaKernelModule)),
+      shaderModules_(std::move(shaderModules)) {}
 
 OptixProgram::~OptixProgram() {
     if (pipeline_)
@@ -40,7 +46,10 @@ void OptixProgram::buildPipeline() {
     linkOptions.maxTraceDepth = 1;
     linkOptions.maxTraversableGraphDepth = 2;
 
-    auto const programs = megaKernelModule_->getProgramGroups();
+    auto const megaKernelPrograms = megaKernelModule_->getProgramGroups();
+    std::vector<OptixProgramGroup> programs(megaKernelPrograms.begin(), megaKernelPrograms.end());
+    for (auto const &module : shaderModules_)
+        programs.push_back(module->getProgramGroup());
     std::array<char, 4096> log{};
     std::size_t logSize = log.size();
     // clang-format off
@@ -71,7 +80,7 @@ void OptixProgram::buildPipeline() {
         /* pipeline =                            */ pipeline_,
         /* maxTraceDepth =                       */ 1,
         /* maxContinuationCallableDepth =        */ 0,
-        /* maxDirectCallableDepthFromState =     */ 0,
+        /* maxDirectCallableDepthFromState =     */ 1,
         /* maxDirectCallableDepthFromTraversal = */ 0,
         /* maxTraversableGraphDepth =            */ 2));
     // clang-format on

@@ -5,6 +5,8 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
+#include <span>
 
 #include "flux/Core/Object.h"
 #include "flux/Optix/DeletionQueue.h"
@@ -14,6 +16,7 @@
 
 namespace flux {
 class OptixMegaKernelModule;
+class OptixShaderModule;
 
 /// \brief Owns the records for the current OptiX pipeline.
 class OptixSbt final : private Noncopyable {
@@ -23,8 +26,13 @@ public:
     explicit OptixSbt(DeletionQueue &deletionQueue) noexcept
         : deletionQueue_(deletionQueue), records_(deletionQueue.getStream()) {}
 
-    /// \brief Rebuilds the fixed program-type SBT layout.
-    void build(OptixMegaKernelModule const &module);
+    /// \brief Rebuilds the table for the groups of \p module and \p shaderModules.
+    ///
+    /// \param shaderModules In slot order: slot \c s is callables record \c s.
+    void build(
+        OptixMegaKernelModule const &module,
+        std::span<std::shared_ptr<OptixShaderModule const> const> shaderModules
+    );
 
     /// \brief Returns the populated shader binding table.
     [[nodiscard]] OptixShaderBindingTable const &getTable() const noexcept { return table_; }
@@ -54,7 +62,7 @@ private:
     static constexpr std::size_t raygenRecord = 0;
     static constexpr std::size_t missRecord = raygenRecord + 1;
     static constexpr std::size_t hitgroupRecords = missRecord + 1;
-    static constexpr std::size_t numRecords = hitgroupRecords + numHitgroupRecords;
+    static constexpr std::size_t callablesRecords = hitgroupRecords + numHitgroupRecords;
 
     struct alignas(OPTIX_SBT_RECORD_ALIGNMENT) Record {
         std::array<char, OPTIX_SBT_RECORD_HEADER_SIZE> header;

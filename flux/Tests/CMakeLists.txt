@@ -230,6 +230,15 @@ target_compile_definitions(
 add_dependencies(flux.Optix.PipelineTests flux_megakernel_ir)
 
 krr_add_test(
+    flux Optix ShaderTests
+    SOURCES OptixShaderTests.cpp
+    HARD_DEPENDENCIES flux flux_mtlx)
+target_compile_definitions(
+    flux.Optix.ShaderTests PRIVATE FLUX_MATERIALX_DIR="${flux_materialx_root}"
+                                   FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
+add_dependencies(flux.Optix.ShaderTests flux_megakernel_ir)
+
+krr_add_test(
     flux Optix FuzzUpdateTests
     SOURCES OptixFuzzUpdateTests.cpp
     HARD_DEPENDENCIES flux)

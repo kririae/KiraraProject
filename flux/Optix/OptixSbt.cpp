@@ -2,12 +2,18 @@
 
 #include <optix_stubs.h>
 
+#include <vector>
+
 #include "flux/Optix/OptixMegaKernelModule.h"
+#include "flux/Optix/OptixShaderModule.h"
 #include "flux/Optix/OptixUtils.h"
 
 namespace flux {
-void OptixSbt::build(OptixMegaKernelModule const &module) {
-    std::array<Record, numRecords> records{};
+void OptixSbt::build(
+    OptixMegaKernelModule const &module,
+    std::span<std::shared_ptr<OptixShaderModule const> const> shaderModules
+) {
+    std::vector<Record> records(callablesRecords + shaderModules.size());
     optixCheck(optixSbtRecordPackHeader(module.getRaygenProgram(), &records[raygenRecord]));
     optixCheck(optixSbtRecordPackHeader(module.getMissProgram(), &records[missRecord]));
 
@@ -21,6 +27,11 @@ void OptixSbt::build(OptixMegaKernelModule const &module) {
         }
     }
 
+    for (std::size_t slot = 0; slot < shaderModules.size(); ++slot)
+        optixCheck(optixSbtRecordPackHeader(
+            shaderModules[slot]->getProgramGroup(), &records[callablesRecords + slot]
+        ));
+
     records_.copyFromHost(records, deletionQueue_);
 
     table_ = {
@@ -32,9 +43,10 @@ void OptixSbt::build(OptixMegaKernelModule const &module) {
         .hitgroupRecordBase = devicePointer(records_.data() + hitgroupRecords),
         .hitgroupRecordStrideInBytes = sizeof(Record),
         .hitgroupRecordCount = static_cast<unsigned int>(numHitgroupRecords),
-        .callablesRecordBase = 0,
-        .callablesRecordStrideInBytes = 0,
-        .callablesRecordCount = 0,
+        .callablesRecordBase =
+            shaderModules.empty() ? 0 : devicePointer(records_.data() + callablesRecords),
+        .callablesRecordStrideInBytes = sizeof(Record),
+        .callablesRecordCount = static_cast<unsigned int>(shaderModules.size()),
     };
 }
 } // namespace flux
