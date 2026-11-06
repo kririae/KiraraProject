@@ -6,10 +6,9 @@
 
 namespace flux {
 class BSDF;
-class PrincipledBSDF;
 } // namespace flux
 
-/// \brief A Hydra material that renders as a Principled BSDF.
+/// \brief A Hydra material. It gives no BSDF yet, so the meshes bound to it render the fallback.
 class HdFluxMaterial final : public pxr::HdMaterial {
 public:
     explicit HdFluxMaterial(pxr::SdfPath const &id);
@@ -22,9 +21,9 @@ public:
 
     pxr::HdDirtyBits GetInitialDirtyBitsMask() const override;
 
-    /// \brief Returns the BSDF that the material edits in place, or null before its first sync.
+    /// \brief Returns the BSDF that the material edits in place, or null.
     [[nodiscard]] flux::Ref<flux::BSDF const> GetBSDF() const;
 
 private:
-    flux::Ref<flux::PrincipledBSDF> bsdf_;
+    flux::Ref<flux::BSDF> bsdf_;
 };
