@@ -23,6 +23,8 @@ struct HdFluxMaterialXDocument {
 /// Returns nothing when HdMtlx cannot build the document.
 ///
 /// \pre \p terminalPath is the path of a node of \p network.
+/// \pre The environment variable \c PXR_MTLX_STDLIB_SEARCH_PATHS names the standard libraries of
+/// MaterialX, as the host sets it.
 std::optional<HdFluxMaterialXDocument> HdFluxCreateMaterialXDocument(
     PXR_NS::HdMaterialNetwork2 const &network, PXR_NS::SdfPath const &terminalPath,
     PXR_NS::SdfPath const &materialPath
