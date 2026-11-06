@@ -16,6 +16,16 @@ foreach(library MaterialXCore MaterialXFormat pxr_hdMtlx)
                                                               "$ENV{HFS}/dsolib/lib${library}.so")
 endforeach()
 
+# FLux's MaterialX 1.39.5 and the MaterialX 1.39.3 headers of Houdini's USD install under the same
+# paths, so no translation unit sees both. The generator has a target without Houdini's include
+# directories.
+add_library(flux_hydra_mtlx STATIC MaterialXGenerator.cpp)
+target_link_libraries(flux_hydra_mtlx PUBLIC flux PRIVATE flux_mtlx)
+target_compile_options(flux_hydra_mtlx PRIVATE -Wall -Wextra)
+set_target_properties(
+    flux_hydra_mtlx PROPERTIES POSITION_INDEPENDENT_CODE ON CXX_VISIBILITY_PRESET hidden
+                               VISIBILITY_INLINES_HIDDEN ON)
+
 add_library(
     flux_hydra STATIC
     AovMapping.cpp
@@ -24,6 +34,7 @@ add_library(
     DomeLight.cpp
     Material.cpp
     MaterialXDocument.cpp
+    MaterialXRoot.cpp
     Mesh.cpp
     PreviewSurface.cpp
     Radiance.cpp
@@ -44,6 +55,7 @@ target_include_directories(flux_hydra SYSTEM
 target_link_libraries(
     flux_hydra
     PUBLIC flux
+           flux_hydra_mtlx
            Houdini::Dep::MaterialXCore
            Houdini::Dep::MaterialXFormat
            Houdini::Dep::pxr_gf
@@ -100,6 +112,15 @@ file(GENERATE OUTPUT "${packageDir}/dso/usd_plugins/hdFlux/resources/plugInfo.js
 file(WRITE "${packageDir}/dso/usd_plugins/plugInfo.json" "{ \"Includes\": [ \"*/resources/\" ] }\n")
 configure_file(UsdRenderers.json "${packageDir}/UsdRenderers.json" COPYONLY)
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/packages/flux.json" "{ \"hpath\": \"${packageDir}\" }\n")
+
+# The MaterialX libraries that the generator reads, beside plugInfo.json.
+set(resourceDir "${packageDir}/dso/usd_plugins/hdFlux/resources")
+add_custom_target(
+    hdFlux_materialx_libraries
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory_if_different "${MATERIALX_STDLIB_DIR}"
+            "${resourceDir}/libraries"
+    VERBATIM)
+add_dependencies(hdFlux hdFlux_materialx_libraries)
 
 set(moduleName OptixMegaKernel.optixir)
 add_custom_command(
