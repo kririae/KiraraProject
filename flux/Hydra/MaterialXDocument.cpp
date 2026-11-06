@@ -3,16 +3,34 @@
 #include <MaterialXFormat/XmlIo.h>
 #include <pxr/imaging/hd/material.h>
 #include <pxr/imaging/hdMtlx/hdMtlx.h>
+#include <pxr/usd/sdf/assetPath.h>
 
 PXR_NAMESPACE_USING_DIRECTIVE
 
 namespace mx = MaterialX;
 
+namespace {
+HdMaterialNetwork2 withResolvedAssetPaths(HdMaterialNetwork2 network) {
+    for (auto &[path, node] : network.nodes) {
+        for (auto &[name, value] : node.parameters) {
+            if (!value.IsHolding<SdfAssetPath>())
+                continue;
+
+            auto const &resolved = value.UncheckedGet<SdfAssetPath>().GetResolvedPath();
+            if (!resolved.empty())
+                value = SdfAssetPath{resolved};
+        }
+    }
+    return network;
+}
+} // namespace
+
 std::optional<HdFluxMaterialXDocument> HdFluxCreateMaterialXDocument(
     HdMaterialNetwork2 const &network, SdfPath const &terminalPath, SdfPath const &materialPath
 ) {
+    auto const resolved = withResolvedAssetPaths(network);
     auto const document = HdMtlxCreateMtlxDocumentFromHdNetwork(
-        network, network.nodes.at(terminalPath), terminalPath, materialPath, HdMtlxStdLibraries()
+        resolved, resolved.nodes.at(terminalPath), terminalPath, materialPath, HdMtlxStdLibraries()
     );
     if (!document)
         return std::nullopt;

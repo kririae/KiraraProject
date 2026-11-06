@@ -28,3 +28,8 @@ target_compile_definitions(flux.Hydra.RenderTests
 
 set_tests_properties(flux.Hydra.RenderTests PROPERTIES LABELS integration TIMEOUT 120
                                                        RESOURCE_LOCK flux_render)
+
+# HdMtlx finds the MaterialX libraries through this variable, which Houdini sets in its processes.
+set_tests_properties(
+    flux.Hydra.RenderTests
+    PROPERTIES ENVIRONMENT "PXR_MTLX_STDLIB_SEARCH_PATHS=$ENV{HFS}/houdini/materialx/libraries")

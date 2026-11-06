@@ -14,6 +14,13 @@
 #include <pxr/imaging/hd/engine.h>
 #include <pxr/imaging/hd/light.h>
 #include <pxr/imaging/hd/lightSchema.h>
+#include <pxr/imaging/hd/materialBindingSchema.h>
+#include <pxr/imaging/hd/materialBindingsSchema.h>
+#include <pxr/imaging/hd/materialConnectionSchema.h>
+#include <pxr/imaging/hd/materialNetworkSchema.h>
+#include <pxr/imaging/hd/materialNodeParameterSchema.h>
+#include <pxr/imaging/hd/materialNodeSchema.h>
+#include <pxr/imaging/hd/materialSchema.h>
 #include <pxr/imaging/hd/meshSchema.h>
 #include <pxr/imaging/hd/meshTopologySchema.h>
 #include <pxr/imaging/hd/overlayContainerDataSource.h>
@@ -37,6 +44,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -56,6 +64,7 @@ constexpr int height{32};
 SdfPath const cameraPath{"/cam"};
 SdfPath const meshPath{"/mesh"};
 SdfPath const lightPath{"/light"};
+SdfPath const materialPath{"/material"};
 
 /// Returns a perspective camera that looks down -Z from \p z.
 HdContainerDataSourceHandle makeCamera(double z) {
@@ -169,6 +178,90 @@ HdContainerDataSourceHandle translateAlongX(HdContainerDataSourceHandle const &p
                 .Build()
         ),
         prim
+    );
+}
+
+/// Returns \p prim bound to the material at \p materialPath.
+HdContainerDataSourceHandle bindMaterial(HdContainerDataSourceHandle const &prim) {
+    TfToken const purpose = HdMaterialBindingsSchemaTokens->allPurpose;
+    HdDataSourceBaseHandle const binding =
+        HdMaterialBindingSchema::Builder()
+            .SetPath(HdRetainedTypedSampledDataSource<SdfPath>::New(materialPath))
+            .Build();
+    return HdOverlayContainerDataSource::New(
+        HdRetainedContainerDataSource::New(
+            HdMaterialBindingsSchema::GetSchemaToken(),
+            HdMaterialBindingsSchema::BuildRetained(1, &purpose, &binding)
+        ),
+        prim
+    );
+}
+
+HdContainerDataSourceHandle makeConnection(TfToken const &node, TfToken const &output) {
+    return HdMaterialConnectionSchema::Builder()
+        .SetUpstreamNodePath(HdRetainedTypedSampledDataSource<TfToken>::New(node))
+        .SetUpstreamNodeOutputName(HdRetainedTypedSampledDataSource<TfToken>::New(output))
+        .Build();
+}
+
+/// Returns a material whose \c mtlx surface is a MaterialX surface of a diffuse BSDF of \p color
+/// without roughness.
+HdContainerDataSourceHandle makeMaterial(GfVec3f const &color) {
+    static TfToken const surfaceName{"surface"};
+    static TfToken const diffuseName{"diffuse"};
+    static TfToken const out{"out"};
+
+    HdDataSourceBaseHandle const diffuseConnection = makeConnection(diffuseName, out);
+    auto const parameter = [](auto const &value) -> HdDataSourceBaseHandle {
+        return HdMaterialNodeParameterSchema::Builder()
+            .SetValue(HdRetainedTypedSampledDataSource<std::decay_t<decltype(value)>>::New(value))
+            .Build();
+    };
+
+    return HdRetainedContainerDataSource::New(
+        HdMaterialSchema::GetSchemaToken(),
+        HdRetainedContainerDataSource::New(
+            TfToken{"mtlx"},
+            HdMaterialNetworkSchema::Builder()
+                .SetNodes(
+                    HdRetainedContainerDataSource::New(
+                        surfaceName,
+                        HdMaterialNodeSchema::Builder()
+                            .SetNodeIdentifier(
+                                HdRetainedTypedSampledDataSource<TfToken>::New(
+                                    TfToken{"ND_surface"}
+                                )
+                            )
+                            .SetInputConnections(
+                                HdRetainedContainerDataSource::New(
+                                    TfToken{"bsdf"},
+                                    HdRetainedSmallVectorDataSource::New(1, &diffuseConnection)
+                                )
+                            )
+                            .Build(),
+                        diffuseName,
+                        HdMaterialNodeSchema::Builder()
+                            .SetNodeIdentifier(
+                                HdRetainedTypedSampledDataSource<TfToken>::New(
+                                    TfToken{"ND_oren_nayar_diffuse_bsdf"}
+                                )
+                            )
+                            .SetParameters(
+                                HdRetainedContainerDataSource::New(
+                                    TfToken{"color"}, parameter(color), TfToken{"roughness"},
+                                    parameter(0.0F)
+                                )
+                            )
+                            .Build()
+                    )
+                )
+                .SetTerminals(
+                    HdRetainedContainerDataSource::New(
+                        HdMaterialTerminalTokens->surface, makeConnection(surfaceName, out)
+                    )
+                )
+                .Build()
+        )
     );
 }
 
@@ -601,6 +694,9 @@ TEST_F(RenderTests, LeavesTheBackgroundWhenTheMeshIsRemoved) {
 namespace {
 constexpr float fallbackAlbedo{0.2136F};
 
+GfVec3f const red{0.75F, 0.25F, 0.0F};
+GfVec3f const green{0.0F, 0.5F, 0.25F};
+
 void expectFallbackAlbedo(GfVec3f const &albedo) {
     for (int component = 0; component < 3; ++component)
         EXPECT_NEAR(albedo[component], fallbackAlbedo, 1e-3F);
@@ -614,6 +710,44 @@ TEST_F(RenderTests, ShadesAMeshWithoutMaterialWithTheFallback) {
     executeToConvergence();
 
     expectFallbackAlbedo(vectorAt(albedo, width / 2));
+}
+
+TEST_F(RenderTests, RendersTheNewValueWhenOnlyAMaterialValueChanges) {
+    auto *const albedo = bindAlbedo();
+    scene_->AddPrims(
+        {{materialPath, HdPrimTypeTokens->material, makeMaterial(red)},
+         {meshPath, HdPrimTypeTokens->mesh, bindMaterial(makeMesh(makeQuad(0.0F)))}}
+    );
+    executeToConvergence();
+    EXPECT_EQ(vectorAt(albedo, width / 2), red);
+
+    scene_->AddPrims({{materialPath, HdPrimTypeTokens->material, makeMaterial(green)}});
+    scene_->DirtyPrims({{materialPath, HdMaterialSchema::GetDefaultLocator()}});
+    executeToConvergence();
+
+    EXPECT_EQ(vectorAt(albedo, width / 2), green);
+}
+
+TEST_F(RenderTests, KeepsTheMaterialOfAMeshThatLosesItsPointsAndGetsThemAgain) {
+    auto *const albedo = bindAlbedo();
+    auto const points = std::make_shared<EditableArray>(makeQuad(0.0F));
+    scene_->AddPrims(
+        {{materialPath, HdPrimTypeTokens->material, makeMaterial(red)},
+         {meshPath, HdPrimTypeTokens->mesh, bindMaterial(makeMesh(points))}}
+    );
+    executeToConvergence();
+    EXPECT_EQ(vectorAt(albedo, width / 2), red);
+
+    points->set(VtVec3fArray{});
+    scene_->DirtyPrims({{meshPath, HdPrimvarsSchema::GetPointsLocator()}});
+    executeToConvergence();
+    EXPECT_EQ(vectorAt(albedo, width / 2), GfVec3f{0.0F});
+
+    points->set(makeQuad(0.0F));
+    scene_->DirtyPrims({{meshPath, HdPrimvarsSchema::GetPointsLocator()}});
+    executeToConvergence();
+
+    EXPECT_EQ(vectorAt(albedo, width / 2), red);
 }
 
 TEST_F(RenderTests, KeepsRenderingWhenTheMeshContentIsInvalid) {

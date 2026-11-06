@@ -4,6 +4,7 @@
 
 #include <exception>
 
+#include "flux/Hydra/MaterialXRoot.h"
 #include "flux/Hydra/PreviewSurface.h"
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Sampling/Sampler.h"
@@ -29,8 +30,8 @@ flux::Ref<flux::BSDF const> makeFallbackBSDF(flux::Context &context) {
 } // namespace
 
 HdFluxRenderParam::HdFluxRenderParam(std::filesystem::path const &modulePath)
-    : handler_{makeContext(), modulePath}, fallbackBSDF_{makeFallbackBSDF(*handler_.getContext())} {
-}
+    : handler_{makeContext(), modulePath}, fallbackBSDF_{makeFallbackBSDF(*handler_.getContext())},
+      materialXGenerator_{HdFluxGetMaterialXRoot()} {}
 
 HdFluxRenderParam::~HdFluxRenderParam() = default;
 

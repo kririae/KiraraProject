@@ -60,6 +60,10 @@ pxr::TfTokenVector const &HdFluxRenderDelegate::GetSupportedBprimTypes() const {
 
 pxr::TfToken HdFluxRenderDelegate::GetMaterialBindingPurpose() const { return pxr::HdTokens->full; }
 
+pxr::TfTokenVector HdFluxRenderDelegate::GetMaterialRenderContexts() const {
+    return {pxr::TfToken{"mtlx"}};
+}
+
 pxr::HdResourceRegistrySharedPtr HdFluxRenderDelegate::GetResourceRegistry() const {
     return resourceRegistry_;
 }

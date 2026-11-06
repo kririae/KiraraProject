@@ -5,6 +5,7 @@
 #include <filesystem>
 
 #include "flux/Core/Object.h"
+#include "flux/Hydra/MaterialXGenerator.h"
 #include "flux/Optix/OptixHandler.h"
 
 namespace flux {
@@ -27,6 +28,11 @@ public:
     /// \brief Returns the BSDF of a prim that has no material.
     [[nodiscard]] flux::Ref<flux::BSDF const> GetFallbackBSDF() const;
 
+    /// \brief Returns the generator of the MaterialX materials.
+    [[nodiscard]] HdFluxMaterialXGenerator const &GetMaterialXGenerator() const noexcept {
+        return materialXGenerator_;
+    }
+
     /// \brief Returns the backend that renders the scene.
     [[nodiscard]] flux::OptixHandler &GetHandler() noexcept { return handler_; }
 
@@ -43,5 +49,6 @@ public:
 private:
     flux::OptixHandler handler_;
     flux::Ref<flux::BSDF const> fallbackBSDF_;
+    HdFluxMaterialXGenerator materialXGenerator_;
     bool failed_{false};
 };
