@@ -12,7 +12,7 @@ class HdFluxRenderDelegate final : public pxr::HdRenderDelegate {
 public:
     /// \brief Creates a delegate that renders with the OptiX IR module at \p modulePath.
     ///
-    /// \throw std::exception If the OptiX backend cannot start.
+    /// \throw std::exception If the OptiX backend or the MaterialX generator cannot start.
     HdFluxRenderDelegate(
         std::filesystem::path const &modulePath, std::filesystem::path const &resourcePath,
         pxr::HdRenderSettingsMap const &settingsMap

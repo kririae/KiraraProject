@@ -9,7 +9,6 @@ class BSDF;
 class ShaderBSDF;
 } // namespace flux
 
-/// \brief A Hydra material that generates a MaterialX shader BSDF from its surface.
 class HdFluxMaterial final : public pxr::HdMaterial {
 public:
     explicit HdFluxMaterial(pxr::SdfPath const &id);
@@ -22,7 +21,6 @@ public:
 
     pxr::HdDirtyBits GetInitialDirtyBitsMask() const override;
 
-    /// \brief Returns the BSDF that the material edits in place, or null before its first sync.
     [[nodiscard]] flux::Ref<flux::BSDF const> GetBSDF() const;
 
 private:

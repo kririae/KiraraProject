@@ -18,8 +18,6 @@ struct HdFluxMaterialXDocument {
 
 /// \brief Builds the MaterialX document of the material \p materialPath from \p network.
 ///
-/// The document names each asset of \p network by its resolved path, where it has one.
-///
 /// Returns nothing when HdMtlx cannot build the document.
 ///
 /// \pre \p terminalPath is the path of a node of \p network.

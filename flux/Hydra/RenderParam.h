@@ -19,7 +19,7 @@ class HdFluxRenderParam final : public pxr::HdRenderParam {
 public:
     /// \brief Creates a param that renders with the OptiX IR module at \p modulePath.
     ///
-    /// \throw std::exception If the OptiX backend cannot start.
+    /// \throw std::exception If the OptiX backend or the MaterialX generator cannot start.
     HdFluxRenderParam(
         std::filesystem::path const &modulePath, std::filesystem::path const &resourcePath
     );
@@ -28,12 +28,10 @@ public:
     /// \brief Returns the scene.
     [[nodiscard]] flux::Ref<flux::Context> GetContext() const;
 
-    /// \brief Returns the BSDF of a prim that has no material.
     [[nodiscard]] flux::Ref<flux::BSDF const> GetFallbackBSDF() const;
 
     [[nodiscard]] HdFluxMaterialXGenerator::Material const &GetFallbackShader() const noexcept;
 
-    /// \brief Returns the generator of the MaterialX materials.
     [[nodiscard]] HdFluxMaterialXGenerator const &GetMaterialXGenerator() const noexcept {
         return materialXGenerator_;
     }

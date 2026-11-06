@@ -13,8 +13,6 @@
 /// \brief Generates the BSDF of a MaterialX material with FLux's MaterialX.
 class HdFluxMaterialXGenerator final {
 public:
-    /// \brief A generated material: the spec, the words that its source reads, and the textures
-    /// that it samples.
     struct Material {
         flux::ShaderAssetSpec spec;
         std::vector<std::uint32_t> words;
