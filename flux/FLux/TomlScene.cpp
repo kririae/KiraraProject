@@ -1,16 +1,21 @@
 #include "flux/FLux/TomlScene.h"
 
+#include <MaterialXCore/Document.h> // NOLINT(llvm-include-order)
+#include <MaterialXFormat/XmlIo.h>
+
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
 
 #include "flux/FLux/FLuxCLI.h"
 #include "flux/Integrator/PathIntegrator.h"
+#include "flux/Mtlx/MtlxBSDFGenerator.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
@@ -20,6 +25,36 @@
 #include "kira/Anyhow.h"
 
 namespace flux {
+namespace {
+/// \brief Creates the \c ShaderBSDF of the material that the \c file and \c material properties
+/// name.
+[[nodiscard]] Ref<BSDF const> createMaterialXBSDF(
+    Context &context, std::optional<MtlxBSDFGenerator> &generator, kira::Properties &props
+) {
+    auto const authoredPath = props.use<std::filesystem::path>("file");
+    auto const materialName = props.use<std::string>("material");
+    auto const path = context.getFileResolver().resolve(authoredPath);
+    if (!std::filesystem::exists(path))
+        throw kira::Anyhow("failed to resolve MaterialX file '{}'", authoredPath.string());
+
+    if (!generator)
+        generator.emplace(FLUX_MATERIALX_DIR);
+    auto document = MaterialX::createDocument();
+    try {
+        MaterialX::readFromXmlFile(document, MaterialX::FilePath{path.string()});
+    } catch (MaterialX::Exception const &error) {
+        throw kira::Anyhow("failed to read MaterialX file '{}': {}", path.string(), error.what());
+    }
+
+    auto instance = generator->generate(document, materialName);
+    if (!instance)
+        throw kira::Anyhow(
+            "MaterialX file '{}' generated nothing for material '{}'", path.string(), materialName
+        );
+    return context.create<ShaderBSDF>(instance->spec, std::move(instance->words));
+}
+} // namespace
+
 LoadedScene loadTomlScene(FluxCLIOptions const &options) {
     auto const extension = options.scenePath.extension().string();
     if (extension != ".toml")
@@ -55,6 +90,7 @@ LoadedScene loadTomlScene(FluxCLIOptions const &options) {
         options.samplesPerPixel.value_or(filmProps.use_or<std::uint32_t>("num_samples", 1));
 
     std::unordered_map<std::string, Ref<BSDF const>> bsdfs;
+    std::optional<MtlxBSDFGenerator> mtlxGenerator;
     if (scene.contains("bsdf")) {
         auto bsdfProps = scene.use_array_view("bsdf");
         bsdfs.reserve(bsdfProps.size());
@@ -63,7 +99,10 @@ LoadedScene loadTomlScene(FluxCLIOptions const &options) {
             auto name = props.use<std::string>("name");
             if (bsdfs.contains(name))
                 throw kira::Anyhow("duplicate BSDF name '{}'", name);
-            auto bsdf = context->create<BSDF>(props);
+            auto bsdf = props.is_type_of<std::string>("type") &&
+                                props.use<std::string>("type") == "materialx"
+                            ? createMaterialXBSDF(*context, mtlxGenerator, props)
+                            : context->create<BSDF>(props);
             bsdfs.emplace(std::move(name), std::move(bsdf));
         }
     }

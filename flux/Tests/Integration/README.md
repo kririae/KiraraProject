@@ -55,3 +55,6 @@ Add the case, sample count, and error limits to `Cases.toml`, then register its
 ID in `Tests/CMakeLists.txt`. Use `expected` for an analytical RGB value or
 generate a Mitsuba reference. Check the images on both backends before choosing
 error limits. Keep generated images and logs in the build directory.
+
+To run a case on OptiX alone, list its ID in `flux_optix_only_cases` in
+`Tests/CMakeLists.txt`.

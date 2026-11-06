@@ -186,8 +186,10 @@ target_compile_options(flux_megakernel_ir PRIVATE --use_fast_math)
 
 add_executable(flux_cli FLux/FLux.cpp FLux/FLuxCLI.cpp FLux/TomlScene.cpp)
 set_target_properties(flux_cli PROPERTIES OUTPUT_NAME flux)
-target_compile_definitions(flux_cli PRIVATE FLUX_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
-target_link_libraries(flux_cli PRIVATE argparse::argparse flux)
+target_compile_definitions(
+    flux_cli PRIVATE FLUX_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>"
+                     FLUX_MATERIALX_DIR="${flux_materialx_root}")
+target_link_libraries(flux_cli PRIVATE argparse::argparse flux flux_mtlx)
 add_dependencies(flux_cli flux_megakernel_ir)
 
 # ----------------------------------------------------------

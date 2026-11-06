@@ -8,7 +8,8 @@ krr_add_test(
 krr_add_test(
     flux CLI TomlSceneTests
     SOURCES TomlSceneTests.cpp ../FLux/TomlScene.cpp
-    HARD_DEPENDENCIES flux)
+    HARD_DEPENDENCIES flux flux_mtlx)
+target_compile_definitions(flux.CLI.TomlSceneTests PRIVATE FLUX_MATERIALX_DIR="${flux_materialx_root}")
 
 krr_add_test(
     flux Slang CompilerTests
@@ -52,6 +53,7 @@ if(FLUX_TEST_UV)
     set(flux_uv_python ${FLUX_TEST_UV} run --frozen --project ${CMAKE_CURRENT_SOURCE_DIR}/Integration python)
     set(flux_render_output ${CMAKE_CURRENT_BINARY_DIR}/Integration)
     set(flux_analytic_cases white_sphere checker zero_samples)
+    set(flux_optix_only_cases mtlx_cbox)
     set(flux_reference_cases)
     if(KRR_FLUX_TEST_REFERENCES)
         set(flux_reference_cases
@@ -60,7 +62,8 @@ if(FLUX_TEST_UV)
             veach_mis
             transmission
             sobol_cbox
-            sobol_transmission)
+            sobol_transmission
+            mtlx_cbox)
         # Renders the references whose recorded inputs changed and keeps the rest.
         set(flux_reference_args)
         foreach(case IN LISTS flux_reference_cases)
@@ -82,7 +85,11 @@ if(FLUX_TEST_UV)
                        flux_render)
     endif()
     foreach(case IN LISTS flux_analytic_cases flux_reference_cases)
-        foreach(backend embree optix)
+        set(flux_backends embree optix)
+        if(case IN_LIST flux_optix_only_cases)
+            set(flux_backends optix)
+        endif()
+        foreach(backend IN LISTS flux_backends)
             add_test(
                 NAME flux.Render.${case}.${backend}
                 COMMAND ${flux_uv_python} ${CMAKE_CURRENT_SOURCE_DIR}/Integration/run.py --flux-bin

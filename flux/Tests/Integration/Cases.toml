@@ -35,6 +35,14 @@ mae = 0.01
 rmse = 0.015
 
 [[case]]
+id = "mtlx_cbox"
+scene = "Cbox/MtlxCbox.toml"
+reference = "Cbox/Cbox.xml"
+spp = 1024
+mae = 0.01
+rmse = 0.015
+
+[[case]]
 id = "principled_cbox"
 scene = "Cbox/PrincipledCbox.toml"
 reference = "Cbox/PrincipledCbox.xml"

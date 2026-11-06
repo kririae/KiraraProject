@@ -22,6 +22,13 @@ struct LoadedScene {
 
 /// \brief Loads the TOML scene that \p options names.
 ///
+/// \par BSDF properties
+/// - \c name: required string, which primitives use to refer to the BSDF.
+/// - \c type: \c "materialx" makes the BSDF the shader of a MaterialX material. Only OptiX runs it.
+/// - \c file: required for \c "materialx", the path of a \c .mtlx document, resolved like the other
+///   files of the scene.
+/// - \c material: required for \c "materialx", the name of a \c surfacematerial of the document.
+///
 /// \par Film properties
 /// - \c resolution: required uint32 image resolution.
 /// - \c num_samples: optional uint32 target sample count, defaults to 1.

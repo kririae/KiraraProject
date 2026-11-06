@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<materialx version="1.39">
+  <oren_nayar_diffuse_bsdf name="grey_bsdf" type="BSDF">
+    <input name="color" type="color3" value="0.725, 0.71, 0.68" />
+    <input name="roughness" type="float" value="0" />
+  </oren_nayar_diffuse_bsdf>
+  <surface name="grey_surface" type="surfaceshader">
+    <input name="bsdf" type="BSDF" nodename="grey_bsdf" />
+  </surface>
+  <surfacematerial name="grey" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="grey_surface" />
+  </surfacematerial>
+
+  <oren_nayar_diffuse_bsdf name="green_bsdf" type="BSDF">
+    <input name="color" type="color3" value="0.14, 0.45, 0.091" />
+    <input name="roughness" type="float" value="0" />
+  </oren_nayar_diffuse_bsdf>
+  <surface name="green_surface" type="surfaceshader">
+    <input name="bsdf" type="BSDF" nodename="green_bsdf" />
+  </surface>
+  <surfacematerial name="green" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="green_surface" />
+  </surfacematerial>
+
+  <oren_nayar_diffuse_bsdf name="red_bsdf" type="BSDF">
+    <input name="color" type="color3" value="0.63, 0.065, 0.05" />
+    <input name="roughness" type="float" value="0" />
+  </oren_nayar_diffuse_bsdf>
+  <surface name="red_surface" type="surfaceshader">
+    <input name="bsdf" type="BSDF" nodename="red_bsdf" />
+  </surface>
+  <surfacematerial name="red" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="red_surface" />
+  </surfacematerial>
+</materialx>
