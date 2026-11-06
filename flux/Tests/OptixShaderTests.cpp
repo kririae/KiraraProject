@@ -53,10 +53,10 @@ constexpr auto smoothDocument = R"mtlx(<?xml version="1.0"?>
     auto document = MaterialX::createDocument();
     MaterialX::readFromXmlString(document, smoothDocument);
     auto const interactive = std::array<std::string, 1>{"fg/color"};
-    auto instance = generator.generate(document, "M", {}, interactive);
-    if (!instance)
+    auto result = generator.generate(document, "M", {}, interactive);
+    if (!result.instance)
         throw kira::Anyhow{"the material generated nothing"};
-    return *std::move(instance);
+    return *std::move(result.instance);
 }
 
 /// \brief A triangle that fills the view of \c renderMean's camera, with the texture coordinates

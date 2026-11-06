@@ -31,6 +31,15 @@ public:
         std::vector<ImageTextureSpec> textures;
     };
 
+    /// \brief The material, and what the generator did not honour in it.
+    struct GenerationResult {
+        /// \brief Nothing if the material cannot be generated.
+        std::optional<Instance> instance;
+
+        /// \brief One sentence for each thing that the generator did not honour.
+        std::vector<std::string> diagnostics;
+    };
+
     /// \brief Loads the MaterialX libraries of \p mtlxRoot, and FLux's data.
     ///
     /// \param mtlxRoot The MaterialX installation whose libraries the documents read.
@@ -41,24 +50,23 @@ public:
     ///
     /// The source holds every value of the material as a constant, except the inputs in
     /// \p interactive: each of those is read from the words, which hold its current value.
-    /// An authored value that the material never reads warns.
     ///
     /// \param searchPath The folders that a relative image file is found in. A file that no folder
     ///        holds stays as authored.
-    /// \param interactive Paths of inputs, such as \c oren/color. A path that names no input the
-    ///        material reads, or an input that words cannot hold, warns and is ignored.
-    /// \return Nothing if the material is absent. Nothing, with a warning, if MaterialX cannot
-    ///         build it or \c genflux cannot run one of its nodes.
-    [[nodiscard]] std::optional<Instance> generate(
+    /// \param interactive Paths of inputs, such as \c oren/color.
+    [[nodiscard]] GenerationResult generate(
         MaterialX::DocumentPtr const &document, std::string const &materialName,
         MaterialX::FileSearchPath const &searchPath, std::span<std::string const> interactive = {}
     ) const;
 
 private:
+    /// \brief Generates the material, and appends what it does not honour to \p diagnostics.
+    ///
     /// \throw MaterialX::Exception If the content cannot be generated.
     [[nodiscard]] Instance makeInstance(
         MaterialX::DocumentPtr const &document, std::string const &materialName,
-        MaterialX::FileSearchPath const &searchPath, std::span<std::string const> interactive
+        MaterialX::FileSearchPath const &searchPath, std::span<std::string const> interactive,
+        std::vector<std::string> &diagnostics
     ) const;
 
     MaterialX::FilePath mtlxRoot_;

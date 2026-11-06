@@ -31,7 +31,6 @@
 #include <utility>
 #include <vector>
 
-#include "flux/Core/Logging.h"
 #include "flux/Mtlx/FluxShaderGenerator.h"
 #include "flux/Mtlx/FluxSourceCodeNode.h"
 #include "kira/Anyhow.h"
@@ -217,10 +216,15 @@ void appendWords(
 
 /// \brief The texture that the image node \p node samples from the file \p file.
 [[nodiscard]] ImageTextureSpec makeImageTextureSpec(
-    MaterialX::Node const &node, std::string const &file, std::string const &materialName
+    MaterialX::Node const &node, std::string const &file, std::string const &materialName,
+    std::vector<std::string> &diagnostics
 ) {
     auto const warn = [&](std::string const &message) {
-        LogWarn("MaterialX material '{}': '{}' {}", materialName, node.getNamePath(), message);
+        diagnostics.push_back(
+            fmt::format(
+                "MaterialX material '{}': '{}' {}", materialName, node.getNamePath(), message
+            )
+        );
     };
 
     auto spec = ImageTextureSpec{};
@@ -287,25 +291,30 @@ MtlxBSDFGenerator::MtlxBSDFGenerator(std::filesystem::path const &mtlxRoot)
     generator_ = std::make_shared<FluxShaderGenerator>(MaterialX::TypeSystem::create());
 }
 
-std::optional<MtlxBSDFGenerator::Instance> MtlxBSDFGenerator::generate(
+MtlxBSDFGenerator::GenerationResult MtlxBSDFGenerator::generate(
     MaterialX::DocumentPtr const &document, std::string const &materialName,
     MaterialX::FileSearchPath const &searchPath, std::span<std::string const> interactive
 ) const {
     auto const element = document->getChild(materialName);
     if (!element || element->getCategory() != "surfacematerial")
-        return std::nullopt;
+        return {};
 
+    auto result = GenerationResult{};
     try {
-        return makeInstance(document, materialName, searchPath, interactive);
+        result.instance =
+            makeInstance(document, materialName, searchPath, interactive, result.diagnostics);
     } catch (MaterialX::Exception const &error) {
-        LogWarn("MaterialX material '{}': {}", materialName, error.what());
-        return std::nullopt;
+        result.diagnostics.push_back(
+            fmt::format("MaterialX material '{}': {}", materialName, error.what())
+        );
     }
+    return result;
 }
 
 MtlxBSDFGenerator::Instance MtlxBSDFGenerator::makeInstance(
     MaterialX::DocumentPtr const &document, std::string const &materialName,
-    MaterialX::FileSearchPath const &searchPath, std::span<std::string const> interactive
+    MaterialX::FileSearchPath const &searchPath, std::span<std::string const> interactive,
+    std::vector<std::string> &diagnostics
 ) const {
     auto const copy = document->copy();
     MaterialX::flattenFilenames(copy, searchPath);
@@ -343,8 +352,10 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::makeInstance(
         if (!isRead(*socket)) {
             if (!socket->getConnections().empty() && writesValue(path) &&
                 !isImageTextureInput(path))
-                LogWarn(
-                    "MaterialX material '{}': '{}' is not read", materialName, socket->getPath()
+                diagnostics.push_back(
+                    fmt::format(
+                        "MaterialX material '{}': '{}' is not read", materialName, socket->getPath()
+                    )
                 );
             continue;
         }
@@ -353,10 +364,12 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::makeInstance(
         auto const count = wordCount(typeDesc);
         auto const isInteractive = unmatched.erase(socket->getPath()) > 0;
         if (isInteractive && !count)
-            LogWarn(
-                "MaterialX material '{}': '{}' cannot be interactive, since no word holds the type "
-                "'{}'",
-                materialName, socket->getPath(), typeDesc.getName()
+            diagnostics.push_back(
+                fmt::format(
+                    "MaterialX material '{}': '{}' cannot be interactive, since no word holds "
+                    "the type '{}'",
+                    materialName, socket->getPath(), typeDesc.getName()
+                )
             );
         if (typeDesc == MaterialX::Type::FILENAME) {
             auto const image = getImageNode(copy, *socket);
@@ -364,7 +377,7 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::makeInstance(
                 fmt::format("uint {} = {};", socket->getVariable(), textures.size()), *stage, false
             );
             auto const file = socket->getValue() ? socket->getValue()->getValueString() : "";
-            textures.push_back(makeImageTextureSpec(*image, file, materialName));
+            textures.push_back(makeImageTextureSpec(*image, file, materialName, diagnostics));
             continue;
         }
         if (!isInteractive || !count) {
@@ -376,7 +389,11 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::makeInstance(
         appendWords(socket->getValue(), *count, words);
     }
     for (auto const &path : unmatched)
-        LogWarn("MaterialX material '{}': '{}' names no input that is read", materialName, path);
+        diagnostics.push_back(
+            fmt::format(
+                "MaterialX material '{}': '{}' names no input that is read", materialName, path
+            )
+        );
 
     generator_->emitFunctionCalls(graph, context, *stage);
     generator_->emitLine(

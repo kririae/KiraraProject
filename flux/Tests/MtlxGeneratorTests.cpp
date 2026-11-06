@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <bit>
 #include <fstream>
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -234,7 +233,7 @@ constexpr auto malformedDocument = R"mtlx(<?xml version="1.0"?>
   </surfacematerial>
 </materialx>)mtlx";
 
-[[nodiscard]] std::optional<flux::MtlxBSDFGenerator::Instance>
+[[nodiscard]] flux::MtlxBSDFGenerator::GenerationResult
 tryGenerate(std::string const &document, std::vector<std::string> const &interactive = {}) {
     auto const generator = flux::MtlxBSDFGenerator{FLUX_MATERIALX_DIR};
     auto parsed = MaterialX::createDocument();
@@ -244,10 +243,10 @@ tryGenerate(std::string const &document, std::vector<std::string> const &interac
 
 [[nodiscard]] flux::MtlxBSDFGenerator::Instance
 generate(std::string const &document, std::vector<std::string> const &interactive = {}) {
-    auto instance = tryGenerate(document, interactive);
-    if (!instance)
+    auto result = tryGenerate(document, interactive);
+    if (!result.instance)
         throw kira::Anyhow{"the material generated nothing"};
-    return *std::move(instance);
+    return *std::move(result.instance);
 }
 
 [[nodiscard]] std::string readLibrary() {
@@ -299,11 +298,24 @@ TEST(MtlxGeneratorTests, CompilesTheNodesThatTheTargetInherits) {
 }
 
 TEST(MtlxGeneratorTests, GeneratesNothingForANodeThatGenfluxCannotRun) {
-    EXPECT_FALSE(tryGenerate(unsupportedDocument));
+    auto const result = tryGenerate(unsupportedDocument);
+
+    EXPECT_FALSE(result.instance);
+    EXPECT_EQ(result.diagnostics.size(), 1U);
 }
 
 TEST(MtlxGeneratorTests, GeneratesNothingForADocumentThatMaterialXCannotBuild) {
-    EXPECT_FALSE(tryGenerate(malformedDocument));
+    auto const result = tryGenerate(malformedDocument);
+
+    EXPECT_FALSE(result.instance);
+    EXPECT_EQ(result.diagnostics.size(), 1U);
+}
+
+TEST(MtlxGeneratorTests, ReportsAnInteractivePathThatNoInputMatches) {
+    auto const result = tryGenerate(mixedDocument, {"fg/color", "nothing/here"});
+
+    EXPECT_TRUE(result.instance);
+    EXPECT_EQ(result.diagnostics.size(), 1U);
 }
 
 TEST(MtlxGeneratorTests, AnImageFileChangesTheTexturesAndNotTheSource) {

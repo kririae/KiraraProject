@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 
+#include "flux/Core/Logging.h"
 #include "flux/FLux/FLuxCLI.h"
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Mtlx/MtlxBSDFGenerator.h"
@@ -50,7 +51,10 @@ namespace {
 
     auto searchPath = MaterialX::FileSearchPath{};
     searchPath.append(MaterialX::FilePath{path.parent_path().string()});
-    auto instance = generator->generate(document, materialName, searchPath);
+    auto generation = generator->generate(document, materialName, searchPath);
+    for (auto const &diagnostic : generation.diagnostics)
+        LogWarn("{}", diagnostic);
+    auto &instance = generation.instance;
     if (!instance)
         throw kira::Anyhow(
             "MaterialX file '{}' generated nothing for material '{}'", path.string(), materialName
