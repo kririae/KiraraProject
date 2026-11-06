@@ -9,16 +9,12 @@ endif()
 set(Houdini_DIR "$ENV{HFS}/toolkit/cmake")
 find_package(Houdini CONFIG REQUIRED)
 
-# Houdini's toolkit gives no target for these libraries of its USD.
 foreach(library MaterialXCore MaterialXFormat pxr_hdMtlx)
     add_library(Houdini::Dep::${library} SHARED IMPORTED)
     set_target_properties(Houdini::Dep::${library} PROPERTIES IMPORTED_LOCATION
                                                               "$ENV{HFS}/dsolib/lib${library}.so")
 endforeach()
 
-# FLux's MaterialX 1.39.5 and the MaterialX 1.39.3 headers of Houdini's USD install under the same
-# paths, so no translation unit sees both. The generator has a target without Houdini's include
-# directories.
 add_library(flux_hydra_mtlx STATIC MaterialXGenerator.cpp)
 target_link_libraries(flux_hydra_mtlx PUBLIC flux PRIVATE flux_mtlx)
 target_compile_options(flux_hydra_mtlx PRIVATE -Wall -Wextra)
@@ -111,7 +107,6 @@ file(WRITE "${packageDir}/dso/usd_plugins/plugInfo.json" "{ \"Includes\": [ \"*/
 configure_file(UsdRenderers.json "${packageDir}/UsdRenderers.json" COPYONLY)
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/packages/flux.json" "{ \"hpath\": \"${packageDir}\" }\n")
 
-# The MaterialX libraries that the generator reads, beside plugInfo.json.
 set(resourceDir "${packageDir}/dso/usd_plugins/hdFlux/resources")
 add_custom_target(
     hdFlux_materialx_libraries
