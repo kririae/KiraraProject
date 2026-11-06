@@ -348,8 +348,8 @@ HdContainerDataSourceHandle makeImageMaterial(SdfAssetPath const &file) {
     );
 }
 
-/// Returns a material whose \c mtlx surface is a \c UsdPreviewSurface, which hdFlux cannot
-/// generate.
+/// Returns a material whose \c mtlx surface is a node that no MaterialX definition names,
+/// which hdFlux cannot generate.
 HdContainerDataSourceHandle makeUnsupportedMaterial() {
     static TfToken const surfaceName{"surface"};
 
@@ -363,7 +363,7 @@ HdContainerDataSourceHandle makeUnsupportedMaterial() {
                         surfaceName, HdMaterialNodeSchema::Builder()
                                          .SetNodeIdentifier(
                                              HdRetainedTypedSampledDataSource<TfToken>::New(
-                                                 TfToken{"UsdPreviewSurface"}
+                                                 TfToken{"ND_unknown"}
                                              )
                                          )
                                          .Build()
