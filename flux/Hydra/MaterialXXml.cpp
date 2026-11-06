@@ -10,7 +10,7 @@ PXR_NAMESPACE_USING_DIRECTIVE
 namespace mx = MaterialX;
 
 namespace {
-HdMaterialNetwork2 withResolvedAssetPaths(HdMaterialNetwork2 network) {
+HdMaterialNetwork2 resolveAssetPaths(HdMaterialNetwork2 network) {
     for (auto &[path, node] : network.nodes) {
         for (auto &[name, value] : node.parameters) {
             if (!value.IsHolding<SdfAssetPath>())
@@ -28,7 +28,7 @@ HdMaterialNetwork2 withResolvedAssetPaths(HdMaterialNetwork2 network) {
 std::optional<HdFluxMaterialXXml> HdFluxCreateMaterialXXml(
     HdMaterialNetwork2 const &network, SdfPath const &terminalPath, SdfPath const &materialPath
 ) {
-    auto const resolved = withResolvedAssetPaths(network);
+    auto const resolved = resolveAssetPaths(network);
     auto const document = HdMtlxCreateMtlxDocumentFromHdNetwork(
         resolved, resolved.nodes.at(terminalPath), terminalPath, materialPath, HdMtlxStdLibraries()
     );
