@@ -39,12 +39,12 @@ TF_DEFINE_PRIVATE_TOKENS(
 } // namespace
 
 HdFluxRenderDelegate::HdFluxRenderDelegate(
-    std::filesystem::path const &modulePath, std::filesystem::path const &resourcePath,
+    std::filesystem::path const &modulePath, std::filesystem::path const &mtlxRoot,
     pxr::HdRenderSettingsMap const &settingsMap
 )
     : pxr::HdRenderDelegate(settingsMap),
       resourceRegistry_(std::make_shared<pxr::HdResourceRegistry>()),
-      renderParam_(std::make_unique<HdFluxRenderParam>(modulePath, resourcePath)) {
+      renderParam_(std::make_unique<HdFluxRenderParam>(modulePath, mtlxRoot)) {
     _PopulateDefaultSettings(GetRenderSettingDescriptors());
 }
 

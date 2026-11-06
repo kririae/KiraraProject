@@ -21,7 +21,7 @@ public:
     ///
     /// \throw std::exception If the OptiX backend or the MaterialX generator cannot start.
     HdFluxRenderParam(
-        std::filesystem::path const &modulePath, std::filesystem::path const &resourcePath
+        std::filesystem::path const &modulePath, std::filesystem::path const &mtlxRoot
     );
     ~HdFluxRenderParam() override;
 

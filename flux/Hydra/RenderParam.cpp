@@ -49,9 +49,9 @@ makeFallbackBSDF(flux::Context &context, HdFluxMaterialXGenerator::Instance fall
 } // namespace
 
 HdFluxRenderParam::HdFluxRenderParam(
-    std::filesystem::path const &modulePath, std::filesystem::path const &resourcePath
+    std::filesystem::path const &modulePath, std::filesystem::path const &mtlxRoot
 )
-    : handler_{makeContext(), modulePath}, materialXGenerator_{resourcePath},
+    : handler_{makeContext(), modulePath}, materialXGenerator_{mtlxRoot},
       fallbackShader_{makeFallbackShader(materialXGenerator_)},
       fallbackBSDF_{makeFallbackBSDF(*handler_.getContext(), fallbackShader_)} {}
 
