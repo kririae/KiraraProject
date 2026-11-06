@@ -26,9 +26,6 @@ public:
     explicit HdFluxMaterialXGenerator(std::filesystem::path const &mtlxRoot);
     ~HdFluxMaterialXGenerator();
 
-    HdFluxMaterialXGenerator(HdFluxMaterialXGenerator &&) noexcept;
-    HdFluxMaterialXGenerator &operator=(HdFluxMaterialXGenerator &&) noexcept;
-
     /// \brief Generates the material \p surfaceMaterialName of the document \p xml.
     ///
     /// Every value of the material is a constant. Returns nothing if the material cannot be

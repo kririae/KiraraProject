@@ -18,11 +18,6 @@ HdFluxMaterialXGenerator::HdFluxMaterialXGenerator(std::filesystem::path const &
 
 HdFluxMaterialXGenerator::~HdFluxMaterialXGenerator() = default;
 
-HdFluxMaterialXGenerator::HdFluxMaterialXGenerator(HdFluxMaterialXGenerator &&) noexcept = default;
-
-HdFluxMaterialXGenerator &
-HdFluxMaterialXGenerator::operator=(HdFluxMaterialXGenerator &&) noexcept = default;
-
 std::optional<HdFluxMaterialXGenerator::Material> HdFluxMaterialXGenerator::generate(
     std::string const &xml, std::string const &surfaceMaterialName
 ) const {
