@@ -1,8 +1,6 @@
 #include "flux/FLux/TomlScene.h"
 
-#include <MaterialXCore/Document.h> // NOLINT(llvm-include-order)
-#include <MaterialXFormat/XmlIo.h>
-
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -42,16 +40,13 @@ namespace {
 
     if (!generator)
         generator.emplace(FLUX_MATERIALX_DIR);
-    auto document = MaterialX::createDocument();
-    try {
-        MaterialX::readFromXmlFile(document, MaterialX::FilePath{path.string()});
-    } catch (MaterialX::Exception const &error) {
-        throw kira::Anyhow("failed to read MaterialX file '{}': {}", path.string(), error.what());
-    }
+    auto stream = std::ifstream{path};
+    if (!stream)
+        throw kira::Anyhow("failed to read MaterialX file '{}'", path.string());
+    auto const document =
+        std::string{std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}};
 
-    auto searchPath = MaterialX::FileSearchPath{};
-    searchPath.append(MaterialX::FilePath{path.parent_path().string()});
-    auto generation = generator->generate(document, materialName, searchPath);
+    auto generation = generator->generate(document, materialName, std::array{path.parent_path()});
     for (auto const &diagnostic : generation.diagnostics)
         LogWarn("{}", diagnostic);
     auto &instance = generation.instance;

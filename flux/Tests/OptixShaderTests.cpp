@@ -1,5 +1,3 @@
-#include <MaterialXCore/Document.h> // NOLINT(llvm-include-order)
-#include <MaterialXFormat/XmlIo.h>
 #include <gtest/gtest.h>
 
 #include <array>
@@ -51,10 +49,8 @@ constexpr auto smoothDocument = R"mtlx(<?xml version="1.0"?>
 /// \brief The reflector, with its color read from the words.
 [[nodiscard]] flux::MtlxBSDFGenerator::Instance generateSmoothDiffuse() {
     auto const generator = flux::MtlxBSDFGenerator{FLUX_MATERIALX_DIR};
-    auto document = MaterialX::createDocument();
-    MaterialX::readFromXmlString(document, smoothDocument);
     auto const interactive = std::array<std::string, 1>{"fg/color"};
-    auto result = generator.generate(document, "M", {}, interactive);
+    auto result = generator.generate(smoothDocument, "M", {}, interactive);
     if (!result.instance)
         throw kira::Anyhow{"the material generated nothing"};
     return *std::move(result.instance);

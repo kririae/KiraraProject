@@ -1,5 +1,3 @@
-#include <MaterialXCore/Document.h> // NOLINT(llvm-include-order)
-#include <MaterialXFormat/XmlIo.h>
 #include <fmt/format.h>
 #include <gtest/gtest.h>
 
@@ -236,9 +234,7 @@ constexpr auto malformedDocument = R"mtlx(<?xml version="1.0"?>
 [[nodiscard]] flux::MtlxBSDFGenerator::GenerationResult
 tryGenerate(std::string const &document, std::vector<std::string> const &interactive = {}) {
     auto const generator = flux::MtlxBSDFGenerator{FLUX_MATERIALX_DIR};
-    auto parsed = MaterialX::createDocument();
-    MaterialX::readFromXmlString(parsed, document);
-    return generator.generate(parsed, "M", {}, interactive);
+    return generator.generate(document, "M", {}, interactive);
 }
 
 [[nodiscard]] flux::MtlxBSDFGenerator::Instance
@@ -306,6 +302,13 @@ TEST(MtlxGeneratorTests, GeneratesNothingForANodeThatGenfluxCannotRun) {
 
 TEST(MtlxGeneratorTests, GeneratesNothingForADocumentThatMaterialXCannotBuild) {
     auto const result = tryGenerate(malformedDocument);
+
+    EXPECT_FALSE(result.instance);
+    EXPECT_EQ(result.diagnostics.size(), 1U);
+}
+
+TEST(MtlxGeneratorTests, GeneratesNothingForADocumentThatDoesNotParse) {
+    auto const result = tryGenerate("<materialx");
 
     EXPECT_FALSE(result.instance);
     EXPECT_EQ(result.diagnostics.size(), 1U);

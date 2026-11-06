@@ -19,8 +19,10 @@
 #include <bit>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <ranges>
 #include <set>
@@ -270,39 +272,72 @@ void appendWords(
 
     return spec;
 }
+
+[[nodiscard]] MaterialX::FileSearchPath
+makeSearchPath(std::span<std::filesystem::path const> folders) {
+    auto searchPath = MaterialX::FileSearchPath{};
+    for (auto const &folder : folders)
+        searchPath.append(MaterialX::FilePath{folder.string()});
+    return searchPath;
+}
 } // namespace
 
-MtlxBSDFGenerator::MtlxBSDFGenerator(std::filesystem::path const &mtlxRoot)
-    : mtlxRoot_{mtlxRoot.string()}, libraries_{MaterialX::createDocument()} {
-    auto const searchPath = MaterialX::FileSearchPath{mtlxRoot_};
+struct MtlxBSDFGenerator::pImpl final {
+    explicit pImpl(std::filesystem::path const &root);
+
+    /// \brief Generates the material, and appends what it does not honour to \p diagnostics.
+    ///
+    /// \throw MaterialX::Exception If the content cannot be generated.
+    [[nodiscard]] Instance makeInstance(
+        MaterialX::DocumentPtr const &document, std::string const &materialName,
+        MaterialX::FileSearchPath const &searchPath, std::span<std::string const> interactive,
+        std::vector<std::string> &diagnostics
+    ) const;
+
+    MaterialX::FilePath mtlxRoot;
+    MaterialX::DocumentPtr libraries;
+    std::shared_ptr<FluxShaderGenerator> generator;
+};
+
+MtlxBSDFGenerator::pImpl::pImpl(std::filesystem::path const &root)
+    : mtlxRoot{root.string()}, libraries{MaterialX::createDocument()} {
+    auto const searchPath = MaterialX::FileSearchPath{mtlxRoot};
     MaterialX::StringSet loaded;
     try {
-        loaded = MaterialX::loadLibraries({"libraries"}, searchPath, libraries_);
+        loaded = MaterialX::loadLibraries({"libraries"}, searchPath, libraries);
     } catch (MaterialX::Exception &error) {
         throw kira::Anyhow(
-            "MtlxBSDFGenerator: {} holds no libraries: {}", mtlxRoot.string(), error.what()
+            "MtlxBSDFGenerator: {} holds no libraries: {}", root.string(), error.what()
         );
     }
     if (loaded.empty())
-        throw kira::Anyhow("MtlxBSDFGenerator: {} holds no MaterialX libraries", mtlxRoot.string());
+        throw kira::Anyhow("MtlxBSDFGenerator: {} holds no MaterialX libraries", root.string());
     for (auto const *source : std::views::values(libraryFiles))
-        MaterialX::readFromXmlString(libraries_, source, searchPath);
+        MaterialX::readFromXmlString(libraries, source, searchPath);
 
-    generator_ = std::make_shared<FluxShaderGenerator>(MaterialX::TypeSystem::create());
+    generator = std::make_shared<FluxShaderGenerator>(MaterialX::TypeSystem::create());
 }
 
-MtlxBSDFGenerator::GenerationResult MtlxBSDFGenerator::generate(
-    MaterialX::DocumentPtr const &document, std::string const &materialName,
-    MaterialX::FileSearchPath const &searchPath, std::span<std::string const> interactive
-) const {
-    auto const element = document->getChild(materialName);
-    if (!element || element->getCategory() != "surfacematerial")
-        return {};
+MtlxBSDFGenerator::MtlxBSDFGenerator(std::filesystem::path const &mtlxRoot)
+    : pImpl_{std::make_unique<pImpl>(mtlxRoot)} {}
 
+MtlxBSDFGenerator::~MtlxBSDFGenerator() = default;
+
+MtlxBSDFGenerator::GenerationResult MtlxBSDFGenerator::generate(
+    std::string const &document, std::string const &materialName,
+    std::span<std::filesystem::path const> searchPath, std::span<std::string const> interactive
+) const {
     auto result = GenerationResult{};
     try {
+        auto const folders = makeSearchPath(searchPath);
+        auto const parsed = MaterialX::createDocument();
+        MaterialX::readFromXmlString(parsed, document, folders);
+        auto const element = parsed->getChild(materialName);
+        if (!element || element->getCategory() != "surfacematerial")
+            return {};
+
         result.instance =
-            makeInstance(document, materialName, searchPath, interactive, result.diagnostics);
+            pImpl_->makeInstance(parsed, materialName, folders, interactive, result.diagnostics);
     } catch (MaterialX::Exception const &error) {
         result.diagnostics.push_back(
             fmt::format("MaterialX material '{}': {}", materialName, error.what())
@@ -311,44 +346,43 @@ MtlxBSDFGenerator::GenerationResult MtlxBSDFGenerator::generate(
     return result;
 }
 
-MtlxBSDFGenerator::Instance MtlxBSDFGenerator::makeInstance(
+MtlxBSDFGenerator::Instance MtlxBSDFGenerator::pImpl::makeInstance(
     MaterialX::DocumentPtr const &document, std::string const &materialName,
     MaterialX::FileSearchPath const &searchPath, std::span<std::string const> interactive,
     std::vector<std::string> &diagnostics
 ) const {
-    auto const copy = document->copy();
-    MaterialX::flattenFilenames(copy, searchPath);
-    copy->setDataLibrary(libraries_);
+    MaterialX::flattenFilenames(document, searchPath);
+    document->setDataLibrary(libraries);
 
     auto message = std::string{};
-    if (!copy->validate(&message))
+    if (!document->validate(&message))
         throw MaterialX::ExceptionShaderGenError{message};
 
-    auto context = MaterialX::GenContext{generator_};
-    context.registerSourceCodeSearchPath(MaterialX::FileSearchPath{mtlxRoot_});
+    auto context = MaterialX::GenContext{generator};
+    context.registerSourceCodeSearchPath(MaterialX::FileSearchPath{mtlxRoot});
     context.getOptions().premultipliedBsdfAdd = false;
     context.getOptions().shaderInterfaceType = MaterialX::SHADER_INTERFACE_COMPLETE;
     context.getOptions().elideConstantNodes = false;
 
     auto const shader =
-        generator_->createShader(materialName, copy->getChild(materialName), context);
+        generator->createShader(materialName, document->getChild(materialName), context);
     auto const &graph = shader->getGraph();
 
-    auto const stage = generator_->makeStage();
-    generator_->emitLine("import flux_bsdf;", *stage, false);
-    generator_->emitLine("import flux_context;", *stage, false);
-    generator_->emitLineBreak(*stage);
-    generator_->emitLibraryInclude("stdlib/genslang/lib/mx_math.slang", context, *stage);
-    generator_->emitLineBreak(*stage);
-    generator_->emitFunctionDefinitions(graph, context, *stage);
-    generator_->emitLine("public IBSDF makeBSDF(uint* words, ShadingContext ctx)", *stage, false);
+    auto const stage = generator->makeStage();
+    generator->emitLine("import flux_bsdf;", *stage, false);
+    generator->emitLine("import flux_context;", *stage, false);
+    generator->emitLineBreak(*stage);
+    generator->emitLibraryInclude("stdlib/genslang/lib/mx_math.slang", context, *stage);
+    generator->emitLineBreak(*stage);
+    generator->emitFunctionDefinitions(graph, context, *stage);
+    generator->emitLine("public IBSDF makeBSDF(uint* words, ShadingContext ctx)", *stage, false);
     stage->beginScope();
 
     auto unmatched = std::set<std::string, std::less<>>{interactive.begin(), interactive.end()};
     auto words = std::vector<std::uint32_t>{};
     auto textures = std::vector<ImageTextureSpec>{};
     for (auto const *socket : graph.getInputSockets()) {
-        auto const path = splitInputPath(copy, socket->getPath());
+        auto const path = splitInputPath(document, socket->getPath());
         if (!isRead(*socket)) {
             if (!socket->getConnections().empty() && writesValue(path) &&
                 !isImageTextureInput(path))
@@ -372,8 +406,8 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::makeInstance(
                 )
             );
         if (typeDesc == MaterialX::Type::FILENAME) {
-            auto const image = getImageNode(copy, *socket);
-            generator_->emitLine(
+            auto const image = getImageNode(document, *socket);
+            generator->emitLine(
                 fmt::format("uint {} = {};", socket->getVariable(), textures.size()), *stage, false
             );
             auto const file = socket->getValue() ? socket->getValue()->getValueString() : "";
@@ -381,11 +415,11 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::makeInstance(
             continue;
         }
         if (!isInteractive || !count) {
-            emitConstant(*generator_, *socket, *stage);
+            emitConstant(*generator, *socket, *stage);
             continue;
         }
 
-        emitWordRead(*generator_, *socket, *count, words.size(), *stage);
+        emitWordRead(*generator, *socket, *count, words.size(), *stage);
         appendWords(socket->getValue(), *count, words);
     }
     for (auto const &path : unmatched)
@@ -395,13 +429,13 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::makeInstance(
             )
         );
 
-    generator_->emitFunctionCalls(graph, context, *stage);
-    generator_->emitLine(
-        fmt::format("return {};", generator_->getUpstreamResult(graph.getOutputSocket(), context)),
+    generator->emitFunctionCalls(graph, context, *stage);
+    generator->emitLine(
+        fmt::format("return {};", generator->getUpstreamResult(graph.getOutputSocket(), context)),
         *stage, false
     );
     stage->endScope();
-    generator_->substituteTokens(*stage);
+    generator->substituteTokens(*stage);
 
     return Instance{
         .spec = {.source = stage->getSourceCode()},

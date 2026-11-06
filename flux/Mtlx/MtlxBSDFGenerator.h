@@ -1,8 +1,5 @@
 #pragma once
 
-#include <MaterialXCore/Document.h>
-#include <MaterialXFormat/File.h>
-
 #include <cstdint>
 #include <filesystem>
 #include <memory>
@@ -15,11 +12,11 @@
 #include "flux/Shading/Texture.h"
 
 namespace flux {
-class FluxShaderGenerator;
-
 /// \brief Turns the materials of MaterialX documents into the Slang of the BSDF library.
 ///
 /// The generated source imports \c flux_bsdf and \c flux_context, which a backend provides.
+///
+/// Calls to \c generate must not overlap.
 class MtlxBSDFGenerator final {
 public:
     struct Instance {
@@ -46,31 +43,17 @@ public:
     /// \throw kira::Anyhow If the libraries cannot be loaded.
     explicit MtlxBSDFGenerator(std::filesystem::path const &mtlxRoot);
 
-    /// \brief Generates the material \p materialName of \p document.
-    ///
-    /// The source holds every value of the material as a constant, except the inputs in
-    /// \p interactive: each of those is read from the words, which hold its current value.
-    ///
-    /// \param searchPath The folders that a relative image file is found in. A file that no folder
-    ///        holds stays as authored.
-    /// \param interactive Paths of inputs, such as \c oren/color.
+    ~MtlxBSDFGenerator();
+
+    /// \brief Generates the material \p materialName of the MaterialX document \p document, in XML.
     [[nodiscard]] GenerationResult generate(
-        MaterialX::DocumentPtr const &document, std::string const &materialName,
-        MaterialX::FileSearchPath const &searchPath, std::span<std::string const> interactive = {}
+        std::string const &document, std::string const &materialName,
+        std::span<std::filesystem::path const> searchPath,
+        std::span<std::string const> interactive = {}
     ) const;
 
 private:
-    /// \brief Generates the material, and appends what it does not honour to \p diagnostics.
-    ///
-    /// \throw MaterialX::Exception If the content cannot be generated.
-    [[nodiscard]] Instance makeInstance(
-        MaterialX::DocumentPtr const &document, std::string const &materialName,
-        MaterialX::FileSearchPath const &searchPath, std::span<std::string const> interactive,
-        std::vector<std::string> &diagnostics
-    ) const;
-
-    MaterialX::FilePath mtlxRoot_;
-    MaterialX::DocumentPtr libraries_;
-    std::shared_ptr<FluxShaderGenerator> generator_;
+    struct pImpl;
+    std::unique_ptr<pImpl> pImpl_;
 };
 } // namespace flux

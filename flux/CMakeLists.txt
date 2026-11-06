@@ -171,8 +171,8 @@ target_include_directories(flux_mtlx PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generat
                                              ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(
     flux_mtlx
-    PUBLIC MaterialXCore kira::Core kira::Vecteur
-    PRIVATE MaterialXFormat MaterialXGenShader MaterialXGenSlang)
+    PUBLIC kira::Core kira::Vecteur
+    PRIVATE MaterialXCore MaterialXFormat MaterialXGenShader MaterialXGenSlang)
 get_filename_component(flux_materialx_root "${MATERIALX_STDLIB_DIR}" DIRECTORY)
 
 # ----------------------------------------------------------
