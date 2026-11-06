@@ -189,6 +189,33 @@ constexpr auto unsupportedDocument = R"mtlx(<?xml version="1.0"?>
   </surfacematerial>
 </materialx>)mtlx";
 
+/// \brief A material whose color comes from a node that a nodegraph defines, and the nodegraph
+/// reads the texture coordinate and an image.
+constexpr auto graphDefinedImageDocument = R"mtlx(<?xml version="1.0"?>
+<materialx version="1.39">
+  <nodedef name="ND_textured" node="textured" nodegroup="material">
+    <output name="out" type="color3" />
+  </nodedef>
+  <nodegraph name="NG_textured" nodedef="ND_textured">
+    <texcoord name="tc" type="vector2" />
+    <image name="tex" type="color3">
+      <input name="file" type="filename" value="a.png" />
+      <input name="texcoord" type="vector2" nodename="tc" />
+    </image>
+    <output name="out" type="color3" nodename="tex" />
+  </nodegraph>
+  <textured name="color" type="color3" />
+  <oren_nayar_diffuse_bsdf name="fg" type="BSDF">
+    <input name="color" type="color3" nodename="color" />
+  </oren_nayar_diffuse_bsdf>
+  <surface name="s" type="surfaceshader">
+    <input name="bsdf" type="BSDF" nodename="fg" />
+  </surface>
+  <surfacematerial name="M" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="s" />
+  </surfacematerial>
+</materialx>)mtlx";
+
 /// \brief A material whose roughness comes from a node that \c genslang implements, and whose color
 /// comes from a node that a nodegraph implements.
 constexpr auto inheritedDocument = R"mtlx(<?xml version="1.0"?>
@@ -291,6 +318,14 @@ TEST(MtlxGeneratorTests, CompilesAnUnconnectedClosureInputToOneConcreteType) {
 
 TEST(MtlxGeneratorTests, CompilesTheNodesThatTheTargetInherits) {
     expectOneConcreteType(generate(inheritedDocument));
+}
+
+TEST(MtlxGeneratorTests, ANodegraphThatDefinesANodeReadsTheContextAndTheTextures) {
+    auto const instance = generate(graphDefinedImageDocument);
+
+    ASSERT_EQ(instance.textures.size(), 1U);
+    EXPECT_EQ(instance.textures[0].image.path, "a.png");
+    expectOneConcreteType(instance);
 }
 
 TEST(MtlxGeneratorTests, GeneratesNothingForANodeThatGenfluxCannotRun) {

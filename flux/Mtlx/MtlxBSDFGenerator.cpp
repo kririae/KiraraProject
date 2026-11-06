@@ -1,6 +1,7 @@
 #include "flux/Mtlx/MtlxBSDFGenerator.h"
 
 #include <MaterialXCore/Definition.h>
+#include <MaterialXCore/Document.h>
 #include <MaterialXCore/Node.h>
 #include <MaterialXCore/Types.h>
 #include <MaterialXFormat/Util.h>
@@ -280,6 +281,17 @@ makeSearchPath(std::span<std::filesystem::path const> folders) {
         searchPath.append(MaterialX::FilePath{folder.string()});
     return searchPath;
 }
+
+/// \brief Replaces each node that a nodegraph defines by its network, in the document and in each
+/// of its nodegraphs.
+///
+/// A node that \p target implements itself stays. A nodegraph of the data library stays too.
+void flattenGraphDefinedNodes(MaterialX::Document &document, std::string const &target) {
+    document.flattenSubgraphs(target);
+    for (auto const &child : document.getChildren())
+        if (auto const graph = child->asA<MaterialX::NodeGraph>())
+            graph->flattenSubgraphs(target);
+}
 } // namespace
 
 struct MtlxBSDFGenerator::pImpl final {
@@ -357,6 +369,7 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::pImpl::makeInstance(
     auto message = std::string{};
     if (!document->validate(&message))
         throw MaterialX::ExceptionShaderGenError{message};
+    flattenGraphDefinedNodes(*document, generator->getTarget());
 
     auto context = MaterialX::GenContext{generator};
     context.registerSourceCodeSearchPath(MaterialX::FileSearchPath{mtlxRoot});
