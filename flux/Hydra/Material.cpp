@@ -49,6 +49,11 @@ void HdFluxMaterial::Sync(
     auto const &id = GetId();
     auto &param = *static_cast<HdFluxRenderParam *>(renderParam);
 
+    if (!bsdf_) {
+        auto const &fallback = param.GetFallbackShader();
+        bsdf_ = param.GetContext()->create<flux::ShaderBSDF>(fallback.spec, fallback.words);
+    }
+
     try {
         auto material = generate(*sceneDelegate, param, id);
         if (material) {
@@ -57,12 +62,10 @@ void HdFluxMaterial::Sync(
             for (auto const &spec : material->textures)
                 textures.push_back(context->create<flux::ImageTexture>(spec));
 
-            if (bsdf_)
-                bsdf_->setShader(material->spec, std::move(material->words), std::move(textures));
-            else
-                bsdf_ = context->create<flux::ShaderBSDF>(
-                    material->spec, std::move(material->words), std::move(textures)
-                );
+            bsdf_->setShader(material->spec, std::move(material->words), std::move(textures));
+        } else {
+            auto const &fallback = param.GetFallbackShader();
+            bsdf_->setShader(fallback.spec, fallback.words, {});
         }
     } catch (std::exception const &error) { TF_WARN("%s: %s", id.GetText(), error.what()); }
 

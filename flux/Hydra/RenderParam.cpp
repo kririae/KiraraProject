@@ -3,9 +3,9 @@
 #include <pxr/base/tf/diagnostic.h>
 
 #include <exception>
+#include <utility>
 
 #include "flux/Hydra/MaterialXRoot.h"
-#include "flux/Hydra/PreviewSurface.h"
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Context.h"
@@ -22,22 +22,47 @@ flux::Ref<flux::Context> makeContext() {
     return context;
 }
 
-flux::Ref<flux::BSDF const> makeFallbackBSDF(flux::Context &context) {
-    auto bsdf = context.create<flux::PrincipledBSDF>(kira::Properties{});
-    HdFluxWritePreviewSurface(context, *bsdf, HdFluxPreviewSurface{});
-    return bsdf;
+HdFluxMaterialXGenerator::Material makeFallbackShader(HdFluxMaterialXGenerator const &generator) {
+    return generator
+        .generate(
+            R"(<?xml version="1.0"?>
+<materialx version="1.39">
+  <oren_nayar_diffuse_bsdf name="diffuse" type="BSDF">
+    <input name="color" type="color3" value="0.18, 0.18, 0.18" />
+    <input name="roughness" type="float" value="0" />
+  </oren_nayar_diffuse_bsdf>
+  <surface name="surface" type="surfaceshader">
+    <input name="bsdf" type="BSDF" nodename="diffuse" />
+  </surface>
+  <surfacematerial name="fallback" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="surface" />
+  </surfacematerial>
+</materialx>)",
+            "fallback", {}
+        )
+        .value();
+}
+
+flux::Ref<flux::ShaderBSDF>
+makeFallbackBSDF(flux::Context &context, HdFluxMaterialXGenerator::Material fallbackShader) {
+    return context.create<flux::ShaderBSDF>(fallbackShader.spec, std::move(fallbackShader.words));
 }
 } // namespace
 
 HdFluxRenderParam::HdFluxRenderParam(std::filesystem::path const &modulePath)
-    : handler_{makeContext(), modulePath}, fallbackBSDF_{makeFallbackBSDF(*handler_.getContext())},
-      materialXGenerator_{HdFluxGetMaterialXRoot()} {}
+    : handler_{makeContext(), modulePath}, materialXGenerator_{HdFluxGetMaterialXRoot()},
+      fallbackShader_{makeFallbackShader(materialXGenerator_)},
+      fallbackBSDF_{makeFallbackBSDF(*handler_.getContext(), fallbackShader_)} {}
 
 HdFluxRenderParam::~HdFluxRenderParam() = default;
 
 flux::Ref<flux::Context> HdFluxRenderParam::GetContext() const { return handler_.getContext(); }
 
 flux::Ref<flux::BSDF const> HdFluxRenderParam::GetFallbackBSDF() const { return fallbackBSDF_; }
+
+HdFluxMaterialXGenerator::Material const &HdFluxRenderParam::GetFallbackShader() const noexcept {
+    return fallbackShader_;
+}
 
 void HdFluxRenderParam::ReportFailure() noexcept {
     failed_ = true;

@@ -265,6 +265,38 @@ HdContainerDataSourceHandle makeMaterial(GfVec3f const &color) {
     );
 }
 
+/// Returns a material whose \c mtlx surface is a \c UsdPreviewSurface, which hdFlux cannot
+/// generate.
+HdContainerDataSourceHandle makeUnsupportedMaterial() {
+    static TfToken const surfaceName{"surface"};
+
+    return HdRetainedContainerDataSource::New(
+        HdMaterialSchema::GetSchemaToken(),
+        HdRetainedContainerDataSource::New(
+            TfToken{"mtlx"},
+            HdMaterialNetworkSchema::Builder()
+                .SetNodes(
+                    HdRetainedContainerDataSource::New(
+                        surfaceName, HdMaterialNodeSchema::Builder()
+                                         .SetNodeIdentifier(
+                                             HdRetainedTypedSampledDataSource<TfToken>::New(
+                                                 TfToken{"UsdPreviewSurface"}
+                                             )
+                                         )
+                                         .Build()
+                    )
+                )
+                .SetTerminals(
+                    HdRetainedContainerDataSource::New(
+                        HdMaterialTerminalTokens->surface,
+                        makeConnection(surfaceName, TfToken{"surface"})
+                    )
+                )
+                .Build()
+        )
+    );
+}
+
 /// Holds an array that the test can change after the scene read it.
 class EditableArray final : public HdTypedSampledDataSource<VtVec3fArray> {
 public:
@@ -692,14 +724,14 @@ TEST_F(RenderTests, LeavesTheBackgroundWhenTheMeshIsRemoved) {
 }
 
 namespace {
-constexpr float fallbackAlbedo{0.2136F};
+constexpr float fallbackAlbedo{0.18F};
 
 GfVec3f const red{0.75F, 0.25F, 0.0F};
 GfVec3f const green{0.0F, 0.5F, 0.25F};
 
 void expectFallbackAlbedo(GfVec3f const &albedo) {
     for (int component = 0; component < 3; ++component)
-        EXPECT_NEAR(albedo[component], fallbackAlbedo, 1e-3F);
+        EXPECT_EQ(albedo[component], fallbackAlbedo);
 }
 } // namespace
 
@@ -726,6 +758,27 @@ TEST_F(RenderTests, RendersTheNewValueWhenOnlyAMaterialValueChanges) {
     executeToConvergence();
 
     EXPECT_EQ(vectorAt(albedo, width / 2), green);
+}
+
+TEST_F(RenderTests, RendersTheNewMaterialWhenAnEditMakesAnUnsupportedMaterialGenerate) {
+    auto *const albedo = bindAlbedo();
+    scene_->AddPrims(
+        {{materialPath, HdPrimTypeTokens->material, makeUnsupportedMaterial()},
+         {meshPath, HdPrimTypeTokens->mesh, bindMaterial(makeMesh(makeQuad(0.0F)))}}
+    );
+    executeToConvergence();
+    expectFallbackAlbedo(vectorAt(albedo, width / 2));
+
+    scene_->AddPrims({{materialPath, HdPrimTypeTokens->material, makeMaterial(red)}});
+    scene_->DirtyPrims({{materialPath, HdMaterialSchema::GetDefaultLocator()}});
+    executeToConvergence();
+    EXPECT_EQ(vectorAt(albedo, width / 2), red);
+
+    scene_->AddPrims({{materialPath, HdPrimTypeTokens->material, makeUnsupportedMaterial()}});
+    scene_->DirtyPrims({{materialPath, HdMaterialSchema::GetDefaultLocator()}});
+    executeToConvergence();
+
+    expectFallbackAlbedo(vectorAt(albedo, width / 2));
 }
 
 TEST_F(RenderTests, KeepsTheMaterialOfAMeshThatLosesItsPointsAndGetsThemAgain) {

@@ -36,7 +36,6 @@ add_library(
     MaterialXDocument.cpp
     MaterialXRoot.cpp
     Mesh.cpp
-    PreviewSurface.cpp
     Radiance.cpp
     RenderBuffer.cpp
     RenderDelegate.cpp

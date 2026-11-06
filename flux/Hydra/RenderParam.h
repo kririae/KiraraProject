@@ -11,6 +11,7 @@
 namespace flux {
 class BSDF;
 class Context;
+class ShaderBSDF;
 } // namespace flux
 
 /// \brief The instance held by the delegate to share with its passes and prims.
@@ -27,6 +28,8 @@ public:
 
     /// \brief Returns the BSDF of a prim that has no material.
     [[nodiscard]] flux::Ref<flux::BSDF const> GetFallbackBSDF() const;
+
+    [[nodiscard]] HdFluxMaterialXGenerator::Material const &GetFallbackShader() const noexcept;
 
     /// \brief Returns the generator of the MaterialX materials.
     [[nodiscard]] HdFluxMaterialXGenerator const &GetMaterialXGenerator() const noexcept {
@@ -48,7 +51,8 @@ public:
 
 private:
     flux::OptixHandler handler_;
-    flux::Ref<flux::BSDF const> fallbackBSDF_;
     HdFluxMaterialXGenerator materialXGenerator_;
+    HdFluxMaterialXGenerator::Material fallbackShader_;
+    flux::Ref<flux::ShaderBSDF> fallbackBSDF_;
     bool failed_{false};
 };

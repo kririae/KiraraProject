@@ -22,7 +22,7 @@ public:
 
     pxr::HdDirtyBits GetInitialDirtyBitsMask() const override;
 
-    /// \brief Returns the BSDF that the material edits in place, or null.
+    /// \brief Returns the BSDF that the material edits in place, or null before its first sync.
     [[nodiscard]] flux::Ref<flux::BSDF const> GetBSDF() const;
 
 private:
