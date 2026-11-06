@@ -14,7 +14,8 @@ public:
     ///
     /// \throw std::exception If the OptiX backend cannot start.
     HdFluxRenderDelegate(
-        std::filesystem::path const &modulePath, pxr::HdRenderSettingsMap const &settingsMap
+        std::filesystem::path const &modulePath, std::filesystem::path const &resourcePath,
+        pxr::HdRenderSettingsMap const &settingsMap
     );
     ~HdFluxRenderDelegate() override;
 

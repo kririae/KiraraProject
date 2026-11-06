@@ -5,7 +5,6 @@
 #include <exception>
 #include <utility>
 
-#include "flux/Hydra/MaterialXRoot.h"
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Context.h"
@@ -49,8 +48,10 @@ makeFallbackBSDF(flux::Context &context, HdFluxMaterialXGenerator::Material fall
 }
 } // namespace
 
-HdFluxRenderParam::HdFluxRenderParam(std::filesystem::path const &modulePath)
-    : handler_{makeContext(), modulePath}, materialXGenerator_{HdFluxGetMaterialXRoot()},
+HdFluxRenderParam::HdFluxRenderParam(
+    std::filesystem::path const &modulePath, std::filesystem::path const &resourcePath
+)
+    : handler_{makeContext(), modulePath}, materialXGenerator_{resourcePath},
       fallbackShader_{makeFallbackShader(materialXGenerator_)},
       fallbackBSDF_{makeFallbackBSDF(*handler_.getContext(), fallbackShader_)} {}
 

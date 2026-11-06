@@ -34,7 +34,6 @@ add_library(
     DomeLight.cpp
     Material.cpp
     MaterialXDocument.cpp
-    MaterialXRoot.cpp
     Mesh.cpp
     Radiance.cpp
     RenderBuffer.cpp

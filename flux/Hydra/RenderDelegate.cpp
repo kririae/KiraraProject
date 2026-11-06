@@ -28,11 +28,12 @@ TF_DEFINE_PUBLIC_TOKENS(HdFluxRenderSettingsTokens, HDFLUX_RENDER_SETTINGS_TOKEN
 PXR_NAMESPACE_CLOSE_SCOPE
 
 HdFluxRenderDelegate::HdFluxRenderDelegate(
-    std::filesystem::path const &modulePath, pxr::HdRenderSettingsMap const &settingsMap
+    std::filesystem::path const &modulePath, std::filesystem::path const &resourcePath,
+    pxr::HdRenderSettingsMap const &settingsMap
 )
     : pxr::HdRenderDelegate(settingsMap),
       resourceRegistry_(std::make_shared<pxr::HdResourceRegistry>()),
-      renderParam_(std::make_unique<HdFluxRenderParam>(modulePath)) {
+      renderParam_(std::make_unique<HdFluxRenderParam>(modulePath, resourcePath)) {
     _PopulateDefaultSettings(GetRenderSettingDescriptors());
 }
 

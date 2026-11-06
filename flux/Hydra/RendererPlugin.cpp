@@ -33,21 +33,19 @@ private:
     /// \brief Returns a new delegate. If it cannot start, logs the error and returns null.
     static pxr::HdRenderDelegate *createDelegate(pxr::HdRenderSettingsMap const &settingsMap) {
         try {
-            return new HdFluxRenderDelegate(getModulePath(), settingsMap);
+            auto const plugin = pxr::PlugRegistry::GetInstance().GetPluginForType(
+                pxr::TfType::Find<HdFluxRendererPlugin>()
+            );
+            return new HdFluxRenderDelegate(
+                std::filesystem::path{plugin->GetPath()}.parent_path() / FLUX_OPTIX_IR_NAME,
+                plugin->GetResourcePath(), settingsMap
+            );
         } catch (std::exception const &error) {
             flux::LogError(
                 "HdFluxRendererPlugin: cannot create a render delegate: {}", error.what()
             );
             return nullptr;
         }
-    }
-
-    /// \brief Returns the path of the OptiX IR module.
-    static std::filesystem::path getModulePath() {
-        auto const plugin = pxr::PlugRegistry::GetInstance().GetPluginForType(
-            pxr::TfType::Find<HdFluxRendererPlugin>()
-        );
-        return std::filesystem::path{plugin->GetPath()}.parent_path() / FLUX_OPTIX_IR_NAME;
     }
 };
 

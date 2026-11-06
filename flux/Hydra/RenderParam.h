@@ -20,7 +20,9 @@ public:
     /// \brief Creates a param that renders with the OptiX IR module at \p modulePath.
     ///
     /// \throw std::exception If the OptiX backend cannot start.
-    explicit HdFluxRenderParam(std::filesystem::path const &modulePath);
+    HdFluxRenderParam(
+        std::filesystem::path const &modulePath, std::filesystem::path const &resourcePath
+    );
     ~HdFluxRenderParam() override;
 
     /// \brief Returns the scene.
