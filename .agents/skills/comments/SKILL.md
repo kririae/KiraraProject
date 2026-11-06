@@ -35,6 +35,8 @@ For each new or changed comment, list in your reasoning each thing that it state
 1. If a name, the interface, or the structure of the code can say it, say it there, and delete it from the comment.
 2. If the code that the comment sits on does not decide it, delete it. A header, for example, decides neither a value that its source file chooses, nor a behavior that its contract does not promise.
 3. If you are not sure whether to keep it, delete it.
+4. If it lists the members of a set that other code defines, such as the functions that a backend provides or the cases of an enum, delete the list. It must change with every member, and no check fails when it does not.
+5. If you change a comment that an earlier change already edited, it states what other code decides. Delete it.
 
 ## Bad comments
 
@@ -50,5 +52,6 @@ For each new or changed comment, list in your reasoning each thing that it state
 - "We do not retry here." No code decides it.
 - "Increment the retry count." Reading the code is as fast as reading the comment.
 - A summary of two sentences, or one that wraps over three lines. It is not short, so it goes.
+- "A backend provides `flux_context`: `ShadingContext`, `fluxGetWorldNormal`, `fluxGetTexCoord`, `fluxToShadingFrame`, and `fluxSampleTexture`." on a generator. Three commits edited the list as the backend grew.
 - "Why: the cache is cleared so that stale entries cannot be read." A comment never says why. The invariant says what holds: every entry matches its file.
 - The compare-and-swap loop of a lock-free queue, with no comment on what each step expects. Reading it costs far more than one sentence.
