@@ -42,24 +42,21 @@
 #include <pxr/usd/sdf/assetPath.h>
 
 #include <array>
-#include <cstddef>
-#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <mutex>
-#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "flux/Hydra/RenderParam.h"
 #include "flux/Hydra/RenderSettings.h"
-#include "flux/IO/Image.h"
-#include "flux/IO/ImageIO.h"
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Context.h"
+#include "flux/Tests/TestUtils.h"
 #include "kira/Properties.h"
 
 PXR_NAMESPACE_USING_DIRECTIVE
@@ -217,71 +214,70 @@ template <typename Value> HdDataSourceBaseHandle makeParameter(Value const &valu
         .Build();
 }
 
-/// Returns a material whose \c mtlx surface is a MaterialX surface of a diffuse BSDF of \p color
-/// without roughness.
-HdContainerDataSourceHandle makeMaterial(GfVec3f const &color) {
-    static TfToken const surfaceName{"surface"};
-    static TfToken const diffuseName{"diffuse"};
-    static TfToken const out{"out"};
-
-    HdDataSourceBaseHandle const diffuseConnection = makeConnection(diffuseName, out);
-
-    return HdRetainedContainerDataSource::New(
-        HdMaterialSchema::GetSchemaToken(),
-        HdRetainedContainerDataSource::New(
-            TfToken{"mtlx"},
-            HdMaterialNetworkSchema::Builder()
-                .SetNodes(
-                    HdRetainedContainerDataSource::New(
-                        surfaceName,
-                        HdMaterialNodeSchema::Builder()
-                            .SetNodeIdentifier(
-                                HdRetainedTypedSampledDataSource<TfToken>::New(
-                                    TfToken{"ND_surface"}
-                                )
-                            )
-                            .SetInputConnections(
-                                HdRetainedContainerDataSource::New(
-                                    TfToken{"bsdf"},
-                                    HdRetainedSmallVectorDataSource::New(1, &diffuseConnection)
-                                )
-                            )
-                            .Build(),
-                        diffuseName,
-                        HdMaterialNodeSchema::Builder()
-                            .SetNodeIdentifier(
-                                HdRetainedTypedSampledDataSource<TfToken>::New(
-                                    TfToken{"ND_oren_nayar_diffuse_bsdf"}
-                                )
-                            )
-                            .SetParameters(
-                                HdRetainedContainerDataSource::New(
-                                    TfToken{"color"}, makeParameter(color), TfToken{"roughness"},
-                                    makeParameter(0.0F)
-                                )
-                            )
-                            .Build()
-                    )
-                )
-                .SetTerminals(
-                    HdRetainedContainerDataSource::New(
-                        HdMaterialTerminalTokens->surface, makeConnection(surfaceName, out)
-                    )
-                )
-                .Build()
-        )
-    );
-}
-
-/// Returns a material like that of \c makeMaterial, whose color is the image \p file.
-HdContainerDataSourceHandle makeImageMaterial(SdfAssetPath const &file) {
+/// Returns a material whose \c mtlx surface is a MaterialX surface of a diffuse BSDF without
+/// roughness. Its color is a constant \p color, or the image of an asset path.
+HdContainerDataSourceHandle makeMaterial(std::variant<GfVec3f, SdfAssetPath> const &color) {
     static TfToken const surfaceName{"surface"};
     static TfToken const diffuseName{"diffuse"};
     static TfToken const imageName{"image"};
     static TfToken const out{"out"};
 
+    auto const *const constant = std::get_if<GfVec3f>(&color);
+
     HdDataSourceBaseHandle const diffuseConnection = makeConnection(diffuseName, out);
     HdDataSourceBaseHandle const imageConnection = makeConnection(imageName, out);
+
+    auto diffuse = HdMaterialNodeSchema::Builder();
+    diffuse.SetNodeIdentifier(
+        HdRetainedTypedSampledDataSource<TfToken>::New(TfToken{"ND_oren_nayar_diffuse_bsdf"})
+    );
+    if (constant)
+        diffuse.SetParameters(
+            HdRetainedContainerDataSource::New(
+                TfToken{"color"}, makeParameter(*constant), TfToken{"roughness"},
+                makeParameter(0.0F)
+            )
+        );
+    else
+        diffuse
+            .SetParameters(
+                HdRetainedContainerDataSource::New(TfToken{"roughness"}, makeParameter(0.0F))
+            )
+            .SetInputConnections(
+                HdRetainedContainerDataSource::New(
+                    TfToken{"color"}, HdRetainedSmallVectorDataSource::New(1, &imageConnection)
+                )
+            );
+
+    std::vector<TfToken> names{surfaceName, diffuseName};
+    std::vector<HdDataSourceBaseHandle> nodes{
+        HdMaterialNodeSchema::Builder()
+            .SetNodeIdentifier(
+                HdRetainedTypedSampledDataSource<TfToken>::New(TfToken{"ND_surface"})
+            )
+            .SetInputConnections(
+                HdRetainedContainerDataSource::New(
+                    TfToken{"bsdf"}, HdRetainedSmallVectorDataSource::New(1, &diffuseConnection)
+                )
+            )
+            .Build(),
+        diffuse.Build()
+    };
+    if (!constant) {
+        names.push_back(imageName);
+        nodes.push_back(
+            HdMaterialNodeSchema::Builder()
+                .SetNodeIdentifier(
+                    HdRetainedTypedSampledDataSource<TfToken>::New(TfToken{"ND_image_color3"})
+                )
+                .SetParameters(
+                    HdRetainedContainerDataSource::New(
+                        TfToken{"file"}, makeParameter(std::get<SdfAssetPath>(color))
+                    )
+                )
+                .Build()
+        );
+    }
 
     return HdRetainedContainerDataSource::New(
         HdMaterialSchema::GetSchemaToken(),
@@ -289,54 +285,7 @@ HdContainerDataSourceHandle makeImageMaterial(SdfAssetPath const &file) {
             TfToken{"mtlx"},
             HdMaterialNetworkSchema::Builder()
                 .SetNodes(
-                    HdRetainedContainerDataSource::New(
-                        surfaceName,
-                        HdMaterialNodeSchema::Builder()
-                            .SetNodeIdentifier(
-                                HdRetainedTypedSampledDataSource<TfToken>::New(
-                                    TfToken{"ND_surface"}
-                                )
-                            )
-                            .SetInputConnections(
-                                HdRetainedContainerDataSource::New(
-                                    TfToken{"bsdf"},
-                                    HdRetainedSmallVectorDataSource::New(1, &diffuseConnection)
-                                )
-                            )
-                            .Build(),
-                        diffuseName,
-                        HdMaterialNodeSchema::Builder()
-                            .SetNodeIdentifier(
-                                HdRetainedTypedSampledDataSource<TfToken>::New(
-                                    TfToken{"ND_oren_nayar_diffuse_bsdf"}
-                                )
-                            )
-                            .SetParameters(
-                                HdRetainedContainerDataSource::New(
-                                    TfToken{"roughness"}, makeParameter(0.0F)
-                                )
-                            )
-                            .SetInputConnections(
-                                HdRetainedContainerDataSource::New(
-                                    TfToken{"color"},
-                                    HdRetainedSmallVectorDataSource::New(1, &imageConnection)
-                                )
-                            )
-                            .Build(),
-                        imageName,
-                        HdMaterialNodeSchema::Builder()
-                            .SetNodeIdentifier(
-                                HdRetainedTypedSampledDataSource<TfToken>::New(
-                                    TfToken{"ND_image_color3"}
-                                )
-                            )
-                            .SetParameters(
-                                HdRetainedContainerDataSource::New(
-                                    TfToken{"file"}, makeParameter(file)
-                                )
-                            )
-                            .Build()
-                    )
+                    HdRetainedContainerDataSource::New(names.size(), names.data(), nodes.data())
                 )
                 .SetTerminals(
                     HdRetainedContainerDataSource::New(
@@ -846,25 +795,14 @@ TEST_F(RenderTests, RendersTheNewValueWhenOnlyAMaterialValueChanges) {
 TEST_F(RenderTests, RendersTheImageAtTheResolvedPathOfAnAssetPath) {
     auto const imagePath = std::filesystem::path{HDFLUX_TEST_OUTPUT_DIR} / "image.exr";
     auto const pixel = std::array{0.5F, 0.25F, 0.75F};
-    auto const componentNames = std::array<std::string_view, 3>{"R", "G", "B"};
-    flux::writeImage(
-        imagePath,
-        {
-            .pixels = std::as_bytes(std::span{pixel}),
-            .extent = {1, 1},
-            .componentType = flux::ImageComponentType::Float32,
-            .componentCount = static_cast<std::uint8_t>(componentNames.size()),
-        },
-        {
-            .outputComponentType = flux::ImageComponentType::Float32,
-            .componentNames = componentNames,
-        }
+    flux::test::writeFloatImage(
+        imagePath, pixel, {1, 1}, std::array<std::string_view, 3>{"R", "G", "B"}
     );
 
     auto *const albedo = bindAlbedo();
     scene_->AddPrims(
         {{materialPath, HdPrimTypeTokens->material,
-          makeImageMaterial(SdfAssetPath{"authored/missing.exr", imagePath.string()})},
+          makeMaterial(SdfAssetPath{"authored/missing.exr", imagePath.string()})},
          {meshPath, HdPrimTypeTokens->mesh, bindMaterial(makeMesh(makeQuad(0.0F)))}}
     );
 
