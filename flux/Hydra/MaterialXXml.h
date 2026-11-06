@@ -16,10 +16,6 @@ struct HdFluxMaterialXXml {
     std::string surfaceMaterialName;
 };
 
-/// \brief Builds the XML of the MaterialX material \p materialPath from \p network.
-///
-/// Returns nothing when HdMtlx cannot build the document.
-///
 /// \pre \p terminalPath is the path of a node of \p network.
 /// \pre The environment variable \c PXR_MTLX_STDLIB_SEARCH_PATHS names the standard libraries of
 /// MaterialX, as the host sets it.
