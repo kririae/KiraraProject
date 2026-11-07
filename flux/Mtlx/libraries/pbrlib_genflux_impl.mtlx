@@ -4,6 +4,15 @@
   <implementation name="IM_oren_nayar_diffuse_bsdf_genflux" nodedef="ND_oren_nayar_diffuse_bsdf" target="genflux"
                   file="mx-oren-nayar-diffuse-bsdf.slang"
                   sourcecode="makeOrenNayarDiffuseBSDF({{weight}}, {{color}}, {{roughness}}, fluxToShadingFrame(ctx, {{normal}}), {{energy_compensation}})"/>
+  <implementation name="IM_burley_diffuse_bsdf_genflux" nodedef="ND_burley_diffuse_bsdf" target="genflux"
+                  file="mx-burley-diffuse-bsdf.slang"
+                  sourcecode="makeBurleyDiffuseBSDF({{weight}}, {{color}}, {{roughness}}, fluxToShadingFrame(ctx, {{normal}}))"/>
+  <implementation name="IM_translucent_bsdf_genflux" nodedef="ND_translucent_bsdf" target="genflux"
+                  file="mx-translucent-bsdf.slang"
+                  sourcecode="makeTranslucentBSDF({{weight}}, {{color}}, fluxToShadingFrame(ctx, {{normal}}))"/>
+  <implementation name="IM_subsurface_bsdf_genflux" nodedef="ND_subsurface_bsdf" target="genflux"
+                  file="mx-subsurface-bsdf.slang"
+                  sourcecode="makeSubsurfaceBSDF({{weight}}, {{color}}, {{radius}}, fluxToShadingFrame(ctx, {{normal}}))"/>
   <implementation name="IM_conductor_bsdf_genflux" nodedef="ND_conductor_bsdf" target="genflux"
                   file="mx-conductor-bsdf.slang"
                   sourcecode="makeConductorBSDF({{weight}}, {{ior}}, {{extinction}}, {{roughness}}, {{retroreflective}}, {{thinfilm_thickness}}, {{thinfilm_ior}}, fluxToShadingFrame(ctx, {{normal}}), fluxToShadingFrame(ctx, {{tangent}}))"/>

@@ -166,8 +166,10 @@ flux_embed(flux/Mtlx/MtlxLibraries.inc Mtlx/libraries/genflux.mtlx
            Mtlx/libraries/pbrlib_genflux_impl.mtlx)
 flux_embed(flux/Mtlx/MtlxSlangLibraries.inc Mtlx/libraries/mx-prelude.slang
            Mtlx/libraries/mx-ggx-reflection-sampler.slang
-           Mtlx/libraries/mx-ggx-refraction-sampler.slang Mtlx/libraries/mx-conductor-bsdf.slang
-           Mtlx/libraries/mx-dielectric-bsdf.slang Mtlx/libraries/mx-oren-nayar-diffuse-bsdf.slang)
+           Mtlx/libraries/mx-ggx-refraction-sampler.slang Mtlx/libraries/mx-burley-diffuse-bsdf.slang
+           Mtlx/libraries/mx-conductor-bsdf.slang Mtlx/libraries/mx-dielectric-bsdf.slang
+           Mtlx/libraries/mx-oren-nayar-diffuse-bsdf.slang Mtlx/libraries/mx-subsurface-bsdf.slang
+           Mtlx/libraries/mx-translucent-bsdf.slang)
 
 add_library(flux_mtlx STATIC Mtlx/FluxShaderGenerator.cpp Mtlx/FluxSourceCodeNode.cpp
                              Mtlx/MtlxBSDFGenerator.cpp)
