@@ -76,6 +76,9 @@ public interface IBSDF
     BSDFEvaluation evalAndPdf(float3 wo, float3 wi);
 
     BSDFDirectionSample sampleDirection(float3 wo, float u1, float2 u2);
+
+    /// The fraction of the energy from \p wo that the BSDF passes to the BSDF below it in a layer.
+    float3 throughput(float3 wo);
 };
 
 /// \brief Scatters nothing.
@@ -87,6 +90,8 @@ public struct EmptyBSDF : IBSDF
     {
         return {float3(0.0, 0.0, 1.0), 1.0, BSDFLobe.None};
     }
+
+    public float3 throughput(float3 wo) { return float3(1.0); }
 };
 
 /// \brief Two BSDFs, one of which each sample selects.
@@ -110,11 +115,79 @@ public struct MixBSDF<A : IBSDF, B : IBSDF> : IBSDF
             return fg.sampleDirection(wo, u1 / mix, u2);
         return bg.sampleDirection(wo, (u1 - mix) / (1.0 - mix), u2);
     }
+
+    public float3 throughput(float3 wo) { return lerp(bg.throughput(wo), fg.throughput(wo), mix); }
 };
 
 public MixBSDF<A, B> makeMixBSDF<A : IBSDF, B : IBSDF>(A fg, B bg, float mix)
 {
     return {fg, bg, mix};
+}
+
+/// \brief \c top over \c base, as MaterialX's \c layer, sampling \c top by the energy that it stops.
+public struct LayerBSDF<Top : IBSDF, Base : IBSDF> : IBSDF
+{
+    public Top top;
+    public Base base;
+
+    static float topProbability(float3 topThroughput)
+    {
+        return 1.0 - (topThroughput.x + topThroughput.y + topThroughput.z) / 3.0;
+    }
+
+    public BSDFEvaluation evalAndPdf(float3 wo, float3 wi)
+    {
+        let et = top.evalAndPdf(wo, wi);
+        let eb = base.evalAndPdf(wo, wi);
+        let tt = top.throughput(wo);
+        return {et.value + tt * eb.value, lerp(eb.pdf, et.pdf, topProbability(tt))};
+    }
+
+    public BSDFDirectionSample sampleDirection(float3 wo, float u1, float2 u2)
+    {
+        let p = topProbability(top.throughput(wo));
+        if (u1 < p)
+            return top.sampleDirection(wo, u1 / p, u2);
+        return base.sampleDirection(wo, (u1 - p) / (1.0 - p), u2);
+    }
+
+    public float3 throughput(float3 wo) { return top.throughput(wo) * base.throughput(wo); }
+};
+
+public LayerBSDF<Top, Base> makeLayerBSDF<Top : IBSDF, Base : IBSDF>(Top top, Base base)
+{
+    return {top, base};
+}
+
+/// \brief \p bsdf with its value scaled by \c tint, as MaterialX's \c multiply.
+public struct MultiplyBSDF<A : IBSDF> : IBSDF
+{
+    public A bsdf;
+    /// The scale of the value, in [0, 1].
+    public float3 tint;
+
+    public BSDFEvaluation evalAndPdf(float3 wo, float3 wi)
+    {
+        let e = bsdf.evalAndPdf(wo, wi);
+        return {e.value * tint, e.pdf};
+    }
+
+    public BSDFDirectionSample sampleDirection(float3 wo, float u1, float2 u2)
+    {
+        return bsdf.sampleDirection(wo, u1, u2);
+    }
+
+    public float3 throughput(float3 wo) { return bsdf.throughput(wo); }
+};
+
+public MultiplyBSDF<A> makeMultiplyBSDF<A : IBSDF>(A bsdf, float3 tint)
+{
+    return {bsdf, clamp(tint, float3(0.0), float3(1.0))};
+}
+
+public MultiplyBSDF<A> makeMultiplyBSDF<A : IBSDF>(A bsdf, float tint)
+{
+    return makeMultiplyBSDF(bsdf, float3(tint));
 }
 
 /// \brief \p v in the shading frame around \p normal, whose basis is that of \c flux::Frame.

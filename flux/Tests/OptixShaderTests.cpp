@@ -70,6 +70,8 @@ public struct LambertianBSDF : IBSDF
         let nf = dot(n, wo) < 0.0 ? -n : n;
         return {sampleCosineHemisphere(nf, u2), 1.0, BSDFLobe.DiffuseReflection};
     }
+
+    public float3 throughput(float3 wo) { return float3(0.0); }
 };
 
 public LambertianBSDF makeLambertianBSDF(float3 albedo, float3 n) { return {albedo, n}; }

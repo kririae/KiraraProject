@@ -30,6 +30,8 @@ public struct OrenNayarDiffuseBSDF : IBSDF
         let nf = mx_forward_facing_normal(n, wo);
         return {sampleCosineHemisphere(nf, u2), 1.0, BSDFLobe.DiffuseReflection};
     }
+
+    public float3 throughput(float3 wo) { return float3(0.0); }
 };
 
 public OrenNayarDiffuseBSDF makeOrenNayarDiffuseBSDF(

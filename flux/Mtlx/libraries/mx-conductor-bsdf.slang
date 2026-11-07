@@ -41,6 +41,8 @@ public struct ConductorBSDF : IBSDF
             return {float3(0.0, 0.0, 1.0), 1.0, BSDFLobe.None};
         return {wi, 1.0, BSDFLobe.GlossyReflection};
     }
+
+    public float3 throughput(float3 wo) { return float3(0.0); }
 };
 
 public ConductorBSDF makeConductorBSDF(
