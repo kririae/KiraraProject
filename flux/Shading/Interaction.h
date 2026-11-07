@@ -96,6 +96,9 @@ struct ShadingContext {
     /// The unit vector orthogonal to \c normal in which \c uv.x() grows.
     Vec3f tangent{};
 
+    /// The normal that Geometry defines, which tells the two sides of the surface apart.
+    Vec3f geometricNormal{};
+
     TextureEvalContext texture{};
 };
 
@@ -125,6 +128,7 @@ computeShadingTangent(Vec3f const &normal, Vec3f const &uvGradU) noexcept {
         .position = isect.position,
         .normal = isect.shadingNormal,
         .tangent = computeShadingTangent(isect.shadingNormal, isect.uvGradU),
+        .geometricNormal = isect.geometricNormal,
         .texture = {
             .uv = isect.uv,
             .duvdx = {dpdx.dot(isect.uvGradU), dpdx.dot(isect.uvGradV)},
