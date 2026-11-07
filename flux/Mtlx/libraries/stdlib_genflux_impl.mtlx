@@ -13,6 +13,9 @@
                   sourcecode="cross(fluxGetWorldNormal(ctx), fluxGetWorldTangent(ctx))"/>
   <implementation name="IM_texcoord_vector2_genflux" nodedef="ND_texcoord_vector2" target="genflux"
                   sourcecode="fluxGetTexCoord(ctx)"/>
+  <!-- The generator accepts only the geomprop that names the texture coordinates. -->
+  <implementation name="IM_geompropvalue_vector2_genflux" nodedef="ND_geompropvalue_vector2" target="genflux"
+                  sourcecode="fluxGetTexCoord(ctx)"/>
 
   <!-- An image node samples the texture whose slot its `file` input holds. -->
   <implementation name="IM_image_float_genflux" nodedef="ND_image_float" target="genflux"

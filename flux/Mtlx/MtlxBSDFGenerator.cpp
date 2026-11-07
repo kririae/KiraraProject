@@ -82,6 +82,40 @@ constexpr auto imageTextureInputs =
            std::ranges::find(imageTextureInputs, path.input) != imageTextureInputs.end();
 }
 
+/// \brief The geometric property that \c geompropvalue reads, the texture coordinates.
+constexpr auto texCoordProperty = std::string_view{"st"};
+
+[[nodiscard]] bool isGeomPropInput(InputPath const &path) {
+    return path.node && path.node->getCategory() == "geompropvalue" && path.input == "geomprop";
+}
+
+/// \brief Checks that \p socket names the geometric property that \c geompropvalue reads.
+///
+/// \throw MaterialX::ExceptionShaderGenError if \p socket names another property.
+void requireTexCoordProperty(MaterialX::ShaderGraphInputSocket const &socket) {
+    auto const name = socket.getValue() ? socket.getValue()->getValueString() : std::string{};
+    if (name != texCoordProperty)
+        throw MaterialX::ExceptionShaderGenError{fmt::format(
+            "'{}' names the geometric property '{}', and only '{}' is supported", socket.getPath(),
+            name, texCoordProperty
+        )};
+}
+
+/// \brief Checks that no \c geompropvalue node takes its \c geomprop from another node.
+///
+/// \throw MaterialX::ExceptionShaderGenError if one does.
+void requireWrittenGeomProp(MaterialX::ShaderGraph const &graph) {
+    for (auto const *node : graph.getNodes()) {
+        auto const *input = node->getInput("geomprop");
+        if (input && input->getConnection() && input->getConnection()->getNode() != &graph)
+            throw MaterialX::ExceptionShaderGenError{fmt::format(
+                "'{}/{}' is connected, and only a value that names the geometric property '{}' is "
+                "supported",
+                node->getName(), input->getName(), texCoordProperty
+            )};
+    }
+}
+
 /// \brief Whether the emission reads \p input.
 [[nodiscard]] bool isRead(MaterialX::ShaderInput const &input) {
     auto const *impl =
@@ -446,6 +480,7 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::pImpl::makeInstance(
     auto const shader =
         generator->createShader(materialName, document->getChild(materialName), context);
     auto const &graph = shader->getGraph();
+    requireWrittenGeomProp(graph);
 
     auto const stage = generator->makeStage();
     generator->emitLine("import flux_bsdf;", *stage, false);
@@ -462,6 +497,10 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::pImpl::makeInstance(
     auto textures = std::vector<ImageTextureSpec>{};
     for (auto const *socket : graph.getInputSockets()) {
         auto const path = splitInputPath(document, socket->getPath());
+        if (isGeomPropInput(path)) {
+            requireTexCoordProperty(*socket);
+            continue;
+        }
         if (!isRead(*socket)) {
             if (!socket->getConnections().empty() && writesValue(path) &&
                 !isImageTextureInput(path) && !feedsEDFOrVDF(*socket))
