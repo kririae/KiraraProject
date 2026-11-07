@@ -82,13 +82,49 @@ constexpr auto imageTextureInputs =
            std::ranges::find(imageTextureInputs, path.input) != imageTextureInputs.end();
 }
 
+/// \brief Whether the emission reads \p input.
+[[nodiscard]] bool isRead(MaterialX::ShaderInput const &input) {
+    auto const *impl =
+        dynamic_cast<FluxSourceCodeNode const *>(&input.getNode()->getImplementation());
+    return !impl || impl->readsInput(input.getName());
+}
+
 /// \brief Whether the emission reads an input that \p socket publishes.
 [[nodiscard]] bool isRead(MaterialX::ShaderGraphInputSocket const &socket) {
     return std::ranges::any_of(socket.getConnections(), [](MaterialX::ShaderInput const *input) {
-        auto const *impl =
-            dynamic_cast<FluxSourceCodeNode const *>(&input->getNode()->getImplementation());
-        return !impl || impl->readsInput(input->getName());
+        return isRead(*input);
     });
+}
+
+/// \brief Whether \p type is the type of an EDF or a VDF.
+[[nodiscard]] bool isEDFOrVDF(MaterialX::TypeDesc const &type) {
+    return type == MaterialX::Type::EDF || type == MaterialX::Type::VDF;
+}
+
+/// \brief Whether \p socket publishes only inputs of nodes that output an EDF or a VDF.
+[[nodiscard]] bool feedsEDFOrVDF(MaterialX::ShaderGraphInputSocket const &socket) {
+    return std::ranges::all_of(socket.getConnections(), [](MaterialX::ShaderInput const *input) {
+        return isEDFOrVDF(input->getNode()->getOutput()->getType());
+    });
+}
+
+/// \brief Appends a diagnostic for each network of EDFs or VDFs that ends in an unread input.
+void reportUnreadEDFAndVDF(
+    MaterialX::ShaderGraph const &graph, std::string const &materialName,
+    std::vector<std::string> &diagnostics
+) {
+    for (auto const *node : graph.getNodes()) {
+        if (isEDFOrVDF(node->getOutput()->getType()))
+            continue;
+        for (auto const *input : node->getInputs())
+            if (isEDFOrVDF(input->getType()) && input->getConnection() && !isRead(*input))
+                diagnostics.push_back(
+                    fmt::format(
+                        "MaterialX material '{}': '{}/{}' is not read", materialName,
+                        node->getName(), input->getName()
+                    )
+                );
+    }
 }
 
 [[nodiscard]] std::optional<std::size_t> wordCount(MaterialX::TypeDesc const &type) {
@@ -428,7 +464,7 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::pImpl::makeInstance(
         auto const path = splitInputPath(document, socket->getPath());
         if (!isRead(*socket)) {
             if (!socket->getConnections().empty() && writesValue(path) &&
-                !isImageTextureInput(path))
+                !isImageTextureInput(path) && !feedsEDFOrVDF(*socket))
                 diagnostics.push_back(
                     fmt::format(
                         "MaterialX material '{}': '{}' is not read", materialName, socket->getPath()
@@ -473,6 +509,7 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::pImpl::makeInstance(
         );
 
     reportDroppedRetroreflection(document, graph, materialName, diagnostics);
+    reportUnreadEDFAndVDF(graph, materialName, diagnostics);
 
     generator->emitFunctionCalls(graph, context, *stage);
     generator->emitLine(

@@ -21,4 +21,25 @@
   <implementation name="IM_surface_genflux" nodedef="ND_surface" target="genflux"
                   sourcecode="{{bsdf}}"/>
 
+  <!-- An EDF emits nothing, and a VDF does nothing. Neither reads an input. -->
+  <implementation name="IM_uniform_edf_genflux" nodedef="ND_uniform_edf" target="genflux"
+                  sourcecode="0.0"/>
+  <implementation name="IM_generalized_schlick_edf_genflux" nodedef="ND_generalized_schlick_edf" target="genflux"
+                  sourcecode="0.0"/>
+  <implementation name="IM_mix_edf_genflux" nodedef="ND_mix_edf" target="genflux"
+                  sourcecode="0.0"/>
+  <implementation name="IM_add_edf_genflux" nodedef="ND_add_edf" target="genflux"
+                  sourcecode="0.0"/>
+  <implementation name="IM_multiply_edfC_genflux" nodedef="ND_multiply_edfC" target="genflux"
+                  sourcecode="0.0"/>
+  <implementation name="IM_multiply_edfF_genflux" nodedef="ND_multiply_edfF" target="genflux"
+                  sourcecode="0.0"/>
+  <implementation name="IM_absorption_vdf_genflux" nodedef="ND_absorption_vdf" target="genflux"
+                  sourcecode="0.0"/>
+  <implementation name="IM_anisotropic_vdf_genflux" nodedef="ND_anisotropic_vdf" target="genflux"
+                  sourcecode="0.0"/>
+  <!-- A BSDF layered over a VDF is the BSDF. -->
+  <implementation name="IM_layer_vdf_genflux" nodedef="ND_layer_vdf" target="genflux"
+                  sourcecode="{{top}}"/>
+
 </materialx>
