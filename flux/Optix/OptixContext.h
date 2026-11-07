@@ -12,6 +12,7 @@
 #include "flux/Core/Object.h"
 #include "flux/Core/Ray.h"
 #include "flux/Optix/DeletionQueue.h"
+#include "flux/Optix/OptixCallableLaunchParams.h"
 #include "flux/Optix/OptixImageTexture.h"
 #include "flux/Optix/OptixLightSampler.h"
 #include "flux/Scene/Primitive.h"
@@ -57,6 +58,9 @@ private:
     ) const;
 
     [[nodiscard]] Impl getImpl() const noexcept;
+
+    /// \brief Returns the part of the launch parameters that callables read.
+    [[nodiscard]] OptixCallableLaunchParams getCallableLaunchParams() const noexcept;
     [[nodiscard]] OptixMegaKernelModuleSpec const &getMegaKernelModuleSpec() const noexcept;
 
     struct pImpl;
@@ -84,9 +88,6 @@ struct OptixContext::Impl {
 
     /// Scene tables in device memory.
     SceneTable table{};
-
-    /// Image textures by image-texture index.
-    OptixImageTextureTable imageTextures{};
 
     OptixLightSampler::Impl lightSampler{};
 

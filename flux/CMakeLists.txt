@@ -92,6 +92,8 @@ add_library(
     Integrator/PathIntegrator.cpp
     Optix/DeletionQueue.cpp
     Optix/OptixAccumulationBuffer.cu
+    Optix/OptixShaderModule.cpp
+    Optix/OptixBSDFCompiler.cpp
     Optix/OptixContext.cpp
     Optix/OptixDeviceSession.cpp
     Optix/OptixGas.cpp
@@ -124,7 +126,18 @@ add_library(
     Shading/Texture.cpp
     Slang/SlangCompiler.cpp)
 
+flux_embed(flux/Optix/OptixSlangModules.inc Slang/flux-bsdf.slang Optix/flux-context.slang
+           Optix/flux-callable.slang)
+flux_embed(
+    flux/Optix/OptixNvrtcHeaders.inc
+    Optix/OptixBSDFCallable.h
+    Optix/OptixCallableLaunchParams.h
+    Optix/OptixImageTexture.cuh
+    Optix/OptixImageTexture.h
+    Scene/ImageComponentMapping.h)
+
 target_include_directories(flux PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_include_directories(flux PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_link_libraries(
     flux
     PUBLIC CUDA::cudart_static
@@ -135,6 +148,7 @@ target_link_libraries(
 target_link_libraries(
     flux
     PRIVATE CUDA::cuda_driver
+            CUDA::nvrtc
             Eigen3::Eigen
             flux_oiio
             rapidobj::rapidobj

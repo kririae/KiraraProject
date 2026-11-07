@@ -1,0 +1,177 @@
+#include "flux/Optix/OptixBSDFCompiler.h"
+
+#include <cuda_runtime_api.h>
+#include <nvrtc.h>
+
+#include <algorithm>
+#include <array>
+#include <chrono>
+#include <cstddef>
+#include <filesystem>
+#include <functional>
+#include <memory>
+#include <utility>
+
+#include "flux/Core/Logging.h"
+#include "flux/Optix/OptixLaunchParams.h"
+#include "flux/Optix/OptixUtils.h"
+#include "kira/Anyhow.h"
+
+namespace flux {
+namespace {
+constexpr auto slangModules = std::to_array<std::pair<char const *, char const *>>({
+#include "flux/Optix/OptixSlangModules.inc"
+});
+
+constexpr auto nvrtcHeaders = std::to_array<std::pair<char const *, char const *>>({
+#include "flux/Optix/OptixNvrtcHeaders.inc"
+});
+
+constexpr auto callableModule = "flux_callable";
+constexpr auto preludeInclude = "slang-cuda-prelude.h";
+constexpr auto materialInclude = "material.cu";
+
+/// \brief The name that a Slang import gives the module at \p path.
+[[nodiscard]] std::string getModuleName(std::filesystem::path const &path) {
+    auto name = path.stem().string();
+    std::ranges::replace(name, '-', '_');
+    return name;
+}
+
+void nvrtcCheck(nvrtcResult result) {
+    if (result != NVRTC_SUCCESS)
+        throw kira::Anyhow("OptixBSDFCompiler: NVRTC call error: {}", nvrtcGetErrorString(result));
+}
+
+using NvrtcProgram = std::unique_ptr<_nvrtcProgram, decltype([](nvrtcProgram program) {
+    if (nvrtcDestroyProgram(&program) != NVRTC_SUCCESS)
+        LogError("OptixBSDFCompiler: NVRTC cannot destroy a program");
+})>;
+
+[[nodiscard]] std::string makeBridge() {
+    return fmt::format(
+        R"cuda(#include "{prelude}"
+#include "flux/Optix/OptixBSDFCallable.h"
+#include "flux/Optix/OptixCallableLaunchParams.h"
+
+struct OptixLaunchParamsView {{
+    flux::OptixCallableLaunchParams callable;
+    char padding[FLUX_LAUNCH_PARAMS_SIZE - sizeof(flux::OptixCallableLaunchParams)];
+}};
+extern "C" __constant__ OptixLaunchParamsView optixLaunchParams;
+
+namespace {{
+#include "{material}"
+}}
+
+extern "C" __device__ flux::OptixBSDFResult {callable}(
+    unsigned int wordOffset, flux::OptixShadingContext context, float3 wo, float3 wi, bool eval,
+    float u1, float2 u2
+) {{
+    auto *words = const_cast<unsigned int *>(optixLaunchParams.callable.words) + wordOffset;
+    return fluxExecute(words, context, wo, wi, eval, u1, u2);
+}}
+
+template <typename T, typename U> constexpr bool is_same_v = false;
+template <typename T> constexpr bool is_same_v<T, T> = true;
+static_assert(is_same_v<decltype({callable}), flux::OptixBSDFCallable>);
+)cuda",
+        fmt::arg("prelude", preludeInclude), fmt::arg("material", materialInclude),
+        fmt::arg("callable", OptixBSDFCompiler::callableName)
+    );
+}
+
+/// The name of the NVRTC program, which prefixes the internal symbols of its module.
+[[nodiscard]] std::string getProgramName(std::string const &material) {
+    return fmt::format("bsdf_{:016x}.cu", std::hash<std::string>{}(material));
+}
+
+[[nodiscard]] std::vector<char> compileToOptixIr(
+    std::string const &cuda, std::string const &prelude, std::string const &architectureOption,
+    std::string const &programName
+) {
+    auto const bridge = makeBridge();
+    std::vector<char const *> headerNames{preludeInclude, materialInclude};
+    std::vector<char const *> headerTexts{prelude.c_str(), cuda.c_str()};
+    for (auto const &[name, text] : nvrtcHeaders) {
+        headerNames.push_back(name);
+        headerTexts.push_back(text);
+    }
+
+    nvrtcProgram handle{};
+    nvrtcCheck(nvrtcCreateProgram(
+        &handle, bridge.c_str(), programName.c_str(), static_cast<int>(headerNames.size()),
+        headerTexts.data(), headerNames.data()
+    ));
+    auto const program = NvrtcProgram{handle};
+
+    auto const launchParamsSize =
+        fmt::format("-DFLUX_LAUNCH_PARAMS_SIZE={}", sizeof(OptixLaunchParams));
+    // -pch keeps the bridge's first include, the Slang prelude, parsed for later compiles.
+    auto const options = std::array{
+        "-optix-ir",       "--std=c++20", architectureOption.c_str(), "--use_fast_math",
+        "-default-device", "-rdc=true",   launchParamsSize.c_str(),   "-pch",
+    };
+    auto const result =
+        nvrtcCompileProgram(handle, static_cast<int>(options.size()), options.data());
+    if (result != NVRTC_SUCCESS) {
+        std::size_t logSize{};
+        nvrtcCheck(nvrtcGetProgramLogSize(handle, &logSize));
+        std::string log(logSize, '\0');
+        nvrtcCheck(nvrtcGetProgramLog(handle, log.data()));
+        throw kira::Anyhow(
+            "OptixBSDFCompiler: NVRTC failed with {}:\n{}", nvrtcGetErrorString(result), log
+        );
+    }
+
+    std::size_t size{};
+    nvrtcCheck(nvrtcGetOptiXIRSize(handle, &size));
+    std::vector<char> ir(size);
+    nvrtcCheck(nvrtcGetOptiXIR(handle, ir.data()));
+    return ir;
+}
+
+[[nodiscard]] std::string getArchitectureOption() {
+    int device{};
+    cudaCheck(cudaGetDevice(&device));
+    int major{};
+    int minor{};
+    cudaCheck(cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, device));
+    cudaCheck(cudaDeviceGetAttribute(&minor, cudaDevAttrComputeCapabilityMinor, device));
+    return fmt::format("-arch=compute_{}{}", major, minor);
+}
+
+[[nodiscard]] double millisecondsSince(std::chrono::steady_clock::time_point start) noexcept {
+    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start)
+        .count();
+}
+} // namespace
+
+OptixBSDFCompiler::OptixBSDFCompiler()
+    : architectureOption_(getArchitectureOption()),
+      slangCompiler_(SlangCompiler::Target::CudaSource) {}
+
+std::vector<char> OptixBSDFCompiler::compile(std::string const &material) const {
+    auto start = std::chrono::steady_clock::now();
+    std::vector<SlangModule> modules;
+    for (auto const &[path, source] : slangModules) {
+        auto name = getModuleName(path);
+        if (name == callableModule)
+            modules.push_back({.name = "material", .source = material});
+        modules.push_back({.name = std::move(name), .source = source});
+    }
+    auto const cuda = slangCompiler_.compile(modules, callableModule);
+    auto const &prelude = slangCompiler_.getTargetPrelude();
+    auto const slangMilliseconds = millisecondsSince(start);
+
+    start = std::chrono::steady_clock::now();
+    auto ir = compileToOptixIr(cuda, prelude, architectureOption_, getProgramName(material));
+    auto const nvrtcMilliseconds = millisecondsSince(start);
+
+    LogInfo(
+        "OptixBSDFCompiler: compiled a BSDF in {:.1f} ms (Slang {:.1f} ms, NVRTC {:.1f} ms)",
+        slangMilliseconds + nvrtcMilliseconds, slangMilliseconds, nvrtcMilliseconds
+    );
+    return ir;
+}
+} // namespace flux

@@ -155,6 +155,17 @@ public MixBSDF<A, B> makeMixBSDF<A : IBSDF, B : IBSDF>(A fg, B bg, float mix)
     return {fg, bg, mix};
 }
 
+/// \brief \p v in the shading frame around \p normal, whose basis is that of \c flux::Frame.
+public float3 toShadingFrame(float3 normal, float3 v)
+{
+    let sign = asfloat((asuint(normal.z) & 0x80000000u) | asuint(1.0));
+    let a = -1.0 / (sign + normal.z);
+    let b = normal.x * normal.y * a;
+    let tangent = float3(1.0 + sign * normal.x * normal.x * a, sign * b, -sign * normal.x);
+    let bitangent = float3(b, sign + normal.y * normal.y * a, -normal.y);
+    return float3(dot(v, tangent), dot(v, bitangent), dot(v, normal));
+}
+
 /// \brief Runs \p bsdf once, and evaluates \p wi when \p eval is true.
 ///
 /// \pre The directions are normalized and shading-local, and \p u1 and \p u2 lie in [0, 1).

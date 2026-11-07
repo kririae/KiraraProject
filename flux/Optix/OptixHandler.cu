@@ -228,6 +228,7 @@ RenderStats OptixHandler::pImpl::render(
         // The stream orders normalization, parameter upload, and OptiX work.
         chunkCounter.zero();
         auto const params = OptixLaunchParams{
+            .callable = optixContext.getCallableLaunchParams(),
             .scene = optixContext.getImpl(),
             .camera = cameraImpl,
             .sampler = sampler,

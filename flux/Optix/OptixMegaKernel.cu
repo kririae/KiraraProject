@@ -20,7 +20,7 @@ struct OptixImageTextureEvaluator {
     [[nodiscard]] KIRA_DEVICE static flux::Vec4f eval4f(
         std::uint32_t index, flux::Vec2f uv, flux::Vec2f const &duvdx, flux::Vec2f const &duvdy
     ) noexcept {
-        auto const &texture = optixLaunchParams.scene.imageTextures.getTexture(index);
+        auto const &texture = optixLaunchParams.callable.imageTextures.getTexture(index);
         auto const value = texture.apply(texture.sample(
             make_float2(uv.x(), uv.y()), make_float2(duvdx.x(), duvdx.y()),
             make_float2(duvdy.x(), duvdy.y())

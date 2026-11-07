@@ -288,3 +288,11 @@ target_compile_definitions(flux.Optix.DeviceSessionTests
                            PRIVATE FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
 target_link_libraries(flux.Optix.DeviceSessionTests PRIVATE CUDA::cuda_driver)
 add_dependencies(flux.Optix.DeviceSessionTests flux_megakernel_ir)
+
+krr_add_test(
+    flux Optix ShaderModuleTests
+    SOURCES OptixShaderModuleTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(flux.Optix.ShaderModuleTests
+                           PRIVATE FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
+add_dependencies(flux.Optix.ShaderModuleTests flux_megakernel_ir)

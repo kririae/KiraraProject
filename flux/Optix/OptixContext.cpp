@@ -147,6 +147,10 @@ OptixMegaKernelModuleSpec const &OptixContext::getMegaKernelModuleSpec() const n
     return pImpl_->megaKernelModule->getSpec();
 }
 
+OptixCallableLaunchParams OptixContext::getCallableLaunchParams() const noexcept {
+    return {.imageTextures = {.textures = pImpl_->imageTextures.data()}};
+}
+
 OptixContext::Impl OptixContext::getImpl() const noexcept {
     return {
         .traversable = pImpl_->ias.getHandle(),
@@ -158,7 +162,6 @@ OptixContext::Impl OptixContext::getImpl() const noexcept {
                 .bsdfs = pImpl_->bsdfs.data(),
                 .edfs = pImpl_->edfs.data(),
             },
-        .imageTextures = {.textures = pImpl_->imageTextures.data()},
         .lightSampler = pImpl_->lightSampler.getImpl(),
     };
 }

@@ -1,9 +1,11 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <type_traits>
 
 #include "flux/Integrator/PathIntegrator.h"
+#include "flux/Optix/OptixCallableLaunchParams.h"
 #include "flux/Optix/OptixContext.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
@@ -21,6 +23,9 @@ struct OptixLaunchSample {
 
 /// \brief Parameters shared by an OptiX render launch.
 struct OptixLaunchParams {
+    /// The part that callable modules read too.
+    OptixCallableLaunchParams callable;
+
     /// OptiX scene for this launch.
     OptixContext::Impl scene;
 
@@ -104,4 +109,5 @@ static_assert(std::is_standard_layout_v<OptixLaunchSample>);
 static_assert(std::is_trivially_copyable_v<OptixLaunchSample>);
 static_assert(std::is_standard_layout_v<OptixLaunchParams>);
 static_assert(std::is_trivially_copyable_v<OptixLaunchParams>);
+static_assert(offsetof(OptixLaunchParams, callable) == 0);
 } // namespace flux
