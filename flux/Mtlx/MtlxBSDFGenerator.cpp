@@ -36,6 +36,7 @@
 #include <vector>
 
 #include "flux/Mtlx/FluxShaderGenerator.h"
+#include "flux/Mtlx/FluxShaderGraphRefactor.h"
 #include "flux/Mtlx/FluxSourceCodeNode.h"
 #include "kira/Anyhow.h"
 
@@ -505,6 +506,7 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::pImpl::makeInstance(
     context.getOptions().premultipliedBsdfAdd = false;
     context.getOptions().shaderInterfaceType = MaterialX::SHADER_INTERFACE_COMPLETE;
     context.getOptions().elideConstantNodes = false;
+    context.pushUserData(InteractiveInputs::name, std::make_shared<InteractiveInputs>(interactive));
 
     auto const material = document->getChild(materialName);
     constexpr auto sourceName = "material";

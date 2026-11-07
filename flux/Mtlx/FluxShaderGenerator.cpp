@@ -13,6 +13,7 @@
 #include <string_view>
 #include <utility>
 
+#include "flux/Mtlx/FluxShaderGraphRefactor.h"
 #include "flux/Mtlx/FluxSourceCodeNode.h"
 #include "flux/Mtlx/FluxSyntax.h"
 
@@ -53,6 +54,9 @@ hasClosureOutput(MaterialX::NodeDef const &nodeDef, MaterialX::TypeSystem const 
 FluxShaderGenerator::FluxShaderGenerator(MaterialX::TypeSystemPtr typeSystem)
     : SlangShaderGenerator{typeSystem} {
     _syntax = std::make_shared<FluxSyntax>(std::move(typeSystem));
+    registerRefactor(std::make_shared<LiteralMixElisionRefactor>());
+    registerRefactor(std::make_shared<ZeroWeightBsdfElisionRefactor>());
+    registerRefactor(std::make_shared<EmptyTopLayerElisionRefactor>());
 }
 
 MaterialX::ShaderStagePtr FluxShaderGenerator::makeStage() const {
