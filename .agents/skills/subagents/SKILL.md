@@ -18,7 +18,7 @@ Match the model to the role: the strongest for advisors and reviewers, a capable
 ## Steps
 
 1. Decide the work, with an advisor or a committee when it has pitfalls. Batch related work into one task.
-2. Write the brief, a file kept with its [work item](../locality/SKILL.md). It holds all that the subagent needs: the task, what is ruled out, the skills to follow, and where to write the report.
+2. Write the brief, a file kept with its [work item](../locality/SKILL.md). It holds all that the subagent needs: the task, what is ruled out, the skills to follow, and where to write the report. Hand it out in units of about five minutes of the subagent's work: after each, the subagent reports and stops, and you send the next. Size each unit by how long the last one took.
 3. Check the report at its sources, as survey says. Take an objection to the design back to step 1. For a review, list in your reasoning a verdict on each finding: accepted or rejected, with a reason. Not every finding needs a fix. Send the fixes and your rejections back to the same reviewer, until it approves.
 4. From the third review round, take structural findings to an advisor, as a question about the design. Fix execution findings.
 
