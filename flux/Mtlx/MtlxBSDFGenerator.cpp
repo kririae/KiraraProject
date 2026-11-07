@@ -345,24 +345,53 @@ void appendWords(
     return spec;
 }
 
+/// \brief The nodes of the document of the category \p category that \p graph generates.
+[[nodiscard]] std::vector<MaterialX::NodePtr> findNodes(
+    MaterialX::DocumentPtr const &document, MaterialX::ShaderGraph const &graph,
+    std::string_view category
+) {
+    auto found = std::vector<MaterialX::NodePtr>{};
+    for (auto const *shaderNode : graph.getNodes())
+        for (auto const *input : shaderNode->getInputs()) {
+            auto const node = splitInputPath(document, input->getPath()).node;
+            if (node && node->getCategory() == category) {
+                found.push_back(node);
+                break;
+            }
+        }
+    return found;
+}
+
 /// \brief Appends a diagnostic for each \c dielectric_bsdf whose retroreflection is dropped.
 void reportDroppedRetroreflection(
     MaterialX::DocumentPtr const &document, MaterialX::ShaderGraph const &graph,
     std::string const &materialName, std::vector<std::string> &diagnostics
 ) {
-    for (auto const *shaderNode : graph.getNodes()) {
-        auto const *scatterMode = shaderNode->getInput("scatter_mode");
-        if (!scatterMode)
-            continue;
-        auto const node = splitInputPath(document, scatterMode->getPath()).node;
-        if (!node || node->getCategory() != "dielectric_bsdf")
-            continue;
+    for (auto const &node : findNodes(document, graph, "dielectric_bsdf")) {
         auto const mode = getInputString(*node, "scatter_mode");
         if (getInputString(*node, "retroreflective") == "true" && mode != "R")
             diagnostics.push_back(
                 fmt::format(
                     "MaterialX material '{}': '{}' has scatter_mode '{}', which drops its "
                     "retroreflective",
+                    materialName, node->getNamePath(), mode
+                )
+            );
+    }
+}
+
+/// \brief Appends a diagnostic for each \c generalized_schlick_bsdf that has no transmission.
+void reportMissingTransmission(
+    MaterialX::DocumentPtr const &document, MaterialX::ShaderGraph const &graph,
+    std::string const &materialName, std::vector<std::string> &diagnostics
+) {
+    for (auto const &node : findNodes(document, graph, "generalized_schlick_bsdf")) {
+        auto const mode = getInputString(*node, "scatter_mode");
+        if (mode == "T" || mode == "RT")
+            diagnostics.push_back(
+                fmt::format(
+                    "MaterialX material '{}': '{}' has scatter_mode '{}', which has no "
+                    "transmission",
                     materialName, node->getNamePath(), mode
                 )
             );
@@ -548,6 +577,7 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::pImpl::makeInstance(
         );
 
     reportDroppedRetroreflection(document, graph, materialName, diagnostics);
+    reportMissingTransmission(document, graph, materialName, diagnostics);
     reportUnreadEDFAndVDF(graph, materialName, diagnostics);
 
     generator->emitFunctionCalls(graph, context, *stage);
