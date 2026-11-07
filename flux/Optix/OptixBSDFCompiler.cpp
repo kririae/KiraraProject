@@ -2,6 +2,7 @@
 
 #include <cuda_runtime_api.h>
 #include <nvrtc.h>
+#include <tbb/enumerable_thread_specific.h>
 
 #include <algorithm>
 #include <array>
@@ -15,6 +16,7 @@
 #include "flux/Core/Logging.h"
 #include "flux/Optix/OptixLaunchParams.h"
 #include "flux/Optix/OptixUtils.h"
+#include "flux/Slang/SlangCompiler.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
@@ -158,9 +160,18 @@ static_assert(is_same_v<decltype({callable}), flux::OptixBSDFCallable>);
 }
 } // namespace
 
-OptixBSDFCompiler::OptixBSDFCompiler()
-    : architectureOption_(getArchitectureOption()),
-      slangCompiler_(SlangCompiler::Target::CudaSource) {}
+struct OptixBSDFCompiler::pImpl {
+    std::string architectureOption{getArchitectureOption()};
+
+    /// One compiler for each thread that compiles.
+    tbb::enumerable_thread_specific<SlangCompiler> slangCompilers{[] {
+        return SlangCompiler{SlangCompiler::Target::CudaSource};
+    }};
+};
+
+OptixBSDFCompiler::OptixBSDFCompiler() : pImpl_(std::make_unique<pImpl>()) {}
+
+OptixBSDFCompiler::~OptixBSDFCompiler() = default;
 
 std::vector<char> OptixBSDFCompiler::compile(std::string const &material) const {
     auto start = std::chrono::steady_clock::now();
@@ -171,12 +182,13 @@ std::vector<char> OptixBSDFCompiler::compile(std::string const &material) const 
             modules.push_back({.name = "material", .source = material});
         modules.push_back({.name = std::move(name), .source = source});
     }
-    auto const cuda = slangCompiler_.compile(modules, callableModule);
-    auto const &prelude = slangCompiler_.getTargetPrelude();
+    auto const &slangCompiler = pImpl_->slangCompilers.local();
+    auto const cuda = slangCompiler.compile(modules, callableModule);
+    auto const &prelude = slangCompiler.getTargetPrelude();
     auto const slangMilliseconds = millisecondsSince(start);
 
     start = std::chrono::steady_clock::now();
-    auto ir = compileToOptixIr(cuda, prelude, architectureOption_, getProgramName(material));
+    auto ir = compileToOptixIr(cuda, prelude, pImpl_->architectureOption, getProgramName(material));
     auto const nvrtcMilliseconds = millisecondsSince(start);
 
     LogInfo(

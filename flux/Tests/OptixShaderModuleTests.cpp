@@ -1,9 +1,12 @@
 #include <cuda_runtime_api.h>
+#include <fmt/format.h>
 #include <gtest/gtest.h>
 #include <optix_stubs.h>
 
 #include <array>
+#include <cstddef>
 #include <filesystem>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -11,7 +14,9 @@
 #include "flux/Optix/OptixMegaKernelModule.h"
 #include "flux/Optix/OptixPipelineCompileOptions.h"
 #include "flux/Optix/OptixShaderModule.h"
+#include "flux/Optix/OptixShaderPool.h"
 #include "flux/Optix/OptixUtils.h"
+#include "flux/Scene/ShaderAsset.h"
 
 namespace {
 /// Owns an OptiX context for one test.
@@ -102,4 +107,30 @@ TEST(OptixShaderModule, TwoSourcesThatDifferOnlyByACommentLinkIntoOnePipeline) {
     EXPECT_EQ(result, OPTIX_SUCCESS);
     if (pipeline)
         flux::optixCheck<false>(optixPipelineDestroy(pipeline));
+}
+
+TEST(OptixShaderPool, AddBuildsAModuleForEachOfSeveralMaterials) {
+    Device const device;
+    flux::ShaderAssetPool assetPool;
+    std::vector<flux::Ref<flux::ShaderAsset const>> assets;
+    for (auto const word : {0, 1, 2, 3})
+        assets.push_back(assetPool.getOrCreate(
+            {.source = fmt::format(
+                 "import flux_bsdf;\nimport flux_context;\n"
+                 "public IBSDF makeBSDF(uint* words, ShadingContext ctx)\n"
+                 "{{ return makeMixBSDF(EmptyBSDF(), EmptyBSDF(), asfloat(words[{}])); }}\n",
+                 word
+             )}
+        ));
+
+    flux::OptixShaderPool pool{device.context};
+    pool.add({assets.data(), assets.size()});
+
+    std::set<OptixProgramGroup> groups;
+    for (auto const &asset : assets) {
+        auto const module = pool.getModule(asset->getId());
+        EXPECT_NE(module->getProgramGroup(), nullptr);
+        groups.insert(module->getProgramGroup());
+    }
+    EXPECT_EQ(groups.size(), assets.size());
 }

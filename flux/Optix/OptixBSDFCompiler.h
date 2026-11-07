@@ -1,15 +1,16 @@
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "flux/Core/Object.h"
-#include "flux/Slang/SlangCompiler.h"
 
 namespace flux {
 /// \brief Compiles the Slang of a BSDF into OptiX IR that defines its direct callable.
 ///
-/// Thread-safe.
+/// Thread-safe. Each thread compiles with its own Slang global session, which it creates on its
+/// first compile, so compiles on different threads run concurrently.
 class OptixBSDFCompiler final : private Noncopyable {
 public:
     /// \brief The name of the direct callable that the IR defines, of type \c OptixBSDFCallable.
@@ -19,6 +20,7 @@ public:
     ///
     /// \throw kira::Anyhow If CUDA fails.
     OptixBSDFCompiler();
+    ~OptixBSDFCompiler();
 
     /// \brief Returns the OptiX IR of the module \p material, which declares \c makeBSDF.
     ///
@@ -28,7 +30,7 @@ public:
     [[nodiscard]] std::vector<char> compile(std::string const &material) const;
 
 private:
-    std::string architectureOption_;
-    SlangCompiler slangCompiler_;
+    struct pImpl;
+    std::unique_ptr<pImpl> pImpl_;
 };
 } // namespace flux

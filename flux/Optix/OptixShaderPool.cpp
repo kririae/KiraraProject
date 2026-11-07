@@ -1,5 +1,8 @@
 #include "flux/Optix/OptixShaderPool.h"
 
+#include <tbb/parallel_for.h>
+#include <tbb/partitioner.h>
+
 #include <utility>
 
 namespace flux {
@@ -10,12 +13,11 @@ void OptixShaderPool::add(std::span<Ref<ShaderAsset const> const> assets) {
     if (!compiler_)
         compiler_.emplace();
 
-    std::vector<std::shared_ptr<OptixShaderModule const>> modules;
-    modules.reserve(assets.size());
-    for (auto const &asset : assets) {
-        auto const ir = compiler_->compile(asset->getSpec().source);
-        modules.push_back(std::make_shared<OptixShaderModule const>(deviceContext_, ir));
-    }
+    std::vector<std::shared_ptr<OptixShaderModule const>> modules(assets.size());
+    tbb::parallel_for(std::size_t{0}, assets.size(), [&](std::size_t i) {
+        auto const ir = compiler_->compile(assets[i]->getSpec().source);
+        modules[i] = std::make_shared<OptixShaderModule const>(deviceContext_, ir);
+    }, tbb::simple_partitioner{});
 
     modules_.reserve(modules_.size() + modules.size());
     for (std::size_t i = 0; i < modules.size(); ++i)
