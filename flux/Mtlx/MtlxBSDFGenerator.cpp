@@ -203,7 +203,7 @@ void emitConstant(
                                            : syntax.getDefaultValue(type);
     auto line = fmt::format("{} {}", syntax.getTypeName(type), socket.getVariable());
     if (!literal.empty())
-        line += " = " + literal;
+        line = "static const " + line + " = " + literal;
     shadergen.emitLine(line + ";", stage, false);
 }
 

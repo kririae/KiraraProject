@@ -8,7 +8,7 @@ static const int scatterModeT = 1;
 static const int scatterModeRT = 2;
 
 /// \brief MaterialX's \c dielectric_bsdf, with the microfacet BTDF of Walter et al. 2007.
-public struct DielectricBSDF : IBSDF
+public struct DielectricBSDF<let ScatterMode : int> : IBSDF
 {
     public float weight;
     public float3 tint;
@@ -21,19 +21,18 @@ public struct DielectricBSDF : IBSDF
     public float3 x;
     public float3 ng;
     public int distribution;
-    public int scatterMode;
 
     /// The index of refraction across the surface from \p wo over that on its side.
     float eta(float3 wo) { return dot(wo, ng) >= 0.0 ? ior : 1.0 / ior; }
 
-    bool transmits() { return scatterMode != scatterModeR; }
+    static const bool transmits = ScatterMode != scatterModeR;
 
     /// The direction that the reflection is sampled and evaluated from.
     float3 view(float3 nf, float3 wo) { return retroreflective ? reflect(-wo, nf) : wo; }
 
     GGXRefractionSampler refractionSampler(float3 nf, float3 wo)
     {
-        return GGXRefractionSampler.make(nf, x, alpha, eta(wo), scatterMode == scatterModeRT);
+        return GGXRefractionSampler.make(nf, x, alpha, eta(wo), ScatterMode == scatterModeRT);
     }
 
     /// MaterialX's closure of the reflection from \p wo to \p wi.
@@ -43,7 +42,7 @@ public struct DielectricBSDF : IBSDF
         mx_dielectric_bsdf(
             makeClosureData(CLOSURE_TYPE_REFLECTION, wi, wo, nf, float3(0.0), 1.0), weight, tint,
             eta(wo), alpha, retroreflective, thinfilmThickness, thinfilmIor, n, x, distribution,
-            scatterMode, bsdf);
+            ScatterMode, bsdf);
         return bsdf;
     }
 
@@ -67,7 +66,7 @@ public struct DielectricBSDF : IBSDF
     public BSDFEvaluation evalAndPdf(float3 wo, float3 wi)
     {
         let nf = mx_forward_facing_normal(n, wo);
-        if (!transmits())
+        if (!transmits)
         {
             if (dot(nf, wi) <= 0.0)
                 return {float3(0.0), 0.0};
@@ -88,7 +87,7 @@ public struct DielectricBSDF : IBSDF
     public BSDFDirectionSample sampleDirection(float3 wo, float u1, float2 u2)
     {
         let nf = mx_forward_facing_normal(n, wo);
-        if (transmits())
+        if (transmits)
         {
             if (eta(wo) == 1.0)
             {
@@ -108,7 +107,7 @@ public struct DielectricBSDF : IBSDF
     /// From the inside, the reflected energy is the exact Fresnel reflectance, not MaterialX's fit.
     public float3 throughput(float3 wo)
     {
-        if (scatterMode == scatterModeT)
+        if (ScatterMode == scatterModeT)
             return float3(1.0);
 
         let nf = mx_forward_facing_normal(n, wo);
@@ -120,21 +119,19 @@ public struct DielectricBSDF : IBSDF
     }
 };
 
-public DielectricBSDF makeDielectricBSDF(
+public DielectricBSDF<ScatterMode> makeDielectricBSDF<let ScatterMode : int>(
     float weight, float3 tint, float ior, float2 roughness, bool retroreflective,
-    float thinfilmThickness, float thinfilmIor, float3 n, float3 x, float3 ng, int distribution,
-    int scatterMode)
+    float thinfilmThickness, float thinfilmIor, float3 n, float3 x, float3 ng, int distribution)
 {
     return {weight,
             tint,
             ior,
             makeGGXAlpha(roughness),
-            retroreflective && scatterMode == scatterModeR,
+            retroreflective && ScatterMode == scatterModeR,
             thinfilmThickness,
             thinfilmIor,
             n,
             x,
             ng,
-            distribution,
-            scatterMode};
+            distribution};
 }
