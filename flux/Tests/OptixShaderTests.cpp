@@ -6,6 +6,7 @@
 #include <functional>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "SceneUtils.h"
@@ -71,6 +72,27 @@ constexpr auto smoothDocument = R"mtlx(<?xml version="1.0"?>
     };
 }
 
+/// \brief A diffuse reflector whose color is the world-space tangent.
+constexpr auto tangentDocument = R"mtlx(<?xml version="1.0"?>
+<materialx version="1.39">
+  <tangent name="t" type="vector3">
+    <input name="space" type="string" value="world" />
+  </tangent>
+  <convert name="c" type="color3">
+    <input name="in" type="vector3" nodename="t" />
+  </convert>
+  <oren_nayar_diffuse_bsdf name="fg" type="BSDF">
+    <input name="color" type="color3" nodename="c" />
+    <input name="roughness" type="float" value="0" />
+  </oren_nayar_diffuse_bsdf>
+  <surface name="s" type="surfaceshader">
+    <input name="bsdf" type="BSDF" nodename="fg" />
+  </surface>
+  <surfacematerial name="M" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="s" />
+  </surfacematerial>
+</materialx>)mtlx";
+
 /// \brief The properties of an image texture whose value is \p color at every uv.
 [[nodiscard]] kira::Properties constantTexture(flux::Vec4f const &color) {
     kira::Properties properties;
@@ -93,7 +115,8 @@ constexpr auto smoothDocument = R"mtlx(<?xml version="1.0"?>
 [[nodiscard]] flux::Spectrum renderMean(
     flux::ShaderAssetSpec const &spec, std::vector<std::uint32_t> const &words,
     std::span<kira::Properties const> textures = {},
-    std::function<void(flux::ShaderBSDF &)> const &edit = {}
+    std::function<void(flux::ShaderBSDF &)> const &edit = {},
+    flux::TriangleMesh::Data triangleData = largeTriangleData()
 ) {
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
@@ -103,7 +126,7 @@ constexpr auto smoothDocument = R"mtlx(<?xml version="1.0"?>
     std::vector<flux::Ref<flux::ImageTexture const>> shaderTextures;
     for (auto const &properties : textures)
         shaderTextures.push_back(context->create<flux::ImageTexture>(properties));
-    auto mesh = context->create<flux::TriangleMesh>(largeTriangleData());
+    auto mesh = context->create<flux::TriangleMesh>(std::move(triangleData));
     std::vector<flux::Ref<flux::ImageTexture const>> const blackTextures(
         shaderTextures.size(), unused
     );
@@ -243,4 +266,26 @@ public IBSDF makeBSDF(uint* words, ShadingContext ctx)
 
     for (int axis = 0; axis < 3; ++axis)
         EXPECT_NEAR(mean[axis], color[axis], tolerance * color[axis]) << axis;
+}
+
+TEST(OptixShaderTests, TheTangentNodeIsTheDirectionInWhichUGrows) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    auto const generator = flux::MtlxBSDFGenerator{FLUX_MATERIALX_DIR};
+    auto const generated = generator.generate(tangentDocument, "M", {});
+    ASSERT_TRUE(generated.instance);
+    // u grows along y, where the tangent of the frame of the normal (0, 0, 1) points along x.
+    auto triangleData = largeTriangleData();
+    triangleData.texCoords = flux::test::sharedBuffer(
+        flux::Vec2f{-4.5F, -2.0F}, flux::Vec2f{-4.5F, 3.0F}, flux::Vec2f{5.5F, 0.5F}
+    );
+
+    auto const mean = renderMean(
+        generated.instance->spec, generated.instance->words, {}, {}, std::move(triangleData)
+    );
+
+    constexpr std::array color{0.0F, 1.0F, 0.0F};
+    for (int axis = 0; axis < 3; ++axis)
+        EXPECT_NEAR(mean[axis], color[axis], tolerance) << axis;
 }

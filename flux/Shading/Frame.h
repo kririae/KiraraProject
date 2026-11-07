@@ -31,6 +31,9 @@ public:
     Frame(Vec3f const &tangent, Vec3f const &bitangent, Vec3f const &normal) noexcept
         : tangent_(tangent), bitangent_(bitangent), normal_(normal) {}
 
+    /// \brief Returns the local x axis.
+    [[nodiscard]] KIRA_HOST_DEVICE Vec3f const &getTangent() const noexcept { return tangent_; }
+
     /// \brief Converts a world-space vector to this local frame.
     [[nodiscard]] KIRA_HOST_DEVICE Vec3f toLocal(Vec3f const &value) const noexcept {
         return {

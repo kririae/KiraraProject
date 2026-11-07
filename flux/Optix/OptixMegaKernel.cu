@@ -44,7 +44,9 @@ struct OptixEvaluator {
                 .duvdx = make_float2(ctx.texture.duvdx.x(), ctx.texture.duvdx.y()),
                 .duvdy = make_float2(ctx.texture.duvdy.x(), ctx.texture.duvdy.y()),
                 .normal = make_float3(ctx.normal.x(), ctx.normal.y(), ctx.normal.z()),
+                .tangent = make_float3(ctx.tangent.x(), ctx.tangent.y(), ctx.tangent.z()),
                 .textureOffset = binding.textureOffset,
+                .padding = 0,
             },
             make_float3(wo.x(), wo.y(), wo.z()), make_float3(wi.x(), wi.y(), wi.z()), eval, u1,
             make_float2(u2.x(), u2.y())

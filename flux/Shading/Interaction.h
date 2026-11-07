@@ -8,6 +8,7 @@
 #include "flux/Core/Math.h"
 #include "flux/Core/Ray.h"
 #include "flux/Core/RayFootprint.h"
+#include "flux/Shading/Frame.h"
 #include "flux/Shading/Texture.h"
 #include "kira/Compiler.h"
 
@@ -92,8 +93,24 @@ struct ShadingContext {
     /// The shading normal, which determines the shading frame as in \c Frame.
     Vec3f normal{};
 
+    /// The unit vector orthogonal to \c normal in which \c uv.x() grows.
+    Vec3f tangent{};
+
     TextureEvalContext texture{};
 };
+
+/// \brief Returns the tangent of the shading context at a surface point.
+///
+/// \pre \p normal is normalized.
+[[nodiscard]] KIRA_HOST_DEVICE inline Vec3f
+computeShadingTangent(Vec3f const &normal, Vec3f const &uvGradU) noexcept {
+    constexpr auto degenerate = 1.0e-10F;
+    auto const projected = uvGradU - normal * uvGradU.dot(normal);
+    auto const length2 = projected.norm2();
+    if (length2 > degenerate * uvGradU.norm2())
+        return projected / std::sqrt(length2);
+    return Frame{normal}.getTangent();
+}
 
 /// \brief Returns the shading context at \p isect.
 ///
@@ -107,6 +124,7 @@ struct ShadingContext {
     return {
         .position = isect.position,
         .normal = isect.shadingNormal,
+        .tangent = computeShadingTangent(isect.shadingNormal, isect.uvGradU),
         .texture = {
             .uv = isect.uv,
             .duvdx = {dpdx.dot(isect.uvGradU), dpdx.dot(isect.uvGradV)},

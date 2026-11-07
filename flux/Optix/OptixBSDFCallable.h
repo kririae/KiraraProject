@@ -11,8 +11,6 @@
 
 namespace flux {
 /// \brief The shading context that a callable receives.
-///
-/// Holds no padding, since each padding word travels as an argument word of the callable.
 struct OptixShadingContext {
     float2 uv;
     float2 duvdx;
@@ -21,8 +19,14 @@ struct OptixShadingContext {
     /// The shading normal, which determines the shading frame as in \c Frame.
     float3 normal;
 
+    /// The unit vector orthogonal to \c normal in which \c uv.x grows.
+    float3 tangent;
+
     /// The index of the first texture of the BSDF in \c OptixCallableLaunchParams::textureIndices.
     unsigned int textureOffset;
+
+    /// Pads the struct to the alignment of its \c float2 members.
+    unsigned int padding;
 };
 
 /// \brief A \c BSDFResult.
@@ -52,7 +56,8 @@ using OptixBSDFCallable = OptixBSDFResult(
 );
 
 static_assert(
-    sizeof(OptixShadingContext) == 3 * sizeof(float2) + sizeof(float3) + sizeof(unsigned int)
+    sizeof(OptixShadingContext) ==
+    3 * sizeof(float2) + 2 * sizeof(float3) + 2 * sizeof(unsigned int)
 );
 static_assert(__is_standard_layout(OptixShadingContext));
 static_assert(__is_trivially_copyable(OptixShadingContext));

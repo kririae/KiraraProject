@@ -7,6 +7,10 @@
   <!-- A geometric node: the expression reads the shell's `ctx` parameter by name. -->
   <implementation name="IM_normal_vector3_genflux" nodedef="ND_normal_vector3" target="genflux"
                   sourcecode="fluxGetWorldNormal(ctx)"/>
+  <implementation name="IM_tangent_vector3_genflux" nodedef="ND_tangent_vector3" target="genflux"
+                  sourcecode="fluxGetWorldTangent(ctx)"/>
+  <implementation name="IM_bitangent_vector3_genflux" nodedef="ND_bitangent_vector3" target="genflux"
+                  sourcecode="cross(fluxGetWorldNormal(ctx), fluxGetWorldTangent(ctx))"/>
   <implementation name="IM_texcoord_vector2_genflux" nodedef="ND_texcoord_vector2" target="genflux"
                   sourcecode="fluxGetTexCoord(ctx)"/>
 
