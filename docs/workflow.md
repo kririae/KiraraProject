@@ -11,7 +11,8 @@ The stack lives on a detached HEAD, managed with git-branchless. Below, `<target
 - `git move` restacks every visible descendant of its target. Before you move, hide the old commits that a soft reset left visible, with `git hide -r`.
 - When the worktree holds edits that are not yours, stage only your own hunks, with `git apply --cached`.
 - Never run a bare `git stash`. All worktrees share one stash, so set work aside in a temporary commit.
-- A conflicting restack may use `git restack --merge` while nobody else works in the worktree. Then build and test each commit you resolved by hand.
+- A conflicting restack may use `git restack --merge` while nobody else works in the worktree.
+- After you rewrite the stack, build and run the tests at most once, at the new tip. The hooks still run at each commit.
 - Move the target branch with `git branch -f`.
 
 ## Commit messages
