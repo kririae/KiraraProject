@@ -5,8 +5,14 @@
 
 PXR_NAMESPACE_OPEN_SCOPE
 
+// clang-format off
 #define HDFLUX_RENDER_SETTINGS_TOKENS                                                              \
-    ((interactiveSamplesPerLaunch, "flux:interactiveSamplesPerLaunch"))
+    ((interactiveSamplesPerLaunch, "flux:interactiveSamplesPerLaunch"))                            \
+    ((maxDepth, "flux:maxDepth"))                                                                  \
+    ((rrDepth, "flux:rrDepth"))                                                                    \
+    ((rrProb, "flux:rrProb"))                                                                      \
+    ((sampler, "flux:sampler"))
+// clang-format on
 
 TF_DECLARE_PUBLIC_TOKENS(HdFluxRenderSettingsTokens, HDFLUX_RENDER_SETTINGS_TOKENS);
 

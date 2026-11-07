@@ -4,8 +4,16 @@
 
 #include <filesystem>
 #include <memory>
+#include <optional>
+
+#include "flux/Integrator/PathIntegrator.h"
+#include "flux/Sampling/Sampler.h"
 
 class HdFluxRenderParam;
+
+namespace flux {
+class Context;
+} // namespace flux
 
 /// \brief The interface to configure the FLux's context from Hydra.
 class HdFluxRenderDelegate final : public pxr::HdRenderDelegate {
@@ -64,6 +72,12 @@ public:
     pxr::VtDictionary GetRenderStats() const override;
 
 private:
+    /// \brief Makes the active integrator and sampler of \p context follow the render settings.
+    void applyPathSettings(flux::Context &context) const;
+
     pxr::HdResourceRegistrySharedPtr resourceRegistry_;
     std::unique_ptr<HdFluxRenderParam> renderParam_;
+    flux::PathIntegrator::Impl defaultIntegrator_;
+    flux::SamplerType defaultSampler_;
+    std::optional<unsigned int> settingsVersion_;
 };

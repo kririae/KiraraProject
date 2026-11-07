@@ -968,6 +968,17 @@ TEST_F(RenderTests, LeavesTheBackgroundWhenTheDomeLightIsRemoved) {
     EXPECT_EQ(centerChannel(buffer_, 0), 0.0F);
 }
 
+TEST_F(RenderTests, RendersTheNextFrameWithAMaxDepthChangedAfterTheImageWasRendered) {
+    scene_->AddPrims({{lightPath, HdPrimTypeTokens->domeLight, makeDomeLight("", true)}});
+    executeToConvergence();
+    EXPECT_EQ(centerChannel(buffer_, 0), 1.0F);
+
+    delegate_->SetRenderSetting(HdFluxRenderSettingsTokens->maxDepth, VtValue{0});
+    execute();
+
+    EXPECT_EQ(centerChannel(buffer_, 0), 0.0F);
+}
+
 TEST_F(RenderTests, ShowsTheDefaultTextureWhenTheDomeLightLosesItsFile) {
     scene_->AddPrims(
         {{lightPath, HdPrimTypeTokens->domeLight, makeDomeLight("/nonexistent.png", true)}}
