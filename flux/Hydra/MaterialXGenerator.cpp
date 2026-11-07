@@ -1,32 +1,24 @@
 #include "flux/Hydra/MaterialXGenerator.h"
 
-#include <MaterialXFormat/File.h>
-#include <MaterialXFormat/XmlIo.h>
-
 #include <utility>
 
 #include "flux/Mtlx/MtlxBSDFGenerator.h"
 
-namespace mx = MaterialX;
-
 struct HdFluxMaterialXGenerator::Impl {
+    explicit Impl(std::filesystem::path const &mtlxRoot) : generator{mtlxRoot} {}
+
     flux::MtlxBSDFGenerator generator;
 };
 
 HdFluxMaterialXGenerator::HdFluxMaterialXGenerator(std::filesystem::path const &mtlxRoot)
-    : impl_{std::make_unique<Impl>(flux::MtlxBSDFGenerator{mtlxRoot})} {}
+    : impl_{std::make_unique<Impl>(mtlxRoot)} {}
 
 HdFluxMaterialXGenerator::~HdFluxMaterialXGenerator() = default;
 
 std::optional<HdFluxMaterialXGenerator::Instance> HdFluxMaterialXGenerator::generate(
     std::string const &xml, std::string const &surfaceMaterialName
 ) const {
-    auto const document = mx::createDocument();
-    try {
-        mx::readFromXmlString(document, xml);
-    } catch (mx::Exception const &) { return std::nullopt; }
-
-    auto result = impl_->generator.generate(document, surfaceMaterialName, mx::FileSearchPath{});
+    auto result = impl_->generator.generate(xml, surfaceMaterialName, {});
     if (!result.instance)
         return std::nullopt;
 
