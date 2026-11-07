@@ -23,11 +23,21 @@ struct GGXReflectionSampler
 
     float3 toLocal(float3 v) { return float3(dot(v, t), dot(v, cross(n, t)), dot(v, n)); }
 
-    float3 sample(float3 v, float2 u)
+    /// A normal that \p v sees, picked with the density of \c normalPdf.
+    float3 sampleNormal(float3 v, float2 u)
     {
         let h = mx_ggx_importance_sample_VNDF(u, toLocal(v), alpha);
-        return reflect(-v, t * h.x + cross(n, t) * h.y + n * h.z);
+        return t * h.x + cross(n, t) * h.y + n * h.z;
     }
+
+    /// The density, over the solid angle of the normal, with which \c sampleNormal picks \p h.
+    float normalPdf(float3 v, float3 h)
+    {
+        let nDotV = clamp(dot(n, v), M_FLOAT_EPS, 1.0);
+        return mx_ggx_NDF(toLocal(h), alpha) * maskingG1(v) * dot(v, h) / nDotV;
+    }
+
+    float3 sample(float3 v, float2 u) { return reflect(-v, sampleNormal(v, u)); }
 
     /// The solid-angle density with which \c sample picks \p wi.
     float pdf(float3 v, float3 wi)
@@ -35,12 +45,18 @@ struct GGXReflectionSampler
         if (dot(n, wi) <= 0.0)
             return 0.0;
 
+        let nDotV = clamp(dot(n, v), M_FLOAT_EPS, 1.0);
+        let h = toLocal(normalize(v + wi));
+        return mx_ggx_VNDF_reflection_PDF(h, alpha, maskingG1(v), nDotV);
+    }
+
+    /// Smith's G1 of \p v, with the alpha projected on the azimuth of \p v.
+    float maskingG1(float3 v)
+    {
         let lv = toLocal(v);
         let nDotV = clamp(lv.z, M_FLOAT_EPS, 1.0);
-        // Smith's G1 of an anisotropic alpha is that of the alpha projected on the azimuth of v.
         let projected = alpha * lv.xy;
         let alphaV = sqrt(dot(projected, projected) / max(dot(lv.xy, lv.xy), 1e-12));
-        let h = toLocal(normalize(v + wi));
-        return mx_ggx_VNDF_reflection_PDF(h, alpha, mx_ggx_smith_G1(nDotV, alphaV), nDotV);
+        return mx_ggx_smith_G1(nDotV, alphaV);
     }
 };

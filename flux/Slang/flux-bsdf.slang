@@ -47,7 +47,15 @@ public struct BSDFDirectionSample
     public float eta;
 
     public BSDFLobe lobe;
+
+    /// The value times the cosine and the probability mass of a delta event, else zero.
+    public BSDFEvaluation delta;
 };
+
+public bool isDelta(BSDFLobe lobe)
+{
+    return lobe == BSDFLobe.DeltaReflection || lobe == BSDFLobe.DeltaTransmission;
+}
 
 public struct BSDFResult
 {
@@ -112,8 +120,14 @@ public struct MixBSDF<A : IBSDF, B : IBSDF> : IBSDF
     public BSDFDirectionSample sampleDirection(float3 wo, float u1, float2 u2)
     {
         if (u1 < mix)
-            return fg.sampleDirection(wo, u1 / mix, u2);
-        return bg.sampleDirection(wo, (u1 - mix) / (1.0 - mix), u2);
+        {
+            var sample = fg.sampleDirection(wo, u1 / mix, u2);
+            sample.delta = {sample.delta.value * mix, sample.delta.pdf * mix};
+            return sample;
+        }
+        var sample = bg.sampleDirection(wo, (u1 - mix) / (1.0 - mix), u2);
+        sample.delta = {sample.delta.value * (1.0 - mix), sample.delta.pdf * (1.0 - mix)};
+        return sample;
     }
 
     public float3 throughput(float3 wo) { return lerp(bg.throughput(wo), fg.throughput(wo), mix); }
@@ -145,10 +159,17 @@ public struct LayerBSDF<Top : IBSDF, Base : IBSDF> : IBSDF
 
     public BSDFDirectionSample sampleDirection(float3 wo, float u1, float2 u2)
     {
-        let p = topProbability(top.throughput(wo));
+        let tt = top.throughput(wo);
+        let p = topProbability(tt);
         if (u1 < p)
-            return top.sampleDirection(wo, u1 / p, u2);
-        return base.sampleDirection(wo, (u1 - p) / (1.0 - p), u2);
+        {
+            var sample = top.sampleDirection(wo, u1 / p, u2);
+            sample.delta.pdf *= p;
+            return sample;
+        }
+        var sample = base.sampleDirection(wo, (u1 - p) / (1.0 - p), u2);
+        sample.delta = {sample.delta.value * tt, sample.delta.pdf * (1.0 - p)};
+        return sample;
     }
 
     public float3 throughput(float3 wo) { return top.throughput(wo) * base.throughput(wo); }
@@ -174,7 +195,9 @@ public struct MultiplyBSDF<A : IBSDF> : IBSDF
 
     public BSDFDirectionSample sampleDirection(float3 wo, float u1, float2 u2)
     {
-        return bsdf.sampleDirection(wo, u1, u2);
+        var sample = bsdf.sampleDirection(wo, u1, u2);
+        sample.delta.value *= tint;
+        return sample;
     }
 
     public float3 throughput(float3 wo) { return bsdf.throughput(wo); }
@@ -208,6 +231,14 @@ public BSDFSample sample<B : IBSDF>(B bsdf, float3 wo, float u1, float2 u2)
     BSDFSample result = {float3(0.0), direction.wi, 0.0, direction.eta, direction.lobe};
     if (direction.lobe == BSDFLobe.None)
         return result;
+
+    if (isDelta(direction.lobe))
+    {
+        result.pdf = direction.delta.pdf;
+        if (result.pdf > 0.0)
+            result.weight = direction.delta.value / result.pdf;
+        return result;
+    }
 
     let evaluation = bsdf.evalAndPdf(wo, direction.wi);
     result.pdf = evaluation.pdf;

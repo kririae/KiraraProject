@@ -275,6 +275,30 @@ void appendWords(
     return spec;
 }
 
+/// \brief Appends a diagnostic for each \c dielectric_bsdf whose retroreflection is dropped.
+void reportDroppedRetroreflection(
+    MaterialX::DocumentPtr const &document, MaterialX::ShaderGraph const &graph,
+    std::string const &materialName, std::vector<std::string> &diagnostics
+) {
+    for (auto const *shaderNode : graph.getNodes()) {
+        auto const *scatterMode = shaderNode->getInput("scatter_mode");
+        if (!scatterMode)
+            continue;
+        auto const node = splitInputPath(document, scatterMode->getPath()).node;
+        if (!node || node->getCategory() != "dielectric_bsdf")
+            continue;
+        auto const mode = getInputString(*node, "scatter_mode");
+        if (getInputString(*node, "retroreflective") == "true" && mode != "R")
+            diagnostics.push_back(
+                fmt::format(
+                    "MaterialX material '{}': '{}' has scatter_mode '{}', which drops its "
+                    "retroreflective",
+                    materialName, node->getNamePath(), mode
+                )
+            );
+    }
+}
+
 [[nodiscard]] MaterialX::FileSearchPath
 makeSearchPath(std::span<std::filesystem::path const> folders) {
     auto searchPath = MaterialX::FileSearchPath{};
@@ -447,6 +471,8 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::pImpl::makeInstance(
                 "MaterialX material '{}': '{}' names no input that is read", materialName, path
             )
         );
+
+    reportDroppedRetroreflection(document, graph, materialName, diagnostics);
 
     generator->emitFunctionCalls(graph, context, *stage);
     generator->emitLine(
