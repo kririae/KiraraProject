@@ -11,8 +11,6 @@
 
 namespace flux {
 /// \brief A \c SourceCodeNode whose inline implementations declare their values with \c let.
-///
-/// \c emitFunctionCall copies the inline branch of MaterialX 1.39.5's \c SourceCodeNode.
 class FluxSourceCodeNode final : public MaterialX::SourceCodeNode {
 public:
     static MaterialX::ShaderNodeImplPtr create();
@@ -33,6 +31,7 @@ public:
         MaterialX::ShaderStage &stage
     ) const override;
 
+    /// \brief Copies the inline branch of MaterialX 1.39.5's \c SourceCodeNode.
     void emitFunctionCall(
         MaterialX::ShaderNode const &node, MaterialX::GenContext &context,
         MaterialX::ShaderStage &stage
