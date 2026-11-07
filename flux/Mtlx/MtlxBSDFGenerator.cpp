@@ -506,8 +506,11 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::pImpl::makeInstance(
     context.getOptions().shaderInterfaceType = MaterialX::SHADER_INTERFACE_COMPLETE;
     context.getOptions().elideConstantNodes = false;
 
-    auto const shader =
-        generator->createShader(materialName, document->getChild(materialName), context);
+    auto const material = document->getChild(materialName);
+    constexpr auto sourceName = "material";
+    if (material->getName() != sourceName)
+        material->setName(document->createValidChildName(sourceName));
+    auto const shader = generator->createShader(materialName, material, context);
     auto const &graph = shader->getGraph();
     requireWrittenGeomProp(graph);
 

@@ -368,6 +368,19 @@ TEST(MtlxGeneratorTests, AnImageFileChangesTheTexturesAndNotTheSource) {
     expectOneConcreteType(first);
 }
 
+TEST(MtlxGeneratorTests, TheNameOfTheMaterialDoesNotChangeTheSource) {
+    auto const generator = flux::MtlxBSDFGenerator{FLUX_MATERIALX_DIR};
+    auto renamed = std::string{mixedDocument};
+    renamed.replace(renamed.find(R"(name="M")"), 8, R"(name="Other")");
+
+    auto const first = generator.generate(mixedDocument, "M", {});
+    auto const second = generator.generate(renamed, "Other", {});
+
+    ASSERT_TRUE(first.instance);
+    ASSERT_TRUE(second.instance);
+    EXPECT_EQ(first.instance->spec.source, second.instance->spec.source);
+}
+
 TEST(MtlxGeneratorTests, AnImageNodeSetsTheSpecOfItsTexture) {
     auto const instance = generate(imageSettingsDocument);
 
