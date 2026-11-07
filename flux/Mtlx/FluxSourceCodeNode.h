@@ -17,6 +17,7 @@ class FluxSourceCodeNode final : public MaterialX::SourceCodeNode {
 public:
     static MaterialX::ShaderNodeImplPtr create();
 
+    /// \throw MaterialX::ExceptionShaderGenError If the implementation names an unknown file.
     void
     initialize(MaterialX::InterfaceElement const &element, MaterialX::GenContext &context) override;
 
@@ -26,6 +27,12 @@ public:
     /// implementation reads all of them.
     [[nodiscard]] bool readsInput(std::string const &name) const;
 
+    /// \brief Emits the Slang file that the implementation names, once per stage.
+    void emitFunctionDefinition(
+        MaterialX::ShaderNode const &node, MaterialX::GenContext &context,
+        MaterialX::ShaderStage &stage
+    ) const override;
+
     void emitFunctionCall(
         MaterialX::ShaderNode const &node, MaterialX::GenContext &context,
         MaterialX::ShaderStage &stage
@@ -33,5 +40,6 @@ public:
 
 private:
     std::set<std::string> namedInputs_;
+    std::string slangLibrary_;
 };
 } // namespace flux

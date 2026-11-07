@@ -164,6 +164,8 @@ target_link_libraries(
 flux_embed(flux/Mtlx/MtlxLibraries.inc Mtlx/libraries/genflux.mtlx
            Mtlx/libraries/stdlib_genflux_impl.mtlx
            Mtlx/libraries/pbrlib_genflux_impl.mtlx)
+flux_embed(flux/Mtlx/MtlxSlangLibraries.inc Mtlx/libraries/mx-prelude.slang
+           Mtlx/libraries/mx-ggx-reflection-sampler.slang Mtlx/libraries/mx-conductor-bsdf.slang)
 
 add_library(flux_mtlx STATIC Mtlx/FluxShaderGenerator.cpp Mtlx/FluxSourceCodeNode.cpp
                              Mtlx/MtlxBSDFGenerator.cpp)

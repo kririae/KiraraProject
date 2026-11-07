@@ -2,6 +2,7 @@
 
 #include <MaterialXCore/Definition.h>
 #include <MaterialXCore/Document.h>
+#include <MaterialXCore/Library.h>
 #include <MaterialXCore/Node.h>
 #include <MaterialXCore/Types.h>
 #include <MaterialXFormat/Util.h>
@@ -310,6 +311,11 @@ struct MtlxBSDFGenerator::pImpl final {
     MaterialX::DocumentPtr libraries;
     std::shared_ptr<FluxShaderGenerator> generator;
 };
+
+static_assert(
+    MATERIALX_MAJOR_VERSION == 1 && MATERIALX_MINOR_VERSION == 39 && MATERIALX_BUILD_VERSION == 5,
+    "The glue code of the genflux closures calls the functions of MaterialX 1.39.5's libraries"
+);
 
 MtlxBSDFGenerator::pImpl::pImpl(std::filesystem::path const &root)
     : mtlxRoot{root.string()}, libraries{MaterialX::createDocument()} {

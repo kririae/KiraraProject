@@ -47,6 +47,22 @@ constexpr auto smoothDocument = R"mtlx(<?xml version="1.0"?>
   </surfacematerial>
 </materialx>)mtlx";
 
+/// \brief A conductor whose Fresnel reflectance is 1 at every angle.
+constexpr auto fullReflectanceConductorDocument = R"mtlx(<?xml version="1.0"?>
+<materialx version="1.39">
+  <conductor_bsdf name="fg" type="BSDF">
+    <input name="ior" type="color3" value="0, 0, 0" />
+    <input name="extinction" type="color3" value="100, 100, 100" />
+    <input name="roughness" type="vector2" value="0.6, 0.6" />
+  </conductor_bsdf>
+  <surface name="s" type="surfaceshader">
+    <input name="bsdf" type="BSDF" nodename="fg" />
+  </surface>
+  <surfacematerial name="M" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="s" />
+  </surfacematerial>
+</materialx>)mtlx";
+
 /// \brief The reflector, with its color read from the words.
 [[nodiscard]] flux::MtlxBSDFGenerator::Instance generateSmoothDiffuse() {
     auto const generator = flux::MtlxBSDFGenerator{FLUX_MATERIALX_DIR};
@@ -105,7 +121,7 @@ constexpr auto tangentDocument = R"mtlx(<?xml version="1.0"?>
 }
 
 /// \brief Renders the triangle with the shader of \p spec and \p words under a constant
-/// environment, and returns the mean of the pixels.
+/// environment, and returns the mean of the pixels. Each pixel takes \p sampleCount samples.
 ///
 /// The shader samples \p textures. An image texture that nothing samples precedes them, so that
 /// the image-texture index of a texture is not its slot. A shader BSDF of the same source, which no
@@ -116,7 +132,7 @@ constexpr auto tangentDocument = R"mtlx(<?xml version="1.0"?>
     flux::ShaderAssetSpec const &spec, std::vector<std::uint32_t> const &words,
     std::span<kira::Properties const> textures = {},
     std::function<void(flux::ShaderBSDF &)> const &edit = {},
-    flux::TriangleMesh::Data triangleData = largeTriangleData()
+    flux::TriangleMesh::Data triangleData = largeTriangleData(), std::uint32_t sampleCount = samples
 ) {
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
@@ -151,7 +167,7 @@ constexpr auto tangentDocument = R"mtlx(<?xml version="1.0"?>
         handler, flux::FilmSpec{resolution, flux::FilmChannels::Color}
     );
     auto const render = [&] {
-        handler.render(*camera, buffer, samples);
+        handler.render(*camera, buffer, sampleCount);
         flux::Film film{buffer.getSpec()};
         buffer.download(film);
         std::array<double, 3> sum{};
@@ -187,6 +203,25 @@ TEST(OptixShaderTests, ASmoothMaterialXDiffuseReflectsTheEnvironmentTimesItsColo
     constexpr std::array color{0.8F, 0.2F, 0.2F};
     for (int axis = 0; axis < 3; ++axis)
         EXPECT_NEAR(mean[axis], color[axis], tolerance * color[axis]) << axis;
+}
+
+TEST(OptixShaderTests, AMaterialXConductorOfFullReflectanceReflectsTheEnvironment) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    auto const generator = flux::MtlxBSDFGenerator{FLUX_MATERIALX_DIR};
+    auto const generated = generator.generate(fullReflectanceConductorDocument, "M", {});
+    ASSERT_TRUE(generated.instance);
+
+    constexpr std::uint32_t furnaceSamples = 1024;
+    auto const mean = renderMean(
+        generated.instance->spec, generated.instance->words, {}, {}, largeTriangleData(),
+        furnaceSamples
+    );
+
+    // MaterialX's fit of the directional albedo leaves the mean 0.5% below 1.
+    for (int axis = 0; axis < 3; ++axis)
+        EXPECT_NEAR(mean[axis], 1.0F, 0.01F) << axis;
 }
 
 TEST(OptixShaderTests, ASampledTextureColorsTheDiffuseReflection) {
