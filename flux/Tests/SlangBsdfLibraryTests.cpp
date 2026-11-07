@@ -16,13 +16,7 @@ import flux_bsdf;
 public BSDFResult entry(
     uint* words, float3 normal, float3 wo, float3 wi, bool eval, float u1, float2 u2)
 {
-    let color = float3(asfloat(words[0]), asfloat(words[1]), asfloat(words[2]));
-    let roughness = asfloat(words[3]);
-    let bsdf = makeMixBSDF(
-        makeOrenNayarDiffuseBSDF(color, roughness, normal),
-        makeOrenNayarDiffuseBSDF(color * 0.5, roughness, normal),
-        asfloat(words[4])
-    );
+    let bsdf = makeMixBSDF(EmptyBSDF(), EmptyBSDF(), asfloat(words[0]));
     return execute(bsdf, wo, wi, eval, u1, u2);
 }
 )slang";

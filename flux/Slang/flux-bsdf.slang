@@ -89,47 +89,6 @@ public struct EmptyBSDF : IBSDF
     }
 };
 
-/// \brief MaterialX 1.39.5's \c mx_oren_nayar_diffuse.
-public struct OrenNayarDiffuseBSDF : IBSDF
-{
-    /// The unit normal, in the frame of \p wo and \p wi.
-    public float3 n;
-
-    public float3 albedo;
-
-    public float roughness;
-
-    float3 facing(float3 wo) { return dot(n, wo) < 0.0 ? -n : n; }
-
-    float factor(float3 nf, float3 wo, float3 wi)
-    {
-        let nDotV = clamp(dot(nf, wo), 1e-6, 1.0);
-        let nDotL = clamp(dot(nf, wi), 1e-6, 1.0);
-        let lDotV = clamp(dot(normalize(wi), normalize(wo)), 1e-6, 1.0);
-        let s = lDotV - nDotL * nDotV;
-        let stinv = s > 0.0 ? s / max(nDotL, nDotV) : 0.0;
-        let sigma2 = roughness * roughness;
-        let a = 1.0 - 0.5 * (sigma2 / (sigma2 + 0.33));
-        let b = 0.45 * sigma2 / (sigma2 + 0.09);
-        return a + b * stinv;
-    }
-
-    /// \brief Zero for a \p wi on the other side of the facing normal from \p wo.
-    public BSDFEvaluation evalAndPdf(float3 wo, float3 wi)
-    {
-        let nf = facing(wo);
-        let nDotL = clamp(dot(nf, wi), 0.0, 1.0);
-        if (nDotL <= 0.0)
-            return {float3(0.0), 0.0};
-        return {albedo * factor(nf, wo, wi) * nDotL / 3.14159265, cosineHemispherePdf(nDotL)};
-    }
-
-    public BSDFDirectionSample sampleDirection(float3 wo, float u1, float2 u2)
-    {
-        return {sampleCosineHemisphere(facing(wo), u2), 1.0, BSDFLobe.DiffuseReflection};
-    }
-};
-
 /// \brief Two BSDFs, one of which each sample selects.
 public struct MixBSDF<A : IBSDF, B : IBSDF> : IBSDF
 {
@@ -152,11 +111,6 @@ public struct MixBSDF<A : IBSDF, B : IBSDF> : IBSDF
         return bg.sampleDirection(wo, (u1 - mix) / (1.0 - mix), u2);
     }
 };
-
-public OrenNayarDiffuseBSDF makeOrenNayarDiffuseBSDF(float3 albedo, float roughness, float3 n)
-{
-    return {n, albedo, roughness};
-}
 
 public MixBSDF<A, B> makeMixBSDF<A : IBSDF, B : IBSDF>(A fg, B bg, float mix)
 {

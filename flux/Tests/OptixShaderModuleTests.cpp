@@ -36,8 +36,7 @@ import flux_context;
 
 public IBSDF makeBSDF(uint* words, ShadingContext ctx)
 {
-    let normal = fluxToShadingFrame(ctx, fluxGetWorldNormal(ctx));
-    return makeOrenNayarDiffuseBSDF(float3(asfloat(words[0])), 0.5, normal);
+    return makeMixBSDF(EmptyBSDF(), EmptyBSDF(), asfloat(words[0]));
 }
 )slang";
 

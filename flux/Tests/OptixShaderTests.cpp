@@ -47,6 +47,34 @@ constexpr auto smoothDocument = R"mtlx(<?xml version="1.0"?>
   </surfacematerial>
 </materialx>)mtlx";
 
+/// \brief A Lambertian reflector, the leaf of the hand-written Slang materials.
+constexpr auto lambertianLeaf = R"slang(
+import flux_bsdf;
+
+public struct LambertianBSDF : IBSDF
+{
+    public float3 albedo;
+    public float3 n;
+
+    public BSDFEvaluation evalAndPdf(float3 wo, float3 wi)
+    {
+        let nf = dot(n, wo) < 0.0 ? -n : n;
+        let nDotL = dot(nf, wi);
+        if (nDotL <= 0.0)
+            return {float3(0.0), 0.0};
+        return {albedo * nDotL / 3.14159265, cosineHemispherePdf(nDotL)};
+    }
+
+    public BSDFDirectionSample sampleDirection(float3 wo, float u1, float2 u2)
+    {
+        let nf = dot(n, wo) < 0.0 ? -n : n;
+        return {sampleCosineHemisphere(nf, u2), 1.0, BSDFLobe.DiffuseReflection};
+    }
+};
+
+public LambertianBSDF makeLambertianBSDF(float3 albedo, float3 n) { return {albedo, n}; }
+)slang";
+
 /// \brief A conductor whose Fresnel reflectance is 1 at every angle.
 constexpr auto fullReflectanceConductorDocument = R"mtlx(<?xml version="1.0"?>
 <materialx version="1.39">
@@ -228,15 +256,14 @@ TEST(OptixShaderTests, ASampledTextureColorsTheDiffuseReflection) {
     if (!flux::test::hasCudaMemoryPoolSupport())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
-    constexpr auto source = R"slang(
+    auto const source = std::string{lambertianLeaf} + R"slang(
 import flux_bsdf;
 import flux_context;
 
 public IBSDF makeBSDF(uint* words, ShadingContext ctx)
 {
-    return makeOrenNayarDiffuseBSDF(
-        fluxSampleTexture(ctx, 1, float2(0.5)).rgb, 0,
-        fluxToShadingFrame(ctx, fluxGetWorldNormal(ctx)));
+    return makeLambertianBSDF(
+        fluxSampleTexture(ctx, 1, float2(0.5)).rgb, fluxToShadingFrame(ctx, fluxGetWorldNormal(ctx)));
 }
 )slang";
     constexpr std::array color{0.8F, 0.5F, 0.2F};
@@ -255,15 +282,15 @@ TEST(OptixShaderTests, TheTextureCoordinatesVaryOverTheSurface) {
     if (!flux::test::hasCudaMemoryPoolSupport())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
-    constexpr auto source = R"slang(
+    auto const source = std::string{lambertianLeaf} + R"slang(
 import flux_bsdf;
 import flux_context;
 
 public IBSDF makeBSDF(uint* words, ShadingContext ctx)
 {
     let uv = fluxGetTexCoord(ctx);
-    return makeOrenNayarDiffuseBSDF(
-        float3(uv.x, uv.x * uv.x, uv.y), 0, fluxToShadingFrame(ctx, fluxGetWorldNormal(ctx)));
+    return makeLambertianBSDF(
+        float3(uv.x, uv.x * uv.x, uv.y), fluxToShadingFrame(ctx, fluxGetWorldNormal(ctx)));
 }
 )slang";
 
@@ -282,14 +309,14 @@ TEST(OptixShaderTests, ReplacingTheShaderOfABSDFRendersTheNewShader) {
     if (!flux::test::hasCudaMemoryPoolSupport())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
-    constexpr auto source = R"slang(
+    auto const source = std::string{lambertianLeaf} + R"slang(
 import flux_bsdf;
 import flux_context;
 
 public IBSDF makeBSDF(uint* words, ShadingContext ctx)
 {
-    return makeOrenNayarDiffuseBSDF(
-        float3(0.2, 0.5, 0.8), 0, fluxToShadingFrame(ctx, fluxGetWorldNormal(ctx)));
+    return makeLambertianBSDF(
+        float3(0.2, 0.5, 0.8), fluxToShadingFrame(ctx, fluxGetWorldNormal(ctx)));
 }
 )slang";
     constexpr std::array color{0.2F, 0.5F, 0.8F};
