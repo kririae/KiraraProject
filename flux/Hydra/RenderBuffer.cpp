@@ -1,14 +1,74 @@
 #include "flux/Hydra/RenderBuffer.h"
 
 #include <pxr/base/tf/diagnostic.h>
+#include <pxr/base/work/loops.h>
 #include <pxr/imaging/hd/types.h>
 
-#include <algorithm>
 #include <array>
 #include <cstddef>
+#include <span>
 #include <stdexcept>
 
 PXR_NAMESPACE_USING_DIRECTIVE
+
+namespace {
+[[nodiscard]] float componentOf(flux::Vec3f const &value, std::size_t component) {
+    return component < 3 ? value[component] : 1.0F;
+}
+
+/// \brief Writes \p pixels, whose rows run top row first, to \p data, whose rows run bottom row
+/// first.
+template <std::size_t Components, typename Value>
+void assignRows(std::span<Value const> pixels, float *data, std::size_t width, std::size_t height) {
+    pxr::WorkParallelForN(height, [&](std::size_t begin, std::size_t end) {
+        for (auto row = begin; row < end; ++row) {
+            auto const *const source = pixels.data() + (height - 1 - row) * width;
+            auto *const destination = data + row * width * Components;
+            for (std::size_t x = 0; x < width; ++x)
+                for (std::size_t component = 0; component < Components; ++component)
+                    destination[x * Components + component] = componentOf(source[x], component);
+        }
+    });
+}
+
+/// \brief Calls \p function with the component count of \p format as its template argument.
+template <typename Function> void withComponentCount(pxr::HdFormat format, Function &&function) {
+    // The format has one to four components.
+    switch (pxr::HdGetComponentCount(format)) {
+    case 1: function.template operator()<1>(); return;
+    case 2: function.template operator()<2>(); return;
+    case 3: function.template operator()<3>(); return;
+    default: function.template operator()<4>(); return;
+    }
+}
+
+template <typename Value>
+void assignPixels(
+    std::span<Value const> pixels, std::span<float> data, std::size_t width, std::size_t height,
+    pxr::HdFormat format
+) {
+    if (pixels.size() != width * height)
+        throw std::invalid_argument("HdFluxRenderBuffer::Assign: pixels do not match the buffer");
+
+    withComponentCount(format, [&]<std::size_t Components>() {
+        assignRows<Components>(pixels, data.data(), width, height);
+    });
+}
+
+/// \brief Sets every pixel of \p data, which holds \c Components floats per pixel, to the leading
+/// \c Components of \p components.
+template <std::size_t Components>
+void fillPixels(std::span<float> data, std::array<float, 4> const &components) {
+    pxr::WorkParallelForN(data.size() / Components, [&](std::size_t begin, std::size_t end) {
+        // A local copy, so that the compiler knows that the stores do not change it.
+        auto const values = components;
+        auto *const pixels = data.data();
+        for (auto pixel = begin; pixel < end; ++pixel)
+            for (std::size_t component = 0; component < Components; ++component)
+                pixels[pixel * Components + component] = values[component];
+    });
+}
+} // namespace
 
 HdFluxRenderBuffer::HdFluxRenderBuffer(pxr::SdfPath const &id) : pxr::HdRenderBuffer(id) {}
 
@@ -77,24 +137,13 @@ void HdFluxRenderBuffer::Clear(pxr::VtValue const &value) {
                                     : static_cast<float const *>(data)[index];
     }
 
-    auto const count = pxr::HdGetComponentCount(format_);
-    for (auto pixel = data_.begin(); pixel != data_.end(); pixel += count)
-        std::copy_n(components.begin(), count, pixel);
+    withComponentCount(format_, [&]<std::size_t Components>() {
+        fillPixels<Components>(std::span{data_}, components);
+    });
 }
 
 void HdFluxRenderBuffer::Assign(std::span<flux::Vec3f const> pixels) {
-    if (pixels.size() != std::size_t{width_} * height_)
-        throw std::invalid_argument("HdFluxRenderBuffer::Assign: pixels do not match the buffer");
-
-    auto const components = pxr::HdGetComponentCount(format_);
-
-    for (std::size_t row = 0; row < height_; ++row) {
-        auto const source = pixels.subspan((height_ - 1 - row) * width_, width_);
-        auto destination = data_.begin() + static_cast<std::ptrdiff_t>(row * width_ * components);
-        for (auto const &value : source)
-            for (std::size_t component = 0; component < components; ++component)
-                *destination++ = component < 3 ? value[component] : 1.0F;
-    }
+    assignPixels(pixels, std::span{data_}, width_, height_, format_);
 }
 
 void HdFluxRenderBuffer::_Deallocate() {

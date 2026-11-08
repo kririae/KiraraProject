@@ -62,6 +62,7 @@ target_link_libraries(
            Houdini::Dep::pxr_sdf
            Houdini::Dep::pxr_tf
            Houdini::Dep::pxr_vt
+           Houdini::Dep::pxr_work
            Houdini::Dep::python${_houdini_python_version}
     PRIVATE Eigen3::Eigen)
 
