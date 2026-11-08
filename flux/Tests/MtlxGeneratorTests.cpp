@@ -5,6 +5,7 @@
 #include <bit>
 #include <fstream>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -395,6 +396,18 @@ TEST(MtlxGeneratorTests, AnImageNodeSetsTheSpecOfItsTexture) {
             .fallback = {0.25F, 0.5F, 0.75F, 1.0F},
         })
     );
+}
+
+TEST(MtlxGeneratorTests, AnImageKeepsTheColorSpaceOfItsFile) {
+    auto document = std::string{imageSettingsDocument};
+    document.replace(
+        document.find("srgb_texture"), std::string_view{"srgb_texture"}.size(), "acescg"
+    );
+
+    auto const instance = generate(document);
+
+    ASSERT_EQ(instance.textures.size(), 1U);
+    EXPECT_EQ(instance.textures[0].image.colorSpace, "acescg");
 }
 
 TEST(MtlxGeneratorTests, AConstantFeedsTheFileOfAnImage) {

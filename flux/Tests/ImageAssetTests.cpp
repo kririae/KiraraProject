@@ -49,6 +49,20 @@ TEST_F(ImageAssetTests, UsesColorSpaceInPoolKey) {
     EXPECT_NE(linear->getId(), srgb->getId());
 }
 
+TEST_F(ImageAssetTests, SharesOneAssetAmongTheNamesOfLinearRec709) {
+    auto const imagePath = path("linear-names.exr");
+    auto const pixels = std::array{0.5F, 0.25F, 0.125F};
+    flux::test::writeFloatImage(imagePath, pixels, {1, 1});
+
+    auto const unnamed = pool.getOrCreate({.path = imagePath});
+    auto const unknown = pool.getOrCreate({.path = imagePath, .colorSpace = "no-such-color-space"});
+    auto const named =
+        pool.getOrCreate({.path = imagePath, .colorSpace = std::string{flux::linearRec709}});
+
+    EXPECT_EQ(unnamed, named);
+    EXPECT_EQ(unknown, named);
+}
+
 TEST_F(ImageAssetTests, ChoosesSRGBTextureForUNorm8WithAtLeastThreeChannels) {
     struct Case {
         std::uint8_t channels;

@@ -27,15 +27,16 @@ enum class ImageColorSpace : std::uint8_t {
     SRGB,
 };
 
-/// \brief OCIO name of the color space that ImageAssetPool converts every image to.
+/// \brief OCIO name of the color space that ImageAsset converts every image to.
 inline constexpr std::string_view linearRec709{"lin_rec709"};
 
-/// \brief OCIO name of the color space that an 8-bit image stays stored in.
+/// \brief OCIO name of the color space that an 8-bit image of this color space stays stored in.
 inline constexpr std::string_view srgbTexture{"srgb_texture"};
 
 /// \brief Image file and the OCIO name of the color space of its color components.
 ///
-/// An empty name is \c linearRec709.
+/// An empty name is \c linearRec709. A name that the OCIO config does not know becomes
+/// \c linearRec709, and the pool warns.
 struct ImageAssetSpec {
     std::filesystem::path path;
     std::string colorSpace;
@@ -46,8 +47,12 @@ struct ImageAssetSpec {
 /// \brief Image file shared by image textures.
 ///
 /// A well-formed image is flat and 2D, with one to four channels, and its data
-/// window is its display window at the origin. An sRGB image has three or four
-/// channels.
+/// window is its display window at the origin. An image of a color space other than
+/// \c linearRec709 has three or four channels.
+///
+/// The color components are \c linearRec709. They are converted from the color space of the spec
+/// when the image is read, before filtering and before the mip levels. An 8-bit image of
+/// \c srgbTexture is the exception, and reads back sRGB encoded.
 ///
 /// By position, the channels are a value, a value and alpha, RGB, or RGBA.
 /// Alpha is straight. The file must not change while the asset is in use.
@@ -88,7 +93,7 @@ private:
 
     /// \brief Reads the mip chain into bottom-up host buffers.
     ///
-    /// OIIO converts sRGB color components before it generates the mip levels.
+    /// OIIO converts the color components before it generates the mip levels.
     [[nodiscard]] std::vector<ImageBuffer> readMipChain() const;
 
     std::unique_ptr<pImpl> pImpl_;

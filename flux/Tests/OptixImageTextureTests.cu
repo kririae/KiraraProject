@@ -74,7 +74,15 @@ protected:
 
     void build(kira::Properties const &props) {
         (void)context->create<flux::Texture>(props);
+        upload();
+    }
 
+    void build(flux::ImageTextureSpec const &spec) {
+        (void)context->create<flux::ImageTexture>(spec);
+        upload();
+    }
+
+    void upload() {
         // Place the one texture at index zero, as the texture stage of OptixContext does.
         auto const texture = context->getObjects<flux::ImageTexture>().front();
         auto const assets = std::array{texture->getImageAsset()};
@@ -433,6 +441,19 @@ TEST_F(OptixImageTextureTests, DecodesUNorm8SRGB) {
     EXPECT_NEAR(value.y(), 0.13286832F, 2.5e-4F);
     EXPECT_NEAR(value.z(), 0.31854678F, 2.5e-4F);
     EXPECT_FLOAT_EQ(value.w(), 1.0F);
+}
+
+TEST_F(OptixImageTextureTests, KeepsTheRangeOfAnUNorm8ImageThatItConverts) {
+    auto const imagePath = path("optix-acescg-unorm8.tif");
+    auto const pixels = std::array{1.0F, 0.0F, 0.0F};
+    flux::test::writeFloatImage(imagePath, pixels, {1, 1}, {}, flux::ImageComponentType::UNorm8);
+    build(flux::ImageTextureSpec{.image = {.path = imagePath, .colorSpace = "acescg"}});
+
+    // The first column of the ACEScg to Rec.709 matrix leaves [0, 1].
+    auto const value = sample({0.5F, 0.5F}, true);
+    EXPECT_NEAR(value.x(), 1.70505F, 2.0e-3F);
+    EXPECT_NEAR(value.y(), -0.13026F, 2.0e-3F);
+    EXPECT_NEAR(value.z(), -0.02400F, 2.0e-3F);
 }
 
 TEST_F(OptixImageTextureTests, PreservesStraightAlphaDuringSRGBConversion) {

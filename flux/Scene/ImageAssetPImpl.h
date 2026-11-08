@@ -8,6 +8,7 @@
 
 #include <memory>
 #include <span>
+#include <string_view>
 
 #include "flux/Scene/ImageAsset.h"
 
@@ -37,7 +38,7 @@ struct ImageAsset::ImageBuffer {
 struct ImageAsset::pImpl {
     pImpl(
         std::shared_ptr<OIIO::TextureSystem> textureSystem, std::filesystem::path const &path,
-        ImageColorSpace colorSpace
+        std::string_view colorSpace
     );
 
     std::shared_ptr<OIIO::TextureSystem> textureSystem;
@@ -49,8 +50,8 @@ struct ImageAsset::pImpl {
     /// OIIO color transform used by texture lookups.
     int colorTransformId{};
 
-    /// Color space assigned to the file color components.
-    ImageColorSpace fileColorSpace;
+    /// Color space of the color components that \c readMipChain returns.
+    ImageColorSpace storedColorSpace{ImageColorSpace::Linear};
 
     /// Image layout exposed by ImageAsset.
     Vec2u extent;
@@ -68,9 +69,9 @@ struct ImageAssetPool::pImpl {
     pImpl();
 
     /// OIIO applies one component type policy to every image in a cache. The
-    /// sRGB system uses Float32 to preserve converted values before filtering.
+    /// converting system uses Float32 to preserve converted values before filtering.
     /// The linear system keeps UNorm8 and Float16 tiles compact.
     std::shared_ptr<OIIO::TextureSystem> linearTextureSystem;
-    std::shared_ptr<OIIO::TextureSystem> srgbTextureSystem;
+    std::shared_ptr<OIIO::TextureSystem> convertingTextureSystem;
 };
 } // namespace flux

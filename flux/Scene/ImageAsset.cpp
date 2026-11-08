@@ -1,5 +1,6 @@
 #include "flux/Scene/ImageAsset.h"
 
+#include <OpenImageIO/color.h>
 #include <OpenImageIO/filesystem.h>
 #include <OpenImageIO/imagebufalgo.h>
 #include <OpenImageIO/imagecache.h>
@@ -22,9 +23,6 @@ namespace flux {
 namespace {
 /// ID of the next ImageAsset. Assets are created concurrently, so it is atomic.
 std::atomic_size_t nextImageAssetId{0};
-
-constexpr auto srgbRec709 = "srgb_rec709_scene";
-constexpr auto linearRec709Scene = "lin_rec709_scene";
 
 /// Raised for a file that is not a well-formed image. The message is the reason.
 struct BadImage final : std::runtime_error {
@@ -89,6 +87,30 @@ void validateImageSpec(OIIO::ImageSpec const &spec) {
     return result;
 }
 
+/// \pre \p name is a known color space.
+[[nodiscard]] bool isLinearRec709(std::string_view name) {
+    return OIIO::ColorConfig::default_colorconfig().equivalent(name, linearRec709);
+}
+
+/// The name that the OCIO config gives the color space of \p spec, so that every alias shares an
+/// asset. An empty name, or a name that the config does not know, is lin_rec709.
+[[nodiscard]] std::string canonicalizeColorSpace(ImageAssetSpec const &spec) {
+    auto const &config = OIIO::ColorConfig::default_colorconfig();
+    auto name = OIIO::string_view{spec.colorSpace};
+    if (name.empty())
+        name = linearRec709;
+
+    // `resolve` returns a name that it does not know unchanged.
+    if (config.getColorSpaceIndex(name) < 0) {
+        LogWarn(
+            "ImageAsset: '{}' has the unknown color space '{}', which becomes {}",
+            spec.path.string(), name, linearRec709
+        );
+        name = linearRec709;
+    }
+    return std::string{config.resolve(name)};
+}
+
 [[nodiscard]] std::filesystem::path canonicalize(std::filesystem::path const &path) {
     return std::filesystem::weakly_canonical(std::filesystem::absolute(path));
 }
@@ -115,7 +137,7 @@ void validateImageSpec(OIIO::ImageSpec const &spec) {
 } // namespace
 
 ImageAssetPool::pImpl::pImpl() {
-    auto createTextureSystem = [](ImageColorSpace colorSpace) {
+    auto createTextureSystem = [](bool converts) {
         // Created before the image cache, so that the cache is destroyed first on every path.
         auto const owner = std::make_shared<MagentaTextureSystem>();
         auto imageCache = OIIO::ImageCache::create(/* shared = */ false);
@@ -125,13 +147,13 @@ ImageAssetPool::pImpl::pImpl() {
             throw kira::Anyhow("ImageAssetPool: failed to configure the OpenImageIO tile cache");
         if (!imageCache->attribute("automip", 1))
             throw kira::Anyhow("ImageAssetPool: failed to enable OpenImageIO mip generation");
-        if (!imageCache->attribute("colorspace", linearRec709Scene))
+        if (!imageCache->attribute("colorspace", linearRec709))
             throw kira::Anyhow("ImageAssetPool: failed to configure the working color space");
         if (!imageCache->attribute("unassociatedalpha", 1))
             throw kira::Anyhow("ImageAssetPool: failed to configure straight alpha");
-        if (colorSpace == ImageColorSpace::SRGB && !imageCache->attribute("forcefloat", 1))
+        if (converts && !imageCache->attribute("forcefloat", 1))
             throw kira::Anyhow(
-                "ImageAssetPool: failed to configure the sRGB image cache component type"
+                "ImageAssetPool: failed to configure the converting image cache component type"
             );
 
         OIIO::Filesystem::IOProxy *proxy = &owner->magenta.reader;
@@ -149,15 +171,15 @@ ImageAssetPool::pImpl::pImpl() {
         return std::shared_ptr<OIIO::TextureSystem>{owner, owner->system.get()};
     };
 
-    linearTextureSystem = createTextureSystem(ImageColorSpace::Linear);
-    srgbTextureSystem = createTextureSystem(ImageColorSpace::SRGB);
+    linearTextureSystem = createTextureSystem(/* converts = */ false);
+    convertingTextureSystem = createTextureSystem(/* converts = */ true);
 }
 
 ImageAsset::pImpl::pImpl(
     std::shared_ptr<OIIO::TextureSystem> system, std::filesystem::path const &path,
-    ImageColorSpace colorSpace
+    std::string_view colorSpace
 )
-    : textureSystem(std::move(system)), filename(path.string()), fileColorSpace(colorSpace) {
+    : textureSystem(std::move(system)), filename(path.string()) {
     auto const imageCache = textureSystem->imagecache();
     if (!imageCache->add_file(filename))
         throw BadImage(imageCache->geterror());
@@ -173,8 +195,9 @@ ImageAsset::pImpl::pImpl(
         throw BadImage(imageCache->geterror());
     validateImageSpec(spec);
 
-    if (colorSpace == ImageColorSpace::SRGB && spec.nchannels < 3)
-        throw BadImage("an sRGB image must have RGB or RGBA channels");
+    auto const converts = !isLinearRec709(colorSpace);
+    if (converts && spec.nchannels < 3)
+        throw BadImage("an image of another color space must have RGB or RGBA channels");
 
     auto width = spec.width;
     auto height = spec.height;
@@ -187,12 +210,21 @@ ImageAsset::pImpl::pImpl(
     componentCount = fileComponentCount == 3 ? 4 : fileComponentCount;
     defaultComponentMapping = makeDefaultComponentMapping(componentCount);
 
-    if (colorSpace == ImageColorSpace::SRGB) {
+    if (converts) {
         colorTransformId = textureSystem->get_colortransform_id(
-            OIIO::ustring{srgbRec709}, OIIO::ustring{linearRec709Scene}
+            OIIO::ustring{colorSpace}, OIIO::ustring{linearRec709}
         );
         if (colorTransformId < 0)
-            throw kira::Anyhow("ImageAsset: failed to create the sRGB color transform");
+            throw kira::Anyhow(
+                "ImageAsset: failed to create the color transform from '{}'", colorSpace
+            );
+        // Only an 8-bit sRGB image stays 8-bit. Any other conversion leaves its range.
+        if (componentType == ImageComponentType::UNorm8) {
+            if (OIIO::ColorConfig::default_colorconfig().equivalent(colorSpace, srgbTexture))
+                storedColorSpace = ImageColorSpace::SRGB;
+            else
+                componentType = ImageComponentType::Float16;
+        }
     }
 
     auto options = OIIO::TextureOpt{};
@@ -216,8 +248,7 @@ ImageComponentMapping ImageAsset::getDefaultComponentMapping() const noexcept {
 }
 
 std::vector<ImageAsset::ImageBuffer> ImageAsset::readMipChain() const {
-    auto const encodeSRGB = pImpl_->fileColorSpace == ImageColorSpace::SRGB &&
-                            pImpl_->componentType == ImageComponentType::UNorm8;
+    auto const encodeSRGB = pImpl_->storedColorSpace == ImageColorSpace::SRGB;
     auto const format = [this, encodeSRGB] {
         if (encodeSRGB)
             return OIIO::TypeDesc::FLOAT;
@@ -278,7 +309,7 @@ std::vector<ImageAsset::ImageBuffer> ImageAsset::readMipChain() const {
             encodedSpec.format = OIIO::TypeDesc::UINT8;
             auto encoded = OIIO::ImageBuf{encodedSpec};
             if (!OIIO::ImageBufAlgo::colorconvert(
-                    encoded, image, linearRec709Scene, srgbRec709, /* unpremult = */ false
+                    encoded, image, linearRec709, srgbTexture, /* unpremult = */ false
                 ))
                 throw kira::Anyhow(
                     "ImageAsset: failed to encode mip level {} for '{}': {}", level,
@@ -313,30 +344,29 @@ Ref<ImageAsset const> ImageAssetPool::getOrCreate(ImageAssetSpec const &spec) {
     auto canonical = spec;
     if (!spec.path.empty())
         canonical.path = canonicalize(spec.path);
-    if (canonical.colorSpace.empty())
-        canonical.colorSpace = linearRec709;
+    canonical.colorSpace = canonicalizeColorSpace(spec);
     return assets_.acquire(canonical, [&] {
-        auto const colorSpace =
-            canonical.colorSpace == srgbTexture ? ImageColorSpace::SRGB : ImageColorSpace::Linear;
-        auto const &textureSystem = colorSpace == ImageColorSpace::SRGB
-                                        ? pImpl_->srgbTextureSystem
-                                        : pImpl_->linearTextureSystem;
-        auto const create = [&](std::filesystem::path const &path, bool placeholder) {
+        auto const create = [&](std::filesystem::path const &path, bool placeholder,
+                                std::string_view colorSpace) {
+            auto const &textureSystem = isLinearRec709(colorSpace)
+                                            ? pImpl_->linearTextureSystem
+                                            : pImpl_->convertingTextureSystem;
             return Ref<ImageAsset const>{new ImageAsset(
                 std::make_unique<ImageAsset::pImpl>(textureSystem, path, colorSpace), placeholder
             )};
         };
         if (canonical.path.empty())
-            return create(magentaName, true);
+            return create(magentaName, true, linearRec709);
+
         try {
-            return create(canonical.path, false);
+            return create(canonical.path, false, canonical.colorSpace);
         } catch (BadImage const &bad) {
             LogWarn(
                 "ImageAsset: '{}' is not a well-formed image ({}), using a magenta pixel",
                 canonical.path.string(), bad.what()
             );
         }
-        return create(magentaName, true);
+        return create(magentaName, true, linearRec709);
     });
 }
 
