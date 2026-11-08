@@ -283,11 +283,13 @@ target_compile_definitions(
 
 krr_add_test(
     flux Optix ImageTextureTests
-    SOURCES OptixImageTextureTests.cu
+    SOURCES OptixImageTextureTests.cu WhiteImageWithBlackMipLevel.cpp
     HARD_DEPENDENCIES flux)
 target_compile_definitions(
     flux.Optix.ImageTextureTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
                                          FLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/OptixImageTextureTests")
+target_include_directories(
+    flux.Optix.ImageTextureTests PRIVATE $<TARGET_PROPERTY:OpenImageIO::OpenImageIO,INTERFACE_INCLUDE_DIRECTORIES>)
 
 krr_add_test(
     flux Optix DeviceBufferTests

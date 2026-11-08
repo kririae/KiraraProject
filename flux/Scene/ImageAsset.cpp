@@ -155,6 +155,17 @@ void validateImageSpec(OIIO::ImageSpec const &spec) {
         );
     return result;
 }
+
+/// The number of mip levels that the file holds, which is 1 for a file without mip levels.
+[[nodiscard]] int countMipLevels(std::string const &filename) {
+    auto const input = OIIO::ImageInput::open(filename);
+    if (!input)
+        throw kira::Anyhow("ImageAsset: failed to open '{}': {}", filename, OIIO::geterror());
+    auto count = 1;
+    while (input->seek_subimage(0, count))
+        ++count;
+    return count;
+}
 } // namespace
 
 ImageAssetPool::pImpl::pImpl() {
@@ -256,16 +267,33 @@ ImageAsset::pImpl::pImpl(
         throw kira::Anyhow("ImageAsset: failed to create a texture handle for '{}'", path.string());
 }
 
-OIIO::ImageBuf ImageAsset::pImpl::readLevel0() const {
+OIIO::ImageBuf ImageAsset::pImpl::readLevel(int miplevel) const {
+    if (filename == OIIO::ustring{magentaName}) {
+        // The placeholder is not a file, so only the texture system can read it.
+        auto const format = toTypeDesc(componentType);
+        auto const width = static_cast<int>(extent.x());
+        auto const height = static_cast<int>(extent.y());
+        auto texels = OIIO::ImageBuf{OIIO::ImageSpec{width, height, fileComponentCount, format}};
+        auto const roi = OIIO::ROI{0, width, 0, height, 0, 1, 0, fileComponentCount};
+        auto options = OIIO::TextureOpt{};
+        if (!textureSystem->get_texels(
+                textureHandle, /* threadInfo = */ nullptr, options, /* miplevel = */ 0, roi, format,
+                texels.localpixels_as_writable_byte_image_span()
+            ))
+            throw kira::Anyhow(
+                "ImageAsset: failed to read the placeholder: {}", textureSystem->geterror()
+            );
+        return texels;
+    }
+
     // Alpha is straight.
     auto config = OIIO::ImageSpec{};
     config.attribute("oiio:UnassociatedAlpha", 1);
     auto image = OIIO::ImageBuf{
-        filename.string(), /* subimage = */ 0, /* miplevel = */ 0, /* imagecache = */ nullptr,
-        &config
+        filename.string(), /* subimage = */ 0, miplevel, /* imagecache = */ nullptr, &config
     };
     if (!image.read(
-            /* subimage = */ 0, /* miplevel = */ 0, /* chbegin = */ 0, fileComponentCount,
+            /* subimage = */ 0, miplevel, /* chbegin = */ 0, fileComponentCount,
             /* force = */ true, toTypeDesc(componentType)
         ))
         throw kira::Anyhow(
@@ -299,86 +327,100 @@ ImageComponentMapping ImageAsset::getDefaultComponentMapping() const noexcept {
 
 std::vector<ImageAsset::ImageBuffer> ImageAsset::readMipChain() const {
     auto const encodeSRGB = pImpl_->storedColorSpace == ImageColorSpace::SRGB;
-    auto const format = encodeSRGB ? OIIO::TypeDesc::FLOAT : toTypeDesc(pImpl_->componentType);
-    auto result = std::vector<ImageBuffer>{};
-    auto width = pImpl_->extent.x();
-    auto height = pImpl_->extent.y();
-    if (transposesAxes(pImpl_->orientation))
-        std::swap(width, height);
-    auto options = OIIO::TextureOpt{};
-    options.colortransformid = pImpl_->colorTransformId;
+    auto const fileName = pImpl_->filename.string();
 
-    auto const getTexels = [&](int level) {
-        auto spec = OIIO::ImageSpec{
-            static_cast<int>(width), static_cast<int>(height), pImpl_->fileComponentCount, format
-        };
-        spec.attribute("Orientation", pImpl_->orientation);
-        auto texels = OIIO::ImageBuf{spec};
-        auto const roi =
-            OIIO::ROI{0, spec.width, 0, spec.height, 0, 1, 0, pImpl_->fileComponentCount};
-        if (!pImpl_->textureSystem->get_texels(
-                pImpl_->textureHandle, /* threadInfo = */ nullptr, options, level, roi, format,
-                texels.localpixels_as_writable_byte_image_span()
-            ))
-            throw kira::Anyhow(
-                "ImageAsset: failed to read mip level {} from '{}': {}", level,
-                pImpl_->filename.string(), pImpl_->textureSystem->geterror()
-            );
-        return texels;
+    // A level of the file as a bottom-up level of the result, with an alpha channel.
+    auto const prepare = [&](OIIO::ImageBuf image) {
+        if (image.orientation() != 1) {
+            auto oriented = OIIO::ImageBuf{};
+            if (!OIIO::ImageBufAlgo::reorient(oriented, image))
+                throw kira::Anyhow(
+                    "ImageAsset: failed to orient '{}': {}", fileName, oriented.geterror()
+                );
+            image = std::move(oriented);
+        }
+
+        auto flipped = OIIO::ImageBuf{};
+        if (!OIIO::ImageBufAlgo::flip(flipped, image))
+            throw kira::Anyhow("ImageAsset: failed to flip '{}': {}", fileName, flipped.geterror());
+        return pImpl_->fileComponentCount == 3 ? appendAlpha(flipped, fileName) : flipped;
     };
 
-    for (auto level = 0;; ++level) {
-        // The placeholder is not a file, so only the texture system can read it.
-        auto source = level == 0 && !placeholder_ ? pImpl_->readLevel0() : getTexels(level);
-
-        if (pImpl_->fileComponentCount == 3)
-            source = appendAlpha(source, pImpl_->filename.string());
-
-        if (source.orientation() != 1) {
-            auto oriented = OIIO::ImageBuf{};
-            if (!OIIO::ImageBufAlgo::reorient(oriented, source))
-                throw kira::Anyhow(
-                    "ImageAsset: failed to orient '{}': {}", pImpl_->filename.string(),
-                    oriented.geterror()
-                );
-            source = std::move(oriented);
-        }
-
-        auto image = OIIO::ImageBuf{};
-        if (!OIIO::ImageBufAlgo::flip(image, source))
-            throw kira::Anyhow(
-                "ImageAsset: failed to flip '{}': {}", pImpl_->filename.string(), image.geterror()
-            );
-
-        if (encodeSRGB && level > 0) {
-            auto encodedSpec = image.spec();
-            encodedSpec.format = OIIO::TypeDesc::UINT8;
-            auto encoded = OIIO::ImageBuf{encodedSpec};
-            if (!OIIO::ImageBufAlgo::colorconvert(
-                    encoded, image, linearRec709, srgbTexture, /* unpremult = */ false
-                ))
-                throw kira::Anyhow(
-                    "ImageAsset: failed to encode mip level {} for '{}': {}", level,
-                    pImpl_->filename.string(), encoded.geterror()
-                );
-            image = std::move(encoded);
-        }
-
+    auto const makeBuffer = [this, encodeSRGB](OIIO::ImageBuf image) {
         auto const extent = Vec2u{
             static_cast<std::uint32_t>(image.spec().width),
             static_cast<std::uint32_t>(image.spec().height),
         };
-        result.push_back({
+        return ImageBuffer{
             .image = std::move(image),
             .extent = extent,
             .componentCount = pImpl_->componentCount,
             .componentType = pImpl_->componentType,
             .colorSpace = encodeSRGB ? ImageColorSpace::SRGB : ImageColorSpace::Linear,
-        });
-        if (width == 1 && height == 1)
-            break;
+        };
+    };
+
+    auto result = std::vector<ImageBuffer>{};
+    auto flipped = prepare(pImpl_->readLevel(0));
+
+    // A file with mip levels keeps them, as the image cache does.
+    auto const authoredLevelCount =
+        pImpl_->filename == OIIO::ustring{magentaName} ? 1 : countMipLevels(fileName);
+    if (authoredLevelCount > 1) {
+        result.push_back(makeBuffer(std::move(flipped)));
+        for (auto level = 1; level < authoredLevelCount; ++level)
+            result.push_back(makeBuffer(prepare(pImpl_->readLevel(level))));
+        return result;
+    }
+
+    // An sRGB image filters in linear space, so it keeps a linear copy of the level above.
+    auto linear = OIIO::ImageBuf{};
+    if (encodeSRGB) {
+        auto linearSpec = flipped.spec();
+        linearSpec.format = OIIO::TypeDesc::FLOAT;
+        linear = OIIO::ImageBuf{linearSpec};
+        if (!OIIO::ImageBufAlgo::colorconvert(
+                linear, flipped, srgbTexture, linearRec709, /* unpremult = */ false
+            ))
+            throw kira::Anyhow(
+                "ImageAsset: failed to decode '{}': {}", fileName, linear.geterror()
+            );
+    }
+
+    result.push_back(makeBuffer(std::move(flipped)));
+    auto const channelCount = result.front().image.nchannels();
+    auto const format = encodeSRGB ? OIIO::TypeDesc::FLOAT : toTypeDesc(pImpl_->componentType);
+    auto width = result.front().extent.x();
+    auto height = result.front().extent.y();
+    while (width > 1 || height > 1) {
         width = std::max(width / 2, 1U);
         height = std::max(height / 2, 1U);
+
+        auto const &above = encodeSRGB ? linear : result.back().image;
+        auto level = OIIO::ImageBuf{
+            OIIO::ImageSpec{static_cast<int>(width), static_cast<int>(height), channelCount, format}
+        };
+        if (!OIIO::ImageBufAlgo::resample(level, above, /* interpolate = */ true))
+            throw kira::Anyhow(
+                "ImageAsset: failed to make a mip level of '{}': {}", fileName, level.geterror()
+            );
+
+        if (!encodeSRGB) {
+            result.push_back(makeBuffer(std::move(level)));
+            continue;
+        }
+
+        auto encodedSpec = level.spec();
+        encodedSpec.format = OIIO::TypeDesc::UINT8;
+        auto encoded = OIIO::ImageBuf{encodedSpec};
+        if (!OIIO::ImageBufAlgo::colorconvert(
+                encoded, level, linearRec709, srgbTexture, /* unpremult = */ false
+            ))
+            throw kira::Anyhow(
+                "ImageAsset: failed to encode a mip level of '{}': {}", fileName, encoded.geterror()
+            );
+        linear = std::move(level);
+        result.push_back(makeBuffer(std::move(encoded)));
     }
     return result;
 }

@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "TestUtils.h"
+#include "WhiteImageWithBlackMipLevel.h"
 #include "flux/IO/ImageIO.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/KernelUtils.cuh"
@@ -288,6 +289,18 @@ TEST_F(OptixImageTextureTests, FiltersMipLevels) {
     EXPECT_NEAR(value.x(), expected, 1.0e-5F);
     EXPECT_NEAR(value.y(), expected, 1.0e-5F);
     EXPECT_NEAR(value.z(), expected, 1.0e-5F);
+}
+
+TEST_F(OptixImageTextureTests, ReadsTheMipLevelsOfTheFile) {
+    // Level 1 is black, where a resample of the white level 0 would be white.
+    auto const imagePath = path("optix-authored-mips.exr");
+    flux::test::writeWhiteImageWithBlackMipLevel(imagePath);
+    build(imagePath, "linear", "linear");
+
+    auto const value = sample({0.5F, 0.5F}, false, {1.0F, 0.0F}, {0.0F, 1.0F});
+    EXPECT_FLOAT_EQ(value.x(), 0.0F);
+    EXPECT_FLOAT_EQ(value.y(), 0.0F);
+    EXPECT_FLOAT_EQ(value.z(), 0.0F);
 }
 
 TEST_F(OptixImageTextureTests, FiltersOddSizedMipLevels) {

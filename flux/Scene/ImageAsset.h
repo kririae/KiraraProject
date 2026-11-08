@@ -94,7 +94,9 @@ private:
 
     /// \brief Reads the mip chain into bottom-up host buffers.
     ///
-    /// OIIO converts the color components before it generates the mip levels.
+    /// The levels of the file are read as they are. An image without mip levels gets each level
+    /// above 0 as a bilinear resample of the level above it, as the automip of OIIO makes it, in
+    /// linear space.
     [[nodiscard]] std::vector<ImageBuffer> readMipChain() const;
 
     std::unique_ptr<pImpl> pImpl_;

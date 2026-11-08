@@ -67,11 +67,11 @@ struct ImageAsset::pImpl {
     std::uint8_t orientation;
     std::uint8_t fileComponentCount;
 
-    /// \brief Reads level 0 in the layout of the file, in its stored color space.
+    /// \brief Reads a level of the file in its layout, in its stored color space.
     ///
     /// The color components are \c linearRec709, except that an 8-bit \c srgbTexture image stays
     /// sRGB encoded.
-    [[nodiscard]] OIIO::ImageBuf readLevel0() const;
+    [[nodiscard]] OIIO::ImageBuf readLevel(int miplevel) const;
 };
 
 /// \brief OIIO texture systems shared by one ImageAssetPool.
