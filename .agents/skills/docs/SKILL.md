@@ -29,7 +29,7 @@ A skill has four parts:
 
 1. Find the document that owns what you write, as locality says.
 2. Write it, as [prose](../prose/SKILL.md) says.
-3. List in your reasoning, for each sentence that you write in a skill, the principle it follows from. Move a sentence that follows from what another document owns, and delete one that follows from nothing.
+3. List in your reasoning, for each sentence that you write in a skill, the principle it follows from. Move a sentence that follows from what another document owns, and delete one that follows from nothing. A change to a skill deletes at least as many words as it adds.
 
 ## Bad documents
 
@@ -37,6 +37,5 @@ A skill has four parts:
 - A skill that sends the reader to a project's files. It is false in any other repository.
 - Rules for choosing a name in a skill on design. Choosing a name is a task of its own, not a choice of structure.
 - Error handling as the whole of a skill named for code. The name promises how to write code.
-- "Check the design again before you deliver it." It names nothing to list.
 - "A film shape stored in a pool entry" as an example in a skill. A reader outside the project does not know the terms.
 - A rule that the principles of its skill already imply. It is a second home for the rule.
