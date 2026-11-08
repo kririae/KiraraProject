@@ -22,16 +22,28 @@
 #include "flux/Scene/EnvMapLight.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Shading/BSDF.h"
+#include "flux/Shading/EDF.h"
 #include "flux/Shading/Texture.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
 namespace {
-/// \brief Creates the \c ShaderBSDF of the material that the \c file and \c material properties
-/// name.
-[[nodiscard]] Ref<BSDF const> createMaterialXBSDF(
+/// \brief The BSDF and the EDF that the shader of a material gives.
+///
+/// Both come from one shader instance. Whether the EDF may emit is the property of its shader.
+struct Material {
+    Ref<BSDF const> bsdf;
+    Ref<EDF const> edf;
+};
+
+/// \brief Creates the \c Material of the \c file and \c material properties of \p props.
+[[nodiscard]] Material createMaterial(
     Context &context, std::optional<MtlxShaderGenerator> &generator, kira::Properties &props
 ) {
+    auto const type = props.use<std::string>("type");
+    if (type != "materialx")
+        throw kira::Anyhow("unsupported material type '{}'", type);
+
     auto const authoredPath = props.use<std::filesystem::path>("file");
     auto const materialName = props.use<std::string>("material");
     auto const path = context.getFileResolver().resolve(authoredPath);
@@ -49,7 +61,7 @@ namespace {
     auto generation = generator->generate(document, materialName, std::array{path.parent_path()});
     for (auto const &diagnostic : generation.diagnostics)
         LogWarn("{}", diagnostic);
-    auto &instance = generation.instance;
+    auto const &instance = generation.instance;
     if (!instance)
         throw kira::Anyhow(
             "MaterialX file '{}' generated no shader for material '{}'", path.string(), materialName
@@ -57,9 +69,11 @@ namespace {
     auto textures = std::vector<Ref<ImageTexture const>>{};
     for (auto const &spec : instance->textures)
         textures.push_back(context.create<ImageTexture>(spec));
-    return context.create<ShaderBSDF>(
-        instance->spec, std::move(instance->words), std::move(textures)
-    );
+
+    return {
+        .bsdf = context.create<ShaderBSDF>(instance->spec, instance->words, textures),
+        .edf = context.create<ShaderEDF>(instance->spec, instance->words, textures),
+    };
 }
 } // namespace
 
@@ -98,7 +112,6 @@ LoadedScene loadTomlScene(FluxCLIOptions const &options) {
         options.samplesPerPixel.value_or(filmProps.use_or<std::uint32_t>("num_samples", 1));
 
     std::unordered_map<std::string, Ref<BSDF const>> bsdfs;
-    std::optional<MtlxShaderGenerator> mtlxGenerator;
     if (scene.contains("bsdf")) {
         auto bsdfProps = scene.use_array_view("bsdf");
         bsdfs.reserve(bsdfProps.size());
@@ -107,11 +120,21 @@ LoadedScene loadTomlScene(FluxCLIOptions const &options) {
             auto name = props.use<std::string>("name");
             if (bsdfs.contains(name))
                 throw kira::Anyhow("duplicate BSDF name '{}'", name);
-            auto bsdf = props.is_type_of<std::string>("type") &&
-                                props.use<std::string>("type") == "materialx"
-                            ? createMaterialXBSDF(*context, mtlxGenerator, props)
-                            : context->create<BSDF>(props);
-            bsdfs.emplace(std::move(name), std::move(bsdf));
+            bsdfs.emplace(std::move(name), context->create<BSDF>(props));
+        }
+    }
+
+    std::unordered_map<std::string, Material> materials;
+    std::optional<MtlxShaderGenerator> mtlxGenerator;
+    if (scene.contains("material")) {
+        auto materialProps = scene.use_array_view("material");
+        materials.reserve(materialProps.size());
+        for (std::size_t index = 0; index < materialProps.size(); ++index) {
+            auto props = materialProps.get_view(index);
+            auto name = props.use<std::string>("name");
+            if (materials.contains(name))
+                throw kira::Anyhow("duplicate material name '{}'", name);
+            materials.emplace(std::move(name), createMaterial(*context, mtlxGenerator, props));
         }
     }
 
@@ -127,6 +150,21 @@ LoadedScene loadTomlScene(FluxCLIOptions const &options) {
                 props.set(
                     "bsdf_ctx_id", static_cast<std::int64_t>(iterator->second->getContextId())
                 );
+            }
+
+            if (props.contains("material")) {
+                if (props.contains("bsdf"))
+                    throw kira::Anyhow("primitive has both a material and a BSDF");
+
+                auto const name = props.use<std::string>("material");
+                auto const iterator = materials.find(name);
+                if (iterator == materials.end())
+                    throw kira::Anyhow("primitive references unknown material '{}'", name);
+                if (props.contains("light"))
+                    throw kira::Anyhow("primitive has both a material and a light");
+                auto const &material = iterator->second;
+                props.set("bsdf_ctx_id", static_cast<std::int64_t>(material.bsdf->getContextId()));
+                props.set("edf_ctx_id", static_cast<std::int64_t>(material.edf->getContextId()));
             }
 
             if (props.contains("light")) {

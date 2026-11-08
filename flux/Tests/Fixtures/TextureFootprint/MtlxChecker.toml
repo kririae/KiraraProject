@@ -18,7 +18,7 @@ rr_depth = 8
 [envmap]
 scale = [1.0, 1.0, 1.0]
 
-[[bsdf]]
+[[material]]
 name = "checker"
 type = "materialx"
 file = "MtlxChecker.mtlx"
@@ -28,4 +28,4 @@ material = "checker"
 type = "trimesh"
 path = "../Shared/Geometry/CheckerPlane.ply"
 transform = [2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]
-bsdf = "checker"
+material = "checker"

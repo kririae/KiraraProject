@@ -24,11 +24,21 @@ struct LoadedScene {
 ///
 /// \par BSDF properties
 /// - \c name: required string, which primitives use to refer to the BSDF.
-/// - \c type: \c "materialx" makes the BSDF the one that the shader of a MaterialX material
-///   gives. Only OptiX runs it.
+///
+/// \par Material properties
+/// A material is a BSDF and an EDF. Only OptiX runs a material.
+/// - \c name: required string, which primitives use to refer to the material.
+/// - \c type: required, \c "materialx" makes the material the one that the shader of a MaterialX
+///   material gives.
 /// - \c file: required for \c "materialx", the path of a \c .mtlx document, resolved like the other
 ///   files of the scene.
 /// - \c material: required for \c "materialx", the name of a \c surfacematerial of the document.
+///
+/// \par Primitive properties
+/// - \c bsdf: the name of a BSDF.
+/// - \c material: the name of a material, which gives the BSDF and the EDF of the primitive. A
+///   primitive has either \c bsdf or \c material, and \c material excludes \c light.
+/// - \c light: an area light, with its \c emission radiance.
 ///
 /// \par Film properties
 /// - \c resolution: required uint32 image resolution.

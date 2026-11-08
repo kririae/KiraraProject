@@ -14,19 +14,19 @@ max_depth = 64
 rr_depth = 8
 rr_prob = 0.95
 
-[[bsdf]]
+[[material]]
 name = "grey"
 type = "materialx"
 file = "Cbox.mtlx"
 material = "grey"
 
-[[bsdf]]
+[[material]]
 name = "green"
 type = "materialx"
 file = "Cbox.mtlx"
 material = "green"
 
-[[bsdf]]
+[[material]]
 name = "red"
 type = "materialx"
 file = "Cbox.mtlx"
@@ -40,29 +40,29 @@ light = { type = "area", emission = [17.0, 12.0, 5.0] }
 [[primitive]]
 type = "trimesh"
 path = "geometry/floor.ply"
-bsdf = "grey"
+material = "grey"
 
 [[primitive]]
 type = "trimesh"
 path = "geometry/left.ply"
-bsdf = "red"
+material = "red"
 
 [[primitive]]
 type = "trimesh"
 path = "geometry/right.ply"
-bsdf = "green"
+material = "green"
 
 [[primitive]]
 type = "trimesh"
 path = "geometry/ceiling.ply"
-bsdf = "grey"
+material = "grey"
 
 [[primitive]]
 type = "trimesh"
 path = "geometry/back.ply"
-bsdf = "grey"
+material = "grey"
 
 [[primitive]]
 type = "trimesh"
 path = "geometry/boxes.ply"
-bsdf = "grey"
+material = "grey"

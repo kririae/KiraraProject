@@ -9,7 +9,9 @@ krr_add_test(
     flux CLI TomlSceneTests
     SOURCES TomlSceneTests.cpp ../FLux/TomlScene.cpp
     HARD_DEPENDENCIES flux flux_mtlx)
-target_compile_definitions(flux.CLI.TomlSceneTests PRIVATE FLUX_MATERIALX_DIR="${flux_materialx_root}")
+target_compile_definitions(
+    flux.CLI.TomlSceneTests PRIVATE FLUX_MATERIALX_DIR="${flux_materialx_root}"
+                                    FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures")
 
 krr_add_test(
     flux Slang CompilerTests
