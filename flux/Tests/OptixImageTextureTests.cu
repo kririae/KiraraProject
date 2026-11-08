@@ -433,6 +433,20 @@ TEST_F(OptixImageTextureTests, FallbackLeavesALoadedImage) {
     EXPECT_EQ(sample({0.5F, 0.5F}), (flux::Vec4f{0.25F, 0.5F, 0.75F, 1.0F}));
 }
 
+TEST_F(OptixImageTextureTests, ConvertsTheColorSpaceOfTheFileToLinearRec709) {
+    auto const imagePath = path("optix-acescg.exr");
+    auto const pixels = std::array{0.5F, 0.25F, 0.125F};
+    flux::test::writeFloatImage(imagePath, pixels, {1, 1});
+    build(flux::ImageTextureSpec{.image = {.path = imagePath, .colorSpace = "acescg"}});
+
+    // The ACEScg to Rec.709 matrix applied to the texel.
+    auto const value = sample({0.5F, 0.5F}, true);
+    EXPECT_NEAR(value.x(), 0.68667F, 3.0e-5F);
+    EXPECT_NEAR(value.y(), 0.21875F, 3.0e-5F);
+    EXPECT_NEAR(value.z(), 0.09988F, 3.0e-5F);
+    EXPECT_FLOAT_EQ(value.w(), 1.0F);
+}
+
 TEST_F(OptixImageTextureTests, DecodesUNorm8SRGB) {
     build(std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "SRGB.ppm", "srgb");
 

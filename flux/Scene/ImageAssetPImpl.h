@@ -8,6 +8,7 @@
 
 #include <memory>
 #include <span>
+#include <string>
 #include <string_view>
 
 #include "flux/Scene/ImageAsset.h"
@@ -47,6 +48,9 @@ struct ImageAsset::pImpl {
     OIIO::TextureSystem::TextureHandle *textureHandle{};
     OIIO::ustring filename;
 
+    /// OCIO name of the color space of the file color components.
+    std::string colorSpace;
+
     /// OIIO color transform used by texture lookups.
     int colorTransformId{};
 
@@ -62,6 +66,12 @@ struct ImageAsset::pImpl {
     /// File layout used by OIIO texture lookups.
     std::uint8_t orientation;
     std::uint8_t fileComponentCount;
+
+    /// \brief Reads level 0 in the layout of the file, in its stored color space.
+    ///
+    /// The color components are \c linearRec709, except that an 8-bit \c srgbTexture image stays
+    /// sRGB encoded.
+    [[nodiscard]] OIIO::ImageBuf readLevel0() const;
 };
 
 /// \brief OIIO texture systems shared by one ImageAssetPool.
