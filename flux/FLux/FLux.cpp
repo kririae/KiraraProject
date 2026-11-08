@@ -74,8 +74,6 @@ int run(int argc, char **argv) {
                 "OptixHandler: estimated resident threads {}", handler.getEstimatedResidentThreads()
             );
             flux::OptixAccumulationBuffer buffer{handler, scene.film};
-            // A render has at most 2^32 - 1 paths. A full batch of 32 assigns one pixel's samples
-            // to one warp.
             auto const pixelCount = std::uint64_t{film.getWidth()} * film.getHeight();
             auto const launchBatchSize = static_cast<std::uint32_t>(std::clamp<std::uint64_t>(
                 std::numeric_limits<std::uint32_t>::max() / pixelCount, 1, 32

@@ -40,8 +40,7 @@ struct OptixLaunchParams {
     /// Number of sequence elements skipped before sample zero.
     std::uint64_t sampleOffset;
 
-    /// Next chunk not yet claimed by any lane, counted from the chunks the launch covers. Zeroed
-    /// per launch.
+    /// Next chunk not yet claimed by any lane, counted from the chunks the launch covers.
     std::uint32_t *nextChunk;
 
     Film::Impl film;
@@ -49,11 +48,9 @@ struct OptixLaunchParams {
     /// Number of samples assigned to each pixel in this batch.
     std::uint32_t batchSize;
 
-    /// Paths in this batch, one per pixel sample. Launch index \c i renders chunk \c i. Lanes
-    /// claim the remaining chunks through \c nextChunk.
     std::uint32_t pathCount;
 
-    /// Consecutive paths in a chunk, before the batch bounds it.
+    /// Consecutive paths in a chunk.
     std::uint32_t chunkSize;
 
     /// Number of chunks in the batch.
@@ -67,10 +64,6 @@ struct OptixLaunchParams {
 
 public:
     /// \brief Decodes a path index into the sample it renders.
-    ///
-    /// Consecutive indices belong to consecutive samples of the same pixel.
-    /// This keeps a full 32-sample batch on one warp in a one-dimensional
-    /// launch.
     ///
     /// \pre \c batchSize and the film dimensions are nonzero.
     /// \pre \p pathIndex is smaller than \c pathCount.

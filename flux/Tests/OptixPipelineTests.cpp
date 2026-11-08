@@ -451,7 +451,6 @@ TEST(OptixPipelineTests, RendersTheSameSamplesForAnyChunkSize) {
     };
 
     auto const expected = render(1);
-    // 3 does not divide the 8 samples per pixel. 0 and 64 lie outside them.
     for (auto const chunkSize : {0U, 3U, 8U, 64U}) {
         SCOPED_TRACE(chunkSize);
         auto const actual = render(chunkSize);

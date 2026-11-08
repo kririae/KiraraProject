@@ -29,7 +29,7 @@ FluxCLIOptions parseFluxCLI(int argc, char **argv) {
         );
     program.add_argument("--chunk-size")
         .scan<'u', std::uint32_t>()
-        .help("consecutive paths an OptiX thread renders in order, clamps to [1, --spp]");
+        .help("consecutive paths an OptiX thread renders in order");
     program.add_argument("--log-file").help("also append logs to this file");
     program.parse_args(argc, argv);
 

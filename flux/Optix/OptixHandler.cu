@@ -191,9 +191,6 @@ RenderStats OptixHandler::pImpl::render(
     auto const &film = buffer.film;
     auto const cameraImpl = camera.getImpl();
 
-    // One path per pixel sample, with each pixel's samples consecutive. The launch is capped at
-    // the resident thread count, so a lane whose chunk is done claims the next rather than
-    // retiring and leaving its warp short.
     auto const pixelCount =
         static_cast<std::uint64_t>(film.width) * static_cast<std::uint64_t>(film.height);
     constexpr auto maxPaths = std::numeric_limits<decltype(OptixLaunchParams::pathCount)>::max();
