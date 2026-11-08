@@ -373,8 +373,8 @@ private:
     TfTokenVector tags_{HdRenderTagTokens->geometry};
 };
 
-/// Renders the camera of a retained scene through the FLux plugin into a color buffer, and a depth
-/// buffer that keeps its clear value.
+/// Renders the camera of a retained scene through the FLux plugin into a color buffer, and a camera
+/// depth buffer that keeps its clear value.
 ///
 /// Eight samples at four per launch converge in two executions.
 class RenderTests : public testing::Test {
@@ -405,10 +405,10 @@ protected:
         );
         ASSERT_TRUE(buffer_->Allocate({width, height, 1}, HdFormatFloat32Vec4, false));
 
-        depthBuffer_ = static_cast<HdRenderBuffer *>(
-            delegate_->CreateBprim(HdPrimTypeTokens->renderBuffer, SdfPath{"/depth"})
+        cameraDepthBuffer_ = static_cast<HdRenderBuffer *>(
+            delegate_->CreateBprim(HdPrimTypeTokens->renderBuffer, SdfPath{"/cameraDepth"})
         );
-        ASSERT_TRUE(depthBuffer_->Allocate({width, height, 1}, HdFormatFloat32, false));
+        ASSERT_TRUE(cameraDepthBuffer_->Allocate({width, height, 1}, HdFormatFloat32, false));
 
         syncIndex();
 
@@ -417,14 +417,14 @@ protected:
         color.renderBuffer = buffer_;
         color.clearValue = VtValue{GfVec4f{0.0F}};
 
-        HdRenderPassAovBinding depth;
-        depth.aovName = HdAovTokens->depth;
-        depth.renderBuffer = depthBuffer_;
-        depth.clearValue = VtValue{1.0F};
+        HdRenderPassAovBinding cameraDepth;
+        cameraDepth.aovName = HdAovTokens->cameraDepth;
+        cameraDepth.renderBuffer = cameraDepthBuffer_;
+        cameraDepth.clearValue = VtValue{1.0F};
 
         state_ = delegate_->CreateRenderPassState();
         state_->SetFraming(CameraUtilFraming{GfRect2i{GfVec2i{0}, width, height}});
-        state_->SetAovBindings({color, depth});
+        state_->SetAovBindings({color, cameraDepth});
         useCamera();
 
         pass_ = delegate_->CreateRenderPass(
@@ -441,7 +441,7 @@ protected:
             tasks_.clear();
             pass_.reset();
             delegate_->DestroyBprim(buffer_);
-            delegate_->DestroyBprim(depthBuffer_);
+            delegate_->DestroyBprim(cameraDepthBuffer_);
             for (auto *const buffer : extraBuffers_)
                 delegate_->DestroyBprim(buffer);
         }
@@ -519,7 +519,7 @@ protected:
     HdRetainedSceneIndexRefPtr scene_;
     std::unique_ptr<HdRenderIndex> index_;
     HdRenderBuffer *buffer_{nullptr};
-    HdRenderBuffer *depthBuffer_{nullptr};
+    HdRenderBuffer *cameraDepthBuffer_{nullptr};
     std::vector<HdRenderBuffer *> extraBuffers_;
     HdRenderPassStateSharedPtr state_;
     HdRenderPassSharedPtr pass_;
@@ -549,11 +549,11 @@ TEST_F(RenderTests, ConvergesAtTheBufferSize) {
         ASSERT_EQ(pixels[4 * pixel + 3], 1.0F) << "pixel " << pixel;
     buffer_->Unmap();
 
-    // The depth is not rendered, so it holds its clear value.
-    auto const *const depths = static_cast<float const *>(depthBuffer_->Map());
+    // The camera depth is not rendered, so it holds its clear value.
+    auto const *const depths = static_cast<float const *>(cameraDepthBuffer_->Map());
     for (int pixel = 0; pixel < width * height; ++pixel)
         ASSERT_EQ(depths[pixel], 1.0F) << "pixel " << pixel;
-    depthBuffer_->Unmap();
+    cameraDepthBuffer_->Unmap();
 }
 
 TEST_F(RenderTests, RestartsWhenTheCameraMoves) {
@@ -637,10 +637,10 @@ TEST_F(RenderTests, AppliesAChangedClearValueToABufferThatShowsNoImage) {
 
     execute();
 
-    auto const *const depths = static_cast<float const *>(depthBuffer_->Map());
+    auto const *const depths = static_cast<float const *>(cameraDepthBuffer_->Map());
     for (int pixel = 0; pixel < width * height; ++pixel)
         ASSERT_EQ(depths[pixel], 0.5F) << "pixel " << pixel;
-    depthBuffer_->Unmap();
+    cameraDepthBuffer_->Unmap();
 }
 
 TEST_F(RenderTests, ConvergesInOneExecutionWhenTheHostIsNotInteractive) {
@@ -694,6 +694,28 @@ TEST_F(RenderTests, WritesTheNormalOfAMeshThatCoversThePixel) {
     executeToConvergence();
 
     EXPECT_NEAR(centerNormal(normal)[2], 1.0F, 1e-4F);
+}
+
+TEST_F(RenderTests, WritesTheClipDepthOfTheHitsAndTheFarPlaneWhereNothingIsHit) {
+    auto *const depth = bindBuffer(HdAovTokens->depth);
+    ASSERT_TRUE(depth->Allocate({width, height, 1}, HdFormatFloat32, false));
+    // The quad covers the right half of the view from x = 0.5 and lies 5 in front of the camera, so
+    // the edge at x = 0.5 runs through pixels that only some samples hit.
+    scene_->AddPrims({{meshPath, HdPrimTypeTokens->mesh, makeMesh(makeQuad(1.5F))}});
+
+    executeToConvergence();
+
+    auto const ndc = state_->GetProjectionMatrix().Transform(GfVec3d{0.0, 0.0, -5.0})[2];
+    auto const quadDepth = static_cast<float>(ndc * 0.5 + 0.5);
+    auto const *const depths = static_cast<float const *>(depth->Map());
+    EXPECT_EQ(depths[(height / 2) * width + width / 2], 1.0F);
+    EXPECT_NEAR(depths[(height / 2) * width + width - 1], quadDepth, 1e-6F);
+    for (int pixel = 0; pixel < width * height; ++pixel) {
+        if (depths[pixel] == 1.0F)
+            continue;
+        ASSERT_NEAR(depths[pixel], quadDepth, 1e-6F) << "pixel " << pixel;
+    }
+    depth->Unmap();
 }
 
 TEST_F(RenderTests, MovesTheHitWhenOnlyThePointsChange) {

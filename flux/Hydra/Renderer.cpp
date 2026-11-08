@@ -1,7 +1,10 @@
 #include "flux/Hydra/Renderer.h"
 
+#include <pxr/base/work/loops.h>
+
 #include <optional>
 #include <span>
+#include <vector>
 
 #include "flux/Hydra/Camera.h"
 #include "flux/Hydra/RenderBuffer.h"
@@ -10,13 +13,60 @@
 #include "flux/Scene/Context.h"
 
 namespace {
-[[nodiscard]] std::span<flux::Vec3f const>
-pixelsOf(flux::Film const &film, flux::FilmChannels channel) {
+/// \brief Maps the depth channel of a pixel to its clip depth.
+///
+/// The view-space z of a pixel is -x / y, and its clip depth is (P22 z + P32) / (P23 z + P33)
+/// mapped from [-1, 1] to [0, 1]. Scaling both terms by y leaves one division. A pixel without a
+/// hit has x = y = 0, and its miss flag added to both terms gives 0.5 / 1 + 0.5 = 1.
+struct ClipDepthMap {
+    float numeratorX;
+    float numeratorY;
+    float denominatorX;
+    float denominatorY;
+
+    void operator()(std::span<flux::Vec2f const> depths, float *__restrict clipDepths) const {
+        for (std::size_t index = 0; index < depths.size(); ++index) {
+            auto const &depth = depths[index];
+            auto const missed = static_cast<float>(depth.y() == 0.0F);
+            auto const numerator = numeratorX * depth.x() + numeratorY * depth.y() + 0.5F * missed;
+            auto const denominator = denominatorX * depth.x() + denominatorY * depth.y() + missed;
+            clipDepths[index] = numerator / denominator + 0.5F;
+        }
+    }
+};
+
+/// \brief Converts \p depths to the depths of Hydra's depth AOV, which \p projection maps to
+/// [0, 1].
+///
+/// A pixel that no sample hit is at the far plane, 1.
+[[nodiscard]] std::vector<float>
+toClipDepths(std::span<flux::Vec2f const> depths, pxr::GfMatrix4d const &projection) {
+    auto const map = ClipDepthMap{
+        .numeratorX = static_cast<float>(-0.5 * projection[2][2]),
+        .numeratorY = static_cast<float>(0.5 * projection[3][2]),
+        .denominatorX = static_cast<float>(-projection[2][3]),
+        .denominatorY = static_cast<float>(projection[3][3]),
+    };
+
+    std::vector<float> clipDepths(depths.size());
+    pxr::WorkParallelForN(depths.size(), [&](std::size_t begin, std::size_t end) {
+        map(depths.subspan(begin, end - begin), clipDepths.data() + begin);
+    });
+    return clipDepths;
+}
+
+void assignChannel(
+    HdFluxRenderBuffer &buffer, flux::Film const &film, flux::FilmChannels channel,
+    pxr::GfMatrix4d const &projection
+) {
     switch (channel) {
-    case flux::FilmChannels::Color: return film.getChannel<flux::ColorChannel>();
-    case flux::FilmChannels::Normal: return film.getChannel<flux::NormalChannel>();
-    case flux::FilmChannels::Albedo: return film.getChannel<flux::AlbedoChannel>();
-    default: return {};
+    case flux::FilmChannels::Color: buffer.Assign(film.getChannel<flux::ColorChannel>()); return;
+    case flux::FilmChannels::Normal: buffer.Assign(film.getChannel<flux::NormalChannel>()); return;
+    case flux::FilmChannels::Albedo: buffer.Assign(film.getChannel<flux::AlbedoChannel>()); return;
+    case flux::FilmChannels::Depth:
+        buffer.Assign(toClipDepths(film.getChannel<flux::DepthChannel>(), projection));
+        return;
+    default: return;
     }
 }
 
@@ -94,7 +144,7 @@ void HdFluxRenderer::Render(HdFluxRenderSpec const &spec, std::span<Output const
 
         if (hasSamples && output.channel != flux::FilmChannels::None) {
             if (launched || !buffer.IsConverged())
-                buffer.Assign(pixelsOf(image_->film, output.channel));
+                assignChannel(buffer, image_->film, output.channel, spec_.view->projection);
         } else if (!output.clearValue.IsEmpty()) {
             buffer.Clear(output.clearValue);
         }

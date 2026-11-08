@@ -45,10 +45,12 @@ public:
 
     /// \brief Sets the pixels to \p pixels, which hold the rows of an image, top row first.
     ///
-    /// A pixel takes the leading components of its value, and a fourth component is 1.
+    /// A pixel takes the leading components of its value. A further component is 0, and a fourth
+    /// component is 1.
     ///
     /// \pre \p pixels has one value per pixel of the buffer.
     void Assign(std::span<flux::Vec3f const> pixels);
+    void Assign(std::span<float const> pixels);
 
 private:
     void _Deallocate() override;

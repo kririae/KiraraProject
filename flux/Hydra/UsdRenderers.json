@@ -2,6 +2,7 @@
     "HdFluxRendererPlugin": {
         "menulabel": "FLux",
         "aovsupport": true,
+        "depthstyle": "opengl",
         "defaultpurposes": [
             "render"
         ]

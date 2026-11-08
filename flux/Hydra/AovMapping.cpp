@@ -15,8 +15,8 @@ struct Aov {
     pxr::HdAovDescriptor descriptor;
 };
 
-std::array<Aov, 3> const &aovs() {
-    static std::array<Aov, 3> const table{{
+std::array<Aov, 4> const &aovs() {
+    static std::array<Aov, 4> const table{{
         {pxr::HdAovTokens->color,
          flux::FilmChannels::Color,
          {pxr::HdFormatFloat32Vec4, false, pxr::VtValue(pxr::GfVec4f(0.0F))}},
@@ -26,6 +26,9 @@ std::array<Aov, 3> const &aovs() {
         {pxr::TfToken{"albedo"},
          flux::FilmChannels::Albedo,
          {pxr::HdFormatFloat32Vec3, false, pxr::VtValue(pxr::GfVec3f(0.0F))}},
+        {pxr::HdAovTokens->depth,
+         flux::FilmChannels::Depth,
+         {pxr::HdFormatFloat32, false, pxr::VtValue(1.0F)}},
     }};
     return table;
 }

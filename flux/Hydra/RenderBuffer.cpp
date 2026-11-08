@@ -16,6 +16,12 @@ namespace {
     return component < 3 ? value[component] : 1.0F;
 }
 
+[[nodiscard]] float componentOf(float value, std::size_t component) {
+    if (component == 0)
+        return value;
+    return component < 3 ? 0.0F : 1.0F;
+}
+
 /// \brief Writes \p pixels, whose rows run top row first, to \p data, whose rows run bottom row
 /// first.
 template <std::size_t Components, typename Value>
@@ -143,6 +149,10 @@ void HdFluxRenderBuffer::Clear(pxr::VtValue const &value) {
 }
 
 void HdFluxRenderBuffer::Assign(std::span<flux::Vec3f const> pixels) {
+    assignPixels(pixels, std::span{data_}, width_, height_, format_);
+}
+
+void HdFluxRenderBuffer::Assign(std::span<float const> pixels) {
     assignPixels(pixels, std::span{data_}, width_, height_, format_);
 }
 
