@@ -21,9 +21,9 @@ A message has the shape that the `commit-msg` hooks check. Its scope is the proj
 
 ## Hooks
 
-`git amend`, `git reword`, and `git move` run neither the `pre-commit` nor the `commit-msg` hooks. To run both at each commit of the stack, with a clean working copy:
+`git amend`, `git reword`, and `git move` run neither the `pre-commit` nor the `commit-msg` hooks. To run both at each commit of the stack, in a worktree that git-branchless manages, so the build of the working copy stays current:
 
-    git test run --no-cache -x 'f=$(mktemp) && git log -1 --format=%B > "$f" && pre-commit run --from-ref HEAD~ --to-ref HEAD && pre-commit run --hook-stage commit-msg --commit-msg-filename "$f"' '<target>..HEAD'
+    git test run -s worktree --no-cache -x 'f=$(mktemp) && git log -1 --format=%B > "$f" && pre-commit run --from-ref HEAD~ --to-ref HEAD && pre-commit run --hook-stage commit-msg --commit-msg-filename "$f"' '<target>..HEAD'
 
 ## Worktrees
 
