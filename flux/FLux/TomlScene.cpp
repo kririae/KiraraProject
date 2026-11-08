@@ -15,7 +15,7 @@
 #include "flux/Core/Logging.h"
 #include "flux/FLux/FLuxCLI.h"
 #include "flux/Integrator/PathIntegrator.h"
-#include "flux/Mtlx/MtlxBSDFGenerator.h"
+#include "flux/Mtlx/MtlxShaderGenerator.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
@@ -30,7 +30,7 @@ namespace {
 /// \brief Creates the \c ShaderBSDF of the material that the \c file and \c material properties
 /// name.
 [[nodiscard]] Ref<BSDF const> createMaterialXBSDF(
-    Context &context, std::optional<MtlxBSDFGenerator> &generator, kira::Properties &props
+    Context &context, std::optional<MtlxShaderGenerator> &generator, kira::Properties &props
 ) {
     auto const authoredPath = props.use<std::filesystem::path>("file");
     auto const materialName = props.use<std::string>("material");
@@ -52,7 +52,7 @@ namespace {
     auto &instance = generation.instance;
     if (!instance)
         throw kira::Anyhow(
-            "MaterialX file '{}' generated nothing for material '{}'", path.string(), materialName
+            "MaterialX file '{}' generated no shader for material '{}'", path.string(), materialName
         );
     auto textures = std::vector<Ref<ImageTexture const>>{};
     for (auto const &spec : instance->textures)
@@ -98,7 +98,7 @@ LoadedScene loadTomlScene(FluxCLIOptions const &options) {
         options.samplesPerPixel.value_or(filmProps.use_or<std::uint32_t>("num_samples", 1));
 
     std::unordered_map<std::string, Ref<BSDF const>> bsdfs;
-    std::optional<MtlxBSDFGenerator> mtlxGenerator;
+    std::optional<MtlxShaderGenerator> mtlxGenerator;
     if (scene.contains("bsdf")) {
         auto bsdfProps = scene.use_array_view("bsdf");
         bsdfs.reserve(bsdfProps.size());

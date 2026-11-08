@@ -12,10 +12,10 @@ namespace flux {
 ///
 /// Thread-safe. Each thread compiles with its own Slang global session, which it creates on its
 /// first compile, so compiles on different threads run concurrently.
-class OptixBSDFCompiler final : private Noncopyable {
+class OptixShaderCompiler final : private Noncopyable {
 public:
     /// \brief The name of the direct callable that the IR defines, of type \c OptixBSDFCallable.
-    static constexpr auto callableName = "__direct_callable__bsdf";
+    static constexpr auto bsdfCallableName = "__direct_callable__bsdf";
 
     /// \brief The name of the direct callable of the EDF, of type \c OptixEDFCallable.
     static constexpr auto edfCallableName = "__direct_callable__edf";
@@ -23,16 +23,16 @@ public:
     /// \brief Targets the virtual architecture of the current CUDA device.
     ///
     /// \throw kira::Anyhow If CUDA fails.
-    OptixBSDFCompiler();
-    ~OptixBSDFCompiler();
+    OptixShaderCompiler();
+    ~OptixShaderCompiler();
 
-    /// \brief Returns the OptiX IR of the module \p material, which declares \c makeBSDF and
+    /// \brief Returns the OptiX IR of the shader \p source, which declares \c makeBSDF and
     /// \c makeEDF.
     ///
     /// The IR names its launch parameters \c optixLaunchParams.
     ///
     /// \throw kira::Anyhow If Slang or NVRTC fails, with its log.
-    [[nodiscard]] std::vector<char> compile(std::string const &material) const;
+    [[nodiscard]] std::vector<char> compile(std::string const &source) const;
 
 private:
     struct pImpl;

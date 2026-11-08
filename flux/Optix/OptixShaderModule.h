@@ -12,7 +12,7 @@ namespace flux {
 /// The module borrows its OptiX device context, which must outlive it.
 class OptixShaderModule final : private Noncopyable {
 public:
-    /// \brief Builds the module from \p ir, which \c OptixBSDFCompiler::compile returns.
+    /// \brief Builds the module from \p ir, which \c OptixShaderCompiler::compile returns.
     ///
     /// \throw std::invalid_argument If \p deviceContext is null.
     /// \throw kira::Anyhow If OptiX rejects \p ir.
@@ -20,7 +20,7 @@ public:
 
     ~OptixShaderModule();
 
-    [[nodiscard]] OptixProgramGroup getProgramGroup() const noexcept { return program_; }
+    [[nodiscard]] OptixProgramGroup getBSDFProgramGroup() const noexcept { return bsdfProgram_; }
 
     [[nodiscard]] OptixProgramGroup getEDFProgramGroup() const noexcept { return edfProgram_; }
 
@@ -30,7 +30,7 @@ private:
     explicit OptixShaderModule(EmptyState) noexcept {}
 
     OptixModule module_{};
-    OptixProgramGroup program_{};
+    OptixProgramGroup bsdfProgram_{};
     OptixProgramGroup edfProgram_{};
 };
 } // namespace flux

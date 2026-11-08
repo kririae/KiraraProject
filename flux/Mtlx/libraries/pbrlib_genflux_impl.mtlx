@@ -34,7 +34,7 @@
   <implementation name="IM_mix_bsdf_genflux" nodedef="ND_mix_bsdf" target="genflux"
                   sourcecode="makeMixBSDF({{fg}}, {{bg}}, {{mix}})"/>
   <implementation name="IM_surface_genflux" nodedef="ND_surface" target="genflux"
-                  sourcecode="makeSurface({{bsdf}}, {{edf}})"/>
+                  sourcecode="makeMaterial({{bsdf}}, {{edf}})"/>
 
   <implementation name="IM_uniform_edf_genflux" nodedef="ND_uniform_edf" target="genflux"
                   sourcecode="makeUniformEDF({{color}})"/>

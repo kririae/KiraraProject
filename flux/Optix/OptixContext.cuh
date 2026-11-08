@@ -40,7 +40,7 @@ OptixContext::Impl::intersect(Ray const &ray, Hit &hit, bool shaderReorder) cons
             primitive.hasBSDF() && table.getBSDF(primitive.getBSDFIndex()).type == BSDFType::Shader
                 ? shaderBSDFBindings[primitive.getBSDFIndex()].slot
                 : 0U;
-        optixReorder(hint, shaderSlotBits);
+        optixReorder(hint, shaderBSDFSlotBits);
     }
 
     // Capture the world-space interaction while the outgoing hit object provides its transform.

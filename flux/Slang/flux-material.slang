@@ -343,11 +343,11 @@ public MultiplyEDF<A> makeMultiplyEDF<A : IEDF>(A edf, float tint)
     return {edf, float3(tint)};
 }
 
-/// \brief What a MaterialX \c surface constructs: a BSDF and an EDF.
-public struct Surface<B : IBSDF, E : IEDF>
+/// \brief A material, a BSDF and an EDF.
+public struct Material<B : IBSDF, E : IEDF>
 {
     public B bsdf;
     public E edf;
 };
 
-public Surface<B, E> makeSurface<B : IBSDF, E : IEDF>(B bsdf, E edf) { return {bsdf, edf}; }
+public Material<B, E> makeMaterial<B : IBSDF, E : IEDF>(B bsdf, E edf) { return {bsdf, edf}; }

@@ -8,7 +8,7 @@
 #include <string>
 
 namespace flux {
-/// \brief Slang's syntax, with MaterialX's closure types named as the BSDF library's interface.
+/// \brief Slang's syntax, with MaterialX's closure types named as the material library's interface.
 class FluxSyntax final : public MaterialX::SlangSyntax {
 public:
     explicit FluxSyntax(MaterialX::TypeSystemPtr typeSystem)
@@ -17,7 +17,7 @@ public:
         registerClosureType(MaterialX::Type::EDF, "IEDF", "EmptyEDF()");
         for (auto const type : {MaterialX::Type::SURFACESHADER, MaterialX::Type::MATERIAL})
             registerClosureType(
-                type, "Surface<EmptyBSDF, EmptyEDF>", "makeSurface(EmptyBSDF(), EmptyEDF())"
+                type, "Material<EmptyBSDF, EmptyEDF>", "makeMaterial(EmptyBSDF(), EmptyEDF())"
             );
     }
 

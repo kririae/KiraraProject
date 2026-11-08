@@ -10,9 +10,9 @@
 #include <string>
 #include <vector>
 
-#include "flux/Optix/OptixBSDFCompiler.h"
 #include "flux/Optix/OptixMegaKernelModule.h"
 #include "flux/Optix/OptixPipelineCompileOptions.h"
+#include "flux/Optix/OptixShaderCompiler.h"
 #include "flux/Optix/OptixShaderModule.h"
 #include "flux/Optix/OptixShaderPool.h"
 #include "flux/Optix/OptixUtils.h"
@@ -35,8 +35,8 @@ public:
     OptixDeviceContext context{};
 };
 
-constexpr auto material = R"slang(
-import flux_bsdf;
+constexpr auto shaderSource = R"slang(
+import flux_material;
 import flux_context;
 
 public IBSDF makeBSDF(uint* words, ShadingContext ctx)
@@ -48,8 +48,8 @@ public IEDF makeEDF(uint* words, ShadingContext ctx) { return EmptyEDF(); }
 )slang";
 
 /// Calls a CUDA function that the compiler keeps as a call.
-constexpr auto materialWithCall = R"slang(
-import flux_bsdf;
+constexpr auto shaderSourceWithCall = R"slang(
+import flux_material;
 import flux_context;
 
 float sharedValue(float x)
@@ -67,22 +67,23 @@ public IEDF makeEDF(uint* words, ShadingContext ctx) { return EmptyEDF(); }
 )slang";
 } // namespace
 
-TEST(OptixShaderModule, BecomesAProgramGroupFromAMaterial) {
+TEST(OptixShaderModule, HasABSDFProgramGroup) {
     Device const device;
-    flux::OptixBSDFCompiler const compiler;
+    flux::OptixShaderCompiler const compiler;
 
-    auto const ir = compiler.compile(material);
+    auto const ir = compiler.compile(shaderSource);
     flux::OptixShaderModule const module(device.context, ir);
 
-    EXPECT_NE(module.getProgramGroup(), nullptr);
+    EXPECT_NE(module.getBSDFProgramGroup(), nullptr);
 }
 
 TEST(OptixShaderModule, TwoSourcesThatDifferOnlyByACommentLinkIntoOnePipeline) {
     Device const device;
-    flux::OptixBSDFCompiler const compiler;
+    flux::OptixShaderCompiler const compiler;
 
-    auto const firstIr = compiler.compile(materialWithCall);
-    auto const secondIr = compiler.compile(std::string{materialWithCall} + "// Another source.\n");
+    auto const firstIr = compiler.compile(shaderSourceWithCall);
+    auto const secondIr =
+        compiler.compile(std::string{shaderSourceWithCall} + "// Another source.\n");
     flux::OptixShaderModule const first(device.context, firstIr);
     flux::OptixShaderModule const second(device.context, secondIr);
 
@@ -97,8 +98,8 @@ TEST(OptixShaderModule, TwoSourcesThatDifferOnlyByACommentLinkIntoOnePipeline) {
     );
     auto const megaKernelGroups = megaKernel.getProgramGroups();
     std::vector<OptixProgramGroup> groups{megaKernelGroups.begin(), megaKernelGroups.end()};
-    groups.push_back(first.getProgramGroup());
-    groups.push_back(second.getProgramGroup());
+    groups.push_back(first.getBSDFProgramGroup());
+    groups.push_back(second.getBSDFProgramGroup());
 
     auto const pipelineOptions = flux::pipelineCompileOptions();
     OptixPipelineLinkOptions linkOptions{};
@@ -114,14 +115,14 @@ TEST(OptixShaderModule, TwoSourcesThatDifferOnlyByACommentLinkIntoOnePipeline) {
         flux::optixCheck<false>(optixPipelineDestroy(pipeline));
 }
 
-TEST(OptixShaderPool, AddBuildsAModuleForEachOfSeveralMaterials) {
+TEST(OptixShaderPool, AddBuildsAModuleForEachOfSeveralShaders) {
     Device const device;
     flux::ShaderAssetPool assetPool;
     std::vector<flux::Ref<flux::ShaderAsset const>> assets;
     for (auto const word : {0, 1, 2, 3})
         assets.push_back(assetPool.getOrCreate(
             {.source = fmt::format(
-                 "import flux_bsdf;\nimport flux_context;\n"
+                 "import flux_material;\nimport flux_context;\n"
                  "public IBSDF makeBSDF(uint* words, ShadingContext ctx)\n"
                  "{{ return makeMixBSDF(EmptyBSDF(), EmptyBSDF(), asfloat(words[{}])); }}\n"
                  "public IEDF makeEDF(uint* words, ShadingContext ctx) {{ return EmptyEDF(); }}\n",
@@ -135,8 +136,8 @@ TEST(OptixShaderPool, AddBuildsAModuleForEachOfSeveralMaterials) {
     std::set<OptixProgramGroup> groups;
     for (auto const &asset : assets) {
         auto const module = pool.getModule(asset->getId());
-        EXPECT_NE(module->getProgramGroup(), nullptr);
-        groups.insert(module->getProgramGroup());
+        EXPECT_NE(module->getBSDFProgramGroup(), nullptr);
+        groups.insert(module->getBSDFProgramGroup());
     }
     EXPECT_EQ(groups.size(), assets.size());
 }

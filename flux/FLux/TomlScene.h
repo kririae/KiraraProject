@@ -24,7 +24,8 @@ struct LoadedScene {
 ///
 /// \par BSDF properties
 /// - \c name: required string, which primitives use to refer to the BSDF.
-/// - \c type: \c "materialx" makes the BSDF the shader of a MaterialX material. Only OptiX runs it.
+/// - \c type: \c "materialx" makes the BSDF the one that the shader of a MaterialX material
+///   gives. Only OptiX runs it.
 /// - \c file: required for \c "materialx", the path of a \c .mtlx document, resolved like the other
 ///   files of the scene.
 /// - \c material: required for \c "materialx", the name of a \c surfacematerial of the document.

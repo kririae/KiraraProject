@@ -6,8 +6,8 @@
 #include <cstddef>
 #include <stdexcept>
 
-#include "flux/Optix/OptixBSDFCompiler.h"
 #include "flux/Optix/OptixPipelineCompileOptions.h"
+#include "flux/Optix/OptixShaderCompiler.h"
 #include "flux/Optix/OptixUtils.h"
 
 namespace flux {
@@ -36,24 +36,24 @@ OptixShaderModule::OptixShaderModule(OptixDeviceContext deviceContext, std::span
     // clang-format on
     optixCheck(result, log, logSize);
 
-    auto const callable = OptixProgramGroupDesc{
+    auto const bsdfCallable = OptixProgramGroupDesc{
         .kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES,
         .flags = OPTIX_PROGRAM_GROUP_FLAGS_NONE,
         .callables = {
             .moduleDC = module_,
-            .entryFunctionNameDC = OptixBSDFCompiler::callableName,
+            .entryFunctionNameDC = OptixShaderCompiler::bsdfCallableName,
             .moduleCC = nullptr,
             .entryFunctionNameCC = nullptr,
         },
     };
-    program_ = createProgramGroup(deviceContext, callable);
+    bsdfProgram_ = createProgramGroup(deviceContext, bsdfCallable);
 
     auto const edfCallable = OptixProgramGroupDesc{
         .kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES,
         .flags = OPTIX_PROGRAM_GROUP_FLAGS_NONE,
         .callables = {
             .moduleDC = module_,
-            .entryFunctionNameDC = OptixBSDFCompiler::edfCallableName,
+            .entryFunctionNameDC = OptixShaderCompiler::edfCallableName,
             .moduleCC = nullptr,
             .entryFunctionNameCC = nullptr,
         },
@@ -64,8 +64,8 @@ OptixShaderModule::OptixShaderModule(OptixDeviceContext deviceContext, std::span
 OptixShaderModule::~OptixShaderModule() {
     if (edfProgram_)
         optixCheck<false>(optixProgramGroupDestroy(edfProgram_));
-    if (program_)
-        optixCheck<false>(optixProgramGroupDestroy(program_));
+    if (bsdfProgram_)
+        optixCheck<false>(optixProgramGroupDestroy(bsdfProgram_));
     if (module_)
         optixCheck<false>(optixModuleDestroy(module_));
 }

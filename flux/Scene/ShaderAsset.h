@@ -1,10 +1,13 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
+#include <vector>
 
 #include "flux/Core/ConcurrentPool.h"
 #include "flux/Core/Object.h"
+#include "flux/Shading/Texture.h"
 
 namespace flux {
 /// \brief What the source of a shader determines.
@@ -17,7 +20,7 @@ struct ShaderAssetSpec {
     bool mayEmit{true};
 };
 
-/// \brief Generated shader shared by materials.
+/// \brief A shader, the generated code that gives the BSDF and the EDF of a material.
 ///
 /// A backend can key what it compiles from the asset by its ID.
 class ShaderAsset final : public RefCountedBase<ShaderAsset> {
@@ -34,6 +37,16 @@ private:
 
     ShaderAssetSpec spec_;
     std::size_t id_;
+};
+
+/// \brief A shader with the words and the textures of one material.
+struct ShaderInstance {
+    ShaderAssetSpec spec;
+
+    std::vector<std::uint32_t> words;
+
+    /// \brief The textures that the source samples. Texture k is the one that slot k samples.
+    std::vector<ImageTextureSpec> textures;
 };
 
 /// \brief Shares ShaderAsset objects by source.

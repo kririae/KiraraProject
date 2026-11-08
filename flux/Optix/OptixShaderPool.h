@@ -10,16 +10,16 @@
 #include <vector>
 
 #include "flux/Core/Object.h"
-#include "flux/Optix/OptixBSDFCompiler.h"
+#include "flux/Optix/OptixShaderCompiler.h"
 #include "flux/Optix/OptixShaderModule.h"
 #include "flux/Scene/ShaderAsset.h"
 
 namespace flux {
 /// \brief OptiX modules of shader assets, by ShaderAsset ID.
 ///
-/// The pool holds no ShaderAsset, and knows no BSDF. It compiles with one OptixBSDFCompiler, which
-/// it creates when it first compiles. Mutation is single-threaded, so callers provide external
-/// synchronization.
+/// The pool holds no ShaderAsset, and knows no BSDF. It compiles with one OptixShaderCompiler,
+/// which it creates when it first compiles. Mutation is single-threaded, so callers provide
+/// external synchronization.
 class OptixShaderPool final : private Noncopyable {
 public:
     /// \brief Creates an empty pool whose modules borrow \p deviceContext, which must outlive it.
@@ -51,7 +51,7 @@ public:
 
 private:
     OptixDeviceContext deviceContext_;
-    std::optional<OptixBSDFCompiler> compiler_;
+    std::optional<OptixShaderCompiler> compiler_;
     std::unordered_map<std::size_t, std::shared_ptr<OptixShaderModule const>> modules_;
 };
 } // namespace flux

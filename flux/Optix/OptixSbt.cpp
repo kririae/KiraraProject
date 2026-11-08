@@ -11,10 +11,10 @@
 namespace flux {
 void OptixSbt::build(
     OptixMegaKernelModule const &module,
-    std::span<std::shared_ptr<OptixShaderModule const> const> shaderModules,
+    std::span<std::shared_ptr<OptixShaderModule const> const> bsdfModules,
     std::span<std::shared_ptr<OptixShaderModule const> const> edfModules
 ) {
-    auto const numCallables = shaderModules.size() + edfModules.size();
+    auto const numCallables = bsdfModules.size() + edfModules.size();
     std::vector<Record> records(callablesRecords + numCallables);
     optixCheck(optixSbtRecordPackHeader(module.getRaygenProgram(), &records[raygenRecord]));
     optixCheck(optixSbtRecordPackHeader(module.getMissProgram(), &records[missRecord]));
@@ -29,15 +29,15 @@ void OptixSbt::build(
         }
     }
 
-    for (std::size_t slot = 0; slot < shaderModules.size(); ++slot)
+    for (std::size_t slot = 0; slot < bsdfModules.size(); ++slot)
         optixCheck(optixSbtRecordPackHeader(
-            shaderModules[slot]->getProgramGroup(), &records[callablesRecords + slot]
+            bsdfModules[slot]->getBSDFProgramGroup(), &records[callablesRecords + slot]
         ));
 
     for (std::size_t slot = 0; slot < edfModules.size(); ++slot)
         optixCheck(optixSbtRecordPackHeader(
             edfModules[slot]->getEDFProgramGroup(),
-            &records[callablesRecords + shaderModules.size() + slot]
+            &records[callablesRecords + bsdfModules.size() + slot]
         ));
 
     records_.copyFromHost(records, deletionQueue_);

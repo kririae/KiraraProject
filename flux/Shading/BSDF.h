@@ -268,7 +268,7 @@ private:
     float eta_;
 };
 
-/// \brief A BSDF that a generated shader computes.
+/// \brief The BSDF that a shader gives.
 ///
 /// Texture k is the texture that slot k of the source samples.
 class ShaderBSDF final : public BSDF {

@@ -9,7 +9,7 @@
 #include <utility>
 #include <vector>
 
-#include "flux/Mtlx/MtlxBSDFGenerator.h"
+#include "flux/Mtlx/MtlxShaderGenerator.h"
 #include "flux/Slang/SlangCompiler.h"
 #include "kira/Anyhow.h"
 
@@ -167,9 +167,9 @@ public float3 fluxToShadingFrame(ShadingContext ctx, float3 v)
 
 /// \brief The entry of a backend, which calls the generated \c makeBSDF.
 constexpr auto entrySource = R"slang(
-import flux_bsdf;
+import flux_material;
 import flux_context;
-import material;
+import shader;
 
 [CudaDeviceExport]
 public BSDFResult entry(
@@ -181,9 +181,9 @@ public BSDFResult entry(
 
 /// \brief The entry of a backend, which calls the generated \c makeEDF.
 constexpr auto edfEntrySource = R"slang(
-import flux_bsdf;
+import flux_material;
 import flux_context;
-import material;
+import shader;
 
 [CudaDeviceExport]
 public float3 entry(uint* words, ShadingContext ctx, float3 wo)
@@ -365,22 +365,22 @@ constexpr auto usdPreviewSurfaceDocument = R"mtlx(<?xml version="1.0"?>
   </surfacematerial>
 </materialx>)mtlx";
 
-[[nodiscard]] flux::MtlxBSDFGenerator::GenerationResult
+[[nodiscard]] flux::MtlxShaderGenerator::GenerationResult
 tryGenerate(std::string const &document, std::vector<std::string> const &interactive = {}) {
-    auto const generator = flux::MtlxBSDFGenerator{FLUX_MATERIALX_DIR};
+    auto const generator = flux::MtlxShaderGenerator{FLUX_MATERIALX_DIR};
     return generator.generate(document, "M", {}, interactive);
 }
 
-[[nodiscard]] flux::MtlxBSDFGenerator::Instance
+[[nodiscard]] flux::ShaderInstance
 generate(std::string const &document, std::vector<std::string> const &interactive = {}) {
     auto result = tryGenerate(document, interactive);
     if (!result.instance)
-        throw kira::Anyhow{"the material generated nothing"};
+        throw kira::Anyhow{"the generator produced no shader"};
     return *std::move(result.instance);
 }
 
 [[nodiscard]] std::string readLibrary() {
-    auto const path = std::string{FLUX_SLANG_DIR} + "/flux-bsdf.slang";
+    auto const path = std::string{FLUX_SLANG_DIR} + "/flux-material.slang";
     auto stream = std::ifstream{path};
     if (!stream)
         throw kira::Anyhow{"cannot read {}", path};
@@ -391,16 +391,16 @@ generate(std::string const &document, std::vector<std::string> const &interactiv
 compile(flux::ShaderAssetSpec const &spec, std::string const &entry = entrySource) {
     auto const compiler = flux::SlangCompiler{flux::SlangCompiler::Target::CudaSource};
     auto const modules = std::vector{
-        flux::SlangModule{.name = "flux_bsdf", .source = readLibrary()},
+        flux::SlangModule{.name = "flux_material", .source = readLibrary()},
         flux::SlangModule{.name = "flux_context", .source = contextSource},
-        flux::SlangModule{.name = "material", .source = spec.source},
+        flux::SlangModule{.name = "shader", .source = spec.source},
         flux::SlangModule{.name = "entry", .source = entry},
     };
     return compiler.compile(modules, "entry");
 }
 
 void expectOneConcreteType(
-    flux::MtlxBSDFGenerator::Instance const &instance, std::string const &entry = entrySource
+    flux::ShaderInstance const &instance, std::string const &entry = entrySource
 ) {
     auto const code = compile(instance.spec, entry);
 
@@ -479,7 +479,7 @@ TEST(MtlxGeneratorTests, AnImageFileChangesTheTexturesAndNotTheSource) {
 }
 
 TEST(MtlxGeneratorTests, TheNameOfTheMaterialDoesNotChangeTheSource) {
-    auto const generator = flux::MtlxBSDFGenerator{FLUX_MATERIALX_DIR};
+    auto const generator = flux::MtlxShaderGenerator{FLUX_MATERIALX_DIR};
     auto renamed = std::string{mixedDocument};
     renamed.replace(renamed.find(R"(name="M")"), 8, R"(name="Other")");
 

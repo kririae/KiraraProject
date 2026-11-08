@@ -1,4 +1,4 @@
-#include "flux/Mtlx/MtlxBSDFGenerator.h"
+#include "flux/Mtlx/MtlxShaderGenerator.h"
 
 #include <MaterialXCore/Definition.h>
 #include <MaterialXCore/Document.h>
@@ -415,8 +415,8 @@ void reportUnsupportedEDFs(
 }
 
 /// \brief Emits the function \p name, which declares \p declarations, evaluates the nodes of
-/// \p graph, and returns the \p member of the surface that the graph builds.
-void emitSurfaceFunction(
+/// \p graph, and returns the \p member of the material that the graph builds.
+void emitEntryFunction(
     MaterialX::ShaderGenerator const &shadergen, MaterialX::GenContext &context,
     MaterialX::ShaderGraph const &graph, std::span<std::string const> declarations,
     std::string_view returnType, std::string_view name, std::string_view member,
@@ -431,11 +431,11 @@ void emitSurfaceFunction(
     shadergen.emitFunctionCalls(graph, context, stage);
     shadergen.emitLine(
         fmt::format(
-            "let surface = {};", shadergen.getUpstreamResult(graph.getOutputSocket(), context)
+            "let material = {};", shadergen.getUpstreamResult(graph.getOutputSocket(), context)
         ),
         stage, false
     );
-    shadergen.emitLine(fmt::format("return surface.{};", member), stage, false);
+    shadergen.emitLine(fmt::format("return material.{};", member), stage, false);
     stage.endScope();
 }
 
@@ -459,13 +459,13 @@ void flattenGraphDefinedNodes(MaterialX::Document &document, std::string const &
 }
 } // namespace
 
-struct MtlxBSDFGenerator::pImpl final {
+struct MtlxShaderGenerator::pImpl final {
     explicit pImpl(std::filesystem::path const &root);
 
-    /// \brief Generates the material, and appends what it does not honour to \p diagnostics.
+    /// \brief Generates the shader of the material, and appends what it drops to \p diagnostics.
     ///
     /// \throw MaterialX::Exception If the content cannot be generated.
-    [[nodiscard]] Instance makeInstance(
+    [[nodiscard]] ShaderInstance makeInstance(
         MaterialX::DocumentPtr const &document, std::string const &materialName,
         MaterialX::FileSearchPath const &searchPath, std::span<std::string const> interactive,
         std::vector<std::string> &diagnostics
@@ -481,7 +481,7 @@ static_assert(
     "The glue code of the genflux closures calls the functions of MaterialX 1.39.5's libraries"
 );
 
-MtlxBSDFGenerator::pImpl::pImpl(std::filesystem::path const &root)
+MtlxShaderGenerator::pImpl::pImpl(std::filesystem::path const &root)
     : mtlxRoot{root.string()}, libraries{MaterialX::createDocument()} {
     auto const searchPath = MaterialX::FileSearchPath{mtlxRoot};
     MaterialX::StringSet loaded;
@@ -489,23 +489,23 @@ MtlxBSDFGenerator::pImpl::pImpl(std::filesystem::path const &root)
         loaded = MaterialX::loadLibraries({"libraries"}, searchPath, libraries);
     } catch (MaterialX::Exception &error) {
         throw kira::Anyhow(
-            "MtlxBSDFGenerator: {} holds no libraries: {}", root.string(), error.what()
+            "MtlxShaderGenerator: {} holds no libraries: {}", root.string(), error.what()
         );
     }
     if (loaded.empty())
-        throw kira::Anyhow("MtlxBSDFGenerator: {} holds no MaterialX libraries", root.string());
+        throw kira::Anyhow("MtlxShaderGenerator: {} holds no MaterialX libraries", root.string());
     for (auto const *source : std::views::values(libraryFiles))
         MaterialX::readFromXmlString(libraries, source, searchPath);
 
     generator = std::make_shared<FluxShaderGenerator>(MaterialX::TypeSystem::create());
 }
 
-MtlxBSDFGenerator::MtlxBSDFGenerator(std::filesystem::path const &mtlxRoot)
+MtlxShaderGenerator::MtlxShaderGenerator(std::filesystem::path const &mtlxRoot)
     : pImpl_{std::make_unique<pImpl>(mtlxRoot)} {}
 
-MtlxBSDFGenerator::~MtlxBSDFGenerator() = default;
+MtlxShaderGenerator::~MtlxShaderGenerator() = default;
 
-MtlxBSDFGenerator::GenerationResult MtlxBSDFGenerator::generate(
+MtlxShaderGenerator::GenerationResult MtlxShaderGenerator::generate(
     std::string const &document, std::string const &materialName,
     std::span<std::filesystem::path const> searchPath, std::span<std::string const> interactive
 ) const {
@@ -528,7 +528,7 @@ MtlxBSDFGenerator::GenerationResult MtlxBSDFGenerator::generate(
     return result;
 }
 
-MtlxBSDFGenerator::Instance MtlxBSDFGenerator::pImpl::makeInstance(
+ShaderInstance MtlxShaderGenerator::pImpl::makeInstance(
     MaterialX::DocumentPtr const &document, std::string const &materialName,
     MaterialX::FileSearchPath const &searchPath, std::span<std::string const> interactive,
     std::vector<std::string> &diagnostics
@@ -559,7 +559,7 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::pImpl::makeInstance(
     requireEmissionWithoutTangent(graph, *interactiveInputs);
 
     auto const stage = generator->makeStage();
-    generator->emitLine("import flux_bsdf;", *stage, false);
+    generator->emitLine("import flux_material;", *stage, false);
     generator->emitLine("import flux_context;", *stage, false);
     generator->emitLineBreak(*stage);
     generator->emitLibraryInclude("stdlib/genslang/lib/mx_math.slang", context, *stage);
@@ -627,13 +627,13 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::pImpl::makeInstance(
     reportUnsupportedEDFs(document, graph, materialName, diagnostics);
     reportUnreadVDF(graph, materialName, diagnostics);
 
-    emitSurfaceFunction(
+    emitEntryFunction(
         *generator, context, graph, declarations, "IBSDF", "makeBSDF", "bsdf", *stage
     );
-    emitSurfaceFunction(*generator, context, graph, declarations, "IEDF", "makeEDF", "edf", *stage);
+    emitEntryFunction(*generator, context, graph, declarations, "IEDF", "makeEDF", "edf", *stage);
     generator->substituteTokens(*stage);
 
-    return Instance{
+    return ShaderInstance{
         .spec =
             {.source = stage->getSourceCode(), .mayEmit = flux::mayEmit(graph, *interactiveInputs)},
         .words = std::move(words),

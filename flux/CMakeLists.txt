@@ -94,7 +94,7 @@ add_library(
     Optix/OptixAccumulationBuffer.cu
     Optix/OptixShaderModule.cpp
     Optix/OptixShaderPool.cpp
-    Optix/OptixBSDFCompiler.cpp
+    Optix/OptixShaderCompiler.cpp
     Optix/OptixContext.cpp
     Optix/OptixDeviceSession.cpp
     Optix/OptixGas.cpp
@@ -128,11 +128,11 @@ add_library(
     Shading/Texture.cpp
     Slang/SlangCompiler.cpp)
 
-flux_embed(flux/Optix/OptixSlangModules.inc Slang/flux-bsdf.slang Optix/flux-context.slang
+flux_embed(flux/Optix/OptixSlangModules.inc Slang/flux-material.slang Optix/flux-context.slang
            Optix/flux-callable.slang)
 flux_embed(
     flux/Optix/OptixNvrtcHeaders.inc
-    Optix/OptixBSDFCallable.h
+    Optix/OptixShaderCallable.h
     Optix/OptixCallableLaunchParams.h
     Optix/OptixImageTexture.cuh
     Optix/OptixImageTexture.h
@@ -175,7 +175,7 @@ flux_embed(flux/Mtlx/MtlxSlangLibraries.inc Mtlx/libraries/mx-prelude.slang
 add_library(
     flux_mtlx STATIC
     Mtlx/FluxShaderGenerator.cpp Mtlx/FluxShaderGraphRefactor.cpp Mtlx/FluxSourceCodeNode.cpp
-    Mtlx/MtlxBSDFGenerator.cpp Mtlx/MtlxEmission.cpp)
+    Mtlx/MtlxShaderGenerator.cpp Mtlx/MtlxEmission.cpp)
 target_include_directories(flux_mtlx PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated
                                              ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(

@@ -1,10 +1,10 @@
 #include <optix_device.h>
 
 #include "flux/Integrator/PathIntegrator.h"
-#include "flux/Optix/OptixBSDFCallable.h"
 #include "flux/Optix/OptixContext.cuh"
 #include "flux/Optix/OptixImageTexture.cuh"
 #include "flux/Optix/OptixLaunchParams.h"
+#include "flux/Optix/OptixShaderCallable.h"
 #include "flux/Sampling/SamplerImpl.h"
 #include "flux/Scene/CameraImpl.h"
 #include "flux/Scene/FilmImpl.h"

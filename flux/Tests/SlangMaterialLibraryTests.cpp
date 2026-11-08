@@ -10,7 +10,7 @@
 namespace {
 /// \brief A backend that mixes two leaves of the library, with the closure declared by \c let.
 constexpr auto backendSource = R"slang(
-import flux_bsdf;
+import flux_material;
 
 [CudaDeviceExport]
 public BSDFResult entry(
@@ -22,7 +22,7 @@ public BSDFResult entry(
 )slang";
 
 [[nodiscard]] std::string readLibrary() {
-    auto const path = std::string{FLUX_SLANG_DIR} + "/flux-bsdf.slang";
+    auto const path = std::string{FLUX_SLANG_DIR} + "/flux-material.slang";
     auto stream = std::ifstream{path};
     if (!stream)
         throw std::runtime_error{"cannot read " + path};
@@ -30,10 +30,10 @@ public BSDFResult entry(
 }
 } // namespace
 
-TEST(SlangBsdfLibraryTests, CompilesAMixOfTwoLeavesIntoOneConcreteType) {
+TEST(SlangMaterialLibraryTests, CompilesAMixOfTwoLeavesIntoOneConcreteType) {
     auto const compiler = flux::SlangCompiler{flux::SlangCompiler::Target::CudaSource};
     auto const modules = std::vector{
-        flux::SlangModule{.name = "flux_bsdf", .source = readLibrary()},
+        flux::SlangModule{.name = "flux_material", .source = readLibrary()},
         flux::SlangModule{.name = "backend", .source = backendSource},
     };
 

@@ -17,10 +17,10 @@ krr_add_test(
     HARD_DEPENDENCIES flux)
 
 krr_add_test(
-    flux Slang BsdfLibraryTests
-    SOURCES SlangBsdfLibraryTests.cpp
+    flux Slang MaterialLibraryTests
+    SOURCES SlangMaterialLibraryTests.cpp
     HARD_DEPENDENCIES flux)
-target_compile_definitions(flux.Slang.BsdfLibraryTests PRIVATE FLUX_SLANG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../Slang")
+target_compile_definitions(flux.Slang.MaterialLibraryTests PRIVATE FLUX_SLANG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../Slang")
 
 krr_add_test(
     flux Mtlx GeneratorTests

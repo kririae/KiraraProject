@@ -1,6 +1,6 @@
 #pragma once
 
-/// \file flux/Optix/OptixBSDFCallable.h
+/// \file flux/Optix/OptixShaderCallable.h
 /// \brief The ABI between the megakernel and the direct callables of a shader.
 ///
 /// Includes only headers that NVRTC compiles: no kira and no standard library header.

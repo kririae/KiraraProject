@@ -19,14 +19,14 @@ public:
     /// \brief Links the groups of the modules into a pipeline.
     ///
     /// The megakernel calls the shaders from raygen.
-    /// \param shaderModules In slot order: the SBT holds their BSDF callables in this order.
+    /// \param bsdfModules In slot order: the SBT holds their BSDF callables in this order.
     /// \param edfModules In EDF slot order: the SBT holds their EDF callables in this order, after
     ///        the BSDF callables.
-    /// \pre \p megaKernelModule, each of \p shaderModules, and each of \p edfModules are not null.
+    /// \pre \p megaKernelModule, each of \p bsdfModules, and each of \p edfModules are not null.
     OptixProgram(
         OptixDeviceContext deviceContext,
         std::shared_ptr<OptixMegaKernelModule const> megaKernelModule,
-        std::vector<std::shared_ptr<OptixShaderModule const>> shaderModules,
+        std::vector<std::shared_ptr<OptixShaderModule const>> bsdfModules,
         std::vector<std::shared_ptr<OptixShaderModule const>> edfModules
     );
 
@@ -36,8 +36,8 @@ public:
 
     /// \brief Returns the modules whose BSDF callables the program links, in slot order.
     [[nodiscard]] std::span<std::shared_ptr<OptixShaderModule const> const>
-    getShaderModules() const noexcept {
-        return shaderModules_;
+    getBSDFModules() const noexcept {
+        return bsdfModules_;
     }
 
     /// \brief Returns the modules whose EDF callables the program links, in EDF slot order.
@@ -52,7 +52,7 @@ private:
     OptixProgram(
         EmptyState, OptixDeviceContext deviceContext,
         std::shared_ptr<OptixMegaKernelModule const> megaKernelModule,
-        std::vector<std::shared_ptr<OptixShaderModule const>> shaderModules,
+        std::vector<std::shared_ptr<OptixShaderModule const>> bsdfModules,
         std::vector<std::shared_ptr<OptixShaderModule const>> edfModules
     ) noexcept;
 
@@ -60,7 +60,7 @@ private:
 
     OptixDeviceContext deviceContext_;
     std::shared_ptr<OptixMegaKernelModule const> megaKernelModule_;
-    std::vector<std::shared_ptr<OptixShaderModule const>> shaderModules_;
+    std::vector<std::shared_ptr<OptixShaderModule const>> bsdfModules_;
     std::vector<std::shared_ptr<OptixShaderModule const>> edfModules_;
     OptixPipeline pipeline_{};
 };

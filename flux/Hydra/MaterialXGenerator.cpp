@@ -2,12 +2,12 @@
 
 #include <utility>
 
-#include "flux/Mtlx/MtlxBSDFGenerator.h"
+#include "flux/Mtlx/MtlxShaderGenerator.h"
 
 struct HdFluxMaterialXGenerator::Impl {
     explicit Impl(std::filesystem::path const &mtlxRoot) : generator{mtlxRoot} {}
 
-    flux::MtlxBSDFGenerator generator;
+    flux::MtlxShaderGenerator generator;
 };
 
 HdFluxMaterialXGenerator::HdFluxMaterialXGenerator(std::filesystem::path const &mtlxRoot)

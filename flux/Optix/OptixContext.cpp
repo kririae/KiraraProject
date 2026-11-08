@@ -109,7 +109,7 @@ public:
     OptixShaderPool shaderPool{deviceContext};
 
     /// The ID of the asset at each slot.
-    std::vector<std::size_t> shaderSlotIds;
+    std::vector<std::size_t> shaderBSDFSlotIds;
 
     /// The ID of the asset at each EDF slot.
     std::vector<std::size_t> shaderEDFSlotIds;
@@ -118,7 +118,7 @@ public:
     DeviceBuffer<std::uint32_t> shaderTextureIndices{getStream()};
     DeviceBuffer<OptixShaderBinding> shaderBSDFBindings{getStream()};
     DeviceBuffer<OptixShaderBinding> shaderEDFBindings{getStream()};
-    unsigned int shaderSlotBits{};
+    unsigned int shaderBSDFSlotBits{};
 
 public:
     // Megakernel module. Memoized by specialization. The program and the SBT follow it.
@@ -196,7 +196,7 @@ OptixContext::Impl OptixContext::getImpl() const noexcept {
             },
         .shaderBSDFBindings = pImpl_->shaderBSDFBindings.data(),
         .shaderEDFBindings = pImpl_->shaderEDFBindings.data(),
-        .shaderSlotBits = pImpl_->shaderSlotBits,
+        .shaderBSDFSlotBits = pImpl_->shaderBSDFSlotBits,
         .lightSampler = pImpl_->lightSampler.getImpl(),
     };
 }
@@ -264,11 +264,11 @@ void OptixContext::pImpl::syncShaders() {
         }
 
     // An asset gets a slot among those of the BSDFs, an EDF slot among those of the EDFs, or both.
-    std::unordered_map<std::size_t, std::uint32_t> slotsById;
-    shaderSlotIds.clear();
+    std::unordered_map<std::size_t, std::uint32_t> bsdfSlotsById;
+    shaderBSDFSlotIds.clear();
     for (auto const &[id, asset] : bsdfAssets) {
-        slotsById.emplace(id, static_cast<std::uint32_t>(shaderSlotIds.size()));
-        shaderSlotIds.push_back(id);
+        bsdfSlotsById.emplace(id, static_cast<std::uint32_t>(shaderBSDFSlotIds.size()));
+        shaderBSDFSlotIds.push_back(id);
     }
     std::unordered_map<std::size_t, std::uint32_t> edfSlotsById;
     shaderEDFSlotIds.clear();
@@ -299,14 +299,15 @@ void OptixContext::pImpl::syncShaders() {
         return binding;
     };
 
-    std::vector<OptixShaderBinding> hostBindings(context.getIndexLimit<BSDF>());
+    std::vector<OptixShaderBinding> hostBSDFBindings(context.getIndexLimit<BSDF>());
     for (auto const &bsdf : context.getObjects<BSDF>()) {
         if (bsdf->getType() != BSDFType::Shader)
             continue;
 
-        auto const &shader = static_cast<ShaderBSDF const &>(*bsdf);
-        hostBindings[context.getIndex<BSDF>(bsdf->getContextId())] = appendData(
-            slotsById.at(shader.getAsset()->getId()), shader.getWords(), shader.getTextures()
+        auto const &shaderBSDF = static_cast<ShaderBSDF const &>(*bsdf);
+        hostBSDFBindings[context.getIndex<BSDF>(bsdf->getContextId())] = appendData(
+            bsdfSlotsById.at(shaderBSDF.getAsset()->getId()), shaderBSDF.getWords(),
+            shaderBSDF.getTextures()
         );
     }
 
@@ -316,11 +317,11 @@ void OptixContext::pImpl::syncShaders() {
         if (edf->getType() != EDFType::Shader)
             continue;
 
-        auto const &shader = static_cast<ShaderEDF const &>(*edf);
+        auto const &shaderEDF = static_cast<ShaderEDF const &>(*edf);
         hostEDFBindings[context.getIndex<EDF>(edf->getContextId())] = appendData(
-            static_cast<std::uint32_t>(shaderSlotIds.size()) +
-                edfSlotsById.at(shader.getAsset()->getId()),
-            shader.getWords(), shader.getTextures()
+            static_cast<std::uint32_t>(shaderBSDFSlotIds.size()) +
+                edfSlotsById.at(shaderEDF.getAsset()->getId()),
+            shaderEDF.getWords(), shaderEDF.getTextures()
         );
     }
 
@@ -335,11 +336,14 @@ void OptixContext::pImpl::syncShaders() {
     shaderTextureIndices.copyFromHost(
         {hostTextureIndices.data(), hostTextureIndices.size()}, deletionQueue
     );
-    shaderBSDFBindings.copyFromHost({hostBindings.data(), hostBindings.size()}, deletionQueue);
+    shaderBSDFBindings.copyFromHost(
+        {hostBSDFBindings.data(), hostBSDFBindings.size()}, deletionQueue
+    );
     shaderEDFBindings.copyFromHost({hostEDFBindings.data(), hostEDFBindings.size()}, deletionQueue);
-    shaderSlotBits = shaderSlotIds.size() > 1
-                         ? static_cast<unsigned int>(std::bit_width(shaderSlotIds.size() - 1))
-                         : 0U;
+    shaderBSDFSlotBits =
+        shaderBSDFSlotIds.size() > 1
+            ? static_cast<unsigned int>(std::bit_width(shaderBSDFSlotIds.size() - 1))
+            : 0U;
 }
 
 void OptixContext::pImpl::syncTextures() {
@@ -411,10 +415,10 @@ void OptixContext::pImpl::syncProgram() {
             modules.push_back(shaderPool.getModule(id));
         return modules;
     };
-    auto shaderModules = getModules(shaderSlotIds);
+    auto bsdfModules = getModules(shaderBSDFSlotIds);
     auto edfModules = getModules(shaderEDFSlotIds);
     if (program && megaKernelModule->getSpec() == spec &&
-        std::ranges::equal(program->getShaderModules(), shaderModules) &&
+        std::ranges::equal(program->getBSDFModules(), bsdfModules) &&
         std::ranges::equal(program->getEDFModules(), edfModules))
         return;
 
@@ -423,8 +427,8 @@ void OptixContext::pImpl::syncProgram() {
     if (!megaKernelModule || megaKernelModule->getSpec() != spec)
         megaKernelModule = std::make_shared<OptixMegaKernelModule>(deviceContext, modulePath, spec);
     program =
-        std::make_unique<OptixProgram>(deviceContext, megaKernelModule, shaderModules, edfModules);
-    sbt.build(*megaKernelModule, shaderModules, edfModules);
+        std::make_unique<OptixProgram>(deviceContext, megaKernelModule, bsdfModules, edfModules);
+    sbt.build(*megaKernelModule, bsdfModules, edfModules);
 }
 
 void OptixContext::pImpl::buildIas() {

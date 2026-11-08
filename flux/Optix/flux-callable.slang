@@ -1,6 +1,6 @@
-import flux_bsdf;
+import flux_material;
 import flux_context;
-import material;
+import shader;
 
 __target_intrinsic(cuda, "flux::OptixBSDFResult") struct OptixBSDFResult
 {
@@ -14,7 +14,7 @@ __target_intrinsic(cuda, "flux::OptixBSDFResult") struct OptixBSDFResult
 };
 
 [CudaDeviceExport]
-OptixBSDFResult fluxExecute(
+OptixBSDFResult fluxExecuteBSDF(
     uint* words, ShadingContext ctx, float3 wo, float3 wi, bool eval, float u1, float2 u2)
 {
     let result = execute(makeBSDF(words, ctx), wo, wi, eval, u1, u2);

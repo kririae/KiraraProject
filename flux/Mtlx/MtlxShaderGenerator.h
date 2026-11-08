@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -9,30 +8,20 @@
 #include <vector>
 
 #include "flux/Scene/ShaderAsset.h"
-#include "flux/Shading/Texture.h"
 
 namespace flux {
-/// \brief Turns the materials of MaterialX documents into the Slang of the BSDF library.
+/// \brief Turns a MaterialX material into its shader.
 ///
-/// The generated source defines \c makeBSDF and \c makeEDF. It imports \c flux_bsdf and
+/// The generated source defines \c makeBSDF and \c makeEDF. It imports \c flux_material and
 /// \c flux_context, which a backend provides.
 ///
 /// Calls to \c generate must not overlap.
-class MtlxBSDFGenerator final {
+class MtlxShaderGenerator final {
 public:
-    struct Instance {
-        ShaderAssetSpec spec;
-
-        std::vector<std::uint32_t> words;
-
-        /// \brief The textures that the source samples. Texture k is the one that slot k samples.
-        std::vector<ImageTextureSpec> textures;
-    };
-
-    /// \brief The material, and what the generator did not honour in it.
+    /// \brief The shader of the material, and what the generator did not honour in it.
     struct GenerationResult {
-        /// \brief Nothing if the material cannot be generated.
-        std::optional<Instance> instance;
+        /// \brief Nothing if the shader cannot be generated.
+        std::optional<ShaderInstance> instance;
 
         /// \brief One sentence for each thing that the generator did not honour.
         std::vector<std::string> diagnostics;
@@ -42,11 +31,12 @@ public:
     ///
     /// \param mtlxRoot The MaterialX installation whose libraries the documents read.
     /// \throw kira::Anyhow If the libraries cannot be loaded.
-    explicit MtlxBSDFGenerator(std::filesystem::path const &mtlxRoot);
+    explicit MtlxShaderGenerator(std::filesystem::path const &mtlxRoot);
 
-    ~MtlxBSDFGenerator();
+    ~MtlxShaderGenerator();
 
-    /// \brief Generates the material \p materialName of the MaterialX document \p document, in XML.
+    /// \brief Generates the shader of the material \p materialName of the MaterialX document
+    /// \p document, in XML.
     [[nodiscard]] GenerationResult generate(
         std::string const &document, std::string const &materialName,
         std::span<std::filesystem::path const> searchPath,

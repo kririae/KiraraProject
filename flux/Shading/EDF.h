@@ -105,7 +105,7 @@ private:
     Spectrum radiance_{1.0F, 1.0F, 1.0F};
 };
 
-/// \brief An EDF that a generated shader computes.
+/// \brief The EDF that a shader gives.
 ///
 /// Its emission is two-sided. Texture k is the texture that slot k of the source samples.
 class ShaderEDF final : public EDF {

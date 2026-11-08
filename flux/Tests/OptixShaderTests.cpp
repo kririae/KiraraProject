@@ -11,7 +11,7 @@
 
 #include "SceneUtils.h"
 #include "TestUtils.h"
-#include "flux/Mtlx/MtlxBSDFGenerator.h"
+#include "flux/Mtlx/MtlxShaderGenerator.h"
 #include "flux/Optix/OptixAccumulationBuffer.h"
 #include "flux/Optix/OptixHandler.h"
 #include "flux/Scene/Camera.h"
@@ -50,7 +50,7 @@ constexpr auto smoothDocument = R"mtlx(<?xml version="1.0"?>
 
 /// \brief A Lambertian reflector, the leaf of the hand-written Slang materials.
 constexpr auto lambertianLeaf = R"slang(
-import flux_bsdf;
+import flux_material;
 
 public struct LambertianBSDF : IBSDF
 {
@@ -133,12 +133,12 @@ constexpr auto fullReflectanceConductorDocument = R"mtlx(<?xml version="1.0"?>
 </materialx>)mtlx";
 
 /// \brief The reflector, with its color read from the words.
-[[nodiscard]] flux::MtlxBSDFGenerator::Instance generateSmoothDiffuse() {
-    auto const generator = flux::MtlxBSDFGenerator{FLUX_MATERIALX_DIR};
+[[nodiscard]] flux::ShaderInstance generateSmoothDiffuse() {
+    auto const generator = flux::MtlxShaderGenerator{FLUX_MATERIALX_DIR};
     auto const interactive = std::array<std::string, 1>{"fg/color"};
     auto result = generator.generate(smoothDocument, "M", {}, interactive);
     if (!result.instance)
-        throw kira::Anyhow{"the material generated nothing"};
+        throw kira::Anyhow{"the generator produced no shader"};
     return *std::move(result.instance);
 }
 
@@ -294,7 +294,7 @@ constexpr std::array<float, 12> tiltTransform{1.0F,        0.0F, 0.0F, 0.0F,    
 /// that the camera ray finds there.
 [[nodiscard]] flux::Spectrum
 renderEmissionMean(std::string const &document, float side, float fov) {
-    auto const generator = flux::MtlxBSDFGenerator{FLUX_MATERIALX_DIR};
+    auto const generator = flux::MtlxShaderGenerator{FLUX_MATERIALX_DIR};
     auto const generated = generator.generate(document, "M", {});
     if (!generated.instance)
         throw kira::Anyhow{"the generator produced no shader"};
@@ -389,7 +389,7 @@ TEST(OptixShaderTests, AMaterialXConductorOfFullReflectanceReflectsTheEnvironmen
     if (!flux::test::hasCudaMemoryPoolSupport())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
-    auto const generator = flux::MtlxBSDFGenerator{FLUX_MATERIALX_DIR};
+    auto const generator = flux::MtlxShaderGenerator{FLUX_MATERIALX_DIR};
     auto const generated = generator.generate(fullReflectanceConductorDocument, "M", {});
     ASSERT_TRUE(generated.instance);
 
@@ -409,7 +409,7 @@ TEST(OptixShaderTests, ASampledTextureColorsTheDiffuseReflection) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto const source = std::string{lambertianLeaf} + R"slang(
-import flux_bsdf;
+import flux_material;
 import flux_context;
 
 public IBSDF makeBSDF(uint* words, ShadingContext ctx)
@@ -437,7 +437,7 @@ TEST(OptixShaderTests, TheTextureCoordinatesVaryOverTheSurface) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto const source = std::string{lambertianLeaf} + R"slang(
-import flux_bsdf;
+import flux_material;
 import flux_context;
 
 public IBSDF makeBSDF(uint* words, ShadingContext ctx)
@@ -466,7 +466,7 @@ TEST(OptixShaderTests, ReplacingTheShaderOfABSDFRendersTheNewShader) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto const source = std::string{lambertianLeaf} + R"slang(
-import flux_bsdf;
+import flux_material;
 import flux_context;
 
 public IBSDF makeBSDF(uint* words, ShadingContext ctx)
@@ -492,7 +492,7 @@ TEST(OptixShaderTests, TheTangentNodeIsTheDirectionInWhichUGrows) {
     if (!flux::test::hasCudaMemoryPoolSupport())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
-    auto const generator = flux::MtlxBSDFGenerator{FLUX_MATERIALX_DIR};
+    auto const generator = flux::MtlxShaderGenerator{FLUX_MATERIALX_DIR};
     auto const generated = generator.generate(tangentDocument, "M", {});
     ASSERT_TRUE(generated.instance);
     // u grows along y, where the tangent of the frame of the normal (0, 0, 1) points along x.

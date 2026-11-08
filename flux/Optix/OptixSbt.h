@@ -26,15 +26,15 @@ public:
     explicit OptixSbt(DeletionQueue &deletionQueue) noexcept
         : deletionQueue_(deletionQueue), records_(deletionQueue.getStream()) {}
 
-    /// \brief Rebuilds the table for the groups of \p module and \p shaderModules.
+    /// \brief Rebuilds the table for the groups of \p module and \p bsdfModules.
     ///
-    /// \param shaderModules In slot order: slot \c s is callables record \c s, which holds the
+    /// \param bsdfModules In slot order: slot \c s is callables record \c s, which holds the
     ///        BSDF callable.
     /// \param edfModules In EDF slot order: EDF slot \c e is callables record \c s + \c e, where
-    ///        \c s is the number of \p shaderModules.
+    ///        \c s is the number of \p bsdfModules.
     void build(
         OptixMegaKernelModule const &module,
-        std::span<std::shared_ptr<OptixShaderModule const> const> shaderModules,
+        std::span<std::shared_ptr<OptixShaderModule const> const> bsdfModules,
         std::span<std::shared_ptr<OptixShaderModule const> const> edfModules
     );
 

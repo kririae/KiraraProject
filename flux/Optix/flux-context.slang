@@ -1,4 +1,4 @@
-import flux_bsdf;
+import flux_material;
 
 public __target_intrinsic(cuda, "flux::OptixShadingContext") struct ShadingContext {};
 

@@ -191,7 +191,7 @@ struct Spec {
     };
 
     /// A diffuse or principled BSDF, whose color is \c color or, when set, \c image.
-    struct Material {
+    struct BSDF {
         bool principled{};
         Spectrum color;
         float roughness{};
@@ -224,7 +224,7 @@ struct Spec {
     };
 
     std::map<int, Mesh> meshes;
-    std::map<int, Material> bsdfs;
+    std::map<int, BSDF> bsdfs;
     std::map<int, Spectrum> edfs;
 
     /// Primitives in creation order, which is Context ID order.
@@ -315,17 +315,16 @@ createMesh(flux::Context &context, Spec::Mesh const &mesh) {
     return props;
 }
 
-[[nodiscard]] flux::Ref<flux::BSDF>
-createBSDF(flux::Context &context, Spec::Material const &material) {
+[[nodiscard]] flux::Ref<flux::BSDF> createBSDF(flux::Context &context, Spec::BSDF const &bsdf) {
     kira::Properties props;
-    auto const colorName = material.principled ? "base_color" : "R";
-    if (material.image)
-        props.set(colorName, textureProperties(*material.image));
+    auto const colorName = bsdf.principled ? "base_color" : "R";
+    if (bsdf.image)
+        props.set(colorName, textureProperties(*bsdf.image));
     else
-        props.set(colorName, material.color);
-    if (material.principled) {
+        props.set(colorName, bsdf.color);
+    if (bsdf.principled) {
         props.set("type", "principled");
-        props.set("roughness", material.roughness);
+        props.set("roughness", bsdf.roughness);
     } else {
         props.set("type", "diffuse");
     }
@@ -398,8 +397,8 @@ Spec::Ids Spec::build(flux::Context &context) const {
 
     for (auto const &[key, mesh] : meshes)
         ids.meshes[key] = createMesh(context, mesh)->getContextId();
-    for (auto const &[key, material] : bsdfs)
-        ids.bsdfs[key] = createBSDF(context, material)->getContextId();
+    for (auto const &[key, bsdf] : bsdfs)
+        ids.bsdfs[key] = createBSDF(context, bsdf)->getContextId();
     for (auto const &[key, radiance] : edfs)
         ids.edfs[key] = createEDF(context, radiance)->getContextId();
     for (auto const &[key, prim] : prims) {
@@ -642,14 +641,14 @@ public:
         return key;
     }
 
-    int addBSDF(Spec::Material const &material) {
+    int addBSDF(Spec::BSDF const &bsdf) {
         auto const key = model.nextKey++;
         note(
-            "add {} BSDF {} {}", material.principled ? "principled" : "diffuse", key,
-            material.image ? text(*material.image) : text(material.color)
+            "add {} BSDF {} {}", bsdf.principled ? "principled" : "diffuse", key,
+            bsdf.image ? text(*bsdf.image) : text(bsdf.color)
         );
-        ids.bsdfs[key] = enroll(Kind::BSDF, *createBSDF(*context, material));
-        model.bsdfs[key] = material;
+        ids.bsdfs[key] = enroll(Kind::BSDF, *createBSDF(*context, bsdf));
+        model.bsdfs[key] = bsdf;
         return key;
     }
 
@@ -952,9 +951,9 @@ private:
         // Each textured BSDF and environment map owns one image texture, which leaves with it.
         // Textures of one file and color space share one image.
         std::vector<Spec::Image const *> images;
-        for (auto const &[key, material] : model.bsdfs)
-            if (material.image)
-                images.push_back(&*material.image);
+        for (auto const &[key, bsdf] : model.bsdfs)
+            if (bsdf.image)
+                images.push_back(&*bsdf.image);
         if (envImage)
             images.push_back(&*envImage);
         auto const textures = context->getObjects<flux::ImageTexture>().size();
@@ -1090,7 +1089,7 @@ public:
              point(-0.3F, 1.0F, -0.05F, 0.05F)}
         };
     }
-    [[nodiscard]] Spec::Material material(unsigned texturePercent = 50) {
+    [[nodiscard]] Spec::BSDF makeBSDF(unsigned texturePercent = 50) {
         auto const principled = chance(30);
         auto const color = spectrum(0.1F, 0.9F);
         auto const roughness = range(0.1F, 1.0F);
@@ -1156,7 +1155,7 @@ struct Op {
     if (roll == 0)
         return std::nullopt;
     if (roll < 3 || rig.model.bsdfs.empty())
-        return rig.addBSDF(gen.material());
+        return rig.addBSDF(gen.makeBSDF());
     return gen.key(rig.model.bsdfs);
 }
 
@@ -1192,7 +1191,7 @@ const std::array ops = {
        [](Rig &r, Gen &g) {
            // A new textured BSDF, so the old one's image may lose its last texture.
            auto const prim = g.primKey(r.model);
-           r.rebindBSDF(prim, r.addBSDF(g.material(100)));
+           r.rebindBSDF(prim, r.addBSDF(g.makeBSDF(100)));
        }},
     Op{"set radiance", 2, [](Spec const &m) { return !m.edfs.empty(); },
        [](Rig &r, Gen &g) {
