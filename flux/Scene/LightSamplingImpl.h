@@ -33,9 +33,16 @@ template <typename Scene>
     };
 }
 
-template <typename Scene>
+/// \brief Samples primitive \p primIndex, which \p scene holds as a light.
+///
+/// The radiance of the sample is the radiance that a hit at the sampled point computes toward the
+/// same direction. Both reconstruct the point with \c Geometry::Impl::computeInteraction and
+/// evaluate the EDF at it with \p edfDispatcher and zero texture derivatives. MIS weights the two
+/// strategies by their densities, so it is unbiased only while this holds.
+template <typename Evaluator, typename Scene>
 [[nodiscard]] KIRA_HOST_DEVICE KIRA_FORCEINLINE DirectLightSample samplePrimLight(
-    Scene const &scene, LightSamplingContext const &ctx, std::uint32_t primIndex, Vec2f const &u
+    Scene const &scene, EDF::Dispatcher const &edfDispatcher, LightSamplingContext const &ctx,
+    std::uint32_t primIndex, Vec2f const &u
 ) noexcept {
     auto const &prim = scene.table.getPrimitive(primIndex);
     auto const areaScale = scene.lightSampler.table.primAreaScales[primIndex];
@@ -68,11 +75,8 @@ template <typename Scene>
 
     // Convert the geometry-space area density to world-space solid angle.
     return {
-        .radiance = scene.table.getEDF(prim.getEDFIndex())
-                        .storage.constant.evaluate({
-                            .geometricNormal = n,
-                            .wo = -wi,
-                        }),
+        .radiance =
+            edfDispatcher.evaluate<Evaluator>(scene.table.getEDF(prim.getEDFIndex()), isect, -wi),
         .wi = wi,
         .position = p,
         .pdf = geomSample.pdf / areaScale * dist2 / cosLight,
@@ -83,8 +87,8 @@ template <typename Scene>
 
 template <typename Evaluator, typename Scene>
 [[nodiscard]] KIRA_HOST_DEVICE KIRA_FORCEINLINE DirectLightSample sampleDirectLight(
-    Scene const &scene, LightSamplingContext const &ctx, float uSelect, Vec2f const &uLight,
-    bool hasEnvMap
+    Scene const &scene, EDF::Dispatcher const &edfDispatcher, LightSamplingContext const &ctx,
+    float uSelect, Vec2f const &uLight, bool hasEnvMap
 ) noexcept {
     auto const selected = scene.lightSampler.sample(ctx, uSelect);
     if (selected.pmf <= 0.0F)
@@ -97,7 +101,8 @@ template <typename Evaluator, typename Scene>
         return sample;
     }
     if (light.type == LightType::Primitive) {
-        auto sample = detail::samplePrimLight(scene, ctx, light.index, uLight);
+        auto sample =
+            detail::samplePrimLight<Evaluator>(scene, edfDispatcher, ctx, light.index, uLight);
         sample.pdf *= selected.pmf;
         return sample;
     }

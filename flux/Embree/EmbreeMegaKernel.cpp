@@ -105,7 +105,7 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
             auto directLight = DirectLightSample{};
             if (continues) {
                 directLight = params.integrator.sampleDirectLight<EmbreeEvaluator>(
-                    state, params.scene,
+                    state, params.scene, edfDispatcher,
                     {
                         .position = isect.position,
                         .normal = isect.geometricNormal,

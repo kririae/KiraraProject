@@ -44,9 +44,10 @@ namespace {
     return context.create<flux::ConstantEDF>(properties);
 }
 
-[[nodiscard]] flux::Ref<flux::EDF> makeShaderEDF(flux::Context &context) {
+[[nodiscard]] flux::Ref<flux::EDF> makeShaderEDF(flux::Context &context, bool mayEmit) {
     return context.create<flux::ShaderEDF>(
-        flux::ShaderAssetSpec{.source = "a"}, std::vector<std::uint32_t>{}
+        flux::ShaderAssetSpec{.source = mayEmit ? "emits" : "emitsNothing", .mayEmit = mayEmit},
+        std::vector<std::uint32_t>{}
     );
 }
 
@@ -118,22 +119,25 @@ TEST(LightTableTests, BuildsEmptyTablesFromAnEmptyContext) {
     EXPECT_EQ(table.slots.envMapSlot, flux::LightTableData::invalidSlot);
 }
 
-TEST(LightTableTests, GivesNoSlotToAPrimitiveWithAShaderEDF) {
+TEST(LightTableTests, GivesASlotToAShaderEDFOnlyIfItsShaderMayEmit) {
     auto context = flux::Context::create();
     auto const mesh = context->create<flux::TriangleMesh>(triangle());
-    (void)makePrimitive(*context, mesh, makeShaderEDF(*context));
-    (void)makePrimitive(*context, mesh, makeEDF(*context, {1.0F, 1.0F, 1.0F}));
+    (void)makePrimitive(*context, mesh, makeShaderEDF(*context, true));
+    (void)makePrimitive(*context, mesh, makeEDF(*context, {2.0F, 2.0F, 2.0F}));
+    (void)makePrimitive(*context, mesh, makeShaderEDF(*context, false));
 
     auto scene = flux::SceneTableData{};
     scene.build(*context);
     auto table = flux::LightTableData{};
     table.build(*context, std::nullopt);
 
+    // A shader EDF that may emit weighs 1. One that cannot emit is no light: it has no slot and
+    // no device EDF.
     expectConsistentSlots(scene, table);
-    EXPECT_TRUE(scene.primitives[0].hasEDF());
-    EXPECT_EQ(table.slots.primSlots[0], flux::LightTableData::invalidSlot);
-    EXPECT_NE(table.slots.primSlots[1], flux::LightTableData::invalidSlot);
-    EXPECT_EQ(table.slots.handles.size(), 1);
+    EXPECT_NEAR(getPmf(table, table.slots.primSlots[0]), 1.0F / 3.0F, 1.0e-6F);
+    EXPECT_NEAR(getPmf(table, table.slots.primSlots[1]), 2.0F / 3.0F, 1.0e-6F);
+    EXPECT_EQ(table.slots.primSlots[2], flux::LightTableData::invalidSlot);
+    EXPECT_FALSE(scene.primitives[2].hasEDF());
 }
 
 TEST(LightTableTests, IndexesEmittersByPrimitiveIndexAroundAHole) {

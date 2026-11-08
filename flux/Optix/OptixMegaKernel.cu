@@ -174,7 +174,7 @@ struct ShadowQuery {
     auto directLight = flux::DirectLightSample{};
     if (continues) {
         directLight = optixLaunchParams.integrator.sampleDirectLight<OptixEvaluator>(
-            state, optixLaunchParams.scene,
+            state, optixLaunchParams.scene, optixLaunchParams.edfDispatcher,
             {
                 .position = isect.position,
                 .normal = isect.geometricNormal,

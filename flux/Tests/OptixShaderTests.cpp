@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -11,6 +12,7 @@
 
 #include "SceneUtils.h"
 #include "TestUtils.h"
+#include "flux/Core/MathUtils.h"
 #include "flux/Mtlx/MtlxShaderGenerator.h"
 #include "flux/Optix/OptixAccumulationBuffer.h"
 #include "flux/Optix/OptixHandler.h"
@@ -324,6 +326,135 @@ renderEmissionMean(std::string const &document, float side, float fov) {
 
     return renderContextMean(context, *camera, 1);
 }
+
+/// \brief The rectangle of the local plane z = 0 with x in [\p left, \p right] and y in
+/// [-0.5, 0.5], facing -z, with the texture coordinates (x + 0.5, 0.5).
+[[nodiscard]] flux::TriangleMesh::Data emitterRectangleData(float left, float right) {
+    return {
+        .vertices = flux::test::sharedBuffer(
+            flux::Vec3f{left, -0.5F, 0.0F}, flux::Vec3f{left, 0.5F, 0.0F},
+            flux::Vec3f{right, 0.5F, 0.0F}, flux::Vec3f{right, -0.5F, 0.0F}
+        ),
+        .triangles = flux::test::sharedBuffer(flux::Vec3u{0, 1, 2}, flux::Vec3u{0, 2, 3}),
+        .texCoords = flux::test::sharedBuffer(
+            flux::Vec2f{left + 0.5F, 0.5F}, flux::Vec2f{left + 0.5F, 0.5F},
+            flux::Vec2f{right + 0.5F, 0.5F}, flux::Vec2f{right + 0.5F, 0.5F}
+        ),
+    };
+}
+
+/// \brief Places an emitter of \p data with \p edf above the floor of \c renderLitFloorMean.
+///
+/// The transform scales by 1.2, tilts the emitter by 25 degrees about x and 20 degrees about y, and
+/// moves it to (0, 1, 2), so that no geometry-space direction or position is a world-space one.
+void addEmitter(
+    flux::Context &context, flux::TriangleMesh::Data data, flux::Ref<flux::EDF const> const &edf
+) {
+    auto const mesh = context.create<flux::TriangleMesh>(std::move(data));
+    kira::Properties properties;
+    properties.set("geometry_ctx_id", static_cast<std::int64_t>(mesh->getContextId()));
+    properties.set("edf_ctx_id", static_cast<std::int64_t>(edf->getContextId()));
+    auto const primitive = context.create<flux::Primitive>(properties);
+
+    constexpr auto scale = 1.2F;
+    auto const [sinX, cosX] = std::pair{std::sin(-0.4363323F), std::cos(-0.4363323F)};
+    auto const [sinY, cosY] = std::pair{std::sin(0.3490659F), std::cos(0.3490659F)};
+    // The rotation about y of the rotation about x.
+    primitive->setTransform({
+        scale * cosY,
+        scale * sinY * sinX,
+        scale * sinY * cosX,
+        0.0F,
+        0.0F,
+        scale * cosX,
+        -scale * sinX,
+        1.0F,
+        -scale * sinY,
+        scale * cosY * sinX,
+        scale * cosY * cosX,
+        2.0F,
+    });
+}
+
+/// \brief Renders a diffuse floor that the emitters of \p addEmitters light, and returns the mean
+/// of the pixels. Each pixel takes \p sampleCount samples.
+///
+/// A path takes two vertices, so the floor receives the light of an emitter by light sampling at
+/// its first vertex and by BSDF sampling that hits the emitter at its second. The camera sees only
+/// the floor.
+[[nodiscard]] flux::Spectrum renderLitFloorMean(
+    std::function<void(flux::Context &)> const &addEmitters, std::uint32_t sampleCount
+) {
+    auto context = flux::Context::create();
+    flux::test::setActiveDefaults(*context);
+    kira::Properties integratorProperties;
+    integratorProperties.set("max_depth", 2U);
+    context->setActiveIntegrator(context->create<flux::PathIntegrator>(integratorProperties));
+
+    kira::Properties bsdfProperties;
+    bsdfProperties.set("type", "diffuse");
+    bsdfProperties.set("R", flux::Spectrum{0.5F});
+    auto const bsdf = context->create<flux::BSDF>(bsdfProperties);
+    auto const floor = context->create<flux::TriangleMesh>(largeTriangleData());
+    kira::Properties floorProperties;
+    floorProperties.set("geometry_ctx_id", static_cast<std::int64_t>(floor->getContextId()));
+    floorProperties.set("bsdf_ctx_id", static_cast<std::int64_t>(bsdf->getContextId()));
+    (void)context->create<flux::Primitive>(floorProperties);
+    addEmitters(*context);
+
+    kira::Properties cameraProperties;
+    cameraProperties.set("position", flux::Vec3f{0.0F, -4.0F, 1.5F});
+    cameraProperties.set("look_at", flux::Vec3f{0.0F, -1.0F, 0.0F});
+    cameraProperties.set("fov", 25.0F);
+    auto const camera = flux::Camera::create(cameraProperties);
+    return renderContextMean(context, *camera, sampleCount);
+}
+
+[[nodiscard]] flux::Ref<flux::EDF>
+makeConstantEDF(flux::Context &context, flux::Spectrum const &radiance) {
+    kira::Properties properties;
+    properties.set("radiance", radiance);
+    return context.create<flux::ConstantEDF>(properties);
+}
+
+/// \brief A uniform emission of the color of the image \c TwoTexels.ppm at the texture
+/// coordinate, which a closest filter reads without blending its two texels.
+constexpr auto twoTexelEmissionDocument = R"mtlx(<?xml version="1.0"?>
+<materialx version="1.39">
+  <image name="tex" type="color3">
+    <input name="file" type="filename" value="TwoTexels.ppm" colorspace="lin_rec709" />
+    <input name="filtertype" type="string" value="closest" />
+    <input name="uaddressmode" type="string" value="clamp" />
+    <input name="vaddressmode" type="string" value="clamp" />
+  </image>
+  <uniform_edf name="e" type="EDF">
+    <input name="color" type="color3" nodename="tex" />
+  </uniform_edf>
+  <surface name="s" type="surfaceshader">
+    <input name="edf" type="EDF" nodename="e" />
+  </surface>
+  <surfacematerial name="M" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="s" />
+  </surfacematerial>
+</materialx>)mtlx";
+
+/// \brief Creates the shader EDF of \p document, with the textures that its shader samples.
+[[nodiscard]] flux::Ref<flux::ShaderEDF>
+makeShaderEDF(flux::Context &context, std::string const &document) {
+    auto const generator = flux::MtlxShaderGenerator{FLUX_MATERIALX_DIR};
+    auto generated = generator.generate(
+        document, "M", std::array{std::filesystem::path{FLUX_TEST_FIXTURES_DIR}}
+    );
+    if (!generated.instance)
+        throw kira::Anyhow{"the generator produced no shader"};
+    auto &instance = *generated.instance;
+    std::vector<flux::Ref<flux::ImageTexture const>> textures;
+    for (auto const &spec : instance.textures)
+        textures.push_back(context.create<flux::ImageTexture>(spec));
+    return context.create<flux::ShaderEDF>(
+        instance.spec, std::move(instance.words), std::move(textures)
+    );
+}
 } // namespace
 
 TEST(OptixShaderTests, AShaderEDFEmitsAsItsShaderSaysToBothSidesOfATiltedSurface) {
@@ -368,6 +499,44 @@ TEST(OptixShaderTests, AShaderEDFEmitsAsItsShaderSaysToBothSidesOfATiltedSurface
 
         for (int axis = 0; axis < 3; ++axis)
             EXPECT_NEAR(mean[axis], row.expected[axis], row.tolerance * row.expected[axis]) << axis;
+    }
+}
+
+TEST(OptixShaderTests, AFloorLitByATwoTexelShaderEmitterMatchesOneLitByItsTwoConstantHalves) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    // The texels of TwoTexels.ppm are linear, and their luminances, 0.2126 and 0.2127, differ by
+    // less than 0.1%. So the light table gives each of the two constant halves the probability
+    // 1/2.
+    constexpr auto left = flux::Spectrum{1.0F, 0.0F, 0.0F};
+    constexpr auto right = flux::Spectrum{0.0F, 51.0F / 255.0F, 246.0F / 255.0F};
+    static_assert(flux::luminance(right) < 1.001F * flux::luminance(left));
+    static_assert(flux::luminance(left) < 1.001F * flux::luminance(right));
+    constexpr std::uint32_t emitterSamples = 512;
+    auto const textured = renderLitFloorMean([&](flux::Context &context) {
+        addEmitter(
+            context, emitterRectangleData(-0.5F, 0.5F),
+            makeShaderEDF(context, twoTexelEmissionDocument)
+        );
+    }, emitterSamples);
+    auto const halves = renderLitFloorMean([&](flux::Context &context) {
+        addEmitter(context, emitterRectangleData(-0.5F, 0.0F), makeConstantEDF(context, left));
+        addEmitter(context, emitterRectangleData(0.0F, 0.5F), makeConstantEDF(context, right));
+    }, emitterSamples);
+
+    // The renders sample different points, so they differ by noise. One half lights each channel,
+    // and a light sample picks it with probability 1/2 in both scenes, with the density 1 / area
+    // of the rectangle. So a light sample is zero or twice the geometric term of its point, which
+    // has a relative standard deviation over a half of at most 0.4 for the pixels in view.
+    // Its relative variance is then at most 1 + 2 * 0.4^2 = 1.32. A path adds a BSDF sample to the
+    // light sample, and the power heuristic keeps the second moment of the pair below that of the
+    // light sample alone. Over the pixels in view, 256 pixels of 512 samples give the mean a
+    // relative standard deviation of at most 0.37% in each render, and the difference of two
+    // renders has 0.52%. The tolerance is 5.8 of that.
+    for (int axis = 0; axis < 3; ++axis) {
+        EXPECT_GT(halves[axis], 0.0F) << axis;
+        EXPECT_NEAR(textured[axis], halves[axis], 0.03F * halves[axis]) << axis;
     }
 }
 

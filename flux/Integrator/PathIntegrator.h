@@ -153,13 +153,15 @@ public:
         /// returned PDF includes light selection.
         template <typename Evaluator, typename BackendContext>
         [[nodiscard]] KIRA_HOST_DEVICE DirectLightSample sampleDirectLight(
-            PathState &state, BackendContext const &backend, LightSamplingContext const &ctx,
-            bool hasEnvMap
+            PathState &state, BackendContext const &backend, EDF::Dispatcher const &edfDispatcher,
+            LightSamplingContext const &ctx, bool hasEnvMap
         ) const noexcept {
             auto const u = state.sampler.get3D(SampleUse::Light, state.depth);
             auto const uSelect = u.x();
             auto const uLight = Vec2f{u.y(), u.z()};
-            return flux::sampleDirectLight<Evaluator>(backend, ctx, uSelect, uLight, hasEnvMap);
+            return flux::sampleDirectLight<Evaluator>(
+                backend, edfDispatcher, ctx, uSelect, uLight, hasEnvMap
+            );
         }
 
         /// \brief Builds a direct-light contribution awaiting a visibility test.
