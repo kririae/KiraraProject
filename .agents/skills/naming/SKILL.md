@@ -11,7 +11,6 @@ Give a name the effort that a proposal for a standard library gives it. Such a n
 
 - A name is the shortest true definition of its entity, judged where it is used, not where it is declared.
 - Use the word that the precedents and the [references](../design/SKILL.md) use for the same concept, in its established meaning. Give each concept one word across the place.
-- When no name fits, go back to [design](../design/SKILL.md).
 
 Each kind of entity takes one form. The C++ standard library, for example, names them so:
 
@@ -33,7 +32,7 @@ A class that does the job of a class of the standard library mimics it, and its 
 
 ## Steps
 
-1. Define the entity in one sentence, in the words of its caller: what it is, or what it does or returns. If the sentence needs "and", go back to design.
+1. Define the entity in one sentence, in the terms of the mental model that [design](../design/SKILL.md) defines: what it is, or what it does or returns. If the sentence needs "and", go back to design.
 2. List candidate words. For each, find where the precedents and the references use it, and what it means there, as [survey](../survey/SKILL.md) says. Drop each word whose established meaning differs from your definition.
 3. Read each candidate at a use site. Drop the words that the scope and the types already say, and add what the use site lacks. A wider scope needs a longer name.
 4. Check:
@@ -43,20 +42,11 @@ A class that does the job of a class of the standard library mimics it, and its 
 
 Rename a bad name that you find in code you change, in a commit of its own.
 
-## Bad forms
+## Bad meanings
 
-- `class Render`. A type is a noun: `Renderer`.
-- `renderer.frame()` for a function that renders a frame. An action is a verb.
-- `getRender()` for a function that renders an image. `get` reads what exists, and the action is to render.
-- `auto load = readImage(path);` A variable holds state, so it is a noun: `image`.
-- `bool check()`. It does not say which result means what. A predicate reads as an assertion: `isValid()`.
-- `bool visibility`. It names a property, not an assertion about it: `visible`.
 - `isNotEmpty`, or `disableCache = false`. A negation in a name doubles in every test of it.
 - `open()` with `destroy()`. Two operations that form a pair take a standard pair: `open` and `close`.
 - `mesh` for a list of meshes. A collection is plural.
-
-## Bad meanings
-
 - `std::remove`, which moves the kept elements forward and leaves the size of the container unchanged. A word against its established meaning trips every reader, even in a standard library.
 - `find` that throws when the key is absent. Elsewhere, `find` reports an absent key in its result, and `at` throws.
 - `clear()` on a class that mimics `std::vector`, where it frees the memory. A mimic keeps the standard meanings, and `std::vector::clear` keeps the capacity.

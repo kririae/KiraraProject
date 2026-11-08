@@ -10,7 +10,7 @@ Write for a reader who has only the repository, as it is now. Use short, plain s
 - Never join clauses with a semicolon. Write two sentences.
 - Write parallel items as a `-` list, and ordered steps as a numbered list, rather than in one paragraph.
 - Only a commit message describes a change.
-- Give each concept one term. Define a new term where you introduce it, and use it everywhere.
+- Define a new term where you introduce it, and give each concept one term, as [naming](../naming/SKILL.md) says.
 - State what you checked as fact. Say what you did not check, and do not hedge.
 - Write in the language of the repository, whatever language you use with the user.
 

@@ -13,11 +13,10 @@ A review runs the checks of the skills that govern a step again, by an agent tha
 
 ## Steps
 
-1. Send scouts, as [survey](../survey/SKILL.md) says, for the facts you need, such as the members of each touched class with their writers and readers.
-2. Find each promise that the step breaks, as [tests](../tests/SKILL.md) defines promises.
-3. Run the checks of each skill that the work needs: [design](../design/SKILL.md), [naming](../naming/SKILL.md), [code](../code/SKILL.md), [errors](../errors/SKILL.md), [tests](../tests/SKILL.md), [comments](../comments/SKILL.md), [prose](../prose/SKILL.md), [locality](../locality/SKILL.md), [docs](../docs/SKILL.md), and [commit](../commit/SKILL.md). Run each check yourself, since an author lists most results only in its reasoning. Where the author wrote results into the work, such as the checks of a design or the complexity that a report of code lists, compare them with yours.
-4. Read the whole stack for what one step does not show: a class that gains a duty in each step, or a fix that touches the code of an earlier fix.
-5. Write the report. Mark each finding structural, meaning a seam, ownership, a wrong mechanism, or a fix that recurs, or execution, meaning a comment, a name, a test, or formatting. End with a verdict.
+1. Find each promise that the step breaks, as [tests](../tests/SKILL.md) defines promises.
+2. Run the checks of each skill that the work needs: [design](../design/SKILL.md), [naming](../naming/SKILL.md), [code](../code/SKILL.md), [errors](../errors/SKILL.md), [tests](../tests/SKILL.md), [comments](../comments/SKILL.md), [prose](../prose/SKILL.md), [locality](../locality/SKILL.md), [docs](../docs/SKILL.md), and [commit](../commit/SKILL.md). Run each check yourself, since an author lists most results only in its reasoning. Where the author wrote results into the work, such as the checks of a design or the complexity that a report of code lists, compare them with yours.
+3. Read the whole stack for what one step does not show: a class that gains a duty in each step, or a fix that touches the code of an earlier fix.
+4. Write the report. Mark each finding structural, meaning a seam, ownership, a wrong mechanism, or a fix that recurs, or execution, meaning a comment, a name, a test, or formatting. End with a verdict.
 
 On a later round, check each fix, and each rejected finding against the reason given.
 

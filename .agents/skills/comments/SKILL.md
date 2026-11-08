@@ -52,7 +52,5 @@ For each new or changed comment, list in your reasoning each thing that it state
 - "We do not retry here." No code decides it.
 - "Increment the retry count." Reading the code is as fast as reading the comment.
 - A summary of two sentences, or one that wraps over three lines. It is not short, so it goes.
-- "A backend provides `flux_context`: `ShadingContext`, `fluxGetWorldNormal`, `fluxGetTexCoord`, `fluxToShadingFrame`, and `fluxSampleTexture`." on a generator. Three commits edited the list as the backend grew.
 - "Why: the cache is cleared so that stale entries cannot be read." A comment never says why. The invariant says what holds: every entry matches its file.
 - The compare-and-swap loop of a lock-free queue, with no comment on what each step expects. Reading it costs far more than one sentence.
-- "A backend provides `flux_context`: `ShadingContext`, `fluxGetWorldNormal`, `fluxGetTexCoord`, `fluxToShadingFrame`, and `fluxSampleTexture`." on a generator. Three commits edited the list as the backend grew.
