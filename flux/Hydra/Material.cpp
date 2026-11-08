@@ -36,9 +36,12 @@ namespace {
 
     // TODO: generate the material with constant values at its first sync, and make an input that
     // a later edit changes interactive.
-    return param.GetMaterialXGenerator()
-        .generate(materialXml->xml, materialXml->surfaceMaterialName, {})
-        .instance;
+    auto generation = param.GetMaterialXGenerator().generate(
+        materialXml->xml, materialXml->surfaceMaterialName, {}
+    );
+    for (auto const &diagnostic : generation.diagnostics)
+        TF_WARN("%s: %s", id.GetText(), diagnostic.c_str());
+    return std::move(generation.instance);
 }
 
 void setShader(
