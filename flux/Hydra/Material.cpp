@@ -17,7 +17,7 @@
 PXR_NAMESPACE_USING_DIRECTIVE
 
 namespace {
-[[nodiscard]] std::optional<HdFluxMaterialXGenerator::Instance> generateMaterial(
+[[nodiscard]] std::optional<flux::ShaderInstance> generateMaterial(
     HdSceneDelegate &sceneDelegate, HdFluxRenderParam const &param, SdfPath const &id
 ) {
     auto const resource = sceneDelegate.GetMaterialResource(id);
@@ -36,14 +36,14 @@ namespace {
 
     // TODO: generate the material with constant values at its first sync, and make an input that
     // a later edit changes interactive.
-    return param.GetMaterialXGenerator().generate(
-        materialXml->xml, materialXml->surfaceMaterialName
-    );
+    return param.GetMaterialXGenerator()
+        .generate(materialXml->xml, materialXml->surfaceMaterialName, {})
+        .instance;
 }
 
 void setShader(
     flux::ShaderBSDF &bsdf, HdFluxRenderParam const &param,
-    std::optional<HdFluxMaterialXGenerator::Instance> instance
+    std::optional<flux::ShaderInstance> instance
 ) {
     if (!instance) {
         auto const &fallback = param.GetFallbackShader();

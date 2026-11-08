@@ -5,7 +5,7 @@
 #include <filesystem>
 
 #include "flux/Core/Object.h"
-#include "flux/Hydra/MaterialXGenerator.h"
+#include "flux/Mtlx/MtlxShaderGenerator.h"
 #include "flux/Optix/OptixHandler.h"
 
 namespace flux {
@@ -30,9 +30,9 @@ public:
 
     [[nodiscard]] flux::Ref<flux::BSDF const> GetFallbackBSDF() const;
 
-    [[nodiscard]] HdFluxMaterialXGenerator::Instance const &GetFallbackShader() const noexcept;
+    [[nodiscard]] flux::ShaderInstance const &GetFallbackShader() const noexcept;
 
-    [[nodiscard]] HdFluxMaterialXGenerator const &GetMaterialXGenerator() const noexcept {
+    [[nodiscard]] flux::MtlxShaderGenerator const &GetMaterialXGenerator() const noexcept {
         return materialXGenerator_;
     }
 
@@ -51,8 +51,8 @@ public:
 
 private:
     flux::OptixHandler handler_;
-    HdFluxMaterialXGenerator materialXGenerator_;
-    HdFluxMaterialXGenerator::Instance fallbackShader_;
+    flux::MtlxShaderGenerator materialXGenerator_;
+    flux::ShaderInstance fallbackShader_;
     flux::Ref<flux::ShaderBSDF> fallbackBSDF_;
     bool failed_{false};
 };

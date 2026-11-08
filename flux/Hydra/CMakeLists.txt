@@ -15,13 +15,6 @@ foreach(library MaterialXCore MaterialXFormat pxr_hdMtlx)
                                                               "$ENV{HFS}/dsolib/lib${library}.so")
 endforeach()
 
-add_library(flux_hydra_mtlx STATIC MaterialXGenerator.cpp)
-target_link_libraries(flux_hydra_mtlx PUBLIC flux PRIVATE flux_mtlx)
-target_compile_options(flux_hydra_mtlx PRIVATE -Wall -Wextra)
-set_target_properties(
-    flux_hydra_mtlx PROPERTIES POSITION_INDEPENDENT_CODE ON CXX_VISIBILITY_PRESET hidden
-                               VISIBILITY_INLINES_HIDDEN ON)
-
 add_library(
     flux_hydra STATIC
     AovMapping.cpp
@@ -49,7 +42,7 @@ target_include_directories(flux_hydra SYSTEM
 target_link_libraries(
     flux_hydra
     PUBLIC flux
-           flux_hydra_mtlx
+           flux_mtlx
            Houdini::Dep::MaterialXCore
            Houdini::Dep::MaterialXFormat
            Houdini::Dep::pxr_gf

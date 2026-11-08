@@ -16,6 +16,8 @@ namespace flux {
 /// \c flux_context, which a backend provides.
 ///
 /// Calls to \c generate must not overlap.
+///
+/// This header includes no header of MaterialX.
 class MtlxShaderGenerator final {
 public:
     /// \brief The shader of the material, and what the generator did not honour in it.
