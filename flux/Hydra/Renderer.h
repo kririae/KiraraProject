@@ -55,7 +55,7 @@ private:
         Image(flux::OptixHandler &handler, flux::FilmSpec const &spec);
 
         flux::Film film;
-        flux::OptixAccumulationBuffer buffer;
+        flux::OptixAccumulationBuffer accumulation;
     };
 
     void setConverged(std::span<Output const> outputs) const;

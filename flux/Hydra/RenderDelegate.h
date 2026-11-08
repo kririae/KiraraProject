@@ -72,8 +72,11 @@ public:
     pxr::VtDictionary GetRenderStats() const override;
 
 private:
-    /// \brief Makes the active integrator and sampler of \p context follow the render settings.
-    void applyPathSettings(flux::Context &context) const;
+    /// \brief Makes the active integrator of \p context follow the render settings.
+    void syncIntegrator(flux::Context &context) const;
+
+    /// \brief Makes the active sampler of \p context follow the render settings.
+    void syncSampler(flux::Context &context) const;
 
     pxr::HdResourceRegistrySharedPtr resourceRegistry_;
     std::unique_ptr<HdFluxRenderParam> renderParam_;

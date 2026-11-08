@@ -29,7 +29,7 @@ public:
 
 private:
     void syncTexture(flux::Context &context, pxr::HdSceneDelegate &sceneDelegate);
-    void syncActive(flux::Context &context, bool visible);
+    void syncActiveEnvMap(flux::Context &context, bool visible);
 
     /// Null until a sync creates it.
     flux::Ref<flux::EnvMapLight> envMap_;

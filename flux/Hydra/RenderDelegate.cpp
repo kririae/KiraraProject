@@ -44,7 +44,7 @@ TF_DEFINE_PRIVATE_TOKENS(
 );
 // clang-format on
 
-pxr::TfToken getSamplerToken(flux::SamplerType type) {
+pxr::TfToken toToken(flux::SamplerType type) {
     switch (type) {
     case flux::SamplerType::Independent: return Tokens->independent;
     case flux::SamplerType::Sobol: return Tokens->sobol;
@@ -191,7 +191,8 @@ void HdFluxRenderDelegate::CommitResources(pxr::HdChangeTracker *) try {
     auto const context = renderParam_->GetContext();
     if (auto const version = GetRenderSettingsVersion(); settingsVersion_ != version) {
         settingsVersion_ = version;
-        applyPathSettings(*context);
+        syncIntegrator(*context);
+        syncSampler(*context);
     }
     context->collectGarbage();
     renderParam_->GetHandler().sync();
@@ -201,7 +202,7 @@ void HdFluxRenderDelegate::CommitResources(pxr::HdChangeTracker *) try {
     context->clearDirty();
 } catch (...) { renderParam_->ReportFailure(); }
 
-void HdFluxRenderDelegate::applyPathSettings(flux::Context &context) const {
+void HdFluxRenderDelegate::syncIntegrator(flux::Context &context) const {
     auto const maxDepth =
         getDepthSetting(*this, HdFluxRenderSettingsTokens->maxDepth, defaultIntegrator_.maxDepth);
     auto const rrDepth =
@@ -223,10 +224,12 @@ void HdFluxRenderDelegate::applyPathSettings(flux::Context &context) const {
         context.setActiveIntegrator(context.create<flux::PathIntegrator>(props));
         context.remove(integrator->getContextId());
     }
+}
 
+void HdFluxRenderDelegate::syncSampler(flux::Context &context) const {
     auto const sampler = context.getActiveSampler();
-    if (auto const name = getSamplerSetting(*this, getSamplerToken(defaultSampler_));
-        getSamplerToken(sampler->getType()) != name) {
+    if (auto const name = getSamplerSetting(*this, toToken(defaultSampler_));
+        toToken(sampler->getType()) != name) {
         auto props = kira::Properties{};
         props.set("type", name.GetString());
         context.setActiveSampler(context.create<flux::Sampler>(props));
@@ -254,7 +257,7 @@ pxr::HdRenderSettingDescriptorList HdFluxRenderDelegate::GetRenderSettingDescrip
          .defaultValue = pxr::VtValue(defaultIntegrator_.rrProb)},
         {.name = "Sampler",
          .key = HdFluxRenderSettingsTokens->sampler,
-         .defaultValue = pxr::VtValue(getSamplerToken(defaultSampler_))},
+         .defaultValue = pxr::VtValue(toToken(defaultSampler_))},
         {.name = "Shader Execution Reordering",
          .key = HdFluxRenderSettingsTokens->shaderReorder,
          .defaultValue = pxr::VtValue(defaultShaderReorder_)},

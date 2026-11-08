@@ -54,11 +54,11 @@ private:
 
     using ShapeSpec = std::variant<RectSpec, DiskSpec, SphereSpec, CylinderSpec>;
 
-    [[nodiscard]] ShapeSpec readShapeSpec(pxr::HdSceneDelegate &sceneDelegate) const;
+    [[nodiscard]] ShapeSpec getShapeSpec(pxr::HdSceneDelegate &sceneDelegate) const;
     [[nodiscard]] static flux::Ref<flux::TriangleMesh>
-    makeMesh(flux::Context &context, ShapeSpec const &shapeSpec);
+    createShapeMesh(flux::Context &context, ShapeSpec const &shapeSpec);
 
-    void build(flux::Context &context, ShapeSpec const &shapeSpec);
+    void createPrimitive(flux::Context &context, ShapeSpec const &shapeSpec);
 
     /// Null until a sync builds the light.
     flux::Ref<flux::Primitive> primitive_;

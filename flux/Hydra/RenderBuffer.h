@@ -49,8 +49,8 @@ public:
     /// component is 1.
     ///
     /// \pre \p pixels has one value per pixel of the buffer.
-    void Assign(std::span<flux::Vec3f const> pixels);
-    void Assign(std::span<float const> pixels);
+    void Write(std::span<flux::Vec3f const> pixels);
+    void Write(std::span<float const> pixels);
 
 private:
     void _Deallocate() override;
@@ -60,7 +60,7 @@ private:
     pxr::HdFormat format_ = pxr::HdFormatInvalid;
 
     /// Pixels row by row, bottom row first, each holding the components of \c format_.
-    std::vector<float> data_;
+    std::vector<float> pixels_;
     std::atomic<int> mappers_ = 0;
     std::atomic<bool> converged_ = false;
 };

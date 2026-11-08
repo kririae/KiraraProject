@@ -13,7 +13,7 @@
 #include <filesystem>
 #include <utility>
 
-#include "flux/Hydra/Radiance.h"
+#include "flux/Hydra/LightEmission.h"
 #include "flux/Hydra/RenderParam.h"
 #include "flux/Hydra/Transform.h"
 #include "flux/Scene/Context.h"
@@ -28,7 +28,7 @@ namespace {
 ///
 /// It is the rotation nearest to the linear part of \p transform, then a turn of pi about +Y.
 /// UsdLux's latlong and the env map's differ by that turn.
-[[nodiscard]] std::array<float, 9> makeEnvMapRotation(std::array<float, 12> const &transform) {
+[[nodiscard]] std::array<float, 9> computeEnvMapRotation(std::array<float, 12> const &transform) {
     Eigen::Matrix3d linear;
     for (auto row = 0; row < 3; ++row)
         for (auto column = 0; column < 3; ++column)
@@ -69,11 +69,11 @@ void HdFluxDomeLight::Sync(
         }
 
         syncTexture(*context, *sceneDelegate);
-        envMap_->setScale(HdFluxReadRadiance(*sceneDelegate, id));
+        envMap_->setScale(HdFluxComputeLightEmission(*sceneDelegate, id));
         envMap_->setRotation(
-            makeEnvMapRotation(HdFluxToTransform(sceneDelegate->GetTransform(id)))
+            computeEnvMapRotation(HdFluxToTransform(sceneDelegate->GetTransform(id)))
         );
-        syncActive(*context, sceneDelegate->GetVisible(id));
+        syncActiveEnvMap(*context, sceneDelegate->GetVisible(id));
     } catch (std::exception const &error) { TF_WARN("%s: %s", id.GetText(), error.what()); }
 
     *dirtyBits &= ~AllDirty;
@@ -109,7 +109,7 @@ void HdFluxDomeLight::syncTexture(flux::Context &context, HdSceneDelegate &scene
     texturePath_ = std::move(path);
 }
 
-void HdFluxDomeLight::syncActive(flux::Context &context, bool visible) {
+void HdFluxDomeLight::syncActiveEnvMap(flux::Context &context, bool visible) {
     auto const active = context.getActiveEnvMap();
     if (!visible) {
         if (active == envMap_)

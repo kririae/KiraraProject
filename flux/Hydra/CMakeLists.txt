@@ -31,7 +31,7 @@ add_library(
     Material.cpp
     MaterialXXml.cpp
     Mesh.cpp
-    Radiance.cpp
+    LightEmission.cpp
     RenderBuffer.cpp
     RenderDelegate.cpp
     RenderParam.cpp

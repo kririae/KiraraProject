@@ -33,7 +33,7 @@ std::array<Aov, 4> const &aovs() {
     return table;
 }
 
-[[nodiscard]] Aov const *find(pxr::TfToken const &name) {
+[[nodiscard]] Aov const *findAov(pxr::TfToken const &name) {
     static pxr::TfToken const colorAlias{"C"};
     auto const &key = name == colorAlias ? pxr::HdAovTokens->color : name;
 
@@ -59,11 +59,11 @@ flux::FilmChannels HdFluxGetAovChannel(pxr::HdRenderPassAovBinding const &bindin
         isRaw && source != settings.end() && source->second.IsHolding<std::string>())
         name = pxr::TfToken{source->second.UncheckedGet<std::string>()};
 
-    auto const *const aov = find(name);
+    auto const *const aov = findAov(name);
     return aov ? aov->channel : flux::FilmChannels::None;
 }
 
 pxr::HdAovDescriptor HdFluxGetAovDescriptor(pxr::TfToken const &name) {
-    auto const *const aov = find(name);
+    auto const *const aov = findAov(name);
     return aov ? aov->descriptor : pxr::HdAovDescriptor{};
 }

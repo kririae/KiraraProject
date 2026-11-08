@@ -44,7 +44,7 @@ TF_DEFINE_PRIVATE_TOKENS(
 // clang-format on
 
 template <typename Element, typename Array>
-[[nodiscard]] flux::Shared<flux::HostBuffer<Element>> copyVectors(Array const &vectors) {
+[[nodiscard]] flux::Shared<flux::HostBuffer<Element>> toHostBuffer(Array const &vectors) {
     static_assert(sizeof(Element) == sizeof(typename Array::value_type));
 
     if (vectors.empty())
@@ -56,7 +56,8 @@ template <typename Element, typename Array>
     return buffer;
 }
 
-[[nodiscard]] flux::Shared<flux::HostBuffer<flux::Vec3u>> toBuffer(VtVec3iArray const &indices) {
+[[nodiscard]] flux::Shared<flux::HostBuffer<flux::Vec3u>>
+toHostBuffer(VtVec3iArray const &indices) {
     if (indices.empty())
         return nullptr;
 
@@ -85,7 +86,7 @@ struct Triangulation {
     VtVec3iArray indices;
     Triangulation triangulation;
     HdMeshUtil{&topology, id}.ComputeTriangleIndices(&indices, &triangulation.primitiveParams);
-    triangulation.triangles = toBuffer(indices);
+    triangulation.triangles = toHostBuffer(indices);
     return triangulation;
 }
 
@@ -108,13 +109,13 @@ findInterpolation(HdSceneDelegate &sceneDelegate, SdfPath const &id, TfToken con
     return *found;
 }
 
-template <typename Element> struct MappedPrimvar {
+template <typename Element> struct IndexedPrimvar {
     flux::Shared<flux::HostBuffer<Element>> values;
     flux::Shared<flux::HostBuffer<flux::Vec3u>> indices;
 };
 
 template <typename Element, typename Array>
-[[nodiscard]] MappedPrimvar<Element> mapPrimvar(
+[[nodiscard]] IndexedPrimvar<Element> toIndexedPrimvar(
     TfToken const &name, flux::TriangleMesh::Data const &data, VtValue const &value,
     HdInterpolation interpolation, HdMeshTopology const &topology,
     VtIntArray const &primitiveParams, SdfPath const &id
@@ -165,10 +166,10 @@ template <typename Element, typename Array>
             " values, but its interpolation needs " + std::to_string(count)
         );
 
-    return {copyVectors<Element>(values), toBuffer(indices)};
+    return {toHostBuffer<Element>(values), toHostBuffer(indices)};
 }
 
-[[nodiscard]] flux::TriangleMesh::Data makeData(
+[[nodiscard]] flux::TriangleMesh::Data makeMeshData(
     HdSceneDelegate &sceneDelegate, SdfPath const &id, HdMeshTopology const &topology,
     flux::Shared<flux::HostBuffer<flux::Vec3f>> const &points,
     flux::Shared<flux::HostBuffer<flux::Vec3u>> const &triangles, VtIntArray const &primitiveParams
@@ -179,21 +180,21 @@ template <typename Element, typename Array>
 
     auto const normalsInterpolation = findInterpolation(sceneDelegate, id, HdTokens->normals);
     if (normalsInterpolation) {
-        auto mapped = mapPrimvar<flux::Vec3f, VtVec3fArray>(
+        auto indexed = toIndexedPrimvar<flux::Vec3f, VtVec3fArray>(
             HdTokens->normals, data, sceneDelegate.Get(id, HdTokens->normals),
             *normalsInterpolation, topology, primitiveParams, id
         );
-        data.normals = std::move(mapped.values);
-        data.normalIndices = std::move(mapped.indices);
+        data.normals = std::move(indexed.values);
+        data.normalIndices = std::move(indexed.indices);
     }
 
     if (auto const stInterpolation = findInterpolation(sceneDelegate, id, Tokens->st)) {
-        auto mapped = mapPrimvar<flux::Vec2f, VtVec2fArray>(
+        auto indexed = toIndexedPrimvar<flux::Vec2f, VtVec2fArray>(
             Tokens->st, data, sceneDelegate.Get(id, Tokens->st), *stInterpolation, topology,
             primitiveParams, id
         );
-        data.texCoords = std::move(mapped.values);
-        data.texCoordIndices = std::move(mapped.indices);
+        data.texCoords = std::move(indexed.values);
+        data.texCoordIndices = std::move(indexed.indices);
     }
 
     flux::TriangleMesh::checkIndices(data);
@@ -206,9 +207,8 @@ template <typename Element, typename Array>
     return data;
 }
 
-[[nodiscard]] flux::Ref<flux::BSDF const> findBSDF(
-    HdSceneDelegate &sceneDelegate, SdfPath const &materialId, HdFluxRenderParam const &param
-) {
+[[nodiscard]] flux::Ref<flux::BSDF const>
+getBSDF(HdSceneDelegate &sceneDelegate, SdfPath const &materialId, HdFluxRenderParam const &param) {
     auto const *const material = static_cast<HdFluxMaterial const *>(
         sceneDelegate.GetRenderIndex().GetSprim(HdPrimTypeTokens->material, materialId)
     );
@@ -266,7 +266,7 @@ void HdFluxMesh::Sync(
         auto const stDirty = HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, Tokens->st);
 
         if (pointsDirty)
-            points_ = copyVectors<flux::Vec3f>(
+            points_ = toHostBuffer<flux::Vec3f>(
                 sceneDelegate->Get(id, HdTokens->points).GetWithDefault<VtVec3fArray>()
             );
         if (topologyDirty) {
@@ -284,7 +284,7 @@ void HdFluxMesh::Sync(
         if (instanced || !points_ || !triangles_) {
             removePrimitive(*context, primitive_);
         } else if (pointsDirty || topologyDirty || normalsDirty || stDirty || !primitive_) {
-            auto data = makeData(
+            auto data = makeMeshData(
                 *sceneDelegate, id, topology_, points_, triangles_, trianglePrimitiveParams_
             );
             auto const mesh = context->create<flux::TriangleMesh>(std::move(data));
@@ -298,7 +298,7 @@ void HdFluxMesh::Sync(
         if (primitive_) {
             primitive_->setTransform(transform_);
             primitive_->setVisible(IsVisible());
-            primitive_->setBSDF(findBSDF(*sceneDelegate, GetMaterialId(), param));
+            primitive_->setBSDF(getBSDF(*sceneDelegate, GetMaterialId(), param));
         }
     } catch (std::exception const &error) { TF_WARN("%s: %s", id.GetText(), error.what()); }
 

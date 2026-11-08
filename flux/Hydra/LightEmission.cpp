@@ -1,4 +1,4 @@
-#include "flux/Hydra/Radiance.h"
+#include "flux/Hydra/LightEmission.h"
 
 #include <pxr/base/gf/color.h>
 #include <pxr/base/gf/colorSpace.h>
@@ -23,17 +23,17 @@ namespace {
 }
 } // namespace
 
-flux::Spectrum HdFluxReadRadiance(HdSceneDelegate &sceneDelegate, SdfPath const &id) {
-    auto const read = [&]<typename T>(TfToken const &token, T const &fallback) {
+flux::Spectrum HdFluxComputeLightEmission(HdSceneDelegate &sceneDelegate, SdfPath const &id) {
+    auto const get = [&]<typename T>(TfToken const &token, T const &fallback) {
         return sceneDelegate.GetLightParamValue(id, token).GetWithDefault(fallback);
     };
 
-    auto const color = read(HdLightTokens->color, GfVec3f{1.0F});
+    auto const color = get(HdLightTokens->color, GfVec3f{1.0F});
     auto const scale =
-        read(HdLightTokens->intensity, 1.0F) * std::exp2(read(HdLightTokens->exposure, 0.0F));
-    auto radiance = flux::Spectrum{color[0], color[1], color[2]} * scale;
+        get(HdLightTokens->intensity, 1.0F) * std::exp2(get(HdLightTokens->exposure, 0.0F));
+    auto emission = flux::Spectrum{color[0], color[1], color[2]} * scale;
 
-    if (read(HdLightTokens->enableColorTemperature, false))
-        radiance = radiance * blackbody(read(HdLightTokens->colorTemperature, 6500.0F));
-    return radiance;
+    if (get(HdLightTokens->enableColorTemperature, false))
+        emission = emission * blackbody(get(HdLightTokens->colorTemperature, 6500.0F));
+    return emission;
 }

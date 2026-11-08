@@ -19,11 +19,15 @@
 PXR_NAMESPACE_USING_DIRECTIVE
 
 namespace {
-[[nodiscard]] HdFluxRenderSpec makeSpec(
-    pxr::HdRenderPassState const &renderPassState, std::vector<HdFluxRenderer::Output> &outputs,
-    std::vector<std::string> &warnings
-) {
+/// \brief What a pass asks the renderer to render, and the warnings about what it cannot.
+struct PassRequest {
     HdFluxRenderSpec spec;
+    std::vector<HdFluxRenderer::Output> outputs;
+    std::vector<std::string> warnings;
+};
+
+[[nodiscard]] PassRequest makeRequest(pxr::HdRenderPassState const &renderPassState) {
+    PassRequest request;
     bool hasResolution{false};
 
     for (auto const &binding : renderPassState.GetAovBindings()) {
@@ -38,13 +42,13 @@ namespace {
 
         // A buffer that was not allocated has no pixels to fill, but its converged state is set.
         if (buffer->GetWidth() == 0 || buffer->GetHeight() == 0) {
-            outputs.push_back({buffer, flux::FilmChannels::None, binding.clearValue});
+            request.outputs.push_back({buffer, flux::FilmChannels::None, binding.clearValue});
             continue;
         }
 
         auto channel = HdFluxGetAovChannel(binding);
         if (channel == flux::FilmChannels::None) {
-            warnings.push_back(
+            request.warnings.push_back(
                 pxr::TfStringPrintf(
                     "AOV %s is not rendered and keeps its clear value", binding.aovName.GetText()
                 )
@@ -54,10 +58,10 @@ namespace {
 
             if (!hasResolution) {
                 hasResolution = true;
-                spec.resolution = resolution;
-            } else if (!(spec.resolution == resolution)) {
+                request.spec.resolution = resolution;
+            } else if (!(request.spec.resolution == resolution)) {
                 channel = flux::FilmChannels::None;
-                warnings.push_back(
+                request.warnings.push_back(
                     pxr::TfStringPrintf(
                         "AOV %s differs in size from the first AOV and is skipped",
                         binding.aovName.GetText()
@@ -66,20 +70,20 @@ namespace {
             }
         }
 
-        spec.channels = spec.channels | channel;
-        outputs.push_back({buffer, channel, binding.clearValue});
+        request.spec.channels = request.spec.channels | channel;
+        request.outputs.push_back({buffer, channel, binding.clearValue});
     }
 
     auto const *const camera = renderPassState.GetCamera();
     if (camera && camera->GetProjection() != pxr::HdCamera::Perspective) {
-        warnings.emplace_back("An orthographic camera is not rendered");
+        request.warnings.emplace_back("An orthographic camera is not rendered");
     } else if (camera) {
-        spec.view = HdFluxRenderSpec::View{
+        request.spec.view = HdFluxRenderSpec::View{
             renderPassState.GetWorldToViewMatrix(), renderPassState.GetProjectionMatrix()
         };
     }
 
-    return spec;
+    return request;
 }
 } // namespace
 
@@ -116,15 +120,13 @@ void HdFluxRenderPass::_Execute(
         ));
     }
 
-    std::vector<HdFluxRenderer::Output> outputs;
-    std::vector<std::string> warnings;
-    auto const spec = makeSpec(*renderPassState, outputs, warnings);
+    auto request = makeRequest(*renderPassState);
 
-    if (warnings != warnings_) {
-        for (auto const &warning : warnings)
+    if (request.warnings != warnings_) {
+        for (auto const &warning : request.warnings)
             TF_WARN(warning);
-        warnings_ = std::move(warnings);
+        warnings_ = std::move(request.warnings);
     }
 
-    renderer_.Render(spec, outputs);
+    renderer_.Render(request.spec, request.outputs);
 } catch (...) { param_.ReportFailure(); }

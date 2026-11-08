@@ -25,7 +25,7 @@ HdMaterialNetwork2 resolveAssetPaths(HdMaterialNetwork2 network) {
 }
 } // namespace
 
-std::optional<HdFluxMaterialXXml> HdFluxCreateMaterialXXml(
+std::optional<HdFluxMaterialXXml> HdFluxToMaterialXXml(
     HdMaterialNetwork2 const &network, SdfPath const &terminalPath, SdfPath const &materialPath
 ) {
     auto const resolved = resolveAssetPaths(network);

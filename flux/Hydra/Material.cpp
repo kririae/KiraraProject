@@ -17,8 +17,9 @@
 PXR_NAMESPACE_USING_DIRECTIVE
 
 namespace {
-[[nodiscard]] std::optional<HdFluxMaterialXGenerator::Instance>
-generate(HdSceneDelegate &sceneDelegate, HdFluxRenderParam const &param, SdfPath const &id) {
+[[nodiscard]] std::optional<HdFluxMaterialXGenerator::Instance> generateMaterial(
+    HdSceneDelegate &sceneDelegate, HdFluxRenderParam const &param, SdfPath const &id
+) {
     auto const resource = sceneDelegate.GetMaterialResource(id);
     if (!resource.IsHolding<HdMaterialNetworkMap>())
         return std::nullopt;
@@ -29,7 +30,7 @@ generate(HdSceneDelegate &sceneDelegate, HdFluxRenderParam const &param, SdfPath
     if (terminal == network.terminals.end())
         return std::nullopt;
 
-    auto const materialXml = HdFluxCreateMaterialXXml(network, terminal->second.upstreamNode, id);
+    auto const materialXml = HdFluxToMaterialXXml(network, terminal->second.upstreamNode, id);
     if (!materialXml)
         return std::nullopt;
 
@@ -40,7 +41,7 @@ generate(HdSceneDelegate &sceneDelegate, HdFluxRenderParam const &param, SdfPath
     );
 }
 
-void updateShader(
+void setShader(
     flux::ShaderBSDF &bsdf, HdFluxRenderParam const &param,
     std::optional<HdFluxMaterialXGenerator::Instance> instance
 ) {
@@ -75,7 +76,7 @@ void HdFluxMaterial::Sync(
             bsdf_ = param.GetContext()->create<flux::ShaderBSDF>(fallback.spec, fallback.words);
         }
 
-        updateShader(*bsdf_, param, generate(*sceneDelegate, param, id));
+        setShader(*bsdf_, param, generateMaterial(*sceneDelegate, param, id));
     } catch (std::exception const &error) { TF_WARN("%s: %s", id.GetText(), error.what()); }
 
     *dirtyBits = Clean;

@@ -20,22 +20,22 @@ std::vector<flux::Vec3f> const image{
 };
 } // namespace
 
-TEST(RenderBufferTests, AssignsTheBottomRowFirstAndAnOpaqueFourthComponent) {
+TEST(RenderBufferTests, WritesTheBottomRowFirstAndAnOpaqueFourthComponent) {
     HdFluxRenderBuffer buffer{pxr::SdfPath("/aov")};
     ASSERT_TRUE(buffer.Allocate({2, 2, 1}, pxr::HdFormatFloat32Vec4, false));
 
-    buffer.Assign(image);
+    buffer.Write(image);
 
     EXPECT_EQ(
         read(buffer, 16), (std::vector<float>{7, 8, 9, 1, 10, 11, 12, 1, 1, 2, 3, 1, 4, 5, 6, 1})
     );
 }
 
-TEST(RenderBufferTests, AssignsOnlyTheComponentsOfTheFormat) {
+TEST(RenderBufferTests, WritesOnlyTheComponentsOfTheFormat) {
     HdFluxRenderBuffer buffer{pxr::SdfPath("/aov")};
     ASSERT_TRUE(buffer.Allocate({2, 2, 1}, pxr::HdFormatFloat32Vec2, false));
 
-    buffer.Assign(image);
+    buffer.Write(image);
 
     EXPECT_EQ(read(buffer, 8), (std::vector<float>{7, 8, 10, 11, 1, 2, 4, 5}));
 }
@@ -52,7 +52,7 @@ TEST(RenderBufferTests, FillsAFloatBufferWithAScalarClearValue) {
 TEST(RenderBufferTests, KeepsThePixelsAndTheStateWhenAllocatedAgainAtTheSameSize) {
     HdFluxRenderBuffer buffer{pxr::SdfPath("/aov")};
     ASSERT_TRUE(buffer.Allocate({2, 2, 1}, pxr::HdFormatFloat32Vec4, false));
-    buffer.Assign(image);
+    buffer.Write(image);
     buffer.SetConverged(true);
 
     ASSERT_TRUE(buffer.Allocate({2, 2, 1}, pxr::HdFormatFloat32Vec4, false));
@@ -66,7 +66,7 @@ TEST(RenderBufferTests, KeepsThePixelsAndTheStateWhenAllocatedAgainAtTheSameSize
 TEST(RenderBufferTests, ClearsTheConvergedStateWhenAllocatedAgainWithAnotherFormat) {
     HdFluxRenderBuffer buffer{pxr::SdfPath("/aov")};
     ASSERT_TRUE(buffer.Allocate({2, 2, 1}, pxr::HdFormatFloat32Vec4, false));
-    buffer.Assign(image);
+    buffer.Write(image);
     buffer.SetConverged(true);
 
     ASSERT_TRUE(buffer.Allocate({2, 2, 1}, pxr::HdFormatFloat32Vec3, false));

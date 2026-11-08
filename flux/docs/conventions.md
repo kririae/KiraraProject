@@ -9,6 +9,17 @@ How FLux writes C++, beyond what `.clang-format` and `.clang-tidy` check.
 - Look a name up in the C++ standard library, LLVM, CUDA, and USD.
 - A function name is in lower camel case, such as `getStream`, and a private data member ends with `_`, such as `handle_`.
 - An accessor returns a property of its object, or an element that a key finds, and is named `getX`, such as `getContextId` or `getObject`. A predicate reads as an assertion, such as `isVisible`, `hasChannel`, or `usesShaderReorder`.
+- A function name is a verb and its object, unless the type of an argument or of the result already names the object. A function that returns a quantity with a name in its field takes that name, such as `cross` or `nextSegment`, and an operation with a name in its field takes its verb, such as `triangulate`, `generate`, or `resolve`. Otherwise the verb is one of these:
+  - `get` reads what an object or a source holds, such as a member, an entry of a table, or a parameter of a Hydra scene delegate.
+  - `set` stores a given value.
+  - `make` builds a new value that the caller owns from its parts, as `std::make_unique` does.
+  - `create` builds a new object that a registry owns, as `Context::create` and `HdRenderDelegate::CreateRprim` do.
+  - `to` returns the same content as another type, as `std::to_string` does.
+  - `compute` derives a value by work that no name of its field covers.
+  - `find` looks up what may be absent, and then returns null or `std::nullopt`.
+  - `sync` makes the state of FLux follow the Hydra scene.
+  - `write` and `clear` set the pixels of a render buffer, as hdEmbree does.
+  - `add` and `remove` put an object into its registry and take it out.
 - Code that meets another library may follow its style, as [naming](../../.agents/skills/naming/SKILL.md) says. hdFlux names the functions of a class derived from a Hydra class in upper camel case, such as `Clear`, as USD and hdEmbree do. An OptiX program starts with the prefix that OptiX requires, such as `__raygen__`.
 - A mimic of a standard class keeps its names, case included, as [naming](../../.agents/skills/naming/SKILL.md) says, such as `size` and `data` of a buffer.
 - A test name is a sentence in the present tense that states the behavior it checks, such as `EmptyRangeDoesNotLaunch`.

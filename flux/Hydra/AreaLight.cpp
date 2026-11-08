@@ -18,7 +18,7 @@
 
 #include "flux/Core/HostBuffer.h"
 #include "flux/Core/MathUtils.h"
-#include "flux/Hydra/Radiance.h"
+#include "flux/Hydra/LightEmission.h"
 #include "flux/Hydra/RenderParam.h"
 #include "flux/Hydra/Transform.h"
 #include "flux/Scene/Context.h"
@@ -34,7 +34,7 @@ namespace {
 constexpr std::uint32_t numSegments{64};
 constexpr std::uint32_t numRings{32};
 
-[[nodiscard]] flux::Ref<flux::TriangleMesh> makeTriangleMesh(
+[[nodiscard]] flux::Ref<flux::TriangleMesh> createTriangleMesh(
     flux::Context &context, std::span<flux::Vec3f const> points,
     std::span<flux::Vec3u const> triangles
 ) {
@@ -64,7 +64,7 @@ constexpr std::uint32_t numRings{32};
 
 /// The geometric normal is -Z.
 [[nodiscard]] flux::Ref<flux::TriangleMesh>
-makeRectangle(flux::Context &context, float width, float height) {
+createRectangle(flux::Context &context, float width, float height) {
     auto const halfWidth = width * 0.5F;
     auto const halfHeight = height * 0.5F;
 
@@ -75,11 +75,11 @@ makeRectangle(flux::Context &context, float width, float height) {
         flux::Vec3f{halfWidth, -halfHeight, 0.0F},
     };
     std::array const triangles{flux::Vec3u{0, 1, 2}, flux::Vec3u{0, 2, 3}};
-    return makeTriangleMesh(context, points, triangles);
+    return createTriangleMesh(context, points, triangles);
 }
 
 /// The geometric normal is -Z.
-[[nodiscard]] flux::Ref<flux::TriangleMesh> makeDisk(flux::Context &context, float radius) {
+[[nodiscard]] flux::Ref<flux::TriangleMesh> createDisk(flux::Context &context, float radius) {
     std::vector<flux::Vec3f> points{flux::Vec3f{0.0F, 0.0F, 0.0F}};
     std::vector<flux::Vec3u> triangles;
     for (auto segment = 0U; segment < numSegments; ++segment) {
@@ -87,10 +87,10 @@ makeRectangle(flux::Context &context, float width, float height) {
         points.emplace_back(rim.x(), rim.y(), 0.0F);
         triangles.emplace_back(0, 1 + nextSegment(segment), 1 + segment);
     }
-    return makeTriangleMesh(context, points, triangles);
+    return createTriangleMesh(context, points, triangles);
 }
 
-[[nodiscard]] flux::Ref<flux::TriangleMesh> makeSphere(flux::Context &context, float radius) {
+[[nodiscard]] flux::Ref<flux::TriangleMesh> createSphere(flux::Context &context, float radius) {
     std::vector<flux::Vec3f> points{
         flux::Vec3f{0.0F, 0.0F, radius},
         flux::Vec3f{0.0F, 0.0F, -radius},
@@ -122,11 +122,11 @@ makeRectangle(flux::Context &context, float width, float height) {
             );
         }
     }
-    return makeTriangleMesh(context, points, triangles);
+    return createTriangleMesh(context, points, triangles);
 }
 
 [[nodiscard]] flux::Ref<flux::TriangleMesh>
-makeCylinder(flux::Context &context, float radius, float length) {
+createCylinder(flux::Context &context, float radius, float length) {
     std::vector<flux::Vec3f> points;
     for (auto const x : {-0.5F * length, 0.5F * length}) {
         for (auto segment = 0U; segment < numSegments; ++segment) {
@@ -144,12 +144,12 @@ makeCylinder(flux::Context &context, float radius, float length) {
         triangles.emplace_back(back, backNext, front);
         triangles.emplace_back(backNext, frontNext, front);
     }
-    return makeTriangleMesh(context, points, triangles);
+    return createTriangleMesh(context, points, triangles);
 }
 
 [[nodiscard]] float
 worldArea(flux::TriangleMesh const &mesh, std::array<float, 12> const &transform) {
-    auto const apply = [&](flux::Vec3f const &vector) {
+    auto const transformVector = [&](flux::Vec3f const &vector) {
         return flux::Vec3f{
             transform[0] * vector.x() + transform[1] * vector.y() + transform[2] * vector.z(),
             transform[4] * vector.x() + transform[5] * vector.y() + transform[6] * vector.z(),
@@ -161,24 +161,24 @@ worldArea(flux::TriangleMesh const &mesh, std::array<float, 12> const &transform
     auto area = 0.0F;
     for (auto const &triangle : mesh.getTriangles()) {
         auto const &vertex0 = vertices[triangle[0u]];
-        auto const edge1 = apply(vertices[triangle[1u]] - vertex0);
-        auto const edge2 = apply(vertices[triangle[2u]] - vertex0);
+        auto const edge1 = transformVector(vertices[triangle[1u]] - vertex0);
+        auto const edge2 = transformVector(vertices[triangle[2u]] - vertex0);
         area += 0.5F * flux::cross(edge1, edge2).norm();
     }
     return area;
 }
 
 template <typename T>
-[[nodiscard]] T readParam(
+[[nodiscard]] T getLightParam(
     HdSceneDelegate &sceneDelegate, SdfPath const &id, TfToken const &token, T const &fallback
 ) {
     return sceneDelegate.GetLightParamValue(id, token).GetWithDefault(fallback);
 }
 
 [[nodiscard]] flux::Spectrum
-readRadiance(HdSceneDelegate &sceneDelegate, SdfPath const &id, float area) {
-    auto const radiance = HdFluxReadRadiance(sceneDelegate, id);
-    if (readParam(sceneDelegate, id, HdLightTokens->normalize, false) && area > 0.0F)
+computeNormalizedEmission(HdSceneDelegate &sceneDelegate, SdfPath const &id, float area) {
+    auto const radiance = HdFluxComputeLightEmission(sceneDelegate, id);
+    if (getLightParam(sceneDelegate, id, HdLightTokens->normalize, false) && area > 0.0F)
         return radiance / area;
     return radiance;
 }
@@ -204,11 +204,11 @@ void HdFluxAreaLight::Sync(
     try {
         auto const context = param.GetContext();
 
-        auto const shapeSpec = readShapeSpec(*sceneDelegate);
+        auto const shapeSpec = getShapeSpec(*sceneDelegate);
         if (!primitive_)
-            build(*context, shapeSpec);
+            createPrimitive(*context, shapeSpec);
         else if (shapeSpec != shapeSpec_)
-            primitive_->setGeometry(makeMesh(*context, shapeSpec));
+            primitive_->setGeometry(createShapeMesh(*context, shapeSpec));
         shapeSpec_ = shapeSpec;
 
         primitive_->setVisible(sceneDelegate->GetVisible(id));
@@ -216,7 +216,7 @@ void HdFluxAreaLight::Sync(
 
         auto const mesh = primitive_->getGeometry().dynamicCast<flux::TriangleMesh const>();
         auto const area = worldArea(*mesh, primitive_->getTransform());
-        edf_->setRadiance(readRadiance(*sceneDelegate, id, area));
+        edf_->setRadiance(computeNormalizedEmission(*sceneDelegate, id, area));
     } catch (std::exception const &error) { TF_WARN("%s: %s", id.GetText(), error.what()); }
 
     *dirtyBits &= ~AllDirty;
@@ -232,22 +232,22 @@ void HdFluxAreaLight::Finalize(HdRenderParam *renderParam) {
     context->remove(primitive_->getContextId());
 }
 
-HdFluxAreaLight::ShapeSpec HdFluxAreaLight::readShapeSpec(HdSceneDelegate &sceneDelegate) const {
-    auto const read = [&](TfToken const &token, float fallback) {
-        return std::abs(readParam(sceneDelegate, GetId(), token, fallback));
+HdFluxAreaLight::ShapeSpec HdFluxAreaLight::getShapeSpec(HdSceneDelegate &sceneDelegate) const {
+    auto const get = [&](TfToken const &token, float fallback) {
+        return std::abs(getLightParam(sceneDelegate, GetId(), token, fallback));
     };
     return std::visit(
         kira::Overload{
             [&](RectSpec) -> ShapeSpec {
         return RectSpec{
-            .width = read(HdLightTokens->width, 1.0F), .height = read(HdLightTokens->height, 1.0F)
+            .width = get(HdLightTokens->width, 1.0F), .height = get(HdLightTokens->height, 1.0F)
         };
     },
-            [&](DiskSpec) -> ShapeSpec { return DiskSpec{read(HdLightTokens->radius, 0.5F)}; },
-            [&](SphereSpec) -> ShapeSpec { return SphereSpec{read(HdLightTokens->radius, 0.5F)}; },
+            [&](DiskSpec) -> ShapeSpec { return DiskSpec{get(HdLightTokens->radius, 0.5F)}; },
+            [&](SphereSpec) -> ShapeSpec { return SphereSpec{get(HdLightTokens->radius, 0.5F)}; },
             [&](CylinderSpec) -> ShapeSpec {
         return CylinderSpec{
-            .radius = read(HdLightTokens->radius, 0.5F), .length = read(HdLightTokens->length, 1.0F)
+            .radius = get(HdLightTokens->radius, 0.5F), .length = get(HdLightTokens->length, 1.0F)
         };
     },
         },
@@ -256,20 +256,20 @@ HdFluxAreaLight::ShapeSpec HdFluxAreaLight::readShapeSpec(HdSceneDelegate &scene
 }
 
 flux::Ref<flux::TriangleMesh>
-HdFluxAreaLight::makeMesh(flux::Context &context, ShapeSpec const &shapeSpec) {
-    auto const make = kira::Overload{
-        [&](RectSpec const &spec) { return makeRectangle(context, spec.width, spec.height); },
-        [&](DiskSpec const &spec) { return makeDisk(context, spec.radius); },
-        [&](SphereSpec const &spec) { return makeSphere(context, spec.radius); },
-        [&](CylinderSpec const &spec) { return makeCylinder(context, spec.radius, spec.length); },
+HdFluxAreaLight::createShapeMesh(flux::Context &context, ShapeSpec const &shapeSpec) {
+    auto const create = kira::Overload{
+        [&](RectSpec const &spec) { return createRectangle(context, spec.width, spec.height); },
+        [&](DiskSpec const &spec) { return createDisk(context, spec.radius); },
+        [&](SphereSpec const &spec) { return createSphere(context, spec.radius); },
+        [&](CylinderSpec const &spec) { return createCylinder(context, spec.radius, spec.length); },
     };
-    return std::visit(make, shapeSpec);
+    return std::visit(create, shapeSpec);
 }
 
-void HdFluxAreaLight::build(flux::Context &context, ShapeSpec const &shapeSpec) {
+void HdFluxAreaLight::createPrimitive(flux::Context &context, ShapeSpec const &shapeSpec) {
     edf_ = context.create<flux::ConstantEDF>(kira::Properties{});
 
-    auto primitive = context.create<flux::Primitive>(makeMesh(context, shapeSpec));
+    auto primitive = context.create<flux::Primitive>(createShapeMesh(context, shapeSpec));
     primitive->setEDF(edf_);
     primitive_ = std::move(primitive);
 }
