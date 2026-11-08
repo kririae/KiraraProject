@@ -2,9 +2,11 @@
 #include <pxr/base/plug/registry.h>
 #include <pxr/imaging/hd/rendererPlugin.h>
 #include <pxr/imaging/hd/rendererPluginRegistry.h>
+#include <pxr/pxr.h>
 
 #include <exception>
 #include <filesystem>
+#include <string>
 
 #include "flux/Core/Logging.h"
 #include "flux/Hydra/RenderDelegate.h"
@@ -27,7 +29,13 @@ public:
         delete renderDelegate;
     }
 
+#if PXR_VERSION >= 2605
+    bool IsSupported(pxr::HdRendererCreateArgs const &, std::string *) const override {
+        return true;
+    }
+#else
     bool IsSupported(bool) const override { return true; }
+#endif
 
 private:
     /// \brief Returns a new delegate. If it cannot start, logs the error and returns null.
