@@ -5,11 +5,10 @@
 
 #include "flux/Optix/OptixLaunchParams.h"
 
-TEST(OptixLaunchParamsTests, MapsConsecutiveSamplesToTheSamePixel) {
+TEST(OptixLaunchParamsTests, MapsConsecutivePathsToConsecutivePixelsOfOneSample) {
     flux::OptixLaunchParams params{};
     params.accumulatedSamples = 10;
     params.sampleOffset = 100;
-    params.batchSize = 4;
     params.film.width = 3;
     params.film.height = 2;
 
@@ -17,13 +16,13 @@ TEST(OptixLaunchParamsTests, MapsConsecutiveSamplesToTheSamePixel) {
     EXPECT_EQ(first.pixel, (flux::Vec2u{0, 0}));
     EXPECT_EQ(first.sampleIndex, 110);
 
-    auto const lastSampleOfFirstPixel = params.getLaunchSample(3);
-    EXPECT_EQ(lastSampleOfFirstPixel.pixel, (flux::Vec2u{0, 0}));
-    EXPECT_EQ(lastSampleOfFirstPixel.sampleIndex, 113);
+    auto const lastPixelOfFirstSample = params.getLaunchSample(5);
+    EXPECT_EQ(lastPixelOfFirstSample.pixel, (flux::Vec2u{2, 1}));
+    EXPECT_EQ(lastPixelOfFirstSample.sampleIndex, 110);
 
-    auto const firstSampleOfSecondPixel = params.getLaunchSample(4);
-    EXPECT_EQ(firstSampleOfSecondPixel.pixel, (flux::Vec2u{1, 0}));
-    EXPECT_EQ(firstSampleOfSecondPixel.sampleIndex, 110);
+    auto const firstPixelOfSecondSample = params.getLaunchSample(6);
+    EXPECT_EQ(firstPixelOfSecondSample.pixel, (flux::Vec2u{0, 0}));
+    EXPECT_EQ(firstPixelOfSecondSample.sampleIndex, 111);
 
     auto const last = params.getLaunchSample(23);
     EXPECT_EQ(last.pixel, (flux::Vec2u{2, 1}));

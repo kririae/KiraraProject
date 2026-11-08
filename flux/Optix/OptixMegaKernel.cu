@@ -237,7 +237,7 @@ KIRA_DEVICE __forceinline__ void step(flux::PathState &state, std::uint32_t inde
 extern "C" __global__ void __miss__megakernel() {} // NOLINT
 
 extern "C" __global__ void __raygen__megakernel() { // NOLINT
-    auto const chunkSize = std::min(optixLaunchParams.chunkSize, optixLaunchParams.batchSize);
+    auto const chunkSize = std::min(optixLaunchParams.chunkSize, optixLaunchParams.pathCount);
     auto index = optixGetLaunchIndex().x * chunkSize;
     while (index < optixLaunchParams.pathCount) {
         auto state = startPath(index);

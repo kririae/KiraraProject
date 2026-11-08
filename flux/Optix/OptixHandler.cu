@@ -198,7 +198,7 @@ RenderStats OptixHandler::pImpl::render(
         throw std::length_error("OptixHandler: render has more paths than the path index counts");
     auto const pathCount = static_cast<std::uint32_t>(pixelCount * samples);
     auto const &moduleSpec = optixContext.getMegaKernelModuleSpec();
-    auto const chunkSize = std::min(moduleSpec.chunkSize, samples);
+    auto const chunkSize = std::min(moduleSpec.chunkSize, pathCount);
     auto const chunkCount = (pathCount - 1) / chunkSize + 1;
     auto const launchSize = getLaunchSize(chunkCount);
 

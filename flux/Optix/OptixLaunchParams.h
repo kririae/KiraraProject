@@ -65,12 +65,13 @@ struct OptixLaunchParams {
 public:
     /// \brief Decodes a path index into the sample it renders.
     ///
-    /// \pre \c batchSize and the film dimensions are nonzero.
+    /// \pre The film dimensions are nonzero.
     /// \pre \p pathIndex is smaller than \c pathCount.
     [[nodiscard]] KIRA_DEVICE OptixLaunchSample
     getLaunchSample(std::uint32_t pathIndex) const noexcept {
-        auto const batchIndex = pathIndex % batchSize;
-        auto const pixelIndex = pathIndex / batchSize;
+        auto const pixelCount = film.width * film.height;
+        auto const batchIndex = pathIndex / pixelCount;
+        auto const pixelIndex = pathIndex % pixelCount;
         return {
             .pixel = {pixelIndex % film.width, pixelIndex / film.width},
             .sampleIndex = accumulatedSamples + sampleOffset + batchIndex,
