@@ -297,8 +297,8 @@ HdContainerDataSourceHandle makeMaterial(std::variant<GfVec3f, SdfAssetPath> con
     );
 }
 
-/// Returns a material whose \c mtlx surface is a node that no MaterialX definition names,
-/// which hdFlux cannot generate.
+/// Returns a material whose \c mtlx surface is a node that no MaterialX definition names. hdFlux
+/// cannot generate its shader.
 HdContainerDataSourceHandle makeUnsupportedMaterial() {
     static TfToken const surfaceName{"surface"};
 

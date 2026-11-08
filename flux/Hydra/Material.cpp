@@ -17,9 +17,8 @@
 PXR_NAMESPACE_USING_DIRECTIVE
 
 namespace {
-[[nodiscard]] std::optional<flux::ShaderInstance> generateMaterial(
-    HdSceneDelegate &sceneDelegate, HdFluxRenderParam const &param, SdfPath const &id
-) {
+[[nodiscard]] std::optional<flux::ShaderInstance>
+generateShader(HdSceneDelegate &sceneDelegate, HdFluxRenderParam const &param, SdfPath const &id) {
     auto const resource = sceneDelegate.GetMaterialResource(id);
     if (!resource.IsHolding<HdMaterialNetworkMap>())
         return std::nullopt;
@@ -34,11 +33,10 @@ namespace {
     if (!materialXml)
         return std::nullopt;
 
-    // TODO: generate the material with constant values at its first sync, and make an input that
+    // TODO: generate the shader with constant values at its first sync, and make an input that
     // a later edit changes interactive.
-    auto generation = param.GetMaterialXGenerator().generate(
-        materialXml->xml, materialXml->surfaceMaterialName, {}
-    );
+    auto generation =
+        param.GetShaderGenerator().generate(materialXml->xml, materialXml->surfaceMaterialName, {});
     for (auto const &diagnostic : generation.diagnostics)
         TF_WARN("%s: %s", id.GetText(), diagnostic.c_str());
     return std::move(generation.instance);
@@ -49,7 +47,7 @@ void setShader(
     std::optional<flux::ShaderInstance> instance
 ) {
     if (!instance) {
-        auto const &fallback = param.GetFallbackShader();
+        auto const &fallback = param.GetFallbackShaderInstance();
         bsdf.setShader(fallback.spec, fallback.words, {});
         return;
     }
@@ -75,11 +73,11 @@ void HdFluxMaterial::Sync(
 
     try {
         if (!bsdf_) {
-            auto const &fallback = param.GetFallbackShader();
+            auto const &fallback = param.GetFallbackShaderInstance();
             bsdf_ = param.GetContext()->create<flux::ShaderBSDF>(fallback.spec, fallback.words);
         }
 
-        setShader(*bsdf_, param, generateMaterial(*sceneDelegate, param, id));
+        setShader(*bsdf_, param, generateShader(*sceneDelegate, param, id));
     } catch (std::exception const &error) { TF_WARN("%s: %s", id.GetText(), error.what()); }
 
     *dirtyBits = Clean;

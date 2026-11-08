@@ -14,12 +14,12 @@ class Context;
 class ShaderBSDF;
 } // namespace flux
 
-/// \brief The instance held by the delegate to share with its passes and prims.
+/// \brief The state that the delegate shares with its passes and prims.
 class HdFluxRenderParam final : public pxr::HdRenderParam {
 public:
     /// \brief Creates a param that renders with the OptiX IR module at \p modulePath.
     ///
-    /// \throw std::exception If the OptiX backend or the MaterialX generator cannot start.
+    /// \throw std::exception If the OptiX backend or the shader generator cannot start.
     HdFluxRenderParam(
         std::filesystem::path const &modulePath, std::filesystem::path const &mtlxRoot
     );
@@ -30,10 +30,10 @@ public:
 
     [[nodiscard]] flux::Ref<flux::BSDF const> GetFallbackBSDF() const;
 
-    [[nodiscard]] flux::ShaderInstance const &GetFallbackShader() const noexcept;
+    [[nodiscard]] flux::ShaderInstance const &GetFallbackShaderInstance() const noexcept;
 
-    [[nodiscard]] flux::MtlxShaderGenerator const &GetMaterialXGenerator() const noexcept {
-        return materialXGenerator_;
+    [[nodiscard]] flux::MtlxShaderGenerator const &GetShaderGenerator() const noexcept {
+        return shaderGenerator_;
     }
 
     /// \brief Returns the backend that renders the scene.
@@ -51,8 +51,8 @@ public:
 
 private:
     flux::OptixHandler handler_;
-    flux::MtlxShaderGenerator materialXGenerator_;
-    flux::ShaderInstance fallbackShader_;
+    flux::MtlxShaderGenerator shaderGenerator_;
+    flux::ShaderInstance fallbackShaderInstance_;
     flux::Ref<flux::ShaderBSDF> fallbackBSDF_;
     bool failed_{false};
 };

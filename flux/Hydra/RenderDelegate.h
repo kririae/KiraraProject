@@ -21,7 +21,7 @@ public:
     /// \brief Creates a delegate that renders with the OptiX IR module at \p modulePath.
     ///
     /// \param mtlxRoot The folder that holds the MaterialX \c libraries folder.
-    /// \throw std::exception If the OptiX backend or the MaterialX generator cannot start.
+    /// \throw std::exception If the OptiX backend or the shader generator cannot start.
     HdFluxRenderDelegate(
         std::filesystem::path const &modulePath, std::filesystem::path const &mtlxRoot,
         pxr::HdRenderSettingsMap const &settingsMap
