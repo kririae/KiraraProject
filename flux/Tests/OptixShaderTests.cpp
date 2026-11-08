@@ -327,13 +327,43 @@ renderEmissionMean(std::string const &document, float side, float fov) {
     return renderContextMean(context, *camera, 1);
 }
 
+constexpr std::array<float, 12> identityTransform{1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F,
+                                                  0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F};
+
+/// \brief The transform of an emitter above the floor of \c renderLitFloorMean: a scale by
+/// \p scale, a tilt by 25 degrees about x and 20 degrees about y, and a move to (0, 1, 2), so that
+/// no geometry-space direction or position is a world-space one.
+[[nodiscard]] std::array<float, 12> emitterTransform(flux::Vec3f const &scale) {
+    auto const [sinX, cosX] = std::pair{std::sin(-0.4363323F), std::cos(-0.4363323F)};
+    auto const [sinY, cosY] = std::pair{std::sin(0.3490659F), std::cos(0.3490659F)};
+    // The rotation about y of the rotation about x, after the scale.
+    return {
+        scale.x() * cosY,
+        scale.y() * sinY * sinX,
+        scale.z() * sinY * cosX,
+        0.0F,
+        0.0F,
+        scale.y() * cosX,
+        -scale.z() * sinX,
+        1.0F,
+        -scale.x() * sinY,
+        scale.y() * cosY * sinX,
+        scale.z() * cosY * cosX,
+        2.0F,
+    };
+}
+
 /// \brief The rectangle of the local plane z = 0 with x in [\p left, \p right] and y in
-/// [-0.5, 0.5], facing -z, with the texture coordinates (x + 0.5, 0.5).
-[[nodiscard]] flux::TriangleMesh::Data emitterRectangleData(float left, float right) {
+/// [-0.5, 0.5], facing -z, with the texture coordinates (x + 0.5, 0.5), moved by \p transform.
+[[nodiscard]] flux::TriangleMesh::Data emitterRectangleData(
+    float left, float right, std::array<float, 12> const &transform = identityTransform
+) {
+    auto const corner = [&](float x, float y) {
+        return flux::transformPoint(transform.data(), {x, y, 0.0F});
+    };
     return {
         .vertices = flux::test::sharedBuffer(
-            flux::Vec3f{left, -0.5F, 0.0F}, flux::Vec3f{left, 0.5F, 0.0F},
-            flux::Vec3f{right, 0.5F, 0.0F}, flux::Vec3f{right, -0.5F, 0.0F}
+            corner(left, -0.5F), corner(left, 0.5F), corner(right, 0.5F), corner(right, -0.5F)
         ),
         .triangles = flux::test::sharedBuffer(flux::Vec3u{0, 1, 2}, flux::Vec3u{0, 2, 3}),
         .texCoords = flux::test::sharedBuffer(
@@ -343,37 +373,18 @@ renderEmissionMean(std::string const &document, float side, float fov) {
     };
 }
 
-/// \brief Places an emitter of \p data with \p edf above the floor of \c renderLitFloorMean.
-///
-/// The transform scales by 1.2, tilts the emitter by 25 degrees about x and 20 degrees about y, and
-/// moves it to (0, 1, 2), so that no geometry-space direction or position is a world-space one.
+/// \brief Places an emitter of \p data with \p edf above the floor of \c renderLitFloorMean,
+/// under \p transform, which scales by 1.2 by default.
 void addEmitter(
-    flux::Context &context, flux::TriangleMesh::Data data, flux::Ref<flux::EDF const> const &edf
+    flux::Context &context, flux::TriangleMesh::Data data, flux::Ref<flux::EDF const> const &edf,
+    std::array<float, 12> const &transform = emitterTransform({1.2F, 1.2F, 1.2F})
 ) {
     auto const mesh = context.create<flux::TriangleMesh>(std::move(data));
     kira::Properties properties;
     properties.set("geometry_ctx_id", static_cast<std::int64_t>(mesh->getContextId()));
     properties.set("edf_ctx_id", static_cast<std::int64_t>(edf->getContextId()));
     auto const primitive = context.create<flux::Primitive>(properties);
-
-    constexpr auto scale = 1.2F;
-    auto const [sinX, cosX] = std::pair{std::sin(-0.4363323F), std::cos(-0.4363323F)};
-    auto const [sinY, cosY] = std::pair{std::sin(0.3490659F), std::cos(0.3490659F)};
-    // The rotation about y of the rotation about x.
-    primitive->setTransform({
-        scale * cosY,
-        scale * sinY * sinX,
-        scale * sinY * cosX,
-        0.0F,
-        0.0F,
-        scale * cosX,
-        -scale * sinX,
-        1.0F,
-        -scale * sinY,
-        scale * cosY * sinX,
-        scale * cosY * cosX,
-        2.0F,
-    });
+    primitive->setTransform(transform);
 }
 
 /// \brief Renders a diffuse floor that the emitters of \p addEmitters light, and returns the mean
@@ -514,26 +525,34 @@ TEST(OptixShaderTests, AFloorLitByATwoTexelShaderEmitterMatchesOneLitByItsTwoCon
     static_assert(flux::luminance(right) < 1.001F * flux::luminance(left));
     static_assert(flux::luminance(left) < 1.001F * flux::luminance(right));
     constexpr std::uint32_t emitterSamples = 512;
+    auto const transform = emitterTransform({2.0F, 1.0F, 0.5F});
     auto const textured = renderLitFloorMean([&](flux::Context &context) {
         addEmitter(
             context, emitterRectangleData(-0.5F, 0.5F),
-            makeShaderEDF(context, twoTexelEmissionDocument)
+            makeShaderEDF(context, twoTexelEmissionDocument), transform
         );
     }, emitterSamples);
     auto const halves = renderLitFloorMean([&](flux::Context &context) {
-        addEmitter(context, emitterRectangleData(-0.5F, 0.0F), makeConstantEDF(context, left));
-        addEmitter(context, emitterRectangleData(0.0F, 0.5F), makeConstantEDF(context, right));
+        addEmitter(
+            context, emitterRectangleData(-0.5F, 0.0F, transform), makeConstantEDF(context, left),
+            identityTransform
+        );
+        addEmitter(
+            context, emitterRectangleData(0.0F, 0.5F, transform), makeConstantEDF(context, right),
+            identityTransform
+        );
     }, emitterSamples);
 
     // The renders sample different points, so they differ by noise. One half lights each channel,
     // and a light sample picks it with probability 1/2 in both scenes, with the density 1 / area
     // of the rectangle. So a light sample is zero or twice the geometric term of its point, which
-    // has a relative standard deviation over a half of at most 0.4 for the pixels in view.
-    // Its relative variance is then at most 1 + 2 * 0.4^2 = 1.32. A path adds a BSDF sample to the
+    // has a relative standard deviation over a half of at most 0.43 for the pixels in view. Its
+    // relative variance is then at most 1 + 2 * 0.43^2 = 1.37. A path adds a BSDF sample to the
     // light sample, and the power heuristic keeps the second moment of the pair below that of the
     // light sample alone. Over the pixels in view, 256 pixels of 512 samples give the mean a
-    // relative standard deviation of at most 0.37% in each render, and the difference of two
-    // renders has 0.52%. The tolerance is 5.8 of that.
+    // relative standard deviation of at most 0.38% in each render, and the difference of two
+    // renders has 0.54%. The tolerance is 5.5 of that. The average of the area scales of the axes
+    // is 1.17 where the area scale of this rectangle is 2.
     for (int axis = 0; axis < 3; ++axis) {
         EXPECT_GT(halves[axis], 0.0F) << axis;
         EXPECT_NEAR(textured[axis], halves[axis], 0.03F * halves[axis]) << axis;

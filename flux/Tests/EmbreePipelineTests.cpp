@@ -44,6 +44,15 @@
 #endif
 
 namespace {
+/// An evaluator for a scene without a shader EDF.
+struct NoShaderEvaluator {
+    [[nodiscard]] static flux::Spectrum evaluate(
+        std::uint32_t, flux::Vec2f const &, flux::Vec3f const &, flux::Vec3f const &
+    ) noexcept {
+        return {};
+    }
+};
+
 [[nodiscard]] kira::Properties
 primitiveProperties(flux::TriangleMesh const &mesh, flux::BSDF const &bsdf) {
     kira::Properties properties;
@@ -332,20 +341,11 @@ TEST(EmbreePipelineTests, ASampledPointMatchesAHitAtIt) {
     auto const primitive = context->create<flux::Primitive>(properties);
     // The rotation about x by 40 degrees of the rotation about z by 30 degrees, scaled by (1.5,
     // 0.8, 1.1) before it, then moved by (0.3, -0.2, 0.5).
-    primitive->setTransform({
-        1.2990381F,
-        -0.4F,
-        0.0F,
-        0.3F,
-        0.5745333F,
-        0.5307312F,
-        -0.7070664F,
-        -0.2F,
-        0.4820907F,
-        0.4453363F,
-        0.8426489F,
-        0.5F,
-    });
+    constexpr auto transform = std::array<float, 12>{
+        1.2990381F,  -0.4F, 0.0F,       0.3F,       0.5745333F, 0.5307312F,
+        -0.7070664F, -0.2F, 0.4820907F, 0.4453363F, 0.8426489F, 0.5F,
+    };
+    primitive->setTransform(transform);
 
     flux::EmbreeContext embree(*context);
     embree.sync();
@@ -385,6 +385,37 @@ TEST(EmbreePipelineTests, ASampledPointMatchesAHitAtIt) {
         EXPECT_NEAR((hitInteraction.uvGradV - sampled.uvGradV).norm(), 0.0F, 1e-4F);
         EXPECT_EQ(hitInteraction.primitiveIndex, sampled.primitiveIndex);
         EXPECT_EQ(hitInteraction.elementIndex, sampled.elementIndex);
+    }
+
+    // A light sample has the density of a hit at its point, and it is the density over the world
+    // area of the quad. The quad is planar, so its world area is that of its parallelogram.
+    auto const corner = [&](flux::Vec3f const &vertex) {
+        return flux::transformPoint(transform.data(), vertex);
+    };
+    auto const edgeX = corner({1.0F, 0.0F, 0.0F}) - corner({0.0F, 0.0F, 0.0F});
+    auto const edgeY = corner({0.0F, 1.0F, 0.2F}) - corner({0.0F, 0.0F, 0.0F});
+    auto const worldArea = flux::cross(edgeX, edgeY).norm();
+    auto const worldNormal = flux::cross(edgeX, edgeY).normalize();
+
+    auto const dispatcher =
+        flux::EDF::Dispatcher{.types = flux::edfTypeBit(flux::EDFType::Constant)};
+    // The only light is selected with probability 1.
+    auto const receiver = flux::LightSamplingContext{.position = {0.5F, -2.0F, 3.0F}};
+    for (auto const &uLight : {flux::Vec2f{0.25F, 0.5F}, flux::Vec2f{0.7F, 0.1F}}) {
+        auto const light = flux::detail::samplePrimLight<NoShaderEvaluator>(
+            scene, dispatcher, receiver, primitiveIndex, uLight
+        );
+        auto const distance2 = (light.position - receiver.position).norm2();
+        auto const expected = distance2 / (std::abs(worldNormal.dot(light.wi)) * worldArea);
+        EXPECT_NEAR(light.pdf, expected, 1e-4F * expected);
+
+        auto const ray = flux::Ray{.origin = receiver.position, .direction = light.wi};
+        flux::EmbreeContext::Hit hit{};
+        ASSERT_TRUE(scene.intersect(ray, hit));
+        EXPECT_NEAR(
+            scene.pdfDirectLight(receiver, scene.makeSurfaceInteraction(ray, hit)), light.pdf,
+            1e-4F * light.pdf
+        );
     }
 }
 

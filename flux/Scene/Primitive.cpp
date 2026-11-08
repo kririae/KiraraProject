@@ -1,6 +1,5 @@
 #include "flux/Scene/Primitive.h"
 
-#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <numbers>
@@ -8,6 +7,7 @@
 #include <string>
 #include <utility>
 
+#include "flux/Core/MathUtils.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/Geometry.h"
 #include "flux/Scene/TXContext.h"
@@ -113,16 +113,17 @@ Primitive::Impl Primitive::getImpl() const {
     };
 }
 
+float Primitive::getVolumeScale() const noexcept {
+    auto const &t = transform_;
+    auto const rowX = Vec3f{t[0], t[1], t[2]};
+    auto const rowY = Vec3f{t[4], t[5], t[6]};
+    auto const rowZ = Vec3f{t[8], t[9], t[10]};
+    return std::abs(rowX.dot(cross(rowY, rowZ)));
+}
+
 float Primitive::estimateAreaScale() const noexcept {
     auto const scale = getScale(transform_);
     return (scale.x() * scale.y() + scale.x() * scale.z() + scale.y() * scale.z()) / 3.0F;
-}
-
-bool Primitive::hasNonUniformScale() const noexcept {
-    auto const scale = getScale(transform_);
-    auto const maximum = scale.hmax();
-    auto const minimum = std::min(scale.x(), std::min(scale.y(), scale.z()));
-    return maximum > 0.0F && maximum - minimum > maximum * 1.0e-4F;
 }
 
 float Primitive::estimatePower() const noexcept {

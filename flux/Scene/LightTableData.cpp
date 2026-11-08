@@ -21,7 +21,7 @@ void LightTableData::build(
     auto const contextPrimitives = context.getObjects<Primitive>();
     auto const numPrimitives = context.getIndexLimit<Primitive>();
     lights.points.reserve(contextLights.size());
-    lights.primAreaScales.assign(numPrimitives, 0.0F);
+    lights.primVolumeScales.assign(numPrimitives, 0.0F);
     slots.handles.reserve(contextLights.size() + numPrimitives);
     slots.primSlots.assign(numPrimitives, invalidSlot);
 
@@ -71,14 +71,8 @@ void LightTableData::build(
         if (!primitive->isLight())
             continue;
 
-        if (primitive->hasNonUniformScale())
-            LogWarn(
-                "LightTableData: emissive primitive {} has non-uniform scale; using its average "
-                "scale for light sampling",
-                primitive->getContextId()
-            );
         auto const index = context.getIndex<Primitive>(primitive->getContextId());
-        lights.primAreaScales[index] = primitive->estimateAreaScale();
+        lights.primVolumeScales[index] = primitive->getVolumeScale();
         slots.primSlots[index] =
             addSlot({.type = LightType::Primitive, .index = index}, primitive->estimatePower());
     }
@@ -96,7 +90,7 @@ void LightTableData::build(
 
 void LightTableData::clear() noexcept {
     lights.points.clear();
-    lights.primAreaScales.clear();
+    lights.primVolumeScales.clear();
     slots.handles.clear();
     slots.cdf.clear();
     slots.primSlots.clear();

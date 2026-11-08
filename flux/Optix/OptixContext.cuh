@@ -96,6 +96,15 @@ KIRA_DEVICE inline Vec3f OptixContext::Impl::transformNormalToWorld(
     return transformTransposeVec(transform, normal);
 }
 
+KIRA_DEVICE inline Vec3f OptixContext::Impl::transformNormalToObject(
+    std::uint32_t primitiveIndex, Vec3f const &normal
+) const noexcept {
+    auto const instance =
+        optixGetInstanceTraversableFromIAS(traversable, instanceIndices[primitiveIndex]);
+    auto const *transform = optixGetInstanceTransformFromHandle(instance);
+    return transformTransposeVec(transform, normal);
+}
+
 KIRA_DEVICE inline float OptixContext::Impl::pdfDirectLight(
     LightSamplingContext const &ctx, SurfaceInteraction const &isect
 ) const noexcept {

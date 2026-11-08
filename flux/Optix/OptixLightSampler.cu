@@ -45,7 +45,7 @@ void OptixLightSampler::sync(
     Context const &context, OptixImageTextureTable imageTextures, float sceneRadius
 ) {
     points_.clear();
-    primAreaScales_.clear();
+    primVolumeScales_.clear();
     envMap_.clear();
     handles_.clear();
     cdf_.clear();
@@ -81,7 +81,7 @@ void OptixLightSampler::sync(
 
     table_.build(context, envMapPower);
     points_.copyFromHost(table_.lights.points, deletionQueue_);
-    primAreaScales_.copyFromHost(table_.lights.primAreaScales, deletionQueue_);
+    primVolumeScales_.copyFromHost(table_.lights.primVolumeScales, deletionQueue_);
     handles_.copyFromHost(table_.slots.handles, deletionQueue_);
     cdf_.copyFromHost(table_.slots.cdf, deletionQueue_);
     primSlots_.copyFromHost(table_.slots.primSlots, deletionQueue_);
@@ -161,7 +161,7 @@ OptixLightSampler::Impl OptixLightSampler::getImpl() const noexcept {
         .table =
             {
                 .points = points_.data(),
-                .primAreaScales = primAreaScales_.data(),
+                .primVolumeScales = primVolumeScales_.data(),
                 .envMap = envMap_.data(),
             },
         .handles = handles_.data(),

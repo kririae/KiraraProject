@@ -17,8 +17,8 @@ class Context;
 struct LightTable {
     /// Point lights by point-light index.
     PointLight::Impl const *points{};
-    /// World-area scale of each primitive, by primitive index.
-    float const *primAreaScales{};
+    /// Volume scale of each primitive, by primitive index.
+    float const *primVolumeScales{};
     EnvMapLight::Impl const *envMap{};
 };
 
@@ -31,9 +31,9 @@ struct LightTableData final : private Noncopyable {
         /// Point lights in Context ID order.
         std::vector<PointLight::Impl> points;
 
-        /// World-area scale of each primitive's transform by primitive index, or
-        /// zero for a primitive that is not a light.
-        std::vector<float> primAreaScales;
+        /// \c Primitive::getVolumeScale of each primitive by primitive index, or zero for a
+        /// primitive that is not a light.
+        std::vector<float> primVolumeScales;
     } lights;
 
     /// How a light is selected. A slot is a position in the selection distribution.

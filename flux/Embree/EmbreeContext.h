@@ -153,6 +153,17 @@ public:
         return transformVec(normalTransforms[primitiveIndex].data(), normal);
     }
 
+    /// \brief Maps a world-space normal to the geometry space of primitive \p primitiveIndex.
+    [[nodiscard]] Vec3f
+    transformNormalToObject(std::uint32_t primitiveIndex, Vec3f const &normal) const noexcept {
+        auto const &m = transforms[primitiveIndex];
+        return {
+            m[0] * normal.x() + m[4] * normal.y() + m[8] * normal.z(),
+            m[1] * normal.x() + m[5] * normal.y() + m[9] * normal.z(),
+            m[2] * normal.x() + m[6] * normal.y() + m[10] * normal.z(),
+        };
+    }
+
     /// \brief Returns the PDF of sampling \p isect from \p ctx.
     ///
     /// The PDF includes light selection.

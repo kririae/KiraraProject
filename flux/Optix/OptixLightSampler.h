@@ -76,7 +76,7 @@ private:
 
     // Per-light data.
     DeviceBuffer<PointLight::Impl> points_{getStream()};
-    DeviceBuffer<float> primAreaScales_{getStream()};
+    DeviceBuffer<float> primVolumeScales_{getStream()};
     DeviceBuffer<EnvMapLight::Impl> envMap_{getStream()};
 
     // After each successful sync, set iff the active environment map has an image texture, and

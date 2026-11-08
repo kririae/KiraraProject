@@ -126,6 +126,10 @@ public:
     [[nodiscard]] KIRA_DEVICE Vec3f
     transformNormalToWorld(std::uint32_t primitiveIndex, Vec3f const &normal) const noexcept;
 
+    /// \brief Maps a world-space normal to the geometry space of primitive \p primitiveIndex.
+    [[nodiscard]] KIRA_DEVICE Vec3f
+    transformNormalToObject(std::uint32_t primitiveIndex, Vec3f const &normal) const noexcept;
+
     /// \brief Returns the PDF of sampling \p isect from \p ctx.
     ///
     /// The PDF includes light selection.

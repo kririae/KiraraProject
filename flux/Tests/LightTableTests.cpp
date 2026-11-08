@@ -77,7 +77,7 @@ void makePointLight(flux::Context &context) {
 /// Checks that the slot maps and handles name each other for every primitive.
 void expectConsistentSlots(flux::SceneTableData const &scene, flux::LightTableData const &table) {
     ASSERT_EQ(table.slots.primSlots.size(), scene.primitives.size());
-    ASSERT_EQ(table.lights.primAreaScales.size(), scene.primitives.size());
+    ASSERT_EQ(table.lights.primVolumeScales.size(), scene.primitives.size());
 
     // A primitive with a slot has an EDF, and its handle names it.
     for (std::uint32_t index = 0; index < scene.primitives.size(); ++index) {
@@ -112,7 +112,7 @@ TEST(LightTableTests, BuildsEmptyTablesFromAnEmptyContext) {
     table.build(*context, std::nullopt);
 
     EXPECT_TRUE(table.lights.points.empty());
-    EXPECT_TRUE(table.lights.primAreaScales.empty());
+    EXPECT_TRUE(table.lights.primVolumeScales.empty());
     EXPECT_TRUE(table.slots.handles.empty());
     EXPECT_TRUE(table.slots.cdf.empty());
     EXPECT_TRUE(table.slots.primSlots.empty());
@@ -166,10 +166,10 @@ TEST(LightTableTests, IndexesEmittersByPrimitiveIndexAroundAHole) {
     // The emitter after the hole is selected by its own index.
     EXPECT_GT(getPmf(table, table.slots.primSlots[3]), 0.0F);
 
-    EXPECT_FLOAT_EQ(table.lights.primAreaScales[0], 1.0F);
-    EXPECT_FLOAT_EQ(table.lights.primAreaScales[1], 0.0F);
-    EXPECT_FLOAT_EQ(table.lights.primAreaScales[2], 0.0F);
-    EXPECT_FLOAT_EQ(table.lights.primAreaScales[3], 4.0F);
+    EXPECT_FLOAT_EQ(table.lights.primVolumeScales[0], 1.0F);
+    EXPECT_FLOAT_EQ(table.lights.primVolumeScales[1], 0.0F);
+    EXPECT_FLOAT_EQ(table.lights.primVolumeScales[2], 0.0F);
+    EXPECT_FLOAT_EQ(table.lights.primVolumeScales[3], 8.0F);
 }
 
 TEST(LightTableTests, RebuildingMatchesABuildFromScratch) {
@@ -194,7 +194,7 @@ TEST(LightTableTests, RebuildingMatchesABuildFromScratch) {
 
     expectConsistentSlots(scene, table);
     EXPECT_EQ(table.lights.points.size(), fresh.lights.points.size());
-    EXPECT_EQ(table.lights.primAreaScales, fresh.lights.primAreaScales);
+    EXPECT_EQ(table.lights.primVolumeScales, fresh.lights.primVolumeScales);
     EXPECT_EQ(table.slots.handles, fresh.slots.handles);
     EXPECT_EQ(table.slots.cdf, fresh.slots.cdf);
     EXPECT_EQ(table.slots.primSlots, fresh.slots.primSlots);

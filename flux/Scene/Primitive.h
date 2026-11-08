@@ -113,10 +113,11 @@ public:
     /// another table.
     [[nodiscard]] Impl getImpl() const;
 
+    /// \brief Returns the factor by which the transform scales volume.
+    [[nodiscard]] float getVolumeScale() const noexcept;
+
     /// \brief Estimates the object-to-world surface-area scale.
     [[nodiscard]] float estimateAreaScale() const noexcept;
-
-    [[nodiscard]] bool hasNonUniformScale() const noexcept;
 
     /// \brief Estimates total emitted power for light selection.
     [[nodiscard]] float estimatePower() const noexcept;
