@@ -36,7 +36,7 @@ For each new or changed comment, list in your reasoning each thing that it state
 2. If the code that the comment sits on does not decide it, delete it. A header, for example, decides neither a value that its source file chooses, nor a behavior that its contract does not promise.
 3. If you are not sure whether to keep it, delete it.
 4. If it lists the members of a set that other code defines, such as the functions that a backend provides or the cases of an enum, delete the list. It must change with every member, and no check fails when it does not.
-5. If you change a comment that an earlier change already edited, it states what other code decides. Delete it.
+5. If a change to other code makes you edit a comment, or you change a comment that an earlier change already edited, it states what other code decides. Delete it, however old it is.
 
 ## Bad comments
 
