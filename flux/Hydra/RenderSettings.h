@@ -11,7 +11,8 @@ PXR_NAMESPACE_OPEN_SCOPE
     ((maxDepth, "flux:maxDepth"))                                                                  \
     ((rrDepth, "flux:rrDepth"))                                                                    \
     ((rrProb, "flux:rrProb"))                                                                      \
-    ((sampler, "flux:sampler"))
+    ((sampler, "flux:sampler"))                                                                    \
+    ((shaderReorder, "flux:shaderReorder"))
 // clang-format on
 
 TF_DECLARE_PUBLIC_TOKENS(HdFluxRenderSettingsTokens, HDFLUX_RENDER_SETTINGS_TOKENS);

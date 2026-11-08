@@ -78,6 +78,7 @@ private:
     pxr::HdResourceRegistrySharedPtr resourceRegistry_;
     std::unique_ptr<HdFluxRenderParam> renderParam_;
     flux::PathIntegrator::Impl defaultIntegrator_;
+    bool defaultShaderReorder_;
     flux::SamplerType defaultSampler_;
     std::optional<unsigned int> settingsVersion_;
 };

@@ -89,6 +89,7 @@ HdFluxRenderDelegate::HdFluxRenderDelegate(
       resourceRegistry_(std::make_shared<pxr::HdResourceRegistry>()),
       renderParam_(std::make_unique<HdFluxRenderParam>(modulePath, mtlxRoot)),
       defaultIntegrator_(renderParam_->GetContext()->getActiveIntegrator()->getImpl()),
+      defaultShaderReorder_(renderParam_->GetContext()->getActiveIntegrator()->usesShaderReorder()),
       defaultSampler_(renderParam_->GetContext()->getActiveSampler()->getType()) {
     _PopulateDefaultSettings(GetRenderSettingDescriptors());
 }
@@ -207,14 +208,18 @@ void HdFluxRenderDelegate::applyPathSettings(flux::Context &context) const {
         getDepthSetting(*this, HdFluxRenderSettingsTokens->rrDepth, defaultIntegrator_.rrDepth);
     auto const rrProb =
         GetRenderSetting<float>(HdFluxRenderSettingsTokens->rrProb, defaultIntegrator_.rrProb);
+    auto const shaderReorder =
+        GetRenderSetting<bool>(HdFluxRenderSettingsTokens->shaderReorder, defaultShaderReorder_);
 
     auto const integrator = context.getActiveIntegrator();
     if (auto const active = integrator->getImpl();
-        active.maxDepth != maxDepth || active.rrDepth != rrDepth || active.rrProb != rrProb) {
+        active.maxDepth != maxDepth || active.rrDepth != rrDepth || active.rrProb != rrProb ||
+        integrator->usesShaderReorder() != shaderReorder) {
         auto props = kira::Properties{};
         props.set("max_depth", maxDepth);
         props.set("rr_depth", rrDepth);
         props.set("rr_prob", rrProb);
+        props.set("shader_reorder", shaderReorder);
         context.setActiveIntegrator(context.create<flux::PathIntegrator>(props));
         context.remove(integrator->getContextId());
     }
@@ -250,6 +255,9 @@ pxr::HdRenderSettingDescriptorList HdFluxRenderDelegate::GetRenderSettingDescrip
         {.name = "Sampler",
          .key = HdFluxRenderSettingsTokens->sampler,
          .defaultValue = pxr::VtValue(getSamplerToken(defaultSampler_))},
+        {.name = "Shader Execution Reordering",
+         .key = HdFluxRenderSettingsTokens->shaderReorder,
+         .defaultValue = pxr::VtValue(defaultShaderReorder_)},
     };
 }
 
