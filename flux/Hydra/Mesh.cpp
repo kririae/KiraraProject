@@ -24,6 +24,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 #include "flux/Hydra/Material.h"
 #include "flux/Hydra/RenderParam.h"
@@ -32,6 +33,7 @@
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
+#include "flux/Shading/EDF.h"
 
 PXR_NAMESPACE_USING_DIRECTIVE
 
@@ -207,14 +209,11 @@ template <typename Element, typename Array>
     return data;
 }
 
-[[nodiscard]] flux::Ref<flux::BSDF const>
-getBSDF(HdSceneDelegate &sceneDelegate, SdfPath const &materialId, HdFluxRenderParam const &param) {
-    auto const *const material = static_cast<HdFluxMaterial const *>(
+[[nodiscard]] HdFluxMaterial const *
+findMaterial(HdSceneDelegate &sceneDelegate, SdfPath const &materialId) {
+    return static_cast<HdFluxMaterial const *>(
         sceneDelegate.GetRenderIndex().GetSprim(HdPrimTypeTokens->material, materialId)
     );
-    if (!material || !material->GetBSDF())
-        return param.GetFallbackBSDF();
-    return material->GetBSDF();
 }
 
 void removePrimitive(flux::Context &context, flux::Ref<flux::Primitive> &primitive) {
@@ -298,7 +297,10 @@ void HdFluxMesh::Sync(
         if (primitive_) {
             primitive_->setTransform(transform_);
             primitive_->setVisible(IsVisible());
-            primitive_->setBSDF(getBSDF(*sceneDelegate, GetMaterialId(), param));
+            auto const *const material = findMaterial(*sceneDelegate, GetMaterialId());
+            auto const synced = material && material->GetBSDF();
+            primitive_->setBSDF(synced ? material->GetBSDF() : param.GetFallbackBSDF());
+            primitive_->setEDF(synced ? material->GetEDF() : nullptr);
         }
     } catch (std::exception const &error) { TF_WARN("%s: %s", id.GetText(), error.what()); }
 

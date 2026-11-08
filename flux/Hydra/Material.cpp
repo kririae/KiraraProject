@@ -12,6 +12,7 @@
 #include "flux/Hydra/RenderParam.h"
 #include "flux/Scene/Context.h"
 #include "flux/Shading/BSDF.h"
+#include "flux/Shading/EDF.h"
 #include "flux/Shading/Texture.h"
 
 PXR_NAMESPACE_USING_DIRECTIVE
@@ -42,22 +43,12 @@ generateShader(HdSceneDelegate &sceneDelegate, HdFluxRenderParam const &param, S
     return std::move(generation.instance);
 }
 
-void setShader(
-    flux::ShaderBSDF &bsdf, HdFluxRenderParam const &param,
-    std::optional<flux::ShaderInstance> instance
-) {
-    if (!instance) {
-        auto const &fallback = param.GetFallbackShaderInstance();
-        bsdf.setShader(fallback.spec, fallback.words, {});
-        return;
-    }
-
-    auto const context = param.GetContext();
+[[nodiscard]] std::vector<flux::Ref<flux::ImageTexture const>>
+createTextures(flux::Context &context, std::vector<flux::ImageTextureSpec> const &specs) {
     std::vector<flux::Ref<flux::ImageTexture const>> textures;
-    for (auto const &spec : instance->textures)
-        textures.push_back(context->create<flux::ImageTexture>(spec));
-
-    bsdf.setShader(instance->spec, std::move(instance->words), std::move(textures));
+    for (auto const &spec : specs)
+        textures.push_back(context.create<flux::ImageTexture>(spec));
+    return textures;
 }
 } // namespace
 
@@ -72,12 +63,18 @@ void HdFluxMaterial::Sync(
     auto &param = *static_cast<HdFluxRenderParam *>(renderParam);
 
     try {
+        auto const context = param.GetContext();
+        auto const &fallback = param.GetFallbackShaderInstance();
         if (!bsdf_) {
-            auto const &fallback = param.GetFallbackShaderInstance();
-            bsdf_ = param.GetContext()->create<flux::ShaderBSDF>(fallback.spec, fallback.words);
+            edf_ = context->create<flux::ShaderEDF>(fallback.spec, fallback.words);
+            bsdf_ = context->create<flux::ShaderBSDF>(fallback.spec, fallback.words);
         }
 
-        setShader(*bsdf_, param, generateShader(*sceneDelegate, param, id));
+        auto const generated = generateShader(*sceneDelegate, param, id);
+        auto const &instance = generated ? *generated : fallback;
+        auto const textures = createTextures(*context, instance.textures);
+        bsdf_->setShader(instance.spec, instance.words, textures);
+        edf_->setShader(instance.spec, instance.words, textures);
     } catch (std::exception const &error) { TF_WARN("%s: %s", id.GetText(), error.what()); }
 
     *dirtyBits = Clean;
@@ -86,3 +83,5 @@ void HdFluxMaterial::Sync(
 HdDirtyBits HdFluxMaterial::GetInitialDirtyBitsMask() const { return DirtyParams | DirtyResource; }
 
 flux::Ref<flux::BSDF const> HdFluxMaterial::GetBSDF() const { return bsdf_; }
+
+flux::Ref<flux::EDF const> HdFluxMaterial::GetEDF() const { return edf_; }

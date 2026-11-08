@@ -45,6 +45,7 @@
 #include <filesystem>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -949,6 +950,69 @@ TEST_F(RenderTests, DividesTheRadianceOfAnEditedNormalizedLightByItsNewArea) {
     );
     executeToConvergence();
     EXPECT_EQ(centerChannel(buffer_, 0), 0.0625F);
+}
+
+namespace {
+/// Returns a material whose \c mtlx surface is MaterialX's \c UsdPreviewSurface with the emissive
+/// color \p emissiveColor, or with the default one if it is empty.
+HdContainerDataSourceHandle makePreviewSurface(std::optional<GfVec3f> const &emissiveColor) {
+    static TfToken const surfaceName{"surface"};
+
+    auto surface = HdMaterialNodeSchema::Builder();
+    surface.SetNodeIdentifier(
+        HdRetainedTypedSampledDataSource<TfToken>::New(
+            TfToken{"ND_UsdPreviewSurface_surfaceshader"}
+        )
+    );
+    if (emissiveColor)
+        surface.SetParameters(
+            HdRetainedContainerDataSource::New(
+                TfToken{"emissiveColor"}, makeParameter(*emissiveColor)
+            )
+        );
+
+    return HdRetainedContainerDataSource::New(
+        HdMaterialSchema::GetSchemaToken(),
+        HdRetainedContainerDataSource::New(
+            TfToken{"mtlx"},
+            HdMaterialNetworkSchema::Builder()
+                .SetNodes(HdRetainedContainerDataSource::New(surfaceName, surface.Build()))
+                .SetTerminals(
+                    HdRetainedContainerDataSource::New(
+                        HdMaterialTerminalTokens->surface,
+                        makeConnection(surfaceName, TfToken{"surface"})
+                    )
+                )
+                .Build()
+        )
+    );
+}
+} // namespace
+
+TEST_F(RenderTests, FollowsEditsThatGiveAMaterialEmissionAndTakeItAway) {
+    scene_->AddPrims(
+        {{materialPath, HdPrimTypeTokens->material, makePreviewSurface({})},
+         {meshPath, HdPrimTypeTokens->mesh, bindMaterial(makeMesh(makeQuad(0.0F)))}}
+    );
+    executeToConvergence();
+    for (int channel = 0; channel < 3; ++channel)
+        EXPECT_EQ(centerChannel(buffer_, channel), 0.0F);
+
+    GfVec3f const emissiveColor{0.5F, 0.25F, 1.0F};
+    scene_->AddPrims(
+        {{materialPath, HdPrimTypeTokens->material, makePreviewSurface(emissiveColor)}}
+    );
+    scene_->DirtyPrims({{materialPath, HdMaterialSchema::GetDefaultLocator()}});
+    executeToConvergence();
+    for (int channel = 0; channel < 3; ++channel)
+        EXPECT_EQ(centerChannel(buffer_, channel), emissiveColor[channel]);
+
+    scene_->AddPrims({{materialPath, HdPrimTypeTokens->material, makePreviewSurface({})}});
+    scene_->DirtyPrims({{materialPath, HdMaterialSchema::GetDefaultLocator()}});
+    executeToConvergence();
+
+    for (int channel = 0; channel < 3; ++channel)
+        EXPECT_EQ(centerChannel(buffer_, channel), 0.0F);
 }
 
 namespace {
