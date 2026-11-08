@@ -85,12 +85,27 @@ extern "C" __device__ flux::OptixBSDFResult {callable}(
     return fluxExecute(words, context, wo, wi, eval, u1, u2);
 }}
 
+extern "C" __device__ float3 {edfCallable}(
+    unsigned int wordOffset, unsigned int textureOffset, float2 uv, float3 normal, float3 wo
+) {{
+    auto *words = const_cast<unsigned int *>(optixLaunchParams.callable.words) + wordOffset;
+    // The fields that the parameters lack stay zero, and the geometric normal is the shading normal.
+    flux::OptixShadingContext context{{}};
+    context.uv = uv;
+    context.normal = normal;
+    context.geometricNormal = normal;
+    context.textureOffset = textureOffset;
+    return fluxEvaluateEDF(words, context, wo);
+}}
+
 template <typename T, typename U> constexpr bool is_same_v = false;
 template <typename T> constexpr bool is_same_v<T, T> = true;
 static_assert(is_same_v<decltype({callable}), flux::OptixBSDFCallable>);
+static_assert(is_same_v<decltype({edfCallable}), flux::OptixEDFCallable>);
 )cuda",
         fmt::arg("prelude", preludeInclude), fmt::arg("material", materialInclude),
-        fmt::arg("callable", OptixBSDFCompiler::callableName)
+        fmt::arg("callable", OptixBSDFCompiler::callableName),
+        fmt::arg("edfCallable", OptixBSDFCompiler::edfCallableName)
     );
 }
 
@@ -192,7 +207,7 @@ std::vector<char> OptixBSDFCompiler::compile(std::string const &material) const 
     auto const nvrtcMilliseconds = millisecondsSince(start);
 
     LogInfo(
-        "OptixBSDFCompiler: compiled a BSDF in {:.1f} ms (Slang {:.1f} ms, NVRTC {:.1f} ms)",
+        "OptixBSDFCompiler: compiled a shader in {:.1f} ms (Slang {:.1f} ms, NVRTC {:.1f} ms)",
         slangMilliseconds + nvrtcMilliseconds, slangMilliseconds, nvrtcMilliseconds
     );
     return ir;

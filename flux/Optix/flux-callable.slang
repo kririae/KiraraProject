@@ -28,3 +28,9 @@ OptixBSDFResult fluxExecute(
     converted.sampleLobe = uint(result.sample.lobe);
     return converted;
 }
+
+[CudaDeviceExport]
+float3 fluxEvaluateEDF(uint* words, ShadingContext ctx, float3 wo)
+{
+    return makeEDF(words, ctx).evaluate(fluxToShadingFrame(ctx, wo));
+}

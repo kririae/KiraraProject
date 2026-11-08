@@ -267,6 +267,8 @@ public IBSDF makeBSDF(uint* words, ShadingContext ctx)
     return makeLambertianBSDF(
         fluxSampleTexture(ctx, 1, float2(0.5)).rgb, fluxToShadingFrame(ctx, fluxGetWorldNormal(ctx)));
 }
+
+public IEDF makeEDF(uint* words, ShadingContext ctx) { return EmptyEDF(); }
 )slang";
     constexpr std::array color{0.8F, 0.5F, 0.2F};
     auto const textures = std::array{
@@ -294,6 +296,8 @@ public IBSDF makeBSDF(uint* words, ShadingContext ctx)
     return makeLambertianBSDF(
         float3(uv.x, uv.x * uv.x, uv.y), fluxToShadingFrame(ctx, fluxGetWorldNormal(ctx)));
 }
+
+public IEDF makeEDF(uint* words, ShadingContext ctx) { return EmptyEDF(); }
 )slang";
 
     auto const mean = renderMean({.source = source}, {});
@@ -320,6 +324,8 @@ public IBSDF makeBSDF(uint* words, ShadingContext ctx)
     return makeLambertianBSDF(
         float3(0.2, 0.5, 0.8), fluxToShadingFrame(ctx, fluxGetWorldNormal(ctx)));
 }
+
+public IEDF makeEDF(uint* words, ShadingContext ctx) { return EmptyEDF(); }
 )slang";
     constexpr std::array color{0.2F, 0.5F, 0.8F};
     auto const instance = generateSmoothDiffuse();

@@ -1,7 +1,7 @@
 #pragma once
 
 /// \file flux/Optix/OptixBSDFCallable.h
-/// \brief The ABI between the megakernel and the direct callable of a BSDF.
+/// \brief The ABI between the megakernel and the direct callables of a shader.
 ///
 /// Includes only headers that NVRTC compiles: no kira and no standard library header.
 
@@ -54,6 +54,28 @@ using OptixBSDFCallable = OptixBSDFResult(
     unsigned int wordOffset, OptixShadingContext context, float3 wo, float3 wi, bool eval, float u1,
     float2 u2
 );
+
+/// \brief The number of 32-bit words that a call passes in registers, as its parameters in order
+/// fill them. A word past them goes through local memory.
+inline constexpr unsigned int callRegisterWords = 11;
+
+/// \brief The number of 32-bit words that the parameters of the function type \p Function occupy.
+template <typename Function> struct ParameterWords;
+
+template <typename Result, typename... Parameters> struct ParameterWords<Result(Parameters...)> {
+    static constexpr unsigned int value = (0U + ... + ((sizeof(Parameters) + 3U) / 4U));
+};
+
+/// \brief Evaluates the EDF whose parameter words start at \p wordOffset, and returns the radiance
+/// that it emits toward \p wo.
+///
+/// \p textureOffset, \p uv, and \p normal are the fields of \c OptixShadingContext of those names.
+/// \p normal and \p wo are in world space, and \p wo points away from the surface.
+using OptixEDFCallable = float3(
+    unsigned int wordOffset, unsigned int textureOffset, float2 uv, float3 normal, float3 wo
+);
+
+static_assert(ParameterWords<OptixEDFCallable>::value <= callRegisterWords);
 
 static_assert(
     sizeof(OptixShadingContext) == 3 * sizeof(float2) + 3 * sizeof(float3) + sizeof(unsigned int)

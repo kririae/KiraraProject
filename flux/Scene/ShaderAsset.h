@@ -9,7 +9,7 @@
 namespace flux {
 /// \brief What the source of a shader determines.
 struct ShaderAssetSpec {
-    /// \brief The Slang module that declares \c makeBSDF.
+    /// \brief The Slang module that declares \c makeBSDF and \c makeEDF.
     std::string source;
 
     /// \brief False only if the source provably gives an EDF that emits nothing, whatever the

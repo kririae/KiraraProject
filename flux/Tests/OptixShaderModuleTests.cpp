@@ -43,6 +43,8 @@ public IBSDF makeBSDF(uint* words, ShadingContext ctx)
 {
     return makeMixBSDF(EmptyBSDF(), EmptyBSDF(), asfloat(words[0]));
 }
+
+public IEDF makeEDF(uint* words, ShadingContext ctx) { return EmptyEDF(); }
 )slang";
 
 /// Calls a CUDA function that the compiler keeps as a call.
@@ -60,6 +62,8 @@ public IBSDF makeBSDF(uint* words, ShadingContext ctx)
 {
     return makeMixBSDF(EmptyBSDF(), EmptyBSDF(), sharedValue(asfloat(words[0])));
 }
+
+public IEDF makeEDF(uint* words, ShadingContext ctx) { return EmptyEDF(); }
 )slang";
 } // namespace
 
@@ -71,6 +75,17 @@ TEST(OptixShaderModule, BecomesAProgramGroupFromAMaterial) {
     flux::OptixShaderModule const module(device.context, ir);
 
     EXPECT_NE(module.getProgramGroup(), nullptr);
+}
+
+TEST(OptixShaderModule, HasASeparateProgramGroupForTheEDF) {
+    Device const device;
+    flux::OptixBSDFCompiler const compiler;
+
+    auto const ir = compiler.compile(material);
+    flux::OptixShaderModule const module(device.context, ir);
+
+    EXPECT_NE(module.getEDFProgramGroup(), nullptr);
+    EXPECT_NE(module.getEDFProgramGroup(), module.getProgramGroup());
 }
 
 TEST(OptixShaderModule, TwoSourcesThatDifferOnlyByACommentLinkIntoOnePipeline) {
@@ -118,7 +133,8 @@ TEST(OptixShaderPool, AddBuildsAModuleForEachOfSeveralMaterials) {
             {.source = fmt::format(
                  "import flux_bsdf;\nimport flux_context;\n"
                  "public IBSDF makeBSDF(uint* words, ShadingContext ctx)\n"
-                 "{{ return makeMixBSDF(EmptyBSDF(), EmptyBSDF(), asfloat(words[{}])); }}\n",
+                 "{{ return makeMixBSDF(EmptyBSDF(), EmptyBSDF(), asfloat(words[{}])); }}\n"
+                 "public IEDF makeEDF(uint* words, ShadingContext ctx) {{ return EmptyEDF(); }}\n",
                  word
              )}
         ));

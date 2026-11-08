@@ -7,7 +7,7 @@
 #include "flux/Core/Object.h"
 
 namespace flux {
-/// \brief Owns the module of a shader and its direct callable program group.
+/// \brief Owns the module of a shader and the program groups of its BSDF and EDF callables.
 ///
 /// The module borrows its OptiX device context, which must outlive it.
 class OptixShaderModule final : private Noncopyable {
@@ -22,6 +22,8 @@ public:
 
     [[nodiscard]] OptixProgramGroup getProgramGroup() const noexcept { return program_; }
 
+    [[nodiscard]] OptixProgramGroup getEDFProgramGroup() const noexcept { return edfProgram_; }
+
 private:
     struct EmptyState {};
 
@@ -29,5 +31,6 @@ private:
 
     OptixModule module_{};
     OptixProgramGroup program_{};
+    OptixProgramGroup edfProgram_{};
 };
 } // namespace flux

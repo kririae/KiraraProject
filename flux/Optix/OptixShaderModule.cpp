@@ -47,9 +47,23 @@ OptixShaderModule::OptixShaderModule(OptixDeviceContext deviceContext, std::span
         },
     };
     program_ = createProgramGroup(deviceContext, callable);
+
+    auto const edfCallable = OptixProgramGroupDesc{
+        .kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES,
+        .flags = OPTIX_PROGRAM_GROUP_FLAGS_NONE,
+        .callables = {
+            .moduleDC = module_,
+            .entryFunctionNameDC = OptixBSDFCompiler::edfCallableName,
+            .moduleCC = nullptr,
+            .entryFunctionNameCC = nullptr,
+        },
+    };
+    edfProgram_ = createProgramGroup(deviceContext, edfCallable);
 }
 
 OptixShaderModule::~OptixShaderModule() {
+    if (edfProgram_)
+        optixCheck<false>(optixProgramGroupDestroy(edfProgram_));
     if (program_)
         optixCheck<false>(optixProgramGroupDestroy(program_));
     if (module_)
