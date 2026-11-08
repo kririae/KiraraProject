@@ -22,7 +22,7 @@
 #include "flux/Optix/OptixMegaKernelModule.h"
 #include "flux/Optix/OptixProgram.h"
 #include "flux/Optix/OptixSbt.h"
-#include "flux/Optix/OptixShaderBSDFBinding.h"
+#include "flux/Optix/OptixShaderBinding.h"
 #include "flux/Optix/OptixShaderPool.h"
 #include "flux/Optix/OptixTextureObject.h"
 #include "flux/Optix/OptixUtils.h"
@@ -112,7 +112,7 @@ public:
 
     DeviceBuffer<std::uint32_t> shaderWords{getStream()};
     DeviceBuffer<std::uint32_t> shaderTextureIndices{getStream()};
-    DeviceBuffer<OptixShaderBSDFBinding> shaderBSDFBindings{getStream()};
+    DeviceBuffer<OptixShaderBinding> shaderBSDFBindings{getStream()};
     unsigned int shaderSlotBits{};
 
 public:
@@ -263,7 +263,7 @@ void OptixContext::pImpl::syncShaders() {
 
     std::vector<std::uint32_t> hostWords;
     std::vector<std::uint32_t> hostTextureIndices;
-    std::vector<OptixShaderBSDFBinding> hostBindings(context.getIndexLimit<BSDF>());
+    std::vector<OptixShaderBinding> hostBindings(context.getIndexLimit<BSDF>());
     for (auto const &bsdf : context.getObjects<BSDF>()) {
         if (bsdf->getType() != BSDFType::Shader)
             continue;

@@ -15,7 +15,7 @@
 #include "flux/Optix/OptixCallableLaunchParams.h"
 #include "flux/Optix/OptixImageTexture.h"
 #include "flux/Optix/OptixLightSampler.h"
-#include "flux/Optix/OptixShaderBSDFBinding.h"
+#include "flux/Optix/OptixShaderBinding.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/SceneTable.h"
 #include "flux/Shading/Interaction.h"
@@ -92,7 +92,7 @@ struct OptixContext::Impl {
 
     /// Shader binding of each BSDF, by BSDF index. An index without a live shader BSDF holds a
     /// zero binding.
-    OptixShaderBSDFBinding const *shaderBSDFBindings{};
+    OptixShaderBinding const *shaderBSDFBindings{};
 
     /// The number of bits that hold every shader slot, which is 0 for at most one slot.
     unsigned int shaderSlotBits{};
