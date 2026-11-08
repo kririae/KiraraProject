@@ -28,7 +28,8 @@ enum class FilmChannels : std::uint32_t {
     Normal = 1U << 0U,
     Albedo = 1U << 1U,
     Color = 1U << 2U,
-    All = (1U << 0U) | (1U << 1U) | (1U << 2U),
+    Depth = 1U << 3U,
+    All = (1U << 0U) | (1U << 1U) | (1U << 2U) | (1U << 3U),
 };
 
 template <> inline constexpr bool isEnumFlags<FilmChannels> = true;
@@ -61,6 +62,16 @@ struct AlbedoChannel {
     static constexpr FilmChannels flag = FilmChannels::Albedo;
 };
 
+/// \brief Describes the camera-space depth channel of primary hits.
+///
+/// A sample that hits a surface adds its depth along the camera's forward axis to x and 1 to y,
+/// weighted as the samples of every channel are. A sample that misses adds nothing. x / y is then
+/// the mean depth of the hits, and y is 0 where every sample missed.
+struct DepthChannel {
+    using Value = Vec2f;
+    static constexpr FilmChannels flag = FilmChannels::Depth;
+};
+
 /// \brief Describes the accumulated scene-linear color channel.
 struct ColorChannel {
     using Value = Spectrum;
@@ -68,7 +79,7 @@ struct ColorChannel {
 };
 
 /// \brief Type list of all film channels supported by the renderer.
-using FilmChannelTypes = detail::TypeList<ColorChannel, NormalChannel, AlbedoChannel>;
+using FilmChannelTypes = detail::TypeList<ColorChannel, NormalChannel, AlbedoChannel, DepthChannel>;
 
 /// \brief Stores one channel-specific element for every type in \c Channels.
 ///

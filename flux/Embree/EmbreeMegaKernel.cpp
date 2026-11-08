@@ -36,6 +36,7 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
     Vec3f colorSum{};
     Vec3f normalSum{};
     Vec3f albedoSum{};
+    Vec2f depthSum{};
     auto const writesColor = params.film.hasChannel<ColorChannel>();
 
     for (std::uint32_t batchIndex = 0; batchIndex < params.batchSize; ++batchIndex) {
@@ -76,8 +77,10 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
             auto const wo = -traced.direction;
             if (writesColor)
                 params.integrator.onEmitterHit(state, params.scene, primitive, isect, wo);
-            if (isPrimary)
+            if (isPrimary) {
                 normalSum = normalSum + isect.shadingNormal;
+                depthSum = depthSum + Vec2f{params.camera.getDepth(isect.position), 1.0F};
+            }
             if (!primitive.hasBSDF()) {
                 params.integrator.onSurfaceHit(state);
                 break;
@@ -154,5 +157,6 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
     params.film.accumulate<ColorChannel>(pixel, colorSum * sampleWeight);
     params.film.accumulate<NormalChannel>(pixel, normalSum * sampleWeight);
     params.film.accumulate<AlbedoChannel>(pixel, albedoSum * sampleWeight);
+    params.film.accumulate<DepthChannel>(pixel, depthSum * sampleWeight);
 }
 } // namespace flux::embree

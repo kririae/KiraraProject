@@ -136,8 +136,13 @@ struct ShadowQuery {
             state, optixLaunchParams.scene, primitive, isect, wo
         );
     if (isPrimary) {
+        auto const pixel = optixLaunchParams.getLaunchSample(index).pixel;
         optixLaunchParams.film.accumulate<flux::NormalChannel>(
-            optixLaunchParams.getLaunchSample(index).pixel, isect.shadingNormal * sampleWeight
+            pixel, isect.shadingNormal * sampleWeight
+        );
+        auto const depth = optixLaunchParams.camera.getDepth(isect.position);
+        optixLaunchParams.film.accumulate<flux::DepthChannel>(
+            pixel, flux::Vec2f{depth, 1.0F} * sampleWeight
         );
     }
     if (!primitive.hasBSDF()) {

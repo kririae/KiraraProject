@@ -133,6 +133,12 @@ public:
         Vec2f const &rasterPosition, Vec2f const &lensSample, Vec2u const &resolution
     ) const noexcept;
 
+    /// \brief Returns the distance of world-space \p point from the lens along the viewing
+    /// direction.
+    [[nodiscard]] KIRA_HOST_DEVICE float getDepth(Vec3f const &point) const noexcept {
+        return (point - position).dot(forward);
+    }
+
     /// \brief Returns the initial footprint for normalized world-space \p direction.
     /// \pre \p resolution has a nonzero height.
     [[nodiscard]] KIRA_HOST_DEVICE inline RayFootprint
