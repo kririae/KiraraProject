@@ -2,6 +2,7 @@
 
 #include <array>
 #include <filesystem>
+#include <string>
 #include <string_view>
 
 #include "TestUtils.h"
@@ -41,30 +42,27 @@ TEST_F(ImageAssetTests, UsesColorSpaceInPoolKey) {
     auto const linear = pool.getOrCreate({.path = imagePath});
     auto const srgb = pool.getOrCreate({
         .path = imagePath,
-        .colorSpace = flux::ImageColorSpace::SRGB,
+        .colorSpace = std::string{flux::srgbTexture},
     });
 
     EXPECT_NE(linear, srgb);
     EXPECT_NE(linear->getId(), srgb->getId());
 }
 
-TEST_F(ImageAssetTests, ChoosesSRGBForUNorm8WithAtLeastThreeChannels) {
+TEST_F(ImageAssetTests, ChoosesSRGBTextureForUNorm8WithAtLeastThreeChannels) {
     struct Case {
         std::uint8_t channels;
         flux::ImageComponentType type;
-        flux::ImageColorSpace expected;
+        std::string_view expected;
     };
-    using flux::ImageColorSpace;
     using flux::ImageComponentType;
+    constexpr auto srgb = flux::srgbTexture;
     auto const componentNames = std::array<std::string_view, 4>{"R", "G", "B", "A"};
     auto const pixels = std::array{0.25F, 0.5F, 0.75F, 1.0F};
     auto const cases = std::array{
-        Case{1, ImageComponentType::UNorm8, ImageColorSpace::Linear},
-        Case{2, ImageComponentType::UNorm8, ImageColorSpace::Linear},
-        Case{3, ImageComponentType::UNorm8, ImageColorSpace::SRGB},
-        Case{4, ImageComponentType::UNorm8, ImageColorSpace::SRGB},
-        Case{3, ImageComponentType::Float16, ImageColorSpace::Linear},
-        Case{3, ImageComponentType::Float32, ImageColorSpace::Linear},
+        Case{1, ImageComponentType::UNorm8, ""},   Case{2, ImageComponentType::UNorm8, ""},
+        Case{3, ImageComponentType::UNorm8, srgb}, Case{4, ImageComponentType::UNorm8, srgb},
+        Case{3, ImageComponentType::Float16, ""},  Case{3, ImageComponentType::Float32, ""},
     };
     for (auto const &[channels, type, expected] : cases) {
         SCOPED_TRACE(

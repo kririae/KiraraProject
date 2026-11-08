@@ -3,7 +3,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include "flux/Core/ConcurrentPool.h"
@@ -24,10 +27,18 @@ enum class ImageColorSpace : std::uint8_t {
     SRGB,
 };
 
-/// \brief Image file and its color space.
+/// \brief OCIO name of the color space that ImageAssetPool converts every image to.
+inline constexpr std::string_view linearRec709{"lin_rec709"};
+
+/// \brief OCIO name of the color space that an 8-bit image stays stored in.
+inline constexpr std::string_view srgbTexture{"srgb_texture"};
+
+/// \brief Image file and the OCIO name of the color space of its color components.
+///
+/// An empty name is \c linearRec709.
 struct ImageAssetSpec {
     std::filesystem::path path;
-    ImageColorSpace colorSpace{ImageColorSpace::Linear};
+    std::string colorSpace;
 
     [[nodiscard]] friend bool operator==(ImageAssetSpec const &, ImageAssetSpec const &) = default;
 };
@@ -101,9 +112,9 @@ public:
 
     /// \brief Returns the color space that the header of the file at \p path implies.
     ///
-    /// An image of 8-bit components with at least three channels is sRGB. Any other image, and a
-    /// file with no readable header, is linear.
-    [[nodiscard]] ImageColorSpace chooseColorSpace(std::filesystem::path const &path) const;
+    /// An image of 8-bit components with at least three channels is \c srgbTexture. Any other
+    /// image, and a file with no readable header, has no color space, which is the empty name.
+    [[nodiscard]] std::string chooseColorSpace(std::filesystem::path const &path) const;
 
     /// \brief Drops every asset that only this pool references.
     ///
@@ -119,8 +130,8 @@ private:
     struct SpecHash {
         [[nodiscard]] std::size_t operator()(ImageAssetSpec const &spec) const noexcept {
             auto const pathHash = std::filesystem::hash_value(spec.path);
-            auto const colorSpace = static_cast<std::size_t>(spec.colorSpace);
-            return pathHash * 31U + colorSpace;
+            auto const colorSpaceHash = std::hash<std::string>{}(spec.colorSpace);
+            return pathHash * 31U + colorSpaceHash;
         }
     };
 

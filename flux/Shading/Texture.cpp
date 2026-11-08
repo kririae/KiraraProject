@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "flux/Scene/Context.h"
 #include "flux/Scene/ImageAsset.h"
@@ -39,16 +40,16 @@ parseAddressMode(kira::Properties const &props, std::string_view property) {
 [[nodiscard]] ImageTextureSpec parseSpec(TXContext &tx, kira::Properties const &props) {
     auto const path = props.use<std::filesystem::path>("path");
     auto const colorSpace = props.use_or<std::string>("color_space", "linear");
-    auto imageColorSpace = ImageColorSpace::Linear;
+    auto imageColorSpace = std::string{linearRec709};
     if (colorSpace == "auto")
         imageColorSpace =
             tx.getImageAssetPool().chooseColorSpace(tx.getFileResolver().resolve(path));
     else if (colorSpace == "srgb")
-        imageColorSpace = ImageColorSpace::SRGB;
+        imageColorSpace = srgbTexture;
     else if (colorSpace != "linear")
         throw kira::Anyhow("ImageTexture: unsupported color space '{}'", colorSpace);
     return {
-        .image = {.path = path, .colorSpace = imageColorSpace},
+        .image = {.path = path, .colorSpace = std::move(imageColorSpace)},
         .addressModes =
             {parseAddressMode(props, "address_mode_u"), parseAddressMode(props, "address_mode_v")},
         .filterMode = parseFilterMode(props),

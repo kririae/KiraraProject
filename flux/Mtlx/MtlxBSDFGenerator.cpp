@@ -310,9 +310,10 @@ void appendWords(
     auto const fileInput = node.getInput("file");
     auto const colorSpace =
         fileInput ? fileInput->getActiveColorSpace() : node.getActiveColorSpace();
-    if (isColor && colorSpace == "srgb_texture")
-        spec.image.colorSpace = ImageColorSpace::SRGB;
-    else if (isColor && !colorSpace.empty() && colorSpace != "lin_rec709")
+    spec.image.colorSpace = std::string{linearRec709};
+    if (isColor && colorSpace == srgbTexture)
+        spec.image.colorSpace = std::string{srgbTexture};
+    else if (isColor && !colorSpace.empty() && colorSpace != linearRec709)
         warn(fmt::format("has the color space '{}', which becomes linear", colorSpace));
 
     auto const addressMode = [&](std::string const &input) {

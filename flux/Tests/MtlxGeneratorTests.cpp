@@ -388,7 +388,7 @@ TEST(MtlxGeneratorTests, AnImageNodeSetsTheSpecOfItsTexture) {
     EXPECT_EQ(
         instance.textures[0],
         (flux::ImageTextureSpec{
-            .image = {.path = "a.png", .colorSpace = flux::ImageColorSpace::SRGB},
+            .image = {.path = "a.png", .colorSpace = std::string{flux::srgbTexture}},
             .addressModes =
                 {flux::ImageTextureAddressMode::Clamp, flux::ImageTextureAddressMode::Mirror},
             .filterMode = flux::ImageTextureFilterMode::Point,
@@ -409,5 +409,5 @@ TEST(MtlxGeneratorTests, AFloatImageIsLinearWhateverItsFileSays) {
     auto const instance = generate(dataImageDocument);
 
     ASSERT_EQ(instance.textures.size(), 1U);
-    EXPECT_EQ(instance.textures[0].image.colorSpace, flux::ImageColorSpace::Linear);
+    EXPECT_EQ(instance.textures[0].image.colorSpace, flux::linearRec709);
 }

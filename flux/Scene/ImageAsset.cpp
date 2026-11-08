@@ -24,7 +24,7 @@ namespace {
 std::atomic_size_t nextImageAssetId{0};
 
 constexpr auto srgbRec709 = "srgb_rec709_scene";
-constexpr auto linearRec709 = "lin_rec709_scene";
+constexpr auto linearRec709Scene = "lin_rec709_scene";
 
 /// Raised for a file that is not a well-formed image. The message is the reason.
 struct BadImage final : std::runtime_error {
@@ -125,7 +125,7 @@ ImageAssetPool::pImpl::pImpl() {
             throw kira::Anyhow("ImageAssetPool: failed to configure the OpenImageIO tile cache");
         if (!imageCache->attribute("automip", 1))
             throw kira::Anyhow("ImageAssetPool: failed to enable OpenImageIO mip generation");
-        if (!imageCache->attribute("colorspace", linearRec709))
+        if (!imageCache->attribute("colorspace", linearRec709Scene))
             throw kira::Anyhow("ImageAssetPool: failed to configure the working color space");
         if (!imageCache->attribute("unassociatedalpha", 1))
             throw kira::Anyhow("ImageAssetPool: failed to configure straight alpha");
@@ -189,7 +189,7 @@ ImageAsset::pImpl::pImpl(
 
     if (colorSpace == ImageColorSpace::SRGB) {
         colorTransformId = textureSystem->get_colortransform_id(
-            OIIO::ustring{srgbRec709}, OIIO::ustring{linearRec709}
+            OIIO::ustring{srgbRec709}, OIIO::ustring{linearRec709Scene}
         );
         if (colorTransformId < 0)
             throw kira::Anyhow("ImageAsset: failed to create the sRGB color transform");
@@ -278,7 +278,7 @@ std::vector<ImageAsset::ImageBuffer> ImageAsset::readMipChain() const {
             encodedSpec.format = OIIO::TypeDesc::UINT8;
             auto encoded = OIIO::ImageBuf{encodedSpec};
             if (!OIIO::ImageBufAlgo::colorconvert(
-                    encoded, image, linearRec709, srgbRec709, /* unpremult = */ false
+                    encoded, image, linearRec709Scene, srgbRec709, /* unpremult = */ false
                 ))
                 throw kira::Anyhow(
                     "ImageAsset: failed to encode mip level {} for '{}': {}", level,
@@ -313,14 +313,17 @@ Ref<ImageAsset const> ImageAssetPool::getOrCreate(ImageAssetSpec const &spec) {
     auto canonical = spec;
     if (!spec.path.empty())
         canonical.path = canonicalize(spec.path);
+    if (canonical.colorSpace.empty())
+        canonical.colorSpace = linearRec709;
     return assets_.acquire(canonical, [&] {
-        auto const &textureSystem = canonical.colorSpace == ImageColorSpace::SRGB
+        auto const colorSpace =
+            canonical.colorSpace == srgbTexture ? ImageColorSpace::SRGB : ImageColorSpace::Linear;
+        auto const &textureSystem = colorSpace == ImageColorSpace::SRGB
                                         ? pImpl_->srgbTextureSystem
                                         : pImpl_->linearTextureSystem;
         auto const create = [&](std::filesystem::path const &path, bool placeholder) {
             return Ref<ImageAsset const>{new ImageAsset(
-                std::make_unique<ImageAsset::pImpl>(textureSystem, path, canonical.colorSpace),
-                placeholder
+                std::make_unique<ImageAsset::pImpl>(textureSystem, path, colorSpace), placeholder
             )};
         };
         if (canonical.path.empty())
@@ -337,16 +340,16 @@ Ref<ImageAsset const> ImageAssetPool::getOrCreate(ImageAssetSpec const &spec) {
     });
 }
 
-ImageColorSpace ImageAssetPool::chooseColorSpace(std::filesystem::path const &path) const {
+std::string ImageAssetPool::chooseColorSpace(std::filesystem::path const &path) const {
     auto const imageCache = pImpl_->linearTextureSystem->imagecache();
     auto const *spec = imageCache->imagespec(OIIO::ustring{canonicalize(path).string()});
     if (!spec) {
         (void)imageCache->geterror();
-        return ImageColorSpace::Linear;
+        return {};
     }
 
     auto const isUNorm8 = chooseComponentType(*spec) == ImageComponentType::UNorm8;
-    return isUNorm8 && spec->nchannels >= 3 ? ImageColorSpace::SRGB : ImageColorSpace::Linear;
+    return isUNorm8 && spec->nchannels >= 3 ? std::string{srgbTexture} : std::string{};
 }
 
 void ImageAssetPool::collectGarbage() {
