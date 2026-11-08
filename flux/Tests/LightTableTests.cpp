@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <vector>
 
 #include "TestUtils.h"
 #include "flux/Sampling/LightPowerDistribution.h"
@@ -41,6 +42,12 @@ namespace {
     kira::Properties properties;
     properties.set("radiance", radiance);
     return context.create<flux::ConstantEDF>(properties);
+}
+
+[[nodiscard]] flux::Ref<flux::EDF> makeShaderEDF(flux::Context &context) {
+    return context.create<flux::ShaderEDF>(
+        flux::ShaderAssetSpec{.source = "a"}, std::vector<std::uint32_t>{}
+    );
 }
 
 [[nodiscard]] std::array<float, 12> scaled(float s) {
@@ -111,6 +118,24 @@ TEST(LightTableTests, BuildsEmptyTablesFromAnEmptyContext) {
     EXPECT_EQ(table.slots.envMapSlot, flux::LightTableData::invalidSlot);
 }
 
+TEST(LightTableTests, GivesNoSlotToAPrimitiveWithAShaderEDF) {
+    auto context = flux::Context::create();
+    auto const mesh = context->create<flux::TriangleMesh>(triangle());
+    (void)makePrimitive(*context, mesh, makeShaderEDF(*context));
+    (void)makePrimitive(*context, mesh, makeEDF(*context, {1.0F, 1.0F, 1.0F}));
+
+    auto scene = flux::SceneTableData{};
+    scene.build(*context);
+    auto table = flux::LightTableData{};
+    table.build(*context, std::nullopt);
+
+    expectConsistentSlots(scene, table);
+    EXPECT_TRUE(scene.primitives[0].hasEDF());
+    EXPECT_EQ(table.slots.primSlots[0], flux::LightTableData::invalidSlot);
+    EXPECT_NE(table.slots.primSlots[1], flux::LightTableData::invalidSlot);
+    EXPECT_EQ(table.slots.handles.size(), 1);
+}
+
 TEST(LightTableTests, IndexesEmittersByPrimitiveIndexAroundAHole) {
     auto context = flux::Context::create();
     auto const mesh = context->create<flux::TriangleMesh>(triangle());
@@ -172,18 +197,22 @@ TEST(LightTableTests, RebuildingMatchesABuildFromScratch) {
     EXPECT_EQ(table.slots.envMapSlot, flux::LightTableData::invalidSlot);
 }
 
-TEST(LightTableTests, KeepsAZeroPowerEmitterWithZeroProbability) {
+TEST(LightTableTests, GivesNoSlotAndNoDeviceEDFToAnEmitterThatEmitsNothing) {
     auto context = flux::Context::create();
     auto const mesh = context->create<flux::TriangleMesh>(triangle());
     (void)makePrimitive(*context, mesh, makeEDF(*context, {0.0F, 0.0F, 0.0F}));
-    makePointLight(*context);
+    (void)makePrimitive(*context, mesh, makeEDF(*context, {1.0F, 1.0F, 1.0F}));
 
+    auto scene = flux::SceneTableData{};
+    scene.build(*context);
     auto table = flux::LightTableData{};
     table.build(*context, std::nullopt);
 
-    auto const slot = table.slots.primSlots[0];
-    ASSERT_NE(slot, flux::LightTableData::invalidSlot);
-    EXPECT_FLOAT_EQ(getPmf(table, slot), 0.0F);
+    expectConsistentSlots(scene, table);
+    EXPECT_FALSE(scene.primitives[0].hasEDF());
+    EXPECT_EQ(table.slots.primSlots[0], flux::LightTableData::invalidSlot);
+    EXPECT_TRUE(scene.primitives[1].hasEDF());
+    EXPECT_FLOAT_EQ(getPmf(table, table.slots.primSlots[1]), 1.0F);
 }
 
 TEST(LightTableTests, DropsEmittersBeforeOtherLightsAtTheCap) {

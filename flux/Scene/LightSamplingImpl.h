@@ -40,7 +40,7 @@ template <typename Scene>
     // Convert the geometry-space area density to world-space solid angle.
     return {
         .radiance = scene.table.getEDF(prim.getEDFIndex())
-                        .evaluate({
+                        .storage.constant.evaluate({
                             .geometricNormal = n,
                             .wo = -wi,
                         }),

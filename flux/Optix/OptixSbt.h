@@ -28,10 +28,14 @@ public:
 
     /// \brief Rebuilds the table for the groups of \p module and \p shaderModules.
     ///
-    /// \param shaderModules In slot order: slot \c s is callables record \c s.
+    /// \param shaderModules In slot order: slot \c s is callables record \c s, which holds the
+    ///        BSDF callable.
+    /// \param edfModules In EDF slot order: EDF slot \c e is callables record \c s + \c e, where
+    ///        \c s is the number of \p shaderModules.
     void build(
         OptixMegaKernelModule const &module,
-        std::span<std::shared_ptr<OptixShaderModule const> const> shaderModules
+        std::span<std::shared_ptr<OptixShaderModule const> const> shaderModules,
+        std::span<std::shared_ptr<OptixShaderModule const> const> edfModules
     );
 
     /// \brief Returns the populated shader binding table.

@@ -8,6 +8,7 @@
 #include "flux/Scene/Context.h"
 #include "flux/Scene/ShaderAsset.h"
 #include "flux/Shading/BSDF.h"
+#include "flux/Shading/EDF.h"
 #include "flux/Shading/Texture.h"
 #include "kira/Properties.h"
 
@@ -37,4 +38,28 @@ TEST(ShaderAssetTests, RejectsATextureOfAnotherContext) {
         ),
         std::invalid_argument
     );
+}
+
+TEST(ShaderAssetTests, ShadesABSDFAndAnEDFFromOneAsset) {
+    auto context = flux::Context::create();
+    flux::ShaderAssetSpec const spec{.source = "a"};
+
+    auto const bsdf = context->create<flux::ShaderBSDF>(spec, std::vector<std::uint32_t>{});
+    auto const edf = context->create<flux::ShaderEDF>(spec, std::vector<std::uint32_t>{});
+
+    EXPECT_EQ(bsdf->getAsset(), edf->getAsset());
+}
+
+TEST(ShaderAssetTests, EstimatesZeroLuminanceForAShaderEDFOnlyIfItCannotEmit) {
+    auto context = flux::Context::create();
+    auto const emits = context->create<flux::ShaderEDF>(
+        flux::ShaderAssetSpec{.source = "emits"}, std::vector<std::uint32_t>{}
+    );
+    auto const emitsNothing = context->create<flux::ShaderEDF>(
+        flux::ShaderAssetSpec{.source = "emitsNothing", .mayEmit = false},
+        std::vector<std::uint32_t>{}
+    );
+
+    EXPECT_EQ(emits->estimateLuminance(), 1.0F);
+    EXPECT_EQ(emitsNothing->estimateLuminance(), 0.0F);
 }

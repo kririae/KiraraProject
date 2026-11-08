@@ -101,8 +101,9 @@ public:
 public:
     // Shaders. Modules are memoized by ShaderAsset ID. The rest is rebuilt on every sync.
 
-    /// Makes the pool hold exactly the assets of the live shader BSDFs, gives each a slot, and
-    /// uploads the buffers that the callables read.
+    /// Makes the pool hold exactly the assets of the live shader BSDFs and shader EDFs, gives the
+    /// assets of the BSDFs a slot and those of the EDFs an EDF slot, and uploads the buffers that
+    /// the callables read.
     void syncShaders();
 
     OptixShaderPool shaderPool{deviceContext};
@@ -110,9 +111,13 @@ public:
     /// The ID of the asset at each slot.
     std::vector<std::size_t> shaderSlotIds;
 
+    /// The ID of the asset at each EDF slot.
+    std::vector<std::size_t> shaderEDFSlotIds;
+
     DeviceBuffer<std::uint32_t> shaderWords{getStream()};
     DeviceBuffer<std::uint32_t> shaderTextureIndices{getStream()};
     DeviceBuffer<OptixShaderBinding> shaderBSDFBindings{getStream()};
+    DeviceBuffer<OptixShaderBinding> shaderEDFBindings{getStream()};
     unsigned int shaderSlotBits{};
 
 public:
@@ -190,6 +195,7 @@ OptixContext::Impl OptixContext::getImpl() const noexcept {
                 .edfs = pImpl_->edfs.data(),
             },
         .shaderBSDFBindings = pImpl_->shaderBSDFBindings.data(),
+        .shaderEDFBindings = pImpl_->shaderEDFBindings.data(),
         .shaderSlotBits = pImpl_->shaderSlotBits,
         .lightSampler = pImpl_->lightSampler.getImpl(),
     };
@@ -244,44 +250,83 @@ void OptixContext::pImpl::buildTables() {
 }
 
 void OptixContext::pImpl::syncShaders() {
-    std::map<std::size_t, Ref<ShaderAsset const>> live;
+    std::map<std::size_t, Ref<ShaderAsset const>> bsdfAssets;
     for (auto const &bsdf : context.getObjects<BSDF>())
         if (bsdf->getType() == BSDFType::Shader) {
             auto const &asset = static_cast<ShaderBSDF const &>(*bsdf).getAsset();
-            live.try_emplace(asset->getId(), asset);
+            bsdfAssets.try_emplace(asset->getId(), asset);
+        }
+    std::map<std::size_t, Ref<ShaderAsset const>> edfAssets;
+    for (auto const &edf : context.getObjects<EDF>())
+        if (edf->getType() == EDFType::Shader) {
+            auto const &asset = static_cast<ShaderEDF const &>(*edf).getAsset();
+            edfAssets.try_emplace(asset->getId(), asset);
         }
 
+    // An asset gets a slot among those of the BSDFs, an EDF slot among those of the EDFs, or both.
     std::unordered_map<std::size_t, std::uint32_t> slotsById;
-    kira::SmallVector<Ref<ShaderAsset const>> added;
     shaderSlotIds.clear();
-    for (auto const &[id, asset] : live) {
+    for (auto const &[id, asset] : bsdfAssets) {
         slotsById.emplace(id, static_cast<std::uint32_t>(shaderSlotIds.size()));
         shaderSlotIds.push_back(id);
+    }
+    std::unordered_map<std::size_t, std::uint32_t> edfSlotsById;
+    shaderEDFSlotIds.clear();
+    for (auto const &[id, asset] : edfAssets) {
+        edfSlotsById.emplace(id, static_cast<std::uint32_t>(shaderEDFSlotIds.size()));
+        shaderEDFSlotIds.push_back(id);
+    }
+
+    auto live = bsdfAssets;
+    live.insert(edfAssets.begin(), edfAssets.end());
+    kira::SmallVector<Ref<ShaderAsset const>> added;
+    for (auto const &[id, asset] : live)
         if (!shaderPool.contains(id))
             added.push_back(asset);
-    }
 
     std::vector<std::uint32_t> hostWords;
     std::vector<std::uint32_t> hostTextureIndices;
+    auto const appendData = [&](std::uint32_t slot, std::vector<std::uint32_t> const &words,
+                                std::vector<Ref<ImageTexture const>> const &textures) {
+        OptixShaderBinding binding{
+            .slot = slot,
+            .wordOffset = static_cast<std::uint32_t>(hostWords.size()),
+            .textureOffset = static_cast<std::uint32_t>(hostTextureIndices.size()),
+        };
+        hostWords.insert(hostWords.end(), words.begin(), words.end());
+        for (auto const &texture : textures)
+            hostTextureIndices.push_back(context.getIndex<ImageTexture>(texture->getContextId()));
+        return binding;
+    };
+
     std::vector<OptixShaderBinding> hostBindings(context.getIndexLimit<BSDF>());
     for (auto const &bsdf : context.getObjects<BSDF>()) {
         if (bsdf->getType() != BSDFType::Shader)
             continue;
 
         auto const &shader = static_cast<ShaderBSDF const &>(*bsdf);
-        hostBindings[context.getIndex<BSDF>(bsdf->getContextId())] = {
-            .slot = slotsById.at(shader.getAsset()->getId()),
-            .wordOffset = static_cast<std::uint32_t>(hostWords.size()),
-            .textureOffset = static_cast<std::uint32_t>(hostTextureIndices.size()),
-        };
-        hostWords.insert(hostWords.end(), shader.getWords().begin(), shader.getWords().end());
-        for (auto const &texture : shader.getTextures())
-            hostTextureIndices.push_back(context.getIndex<ImageTexture>(texture->getContextId()));
+        hostBindings[context.getIndex<BSDF>(bsdf->getContextId())] = appendData(
+            slotsById.at(shader.getAsset()->getId()), shader.getWords(), shader.getTextures()
+        );
+    }
+
+    // The EDF callables follow the BSDF callables in the SBT.
+    std::vector<OptixShaderBinding> hostEDFBindings(context.getIndexLimit<EDF>());
+    for (auto const &edf : context.getObjects<EDF>()) {
+        if (edf->getType() != EDFType::Shader)
+            continue;
+
+        auto const &shader = static_cast<ShaderEDF const &>(*edf);
+        hostEDFBindings[context.getIndex<EDF>(edf->getContextId())] = appendData(
+            static_cast<std::uint32_t>(shaderSlotIds.size()) +
+                edfSlotsById.at(shader.getAsset()->getId()),
+            shader.getWords(), shader.getTextures()
+        );
     }
 
     std::vector<std::size_t> removed;
     for (auto const id : shaderPool.getIds())
-        if (!slotsById.contains(id))
+        if (!live.contains(id))
             removed.push_back(id);
     shaderPool.remove(removed);
     shaderPool.add({added.data(), added.size()});
@@ -291,6 +336,7 @@ void OptixContext::pImpl::syncShaders() {
         {hostTextureIndices.data(), hostTextureIndices.size()}, deletionQueue
     );
     shaderBSDFBindings.copyFromHost({hostBindings.data(), hostBindings.size()}, deletionQueue);
+    shaderEDFBindings.copyFromHost({hostEDFBindings.data(), hostEDFBindings.size()}, deletionQueue);
     shaderSlotBits = shaderSlotIds.size() > 1
                          ? static_cast<unsigned int>(std::bit_width(shaderSlotIds.size() - 1))
                          : 0U;
@@ -356,22 +402,29 @@ void OptixContext::pImpl::syncTextures() {
 }
 
 void OptixContext::pImpl::syncProgram() {
-    // The program links the module of each slot, so it follows the slots.
+    // The program links the module of each slot and of each EDF slot, so it follows the slots.
     auto const spec = OptixMegaKernelModule::makeSpec(context);
-    std::vector<std::shared_ptr<OptixShaderModule const>> shaderModules;
-    shaderModules.reserve(shaderSlotIds.size());
-    for (auto const id : shaderSlotIds)
-        shaderModules.push_back(shaderPool.getModule(id));
+    auto const getModules = [&](std::vector<std::size_t> const &ids) {
+        std::vector<std::shared_ptr<OptixShaderModule const>> modules;
+        modules.reserve(ids.size());
+        for (auto const id : ids)
+            modules.push_back(shaderPool.getModule(id));
+        return modules;
+    };
+    auto shaderModules = getModules(shaderSlotIds);
+    auto edfModules = getModules(shaderEDFSlotIds);
     if (program && megaKernelModule->getSpec() == spec &&
-        std::ranges::equal(program->getShaderModules(), shaderModules))
+        std::ranges::equal(program->getShaderModules(), shaderModules) &&
+        std::ranges::equal(program->getEDFModules(), edfModules))
         return;
 
     if (program)
         deletionQueue.deleteLater(std::shared_ptr<OptixProgram const>(std::move(program)));
     if (!megaKernelModule || megaKernelModule->getSpec() != spec)
         megaKernelModule = std::make_shared<OptixMegaKernelModule>(deviceContext, modulePath, spec);
-    program = std::make_unique<OptixProgram>(deviceContext, megaKernelModule, shaderModules);
-    sbt.build(*megaKernelModule, shaderModules);
+    program =
+        std::make_unique<OptixProgram>(deviceContext, megaKernelModule, shaderModules, edfModules);
+    sbt.build(*megaKernelModule, shaderModules, edfModules);
 }
 
 void OptixContext::pImpl::buildIas() {

@@ -29,6 +29,20 @@ struct OptixEvaluator {
         return {value.x, value.y, value.z, value.w};
     }
 
+    /// \brief Runs the callable of the shader EDF at EDF index \p index.
+    [[nodiscard]] KIRA_DEVICE static flux::Spectrum evaluate(
+        std::uint32_t index, flux::Vec2f const &uv, flux::Vec3f const &normal, flux::Vec3f const &wo
+    ) noexcept {
+        auto const binding = optixLaunchParams.scene.shaderEDFBindings[index];
+        auto const radiance =
+            optixDirectCall<float3, unsigned int, unsigned int, float2, float3, float3>(
+                binding.slot, binding.wordOffset, binding.textureOffset,
+                make_float2(uv.x(), uv.y()), make_float3(normal.x(), normal.y(), normal.z()),
+                make_float3(wo.x(), wo.y(), wo.z())
+            );
+        return {radiance.x, radiance.y, radiance.z};
+    }
+
     /// \brief Runs the callable of the shader BSDF at BSDF index \p index.
     [[nodiscard]] KIRA_DEVICE static flux::BSDFResult execute(
         std::uint32_t index, flux::ShadingContext const &ctx, flux::Vec3f const &wo,
@@ -132,8 +146,8 @@ struct ShadowQuery {
     auto const isPrimary = state.depth == 0;
     auto const wo = -state.rayDirection;
     if (writesColor)
-        optixLaunchParams.integrator.onEmitterHit(
-            state, optixLaunchParams.scene, primitive, isect, wo
+        optixLaunchParams.integrator.onEmitterHit<OptixEvaluator>(
+            state, optixLaunchParams.scene, optixLaunchParams.edfDispatcher, primitive, isect, wo
         );
     if (isPrimary) {
         auto const pixel = optixLaunchParams.getLaunchSample(index).pixel;

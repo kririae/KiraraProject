@@ -1,7 +1,6 @@
 #include "flux/Shading/BSDF.h"
 
 #include <cmath>
-#include <concepts>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -9,25 +8,13 @@
 #include "flux/Core/Logging.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/TXContext.h"
+#include "flux/Shading/ShaderTextures.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
 namespace {
 [[nodiscard]] float etaFromSpecular(float specular) noexcept {
     return 2.0F / (1.0F - std::sqrt(0.08F * specular)) - 1.0F;
-}
-
-/// \brief Throws unless each texture is set, and \p belongs holds for it.
-void checkTextures(
-    std::vector<Ref<ImageTexture const>> const &textures,
-    std::predicate<ImageTexture const &> auto const &belongs
-) {
-    for (auto const &texture : textures) {
-        if (!texture)
-            throw std::invalid_argument("ShaderBSDF: texture must not be null");
-        if (!belongs(*texture))
-            throw std::invalid_argument("ShaderBSDF: texture belongs to another context");
-    }
 }
 } // namespace
 
@@ -172,7 +159,9 @@ ShaderBSDF::ShaderBSDF(
 )
     : BSDF(tx, BSDFType::Shader), asset_(tx.getShaderAssetPool().getOrCreate(spec)),
       words_(std::move(words)), textures_(std::move(textures)) {
-    checkTextures(textures_, [&](ImageTexture const &texture) { return tx.contains(texture); });
+    checkShaderTextures(textures_, [&](ImageTexture const &texture) {
+        return tx.contains(texture);
+    });
 }
 
 void ShaderBSDF::setShader(
@@ -182,7 +171,7 @@ void ShaderBSDF::setShader(
     auto *const context = getContext();
     if (!context)
         throw std::invalid_argument("ShaderBSDF: the BSDF is not in a context");
-    checkTextures(textures, [&](ImageTexture const &texture) {
+    checkShaderTextures(textures, [&](ImageTexture const &texture) {
         return texture.getContext() == context;
     });
 

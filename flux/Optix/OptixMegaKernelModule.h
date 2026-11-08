@@ -12,6 +12,7 @@
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Geometry.h"
 #include "flux/Shading/BSDF.h"
+#include "flux/Shading/EDF.h"
 
 namespace flux {
 class Context;
@@ -24,6 +25,7 @@ inline constexpr unsigned int megakernelMaxRegisterCount = 160;
 struct OptixMegaKernelModuleSpec {
     SamplerType samplerType;
     BSDFTypeMask bsdfTypes;
+    EDFTypeMask edfTypes;
     bool shaderReorder;
     bool hasEnvMap;
     std::uint32_t chunkSize;
@@ -46,7 +48,7 @@ public:
 
     /// \brief Returns the specialization required by \p context.
     ///
-    /// The active integrator and sampler must be present. Only BSDFs referenced
+    /// The active integrator and sampler must be present. Only BSDFs and EDFs referenced
     /// by visible primitives contribute to the specialization.
     [[nodiscard]] static OptixMegaKernelModuleSpec makeSpec(Context const &context);
 

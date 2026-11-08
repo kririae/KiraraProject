@@ -184,10 +184,12 @@ public:
         }
 
         /// \brief Adds emission at the current surface with the BSDF-sampling MIS weight.
-        template <typename BackendContext>
+        ///
+        /// A shader EDF evaluates with zero texture derivatives.
+        template <typename Evaluator, typename BackendContext>
         KIRA_HOST_DEVICE void onEmitterHit(
-            PathState &state, BackendContext const &backend, Primitive::Impl const &prim,
-            SurfaceInteraction const &isect, Vec3f const &wo
+            PathState &state, BackendContext const &backend, EDF::Dispatcher const &edfDispatcher,
+            Primitive::Impl const &prim, SurfaceInteraction const &isect, Vec3f const &wo
         ) const noexcept {
             if (!prim.hasEDF() || state.depth >= maxDepth)
                 return;
@@ -198,11 +200,9 @@ public:
                 weight = misWeight(state.prevBSDFPdf, lightPdf);
             }
 
-            auto const emission = backend.table.getEDF(prim.getEDFIndex())
-                                      .evaluate({
-                                          .geometricNormal = isect.geometricNormal,
-                                          .wo = wo,
-                                      });
+            auto const emission = edfDispatcher.evaluate<Evaluator>(
+                backend.table.getEDF(prim.getEDFIndex()), isect, wo
+            );
             state.radiance = state.radiance + state.throughput * emission * weight;
         }
 

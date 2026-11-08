@@ -94,6 +94,10 @@ struct OptixContext::Impl {
     /// zero binding.
     OptixShaderBinding const *shaderBSDFBindings{};
 
+    /// Shader binding of each EDF, by EDF index. An index without a live shader EDF holds a zero
+    /// binding.
+    OptixShaderBinding const *shaderEDFBindings{};
+
     /// The number of bits that hold every shader slot, which is 0 for at most one slot.
     unsigned int shaderSlotBits{};
 

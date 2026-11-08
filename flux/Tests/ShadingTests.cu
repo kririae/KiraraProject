@@ -501,14 +501,14 @@ TEST(ShadingTests, EvaluatesOneSidedConstantEmission) {
     auto const impl = edf->getImpl();
 
     EXPECT_EQ(
-        impl.evaluate({
+        impl.storage.constant.evaluate({
             .geometricNormal = {0.0F, 0.0F, 1.0F},
             .wo = {0.0F, 0.0F, 1.0F},
         }),
         (flux::Spectrum{1.0F, 2.0F, 3.0F})
     );
     EXPECT_EQ(
-        impl.evaluate({
+        impl.storage.constant.evaluate({
             .geometricNormal = {0.0F, 0.0F, 1.0F},
             .wo = {0.0F, 0.0F, -1.0F},
         }),

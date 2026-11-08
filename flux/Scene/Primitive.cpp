@@ -97,6 +97,10 @@ void Primitive::setEDF(Ref<EDF const> edf) {
     setIfDifferent(edf_, edf, DirtyBits::EDF);
 }
 
+bool Primitive::isLight() const noexcept {
+    return visible_ && edf_ && edf_->estimateLuminance() > 0.0F;
+}
+
 Primitive::Impl Primitive::getImpl() const {
     if (!visible_)
         return {};
@@ -105,7 +109,7 @@ Primitive::Impl Primitive::getImpl() const {
     return {
         .geometryIndex = context.getIndex<Geometry>(geometry_->getContextId()),
         .bsdfIndex = bsdf_ ? context.getIndex<BSDF>(bsdf_->getContextId()) : Impl::invalidBSDFIndex,
-        .edfIndex = edf_ ? context.getIndex<EDF>(edf_->getContextId()) : Impl::invalidEDFIndex,
+        .edfIndex = isLight() ? context.getIndex<EDF>(edf_->getContextId()) : Impl::invalidEDFIndex,
     };
 }
 

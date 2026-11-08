@@ -18,6 +18,15 @@ struct EmitterHitContext {
         return 0.5F;
     }
 };
+
+/// An evaluator for a scene without a shader EDF.
+struct NoShaderEvaluator {
+    [[nodiscard]] static flux::Spectrum evaluate(
+        std::uint32_t, flux::Vec2f const &, flux::Vec3f const &, flux::Vec3f const &
+    ) noexcept {
+        return {};
+    }
+};
 } // namespace
 
 TEST(PathIntegratorTests, ActivatesOnlyTheIntegratorTheHostSets) {
@@ -60,7 +69,12 @@ TEST(PathIntegratorTests, BoundsRussianRouletteProbabilityToUnitRange) {
 
 TEST(PathIntegratorTests, WeightsBsdfSampledEmitterHits) {
     auto const context = EmitterHitContext{
-        .table = {.edf = flux::ConstantEDF::Impl{.radiance = {2.0F, 2.0F, 2.0F}}},
+        .table = {
+            .edf = {
+                .type = flux::EDFType::Constant,
+                .storage = {.constant = {.radiance = {2.0F, 2.0F, 2.0F}}},
+            }
+        },
     };
     auto const prim = flux::Primitive::Impl{.edfIndex = 0};
     auto state = flux::PathState{
@@ -73,8 +87,9 @@ TEST(PathIntegratorTests, WeightsBsdfSampledEmitterHits) {
         .geometricNormal = {0.0F, 0.0F, 1.0F},
     };
 
-    flux::PathIntegrator::Impl{8, 2, 0.95F}.onEmitterHit(
-        state, context, prim, surface, {0.0F, 0.0F, 1.0F}
+    flux::PathIntegrator::Impl{8, 2, 0.95F}.onEmitterHit<NoShaderEvaluator>(
+        state, context, {.types = flux::edfTypeBit(flux::EDFType::Constant)}, prim, surface,
+        {0.0F, 0.0F, 1.0F}
     );
 
     EXPECT_EQ(state.radiance, (flux::Spectrum{1.0F, 1.0F, 1.0F}));

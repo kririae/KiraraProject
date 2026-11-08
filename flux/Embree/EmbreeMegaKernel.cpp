@@ -20,6 +20,12 @@ struct EmbreeEvaluator {
         KIRA_UNREACHABLE();
     }
 
+    /// Never runs: sync throws on a scene with a shader EDF.
+    [[nodiscard]] static Spectrum
+    evaluate(std::uint32_t, Vec2f const &, Vec3f const &, Vec3f const &) noexcept {
+        KIRA_UNREACHABLE();
+    }
+
     [[nodiscard]] static Vec4f
     eval4f(std::uint32_t index, Vec2f uv, Vec2f const &duvdx, Vec2f const &duvdy) noexcept {
         return getLaunchParams().scene.imageTexturePool.eval4f(index, uv, duvdx, duvdy);
@@ -28,6 +34,7 @@ struct EmbreeEvaluator {
 
 void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) noexcept {
     constexpr auto bsdfDispatcher = BSDF::Dispatcher{.types = allBSDFTypes};
+    constexpr auto edfDispatcher = EDF::Dispatcher{.types = edfTypeBit(EDFType::Constant)};
     auto const resolution = Vec2u{params.film.width, params.film.height};
     auto const pixel = Vec2u{
         static_cast<std::uint32_t>(linearIndex % params.film.width),
@@ -76,7 +83,9 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
             auto const isPrimary = state.depth == 0;
             auto const wo = -traced.direction;
             if (writesColor)
-                params.integrator.onEmitterHit(state, params.scene, primitive, isect, wo);
+                params.integrator.onEmitterHit<EmbreeEvaluator>(
+                    state, params.scene, edfDispatcher, primitive, isect, wo
+                );
             if (isPrimary) {
                 normalSum = normalSum + isect.shadingNormal;
                 depthSum = depthSum + Vec2f{params.camera.getDepth(isect.position), 1.0F};

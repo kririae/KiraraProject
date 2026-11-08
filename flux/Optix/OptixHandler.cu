@@ -234,6 +234,10 @@ RenderStats OptixHandler::pImpl::render(
                 {
                     .types = moduleSpec.bsdfTypes,
                 },
+            .edfDispatcher =
+                {
+                    .types = moduleSpec.edfTypes,
+                },
             .accumulatedSamples = accumulatedSamples,
             .sampleOffset = sampleOffset,
             .nextChunk = chunkCounter.data(),

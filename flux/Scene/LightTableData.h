@@ -54,8 +54,9 @@ struct LightTableData final : private Noncopyable {
 public:
     /// \brief Rebuilds the light data from \p context.
     ///
-    /// Every primitive for which \c Primitive::isLight is true is a light. At most \p maxSlots
-    /// lights get a slot, and emitting primitives lose theirs first. \p maxSlots is bounded by
+    /// Every primitive for which \c Primitive::isLight is true and whose EDF is not a
+    /// \c ShaderEDF is a light. At most \p maxSlots lights get a slot, and emitting primitives
+    /// lose theirs first. \p maxSlots is bounded by
     /// \c LightPowerDistribution::maxLightCount. \p envMapPower is empty when no
     /// environment map is active.
     void build(

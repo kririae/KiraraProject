@@ -281,6 +281,24 @@ TEST(EmbreePipelineTests, RejectsSingularInstanceTransforms) {
     EXPECT_THROW((void)flux::EmbreeHandler(context), kira::Anyhow);
 }
 
+TEST(EmbreePipelineTests, RejectsAVisibleShaderEDF) {
+    auto context = flux::Context::create();
+    flux::test::setActiveDefaults(*context);
+    auto const mesh = context->create<flux::TriangleMesh>(triangleData());
+    auto const edf = context->create<flux::ShaderEDF>(
+        flux::ShaderAssetSpec{.source = "a"}, std::vector<std::uint32_t>{}
+    );
+    kira::Properties properties;
+    properties.set("geometry_ctx_id", static_cast<std::int64_t>(mesh->getContextId()));
+    properties.set("edf_ctx_id", static_cast<std::int64_t>(edf->getContextId()));
+    auto const primitive = context->create<flux::Primitive>(properties);
+
+    EXPECT_THROW((void)flux::EmbreeHandler(context), kira::Anyhow);
+
+    primitive->setVisible(false);
+    EXPECT_NO_THROW((void)flux::EmbreeHandler(context));
+}
+
 TEST(EmbreePipelineTests, RendersAVertexBufferWithoutSpareCapacityAsOneWithIt) {
     auto const render = [](flux::TriangleMesh::Data data) {
         auto scene = makeNoisyScene(std::move(data));

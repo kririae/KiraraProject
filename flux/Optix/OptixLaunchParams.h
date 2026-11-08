@@ -33,6 +33,7 @@ struct OptixLaunchParams {
     Sampler::Impl sampler;
     PathIntegrator::Impl integrator;
     BSDF::Dispatcher bsdfDispatcher;
+    EDF::Dispatcher edfDispatcher;
 
     /// Samples accumulated before this batch.
     std::uint64_t accumulatedSamples;

@@ -103,8 +103,8 @@ public:
 
     /// \brief Returns whether this primitive is a light.
     ///
-    /// A light is a visible primitive with an EDF.
-    [[nodiscard]] bool isLight() const noexcept { return visible_ && edf_; }
+    /// A light is a visible primitive whose EDF may emit.
+    [[nodiscard]] bool isLight() const noexcept;
 
     /// \brief Returns this primitive's table entry, or a hole when it is hidden.
     ///

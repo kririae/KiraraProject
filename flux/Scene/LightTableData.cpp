@@ -5,6 +5,7 @@
 
 #include "flux/Core/Logging.h"
 #include "flux/Scene/Context.h"
+#include "flux/Shading/EDF.h"
 #include "kira/Assertions.h"
 
 namespace flux {
@@ -66,9 +67,10 @@ void LightTableData::build(
         slots.envMapSlot = addSlot({.type = LightType::EnvMap, .index = 0}, *envMapPower);
 
     // Assign slots to primitives that are lights, in Context ID order. An emitter past
-    // the cap stays reachable by BSDF sampling, where MIS weights it one.
+    // the cap stays reachable by BSDF sampling, where MIS weights it one. So does an emitter
+    // with a shader EDF, which light sampling cannot evaluate.
     for (auto const &primitive : contextPrimitives) {
-        if (!primitive->isLight())
+        if (!primitive->isLight() || primitive->getEDF()->getType() == EDFType::Shader)
             continue;
 
         if (primitive->hasNonUniformScale())

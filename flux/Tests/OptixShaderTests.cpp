@@ -20,6 +20,7 @@
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
+#include "flux/Shading/EDF.h"
 #include "flux/Shading/Texture.h"
 #include "kira/Anyhow.h"
 
@@ -76,6 +77,44 @@ public struct LambertianBSDF : IBSDF
 
 public LambertianBSDF makeLambertianBSDF(float3 albedo, float3 n) { return {albedo, n}; }
 )slang";
+
+/// \brief Emission of the color \p color in every direction.
+[[nodiscard]] std::string uniformEmissionDocument(std::string const &color) {
+    return fmt::format(
+        R"mtlx(<?xml version="1.0"?>
+<materialx version="1.39">
+  <uniform_edf name="e" type="EDF">
+    <input name="color" type="color3" value="{}" />
+  </uniform_edf>
+  <surface name="s" type="surfaceshader">
+    <input name="edf" type="EDF" nodename="e" />
+  </surface>
+  <surfacematerial name="M" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="s" />
+  </surfacematerial>
+</materialx>)mtlx",
+        color
+    );
+}
+
+/// \brief A uniform emission that a Schlick factor scales by \c color0 at normal incidence.
+constexpr auto schlickEmissionDocument = R"mtlx(<?xml version="1.0"?>
+<materialx version="1.39">
+  <uniform_edf name="e" type="EDF">
+    <input name="color" type="color3" value="0.5, 1, 2" />
+  </uniform_edf>
+  <generalized_schlick_edf name="rim" type="EDF">
+    <input name="color0" type="color3" value="0.5, 0.25, 1" />
+    <input name="color90" type="color3" value="1, 1, 1" />
+    <input name="base" type="EDF" nodename="e" />
+  </generalized_schlick_edf>
+  <surface name="s" type="surfaceshader">
+    <input name="edf" type="EDF" nodename="rim" />
+  </surface>
+  <surfacematerial name="M" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="s" />
+  </surfacematerial>
+</materialx>)mtlx";
 
 /// \brief A conductor whose Fresnel reflectance is 1 at every angle.
 constexpr auto fullReflectanceConductorDocument = R"mtlx(<?xml version="1.0"?>
@@ -219,7 +258,118 @@ constexpr auto tangentDocument = R"mtlx(<?xml version="1.0"?>
     }
     return mean;
 }
+
+/// \brief Renders \p context through \p camera, and returns the mean of the pixels. Each pixel
+/// takes \p sampleCount samples.
+[[nodiscard]] flux::Spectrum renderContextMean(
+    flux::Ref<flux::Context> const &context, flux::Camera const &camera, std::uint32_t sampleCount
+) {
+    flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
+    flux::OptixAccumulationBuffer buffer(
+        handler, flux::FilmSpec{resolution, flux::FilmChannels::Color}
+    );
+    handler.render(camera, buffer, sampleCount);
+    flux::Film film{buffer.getSpec()};
+    buffer.download(film);
+    std::array<double, 3> sum{};
+    for (auto const &pixel : film.getChannel<flux::ColorChannel>())
+        for (int axis = 0; axis < 3; ++axis)
+            sum[axis] += pixel[axis];
+    auto const count = static_cast<double>(resolution.x() * resolution.y());
+    return {
+        static_cast<float>(sum[0] / count), static_cast<float>(sum[1] / count),
+        static_cast<float>(sum[2] / count)
+    };
+}
+
+/// \brief The rotation about x by 60 degrees.
+constexpr std::array<float, 12> tiltTransform{1.0F,        0.0F, 0.0F, 0.0F,       0.0F, 0.5F,
+                                              -0.8660254F, 0.0F, 0.0F, 0.8660254F, 0.5F, 0.0F};
+
+/// \brief Renders the triangle, tilted by \c tiltTransform, with the BSDF and the EDF of the shader
+/// of \p document, along its normal from the front (\p side 1) or the back (\p side -1), with the
+/// field of view \p fov, and returns the mean of the pixels.
+///
+/// The scene has no environment and the path ends at the first hit, so every pixel is the emission
+/// that the camera ray finds there.
+[[nodiscard]] flux::Spectrum
+renderEmissionMean(std::string const &document, float side, float fov) {
+    auto const generator = flux::MtlxBSDFGenerator{FLUX_MATERIALX_DIR};
+    auto const generated = generator.generate(document, "M", {});
+    if (!generated.instance)
+        throw kira::Anyhow{"the generator produced no shader"};
+    auto const &instance = *generated.instance;
+
+    auto context = flux::Context::create();
+    flux::test::setActiveDefaults(*context);
+    kira::Properties integratorProperties;
+    integratorProperties.set("max_depth", 1U);
+    context->setActiveIntegrator(context->create<flux::PathIntegrator>(integratorProperties));
+    auto const mesh = context->create<flux::TriangleMesh>(largeTriangleData());
+    auto const bsdf = context->create<flux::ShaderBSDF>(instance.spec, instance.words);
+    auto const edf = context->create<flux::ShaderEDF>(instance.spec, instance.words);
+    kira::Properties properties;
+    properties.set("geometry_ctx_id", static_cast<std::int64_t>(mesh->getContextId()));
+    properties.set("bsdf_ctx_id", static_cast<std::int64_t>(bsdf->getContextId()));
+    properties.set("edf_ctx_id", static_cast<std::int64_t>(edf->getContextId()));
+    auto const primitive = context->create<flux::Primitive>(properties);
+    primitive->setTransform(tiltTransform);
+    kira::Properties cameraProperties;
+    cameraProperties.set(
+        "position", flux::transformPoint(tiltTransform.data(), {0.0F, 0.0F, 3.0F * side})
+    );
+    cameraProperties.set("look_at", flux::Vec3f{0.0F, 0.0F, 0.0F});
+    cameraProperties.set("fov", fov);
+    auto const camera = flux::Camera::create(cameraProperties);
+
+    return renderContextMean(context, *camera, 1);
+}
 } // namespace
+
+TEST(OptixShaderTests, AShaderEDFEmitsAsItsShaderSaysToBothSidesOfATiltedSurface) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    struct Row {
+        char const *name;
+        std::string document;
+        float side;
+        float fov;
+        flux::Spectrum expected;
+        float tolerance;
+    };
+    // The surface is tilted, so a world-space direction is no shading-frame direction. A view of 1
+    // degree is normal to within 0.5 degrees, where the Schlick factor differs from color0 by at
+    // most 1e-10.
+    auto const rows = std::vector<Row>{
+        {"uniform front",
+         uniformEmissionDocument("0.25, 0.5, 2"),
+         1.0F,
+         60.0F,
+         {0.25F, 0.5F, 2.0F},
+         1e-5F},
+        {"uniform back",
+         uniformEmissionDocument("0.25, 0.5, 2"),
+         -1.0F,
+         60.0F,
+         {0.25F, 0.5F, 2.0F},
+         1e-5F},
+        {"Schlick at normal incidence",
+         schlickEmissionDocument,
+         1.0F,
+         1.0F,
+         {0.25F, 0.25F, 2.0F},
+         1e-4F},
+    };
+
+    for (auto const &row : rows) {
+        SCOPED_TRACE(row.name);
+        auto const mean = renderEmissionMean(row.document, row.side, row.fov);
+
+        for (int axis = 0; axis < 3; ++axis)
+            EXPECT_NEAR(mean[axis], row.expected[axis], row.tolerance * row.expected[axis]) << axis;
+    }
+}
 
 TEST(OptixShaderTests, ASmoothMaterialXDiffuseReflectsTheEnvironmentTimesItsColor) {
     if (!flux::test::hasCudaMemoryPoolSupport())

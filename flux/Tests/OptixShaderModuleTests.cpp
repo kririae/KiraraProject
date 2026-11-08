@@ -77,17 +77,6 @@ TEST(OptixShaderModule, BecomesAProgramGroupFromAMaterial) {
     EXPECT_NE(module.getProgramGroup(), nullptr);
 }
 
-TEST(OptixShaderModule, HasASeparateProgramGroupForTheEDF) {
-    Device const device;
-    flux::OptixBSDFCompiler const compiler;
-
-    auto const ir = compiler.compile(material);
-    flux::OptixShaderModule const module(device.context, ir);
-
-    EXPECT_NE(module.getEDFProgramGroup(), nullptr);
-    EXPECT_NE(module.getEDFProgramGroup(), module.getProgramGroup());
-}
-
 TEST(OptixShaderModule, TwoSourcesThatDifferOnlyByACommentLinkIntoOnePipeline) {
     Device const device;
     flux::OptixBSDFCompiler const compiler;
@@ -101,6 +90,7 @@ TEST(OptixShaderModule, TwoSourcesThatDifferOnlyByACommentLinkIntoOnePipeline) {
         device.context, std::filesystem::path(FLUX_TEST_OPTIX_IR),
         {.samplerType = flux::SamplerType::Independent,
          .bsdfTypes = 0,
+         .edfTypes = 0,
          .shaderReorder = false,
          .hasEnvMap = false,
          .chunkSize = 1}

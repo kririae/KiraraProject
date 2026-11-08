@@ -81,9 +81,15 @@ OptixMegaKernelModuleSpec OptixMegaKernelModule::makeSpec(Context const &context
         bsdfTypes |= bsdfTypeBit(bsdf->getType());
     }
 
+    auto edfTypes = EDFTypeMask{};
+    for (auto const &primitive : context.getObjects<Primitive>())
+        if (primitive->isLight())
+            edfTypes |= edfTypeBit(primitive->getEDF()->getType());
+
     return {
         .samplerType = sampler->getType(),
         .bsdfTypes = bsdfTypes,
+        .edfTypes = edfTypes,
         .shaderReorder = integrator->usesShaderReorder(),
         .hasEnvMap = static_cast<bool>(context.getActiveEnvMap()),
         .chunkSize = integrator->getChunkSize(),
@@ -112,6 +118,13 @@ void OptixMegaKernelModule::buildModule(std::filesystem::path const &modulePath)
             .sizeInBytes = sizeof(spec_.bsdfTypes),
             .boundValuePtr = &spec_.bsdfTypes,
             .annotation = "Visible BSDF implementation mask",
+        },
+        OptixModuleCompileBoundValueEntry{
+            .pipelineParamOffsetInBytes =
+                offsetof(OptixLaunchParams, edfDispatcher) + offsetof(EDF::Dispatcher, types),
+            .sizeInBytes = sizeof(spec_.edfTypes),
+            .boundValuePtr = &spec_.edfTypes,
+            .annotation = "Visible EDF implementation mask",
         },
         OptixModuleCompileBoundValueEntry{
             .pipelineParamOffsetInBytes = offsetof(OptixLaunchParams, shaderReorder),

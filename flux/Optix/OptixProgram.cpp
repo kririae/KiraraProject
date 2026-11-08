@@ -16,10 +16,12 @@
 namespace flux {
 OptixProgram::OptixProgram(
     OptixDeviceContext deviceContext, std::shared_ptr<OptixMegaKernelModule const> megaKernelModule,
-    std::vector<std::shared_ptr<OptixShaderModule const>> shaderModules
+    std::vector<std::shared_ptr<OptixShaderModule const>> shaderModules,
+    std::vector<std::shared_ptr<OptixShaderModule const>> edfModules
 )
     : OptixProgram(
-          EmptyState{}, deviceContext, std::move(megaKernelModule), std::move(shaderModules)
+          EmptyState{}, deviceContext, std::move(megaKernelModule), std::move(shaderModules),
+          std::move(edfModules)
       ) {
     if (!deviceContext_)
         throw kira::Anyhow("OptixProgram: device context must not be null");
@@ -30,10 +32,11 @@ OptixProgram::OptixProgram(
 OptixProgram::OptixProgram(
     EmptyState, OptixDeviceContext deviceContext,
     std::shared_ptr<OptixMegaKernelModule const> megaKernelModule,
-    std::vector<std::shared_ptr<OptixShaderModule const>> shaderModules
+    std::vector<std::shared_ptr<OptixShaderModule const>> shaderModules,
+    std::vector<std::shared_ptr<OptixShaderModule const>> edfModules
 ) noexcept
     : deviceContext_(deviceContext), megaKernelModule_(std::move(megaKernelModule)),
-      shaderModules_(std::move(shaderModules)) {}
+      shaderModules_(std::move(shaderModules)), edfModules_(std::move(edfModules)) {}
 
 OptixProgram::~OptixProgram() {
     if (pipeline_)
@@ -50,6 +53,8 @@ void OptixProgram::buildPipeline() {
     std::vector<OptixProgramGroup> programs(megaKernelPrograms.begin(), megaKernelPrograms.end());
     for (auto const &module : shaderModules_)
         programs.push_back(module->getProgramGroup());
+    for (auto const &module : edfModules_)
+        programs.push_back(module->getEDFProgramGroup());
     std::array<char, 4096> log{};
     std::size_t logSize = log.size();
     // clang-format off
