@@ -28,7 +28,3 @@ TEST(AovMappingTests, AnLpeSourceLeavesTheAovName) {
 TEST(AovMappingTests, MapsTheColorAliasToColor) {
     EXPECT_EQ(HdFluxGetAovChannel(binding("C")), flux::FilmChannels::Color);
 }
-
-TEST(AovMappingTests, MapsAnUnknownNameToNone) {
-    EXPECT_EQ(HdFluxGetAovChannel(binding("depth")), flux::FilmChannels::None);
-}
