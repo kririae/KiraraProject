@@ -11,6 +11,28 @@
 
 namespace flux {
 namespace detail {
+/// \brief Returns the world-space interaction that \p interaction describes on primitive
+/// \p primitiveIndex.
+///
+/// A parameterization gradient is a covector, so it transforms like a normal.
+template <typename Scene>
+[[nodiscard]] KIRA_HOST_DEVICE KIRA_FORCEINLINE SurfaceInteraction makeSurfaceInteraction(
+    Scene const &scene, std::uint32_t primitiveIndex, GeometryInteraction const &interaction
+) noexcept {
+    return {
+        .position = scene.transformPointToWorld(primitiveIndex, interaction.position),
+        .geometricNormal =
+            scene.transformNormalToWorld(primitiveIndex, interaction.geometricNormal).normalize(),
+        .shadingNormal =
+            scene.transformNormalToWorld(primitiveIndex, interaction.shadingNormal).normalize(),
+        .uv = interaction.uv,
+        .uvGradU = scene.transformNormalToWorld(primitiveIndex, interaction.uvGradU),
+        .uvGradV = scene.transformNormalToWorld(primitiveIndex, interaction.uvGradV),
+        .primitiveIndex = primitiveIndex,
+        .elementIndex = interaction.elementIndex,
+    };
+}
+
 template <typename Scene>
 [[nodiscard]] KIRA_HOST_DEVICE KIRA_FORCEINLINE DirectLightSample samplePrimLight(
     Scene const &scene, LightSamplingContext const &ctx, std::uint32_t primIndex, Vec2f const &u
@@ -20,12 +42,19 @@ template <typename Scene>
     if (!(areaScale > 0.0F))
         return {};
 
-    auto const geomSample = scene.table.getGeometry(prim.getGeometryIndex()).sample(u);
+    auto const &geometry = scene.table.getGeometry(prim.getGeometryIndex());
+    auto const geomSample = geometry.sample(u);
     if (geomSample.pdf <= 0.0F)
         return {};
 
-    auto const p = scene.transformPointToWorld(primIndex, geomSample.position);
-    auto const n = scene.transformNormalToWorld(primIndex, geomSample.geometricNormal).normalize();
+    auto const isect = makeSurfaceInteraction(
+        scene, primIndex,
+        geometry.computeInteraction(
+            {.coordinates = geomSample.coordinates, .elementIndex = geomSample.elementIndex}
+        )
+    );
+    auto const &p = isect.position;
+    auto const &n = isect.geometricNormal;
     auto const d = p - ctx.position;
     auto const dist2 = d.norm2();
     if (!(dist2 > 0.0F))

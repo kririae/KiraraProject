@@ -70,7 +70,7 @@ TriangleMesh::Impl::computeInteraction(PreliminaryIntersection const &preliminar
     }
 
     return {
-        .position = vertex0 * w + vertex1 * u + vertex2 * v,
+        .position = vertex0 + edge1 * u + edge2 * v,
         .geometricNormal = normal,
         .shadingNormal = interpolateShadingNormal(preliminary, normal),
         .uv = uv,
@@ -104,14 +104,9 @@ TriangleMesh::Impl::sample(Vec2f const &sampleValue) const noexcept {
     auto const b2 = root - b1;
     auto const barycentric = Vec2f{b1, b2};
 #endif
-    auto const indices = triangles[triangle];
-    auto const vertex0 = vertices[indices[0]];
-    auto const vertex1 = vertices[indices[1]];
-    auto const vertex2 = vertices[indices[2]];
     return {
-        .position =
-            vertex0 + (vertex1 - vertex0) * barycentric.x() + (vertex2 - vertex0) * barycentric.y(),
-        .geometricNormal = cross(vertex1 - vertex0, vertex2 - vertex0).normalize(),
+        .coordinates = barycentric,
+        .elementIndex = triangle,
         .pdf = triangleAreaPDF[triangle],
     };
 }

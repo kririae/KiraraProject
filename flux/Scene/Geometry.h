@@ -57,13 +57,16 @@ struct GeometryInteraction {
     std::uint32_t elementIndex{};
 };
 
-/// \brief Geometry-space position sample with an area density.
+/// \brief A point that geometry chose on its surface, with an area density.
+///
+/// The point is described as a traversal describes a hit, so \c Geometry::Impl::computeInteraction
+/// reconstructs the interaction at the point from \c coordinates and \c elementIndex.
 struct GeometrySample {
-    /// Sampled position.
-    Vec3f position{};
+    /// Geometry-defined coordinates, as in \c PreliminaryIntersection.
+    Vec2f coordinates{};
 
-    /// Normal derived from the sampled surface.
-    Vec3f geometricNormal{};
+    /// Element index within the concrete geometry.
+    std::uint32_t elementIndex{};
 
     /// Density with respect to geometry-space area.
     float pdf{};

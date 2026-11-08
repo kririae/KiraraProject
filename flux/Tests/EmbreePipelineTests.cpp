@@ -16,6 +16,7 @@
 #include "SceneUtils.h"
 #include "TestUtils.h"
 #include "flux/Embree/EmbreeAccumulationBuffer.h"
+#include "flux/Embree/EmbreeContext.h"
 #include "flux/Embree/EmbreeHandler.h"
 #include "flux/IO/ImageIO.h"
 #include "flux/Integrator/PathIntegrator.h"
@@ -25,7 +26,9 @@
 #include "flux/Scene/EnvMapLight.h"
 #include "flux/Scene/Film.h"
 #include "flux/Scene/Geometry.h"
+#include "flux/Scene/GeometryImpl.h"
 #include "flux/Scene/Light.h"
+#include "flux/Scene/LightSamplingImpl.h"
 #include "flux/Scene/Primitive.h"
 #include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
@@ -297,6 +300,92 @@ TEST(EmbreePipelineTests, RejectsAVisibleShaderEDF) {
 
     primitive->setVisible(false);
     EXPECT_NO_THROW((void)flux::EmbreeHandler(context));
+}
+
+TEST(EmbreePipelineTests, ASampledPointMatchesAHitAtIt) {
+    // A tilted quad with a shading normal and a texture coordinate at each vertex, under a
+    // rotation, a nonuniform scale and a translation, so that a normal does not transform as a
+    // vector does, and the area of the quad is not the area of its parameters.
+    auto context = flux::Context::create();
+    flux::test::setActiveDefaults(*context);
+    auto const mesh = context->create<flux::TriangleMesh>(flux::TriangleMesh::Data{
+        .vertices = flux::test::sharedBuffer(
+            flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{1.0F, 0.0F, 0.0F},
+            flux::Vec3f{1.0F, 1.0F, 0.2F}, flux::Vec3f{0.0F, 1.0F, 0.2F}
+        ),
+        .triangles = flux::test::sharedBuffer(flux::Vec3u{0, 1, 2}, flux::Vec3u{0, 2, 3}),
+        .normals = flux::test::sharedBuffer(
+            flux::Vec3f{0.0F, 0.6F, 0.8F}, flux::Vec3f{0.6F, 0.0F, 0.8F},
+            flux::Vec3f{0.0F, -0.6F, 0.8F}, flux::Vec3f{-0.6F, 0.0F, 0.8F}
+        ),
+        .normalIndices = flux::test::sharedBuffer(flux::Vec3u{0, 1, 2}, flux::Vec3u{0, 2, 3}),
+        .texCoords = flux::test::sharedBuffer(
+            flux::Vec2f{0.1F, 0.2F}, flux::Vec2f{0.9F, 0.3F}, flux::Vec2f{0.8F, 0.7F},
+            flux::Vec2f{0.2F, 0.9F}
+        ),
+        .texCoordIndices = flux::test::sharedBuffer(flux::Vec3u{0, 1, 2}, flux::Vec3u{0, 2, 3}),
+    });
+    auto const edf = context->create<flux::ConstantEDF>(kira::Properties{});
+    kira::Properties properties;
+    properties.set("geometry_ctx_id", static_cast<std::int64_t>(mesh->getContextId()));
+    properties.set("edf_ctx_id", static_cast<std::int64_t>(edf->getContextId()));
+    auto const primitive = context->create<flux::Primitive>(properties);
+    // The rotation about x by 40 degrees of the rotation about z by 30 degrees, scaled by (1.5,
+    // 0.8, 1.1) before it, then moved by (0.3, -0.2, 0.5).
+    primitive->setTransform({
+        1.2990381F,
+        -0.4F,
+        0.0F,
+        0.3F,
+        0.5745333F,
+        0.5307312F,
+        -0.7070664F,
+        -0.2F,
+        0.4820907F,
+        0.4453363F,
+        0.8426489F,
+        0.5F,
+    });
+
+    flux::EmbreeContext embree(*context);
+    embree.sync();
+    auto const scene = embree.getImpl();
+    auto const primitiveIndex = context->getIndex<flux::Primitive>(primitive->getContextId());
+    auto const &geometry =
+        scene.table.getGeometry(scene.table.getPrimitive(primitiveIndex).getGeometryIndex());
+
+    for (auto const &[elementIndex, coordinates] : {
+             std::pair{0U, flux::Vec2f{0.2F, 0.3F}},
+             std::pair{0U, flux::Vec2f{0.6F, 0.1F}},
+             std::pair{1U, flux::Vec2f{0.25F, 0.5F}},
+         }) {
+        auto const sampled = flux::detail::makeSurfaceInteraction(
+            scene, primitiveIndex,
+            geometry.computeInteraction({.coordinates = coordinates, .elementIndex = elementIndex})
+        );
+
+        // A ray along the negative normal hits the surface at the sampled point.
+        auto const ray = flux::Ray{
+            .origin = sampled.position + sampled.geometricNormal,
+            .direction = -sampled.geometricNormal,
+        };
+        flux::EmbreeContext::Hit hit{};
+        ASSERT_TRUE(scene.intersect(ray, hit));
+        auto const hitInteraction = scene.makeSurfaceInteraction(ray, hit);
+
+        EXPECT_EQ(hit.primitiveIndex, primitiveIndex);
+        EXPECT_EQ(hit.preliminary.elementIndex, elementIndex);
+        EXPECT_NEAR(hit.preliminary.coordinates.x(), coordinates.x(), 1e-4F);
+        EXPECT_NEAR(hit.preliminary.coordinates.y(), coordinates.y(), 1e-4F);
+        EXPECT_NEAR((hitInteraction.position - sampled.position).norm(), 0.0F, 1e-4F);
+        EXPECT_NEAR((hitInteraction.geometricNormal - sampled.geometricNormal).norm(), 0.0F, 1e-5F);
+        EXPECT_NEAR((hitInteraction.shadingNormal - sampled.shadingNormal).norm(), 0.0F, 1e-5F);
+        EXPECT_NEAR((hitInteraction.uv - sampled.uv).norm(), 0.0F, 1e-4F);
+        EXPECT_NEAR((hitInteraction.uvGradU - sampled.uvGradU).norm(), 0.0F, 1e-4F);
+        EXPECT_NEAR((hitInteraction.uvGradV - sampled.uvGradV).norm(), 0.0F, 1e-4F);
+        EXPECT_EQ(hitInteraction.primitiveIndex, sampled.primitiveIndex);
+        EXPECT_EQ(hitInteraction.elementIndex, sampled.elementIndex);
+    }
 }
 
 TEST(EmbreePipelineTests, RendersAVertexBufferWithoutSpareCapacityAsOneWithIt) {

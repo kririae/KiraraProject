@@ -170,7 +170,6 @@ TEST(GeometryTests, SamplesTriangleMeshesByGeometrySpaceArea) {
     ASSERT_GT(sample.pdf, 0.0F);
     EXPECT_NEAR(distribution.areaCDF.back(), mesh->getSurfaceArea(), 1.0e-5F);
     EXPECT_NEAR(sample.pdf, 1.0F / mesh->getSurfaceArea(), 1.0e-6F);
-    EXPECT_NEAR(sample.geometricNormal.norm(), 1.0F, 1.0e-6F);
 }
 
 TEST(GeometryTests, ReportsZeroDensityForAZeroAreaTriangle) {
