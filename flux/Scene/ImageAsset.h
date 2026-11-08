@@ -35,8 +35,9 @@ inline constexpr std::string_view srgbTexture{"srgb_texture"};
 
 /// \brief Image file and the OCIO name of the color space of its color components.
 ///
-/// An empty name is \c linearRec709. A name that the OCIO config does not know becomes
-/// \c linearRec709, and the pool warns.
+/// An empty name is the color space that the OCIO file rules of the active config give the path,
+/// or \c linearRec709 if only their default rule matches. A name that the config does not know
+/// becomes \c linearRec709, and the pool warns.
 struct ImageAssetSpec {
     std::filesystem::path path;
     std::string colorSpace;
@@ -118,7 +119,7 @@ public:
     /// \brief Returns the color space that the header of the file at \p path implies.
     ///
     /// An image of 8-bit components with at least three channels is \c srgbTexture. Any other
-    /// image, and a file with no readable header, has no color space, which is the empty name.
+    /// image, and a file with no readable header, is \c linearRec709.
     [[nodiscard]] std::string chooseColorSpace(std::filesystem::path const &path) const;
 
     /// \brief Drops every asset that only this pool references.

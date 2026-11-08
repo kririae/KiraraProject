@@ -92,11 +92,23 @@ void validateImageSpec(OIIO::ImageSpec const &spec) {
     return OIIO::ColorConfig::default_colorconfig().equivalent(name, linearRec709);
 }
 
+/// The color space that the OCIO file rules give \p path, or empty if no rule but the default one
+/// matches. The default rule matches every file, so it says nothing about this one.
+[[nodiscard]] OIIO::string_view findColorSpaceByFileRules(std::filesystem::path const &path) {
+    auto const &config = OIIO::ColorConfig::default_colorconfig();
+    auto const filename = path.string();
+    if (config.filepathOnlyMatchesDefaultRule(filename))
+        return {};
+    return config.getColorSpaceFromFilepath(filename);
+}
+
 /// The name that the OCIO config gives the color space of \p spec, so that every alias shares an
 /// asset. An empty name, or a name that the config does not know, is lin_rec709.
 [[nodiscard]] std::string canonicalizeColorSpace(ImageAssetSpec const &spec) {
     auto const &config = OIIO::ColorConfig::default_colorconfig();
     auto name = OIIO::string_view{spec.colorSpace};
+    if (name.empty() && !spec.path.empty())
+        name = findColorSpaceByFileRules(spec.path);
     if (name.empty())
         name = linearRec709;
 
@@ -375,11 +387,11 @@ std::string ImageAssetPool::chooseColorSpace(std::filesystem::path const &path) 
     auto const *spec = imageCache->imagespec(OIIO::ustring{canonicalize(path).string()});
     if (!spec) {
         (void)imageCache->geterror();
-        return {};
+        return std::string{linearRec709};
     }
 
     auto const isUNorm8 = chooseComponentType(*spec) == ImageComponentType::UNorm8;
-    return isUNorm8 && spec->nchannels >= 3 ? std::string{srgbTexture} : std::string{};
+    return std::string{isUNorm8 && spec->nchannels >= 3 ? srgbTexture : linearRec709};
 }
 
 void ImageAssetPool::collectGarbage() {

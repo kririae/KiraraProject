@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <cstdlib>
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -16,6 +17,15 @@
 #endif
 
 namespace {
+/// OIIO reads \c $OCIO when it first needs its default config, so this runs before any test.
+class OcioEnvironment : public testing::Environment {
+public:
+    void SetUp() override { setenv("OCIO", "ocio://default", /* overwrite = */ 1); }
+};
+
+[[maybe_unused]] auto *const ocioEnvironment =
+    testing::AddGlobalTestEnvironment(new OcioEnvironment);
+
 class EmbreeImageTextureTests : public testing::Test {
 protected:
     [[nodiscard]] static std::filesystem::path path(std::string_view filename) {
@@ -271,6 +281,28 @@ TEST_F(EmbreeImageTextureTests, ConvertsTheColorSpaceOfTheFileToLinearRec709) {
 
     // The ACEScg to Rec.709 matrix applied to the texel.
     expectNear(sample({0.5F, 0.5F}), {0.68667F, 0.21875F, 0.09988F, 1.0F});
+}
+
+TEST_F(EmbreeImageTextureTests, TakesTheColorSpaceOfAnUnnamedFileFromTheFileRules) {
+    // OIIO gives its built-in config one file rule: the color space that the path names.
+    auto const imagePath = path("file-rules.ACEScg.exr");
+    auto const pixels = std::array{0.5F, 0.25F, 0.125F};
+    flux::test::writeFloatImage(imagePath, pixels, {1, 1});
+    (void)context->create<flux::ImageTexture>(flux::ImageTextureSpec{.image = {.path = imagePath}});
+    pool.build(*context);
+
+    expectNear(sample({0.5F, 0.5F}), {0.68667F, 0.21875F, 0.09988F, 1.0F});
+}
+
+TEST_F(EmbreeImageTextureTests, KeepsAnUnnamedFileThatOnlyTheDefaultRuleMatchesLinear) {
+    auto const imagePath = path("default-rule.tif");
+    auto const pixels = std::array{0.5F, 0.5F, 0.5F};
+    flux::test::writeFloatImage(imagePath, pixels, {1, 1}, {}, flux::ImageComponentType::UNorm8);
+    (void)context->create<flux::ImageTexture>(flux::ImageTextureSpec{.image = {.path = imagePath}});
+    pool.build(*context);
+
+    constexpr auto expected = 128.0F / 255.0F;
+    expectNear(sample({0.5F, 0.5F}), {expected, expected, expected, 1.0F});
 }
 
 TEST_F(EmbreeImageTextureTests, DecodesUNorm8SRGB) {

@@ -71,12 +71,13 @@ TEST_F(ImageAssetTests, ChoosesSRGBTextureForUNorm8WithAtLeastThreeChannels) {
     };
     using flux::ImageComponentType;
     constexpr auto srgb = flux::srgbTexture;
+    constexpr auto linear = flux::linearRec709;
     auto const componentNames = std::array<std::string_view, 4>{"R", "G", "B", "A"};
     auto const pixels = std::array{0.25F, 0.5F, 0.75F, 1.0F};
     auto const cases = std::array{
-        Case{1, ImageComponentType::UNorm8, ""},   Case{2, ImageComponentType::UNorm8, ""},
-        Case{3, ImageComponentType::UNorm8, srgb}, Case{4, ImageComponentType::UNorm8, srgb},
-        Case{3, ImageComponentType::Float16, ""},  Case{3, ImageComponentType::Float32, ""},
+        Case{1, ImageComponentType::UNorm8, linear},  Case{2, ImageComponentType::UNorm8, linear},
+        Case{3, ImageComponentType::UNorm8, srgb},    Case{4, ImageComponentType::UNorm8, srgb},
+        Case{3, ImageComponentType::Float16, linear}, Case{3, ImageComponentType::Float32, linear},
     };
     for (auto const &[channels, type, expected] : cases) {
         SCOPED_TRACE(
