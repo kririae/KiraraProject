@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <memory>
@@ -18,6 +19,7 @@
 
 #include "flux/Core/HostBuffer.h"
 #include "flux/Core/MathUtils.h"
+#include "flux/Hydra/Instancer.h"
 #include "flux/Hydra/LightEmission.h"
 #include "flux/Hydra/RenderParam.h"
 #include "flux/Hydra/Transform.h"
@@ -174,14 +176,6 @@ template <typename T>
 ) {
     return sceneDelegate.GetLightParamValue(id, token).GetWithDefault(fallback);
 }
-
-[[nodiscard]] flux::Spectrum
-computeNormalizedEmission(HdSceneDelegate &sceneDelegate, SdfPath const &id, float area) {
-    auto const radiance = HdFluxComputeLightEmission(sceneDelegate, id);
-    if (getLightParam(sceneDelegate, id, HdLightTokens->normalize, false) && area > 0.0F)
-        return radiance / area;
-    return radiance;
-}
 } // namespace
 
 HdFluxAreaLight::HdFluxAreaLight(SdfPath const &id, TfToken const &type) : HdLight(id) {
@@ -201,35 +195,55 @@ void HdFluxAreaLight::Sync(
     auto const &id = GetId();
     auto &param = *static_cast<HdFluxRenderParam *>(renderParam);
 
+    _UpdateInstancer(sceneDelegate, dirtyBits);
+    if ((*dirtyBits & DirtyInstancer) != 0)
+        instanceTransforms_ =
+            HdFluxComputeInstanceTransforms(sceneDelegate->GetRenderIndex(), GetInstancerId(), id);
+
     try {
         auto const context = param.GetContext();
 
         auto const shapeSpec = getShapeSpec(*sceneDelegate);
-        if (!primitive_)
-            createPrimitive(*context, shapeSpec);
-        else if (shapeSpec != shapeSpec_)
-            primitive_->setGeometry(createShapeMesh(*context, shapeSpec));
+        if (!geometry_ || shapeSpec != shapeSpec_)
+            geometry_ = createShapeMesh(*context, shapeSpec);
         shapeSpec_ = shapeSpec;
 
-        primitive_->setVisible(sceneDelegate->GetVisible(id));
-        primitive_->setTransform(HdFluxToTransform(sceneDelegate->GetTransform(id)));
+        auto const visible = sceneDelegate->GetVisible(id);
+        auto const transform = sceneDelegate->GetTransform(id);
+        auto const radiance = HdFluxComputeLightEmission(*sceneDelegate, id);
+        auto const normalize = getLightParam(*sceneDelegate, id, HdLightTokens->normalize, false);
 
-        auto const mesh = primitive_->getGeometry().dynamicCast<flux::TriangleMesh const>();
-        auto const area = worldArea(*mesh, primitive_->getTransform());
-        edf_->setRadiance(computeNormalizedEmission(*sceneDelegate, id, area));
+        HdFluxTruncatePrimitives(*context, primitives_, instanceTransforms_.size());
+        edfs_.resize(primitives_.size());
+        primitives_.reserve(instanceTransforms_.size());
+        edfs_.reserve(instanceTransforms_.size());
+        for (std::size_t i = 0; i < instanceTransforms_.size(); ++i) {
+            if (i == primitives_.size()) {
+                auto edf = context->create<flux::ConstantEDF>(kira::Properties{});
+                primitives_.push_back(context->create<flux::Primitive>(geometry_));
+                edfs_.push_back(std::move(edf));
+            }
+
+            auto &primitive = *primitives_[i];
+            primitive.setGeometry(geometry_);
+            primitive.setEDF(edfs_[i]);
+            primitive.setVisible(visible);
+            primitive.setTransform(HdFluxToTransform(transform * instanceTransforms_[i]));
+
+            auto const area = worldArea(*geometry_, primitive.getTransform());
+            edfs_[i]->setRadiance(normalize && area > 0.0F ? radiance / area : radiance);
+        }
     } catch (std::exception const &error) { TF_WARN("%s: %s", id.GetText(), error.what()); }
 
-    *dirtyBits &= ~AllDirty;
+    *dirtyBits = Clean;
 }
 
 HdDirtyBits HdFluxAreaLight::GetInitialDirtyBitsMask() const { return AllDirty; }
 
 void HdFluxAreaLight::Finalize(HdRenderParam *renderParam) {
-    if (!primitive_)
-        return;
-
-    auto const context = static_cast<HdFluxRenderParam *>(renderParam)->GetContext();
-    context->remove(primitive_->getContextId());
+    HdFluxTruncatePrimitives(
+        *static_cast<HdFluxRenderParam *>(renderParam)->GetContext(), primitives_, 0
+    );
 }
 
 HdFluxAreaLight::ShapeSpec HdFluxAreaLight::getShapeSpec(HdSceneDelegate &sceneDelegate) const {
@@ -264,12 +278,4 @@ HdFluxAreaLight::createShapeMesh(flux::Context &context, ShapeSpec const &shapeS
         [&](CylinderSpec const &spec) { return createCylinder(context, spec.radius, spec.length); },
     };
     return std::visit(create, shapeSpec);
-}
-
-void HdFluxAreaLight::createPrimitive(flux::Context &context, ShapeSpec const &shapeSpec) {
-    edf_ = context.create<flux::ConstantEDF>(kira::Properties{});
-
-    auto primitive = context.create<flux::Primitive>(createShapeMesh(context, shapeSpec));
-    primitive->setEDF(edf_);
-    primitive_ = std::move(primitive);
 }
