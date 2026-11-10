@@ -5,7 +5,7 @@
 #include <string_view>
 #include <vector>
 
-#include "flux/Slang/SlangCompiler.h"
+#include "flux/Optix/SlangCompiler.h"
 #include "kira/Anyhow.h"
 
 namespace {

@@ -1,4 +1,4 @@
-#include "flux/Slang/SlangCompiler.h"
+#include "flux/Optix/SlangCompiler.h"
 
 #include <slang-com-ptr.h>
 #include <slang.h>

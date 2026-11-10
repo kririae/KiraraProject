@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "flux/Mtlx/MtlxShaderGenerator.h"
-#include "flux/Slang/SlangCompiler.h"
+#include "flux/Optix/SlangCompiler.h"
 #include "kira/Anyhow.h"
 
 namespace {

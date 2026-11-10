@@ -22,7 +22,7 @@ krr_add_test(
     flux Slang MaterialLibraryTests
     SOURCES SlangMaterialLibraryTests.cpp
     HARD_DEPENDENCIES flux)
-target_compile_definitions(flux.Slang.MaterialLibraryTests PRIVATE FLUX_SLANG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../Slang")
+target_compile_definitions(flux.Slang.MaterialLibraryTests PRIVATE FLUX_SLANG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../Shading")
 
 krr_add_test(
     flux Mtlx GeneratorTests
@@ -30,7 +30,7 @@ krr_add_test(
     HARD_DEPENDENCIES flux flux_mtlx)
 target_compile_definitions(
     flux.Mtlx.GeneratorTests
-    PRIVATE FLUX_SLANG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../Slang"
+    PRIVATE FLUX_SLANG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../Shading"
             FLUX_MATERIALX_DIR="${flux_materialx_root}")
 
 add_test(NAME flux.CLI.CboxSmoke

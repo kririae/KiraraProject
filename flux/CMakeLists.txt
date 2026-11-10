@@ -106,6 +106,7 @@ add_library(
     Optix/OptixProgram.cpp
     Optix/OptixSbt.cpp
     Optix/OptixTextureObject.cpp
+    Optix/SlangCompiler.cpp
     Sampling/Distribution2D.cpp
     Sampling/LightPowerDistribution.cpp
     Sampling/Sampler.cpp
@@ -125,10 +126,9 @@ add_library(
     Scene/TXContext.cpp
     Shading/BSDF.cpp
     Shading/EDF.cpp
-    Shading/Texture.cpp
-    Slang/SlangCompiler.cpp)
+    Shading/Texture.cpp)
 
-flux_embed(flux/Optix/OptixSlangModules.inc Slang/flux-material.slang Optix/flux-context.slang
+flux_embed(flux/Optix/OptixSlangModules.inc Shading/flux-material.slang Optix/flux-context.slang
            Optix/flux-callable.slang)
 flux_embed(
     flux/Optix/OptixNvrtcHeaders.inc

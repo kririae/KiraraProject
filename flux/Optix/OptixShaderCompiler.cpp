@@ -16,7 +16,7 @@
 #include "flux/Core/Logging.h"
 #include "flux/Optix/OptixLaunchParams.h"
 #include "flux/Optix/OptixUtils.h"
-#include "flux/Slang/SlangCompiler.h"
+#include "flux/Optix/SlangCompiler.h"
 #include "kira/Anyhow.h"
 
 namespace flux {

@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "flux/Slang/SlangCompiler.h"
+#include "flux/Optix/SlangCompiler.h"
 
 namespace {
 /// \brief A backend that mixes two leaves of the library, with the closure declared by \c let.
