@@ -6,8 +6,7 @@
     "vcpkg/triplets"
   ],
   "default-registry": {
-    "kind": "git",
-    "baseline": "1600ce2ba1b6b621bfc5a31a785c4963b817a1c7",
-    "repository": "https://github.com/microsoft/vcpkg"
+    "kind": "builtin",
+    "baseline": "1600ce2ba1b6b621bfc5a31a785c4963b817a1c7"
   }
 }

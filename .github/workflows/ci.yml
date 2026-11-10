@@ -32,7 +32,7 @@ jobs:
 
       - name: Install CMake
         run: |
-          pip3 install cmake==3.30.2
+          pip3 install cmake==3.31.6
 
       - name: Configure CMake
         run: |
@@ -73,7 +73,7 @@ jobs:
 
       - name: Install CMake
         run: |
-          pip3 install cmake==3.30.2
+          pip3 install cmake==3.31.6
 
       - name: Configure CMake
         run: |

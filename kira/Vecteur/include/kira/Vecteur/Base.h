@@ -229,8 +229,8 @@ public:
     ///
     /// \note This function is only available when the size of the vectors is the same.
     /// \note Runtime-check will be enabled in debug mode.
-    [[nodiscard]] constexpr auto near(auto const &rhs, auto const &epsilon) const {
-        return KIRA_CONSTEXPR_DISPATCH2(near_, rhs, epsilon);
+    [[nodiscard]] constexpr auto isApprox(auto const &rhs, auto const &epsilon) const {
+        return KIRA_CONSTEXPR_DISPATCH2(isApprox_, rhs, epsilon);
     }
 
     /// Sum of the square of all elements in the vector.

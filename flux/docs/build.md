@@ -2,7 +2,9 @@
 
 How FLux applies the [verify skill](../../.agents/skills/verify/SKILL.md).
 
-- Configure the main worktree with `cmake --preset developer`. `tools/worktree-add.sh` configures each other worktree. Build with `cmake --build --preset developer`. The `binaryDir` of the preset in `CMakePresets.json` is the build tree.
+- Clone with `git clone --recurse-submodules`. Install CMake, Ninja, and a CUDA Toolkit that supports the host compiler.
+- On Windows, configure from an x64 Visual Studio developer shell. To use Clang for C and C++, set `CC` and `CXX` to `clang-cl` before the first configure. NVCC still uses MSVC for CUDA host code.
+- Configure the main worktree with `cmake --preset flux`. Configure other worktrees with `tools/worktree-add.sh --preset flux <path>`. Build with `cmake --build --preset flux`.
 - The option `KRR_BUILD_FLUX_HYDRA` of the root `CMakeLists.txt` builds hdFlux. Its description says what it needs.
 - `krr_add_test` in `cmake/KRR_AddTest.cmake` names each unit test target, such as `flux.CLI.CLITests`, and places its binary. Build one with `--target`.
 - `ctest` in the build tree runs every test. `flux/Tests/CMakeLists.txt` labels the integration tests `integration`.

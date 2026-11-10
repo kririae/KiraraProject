@@ -238,12 +238,12 @@ struct ImageTexture::Impl {
 };
 
 struct Texture::Impl {
-    TextureType type;
+    TextureType type{TextureType::Constant};
 
     union Storage {
         ConstantTexture::Impl constant;
         ImageTexture::Impl image;
-    } storage;
+    } storage{.constant = ConstantTexture::Impl{Spectrum{0.0F}}};
 
     template <typename Evaluator>
     [[nodiscard]] KIRA_HOST_DEVICE float eval1f(TextureEvalContext const &ctx) const noexcept {

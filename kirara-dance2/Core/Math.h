@@ -70,7 +70,7 @@ struct PropertyProcessor<::krd::Matrix<T, N, M>> : std::true_type {
     static auto from_toml(toml::node &node, auto const &owner) {
         toml::array *arr = node.as_array();
         if (!arr)
-            throw Anyhow("Expected an array, but got {}", magic_enum::enum_name(node.type()));
+            throw Anyhow("Expected an array, but got {}", toml_type_name(node.type()));
 
         ::krd::Matrix<T, N, M> mat;
         if (!can_eq(arr->size(), N) || arr->size() == 0) {
@@ -82,8 +82,7 @@ struct PropertyProcessor<::krd::Matrix<T, N, M>> : std::true_type {
         toml::array *arr0 = arr->at(0).as_array();
         if (!arr0)
             throw Anyhow(
-                "Expected an array for row 0, but got {}",
-                magic_enum::enum_name(arr->at(0).type())
+                "Expected an array for row 0, but got {}", toml_type_name(arr->at(0).type())
             );
 
         auto const rows = arr->size();
@@ -99,8 +98,7 @@ struct PropertyProcessor<::krd::Matrix<T, N, M>> : std::true_type {
             toml::array *row = arr->at(i).as_array();
             if (!row) {
                 throw Anyhow(
-                    "Expected an array for row {}, but got {}", i,
-                    magic_enum::enum_name(arr->at(i).type())
+                    "Expected an array for row {}, but got {}", i, toml_type_name(arr->at(i).type())
                 );
             }
             if (row->size() != cols) {
@@ -114,7 +112,7 @@ struct PropertyProcessor<::krd::Matrix<T, N, M>> : std::true_type {
                 else
                     throw Anyhow(
                         "Expected a matrix element, but got {} at [{}, {}]",
-                        magic_enum::enum_name(row->at(j).type()), i, j
+                        toml_type_name(row->at(j).type()), i, j
                     );
             }
         }

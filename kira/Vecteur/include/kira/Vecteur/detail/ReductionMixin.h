@@ -39,7 +39,7 @@ public:
     }
 
     template <is_vecteur RHS>
-    constexpr auto near_(RHS const &rhs, auto const &epsilon) const
+    constexpr auto isApprox_(RHS const &rhs, auto const &epsilon) const
         requires(is_static_operable<Derived, RHS>)
     {
         CheckDynamicOperable(derived_(), rhs);

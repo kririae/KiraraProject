@@ -395,10 +395,10 @@ void OptixContext::pImpl::syncTextures() {
             .pointTexture = point,
             .componentMapping = texture->getComponentMapping(),
             .placeholder = texture->getImageAsset()->isPlaceholder(),
+            .componentCount = image.componentCount,
             .fallback = {fallback.x(), fallback.y(), fallback.z(), fallback.w()},
             .scale = {scale.x(), scale.y(), scale.z(), scale.w()},
             .bias = {bias.x(), bias.y(), bias.z(), bias.w()},
-            .componentCount = image.componentCount,
         };
     }
 

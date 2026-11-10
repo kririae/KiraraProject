@@ -271,13 +271,13 @@ ut::suite vecteur = [] {
 
         kira::Vecteur<float, 3> v1{1.0f, 2.0f, 3.0f};
         kira::Vecteur<float, 3> v2{1.0f, 2.0f, 3.0f};
-        expect(v1.near(v2, epsilon) == true_b);
+        expect(v1.isApprox(v2, epsilon) == true_b);
 
         kira::Vecteur<float, 3> v3{1.0f, 2.0f, 3.0f + epsilon * 0.9f};
-        expect(v1.near(v3, epsilon) == true_b);
+        expect(v1.isApprox(v3, epsilon) == true_b);
 
         kira::Vecteur<float, 3> v4{1.0f, 2.0f, 3.0f + epsilon * 1.1f};
-        expect(not v1.near(v4, epsilon) == true_b);
+        expect(not v1.isApprox(v4, epsilon) == true_b);
     };
 
     "hsum"_test = [] {

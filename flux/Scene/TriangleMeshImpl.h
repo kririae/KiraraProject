@@ -51,9 +51,9 @@ TriangleMesh::Impl::computeInteraction(PreliminaryIntersection const &preliminar
     // The parameterization gradients reuse the barycentric gradients of b and c, which need
     // the same triangle area. Differentiating the edge vectors directly keeps a small offset
     // from rounding away against a large vertex position.
-    auto uv = Vec2f{};
-    auto uvGradU = Vec3f{};
-    auto uvGradV = Vec3f{};
+    auto uv = Vec2f{0.0F};
+    auto uvGradU = Vec3f{0.0F};
+    auto uvGradV = Vec3f{0.0F};
     if (texCoords) {
         auto const textureIndices = texCoordIndices[preliminary.elementIndex];
         auto const texture0 = texCoords[textureIndices[0]];

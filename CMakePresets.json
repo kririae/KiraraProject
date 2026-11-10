@@ -2,29 +2,42 @@
   "version": 6,
   "cmakeMinimumRequired": {
     "major": 3,
-    "minor": 27,
-    "patch": 4
+    "minor": 31
   },
   "configurePresets": [
     {
       "name": "default",
       "description": "Default build using Ninja Multi-Config generator",
       "generator": "Ninja Multi-Config",
-      "binaryDir": "${sourceDir}/build/${presetName}"
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/external/vcpkg/scripts/buildsystems/vcpkg.cmake"
+      }
     },
     {
       "name": "developer",
-      "description": "Developer build using Ninja generator",
+      "inherits": "default",
+      "description": "KIRA developer build using Ninja",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_CUDA_ARCHITECTURES": "native",
-        "KRR_BUILD_FLUX": "ON",
-        "KRR_BUILD_KIRARA_DANCE": "ON",
-        "KRR_BUILD_FOR_NATIVE": "ON",
-        "KRR_BUILD_TESTS": "ON",
-        "KRR_USE_MOLD": "ON"
+        "KRR_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "flux",
+      "inherits": "developer",
+      "description": "FLux developer build",
+      "cacheVariables": {
+        "KRR_BUILD_FLUX": "ON"
+      }
+    },
+    {
+      "name": "kirara-dance",
+      "inherits": "developer",
+      "description": "Kirara Dance developer build",
+      "cacheVariables": {
+        "KRR_BUILD_KIRARA_DANCE": "ON"
       }
     }
   ],
@@ -42,6 +55,14 @@
     {
       "name": "developer",
       "configurePreset": "developer"
+    },
+    {
+      "name": "flux",
+      "configurePreset": "flux"
+    },
+    {
+      "name": "kirara-dance",
+      "configurePreset": "kirara-dance"
     }
   ]
 }

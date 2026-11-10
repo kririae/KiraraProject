@@ -142,11 +142,16 @@ static_assert(is_same_v<decltype({edfCallable}), flux::OptixEDFCallable>);
 
     auto const launchParamsSize =
         fmt::format("-DFLUX_LAUNCH_PARAMS_SIZE={}", sizeof(OptixLaunchParams));
-    // -pch keeps the bridge's first include, the Slang prelude, parsed for later compiles.
-    auto const options = std::array{
+    std::vector<char const *> options{
         "-optix-ir",       "--std=c++20", architectureOption.c_str(), "--use_fast_math",
-        "-default-device", "-rdc=true",   launchParamsSize.c_str(),   "-pch",
+        "-default-device", "-rdc=true",   launchParamsSize.c_str(),
     };
+    int major{};
+    int minor{};
+    nvrtcCheck(nvrtcVersion(&major, &minor));
+    if (major > 12 || (major == 12 && minor >= 8))
+        options.push_back("-pch");
+
     auto const result =
         nvrtcCompileProgram(handle, static_cast<int>(options.size()), options.data());
     if (result != NVRTC_SUCCESS) {

@@ -504,38 +504,38 @@ TEST_F(VecteurStaticTests, Near) {
 
         Vecteur v1{1.0f, 2.0f, 3.0f};
         Vecteur v2{1.0f, 2.0f, 3.0f};
-        EXPECT_TRUE(v1.near(v2, epsilon));
+        EXPECT_TRUE(v1.isApprox(v2, epsilon));
 
         Vecteur v3{1.0f, 2.0f, 3.0f + epsilon * 0.9f};
-        EXPECT_TRUE(v1.near(v3, epsilon));
+        EXPECT_TRUE(v1.isApprox(v3, epsilon));
 
         Vecteur v4{1.0f, 2.0f, 3.0f + epsilon};
-        EXPECT_TRUE(v1.near(v4, epsilon));
+        EXPECT_TRUE(v1.isApprox(v4, epsilon));
 
         Vecteur v5{1.0f, 2.0f, 3.0f + epsilon * 1.1f};
-        EXPECT_FALSE(v1.near(v5, epsilon));
+        EXPECT_FALSE(v1.isApprox(v5, epsilon));
 
         Vecteur v6{1.0f + epsilon * 0.3f, 2.0f + epsilon * 0.3f, 3.0f + epsilon * 0.3f};
-        EXPECT_TRUE(v1.near(v6, epsilon));
+        EXPECT_TRUE(v1.isApprox(v6, epsilon));
 
         Vecteur v7{1.0f + epsilon * 0.7f, 2.0f + epsilon * 0.7f, 3.0f + epsilon * 0.7f};
-        EXPECT_FALSE(v1.near(v7, epsilon));
+        EXPECT_FALSE(v1.isApprox(v7, epsilon));
 
         Vecteur v8{-1.0f, -2.0f, -3.0f};
         Vecteur v9{-1.0f, -2.0f, -3.0f - epsilon * 0.9f};
-        EXPECT_TRUE(v8.near(v9, epsilon));
+        EXPECT_TRUE(v8.isApprox(v9, epsilon));
 
         Vecteur v10{-1.0f, 2.0f, -3.0f};
         Vecteur v11{-1.0f + epsilon * 0.5f, 2.0f - epsilon * 0.5f, -3.0f + epsilon * 0.5f};
-        EXPECT_TRUE(v10.near(v11, epsilon));
+        EXPECT_TRUE(v10.isApprox(v11, epsilon));
 
         Vecteur v12{0.0f, 0.0f, 0.0f};
         Vecteur v13{epsilon * 0.3f, epsilon * 0.3f, epsilon * 0.3f};
-        EXPECT_TRUE(v12.near(v13, epsilon));
+        EXPECT_TRUE(v12.isApprox(v13, epsilon));
 
         Vecteur v14{1e-8f, 1e-8f, 1e-8f};
         Vecteur v15{1e-8f + epsilon * 0.5f, 1e-8f + epsilon * 0.5f, 1e-8f + epsilon * 0.5f};
-        EXPECT_TRUE(v14.near(v15, epsilon));
+        EXPECT_TRUE(v14.isApprox(v15, epsilon));
     });
 }
 

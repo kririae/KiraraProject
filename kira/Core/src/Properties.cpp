@@ -1,17 +1,19 @@
-// clang-format off
-#define TOML_IMPLEMENTATION
 #include "kira/Properties.h"
-// clang-format on
 
 #include <fmt/format.h>
 
 #include <algorithm>
+#include <magic_enum/magic_enum.hpp>
 #include <sstream>
 #include <utility>
 
 #include "kira/Assertions.h"
 
 namespace kira {
+std::string_view toml_type_name(toml::node_type type) noexcept {
+    return magic_enum::enum_name(type);
+}
+
 namespace {
 std::optional<std::string>
 get_diagnostic_impl(toml::source_region const &region, auto const &sourceLines) {

@@ -1,6 +1,7 @@
 #include "flux/Embree/EmbreeMegaKernel.h"
 
 #include <cstdint>
+#include <cstdlib>
 
 #include "flux/Embree/EmbreeLaunchParams.h"
 #include "flux/Integrator/PathIntegrator.h"
@@ -13,17 +14,15 @@
 namespace flux::embree {
 struct EmbreeEvaluator {
     /// Never runs: sync throws on a scene with a shader BSDF.
-    [[nodiscard]] static BSDFResult execute(
-        std::uint32_t, ShadingContext const &, Vec3f const &, Vec3f const &, bool, float,
-        Vec2f const &
-    ) noexcept {
-        KIRA_UNREACHABLE();
+    [[noreturn]] static BSDFResult
+    execute(std::uint32_t, ShadingContext const &, Vec3f const &, Vec3f const &, bool, float, Vec2f const &) noexcept {
+        std::abort();
     }
 
     /// Never runs: sync throws on a scene with a shader EDF.
-    [[nodiscard]] static Spectrum
+    [[noreturn]] static Spectrum
     evaluate(std::uint32_t, Vec2f const &, Vec3f const &, Vec3f const &) noexcept {
-        KIRA_UNREACHABLE();
+        std::abort();
     }
 
     [[nodiscard]] static Vec4f

@@ -70,15 +70,10 @@ function(krr_add_module project_name module_name)
     # Enable compiler warnings
     # ----------------------------------------------------------
     if(MODULE_SOURCES)
-        if(CMAKE_C_COMPILER_ID MATCHES "GNU"
-           OR CMAKE_CXX_COMPILER_ID MATCHES "GNU"
-           OR CMAKE_C_COMPILER_ID MATCHES "(Apple)?[Cc]lang"
-           OR CMAKE_CXX_COMPILER_ID MATCHES "(Apple)?[Cc]lang")
-            # GCC/Clang
-            target_compile_options(${module_base_name} PRIVATE -Wall -Wextra)
-        elseif(MSVC)
-            # MSVC
+        if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
             target_compile_options(${module_base_name} PRIVATE /W4)
+        elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+            target_compile_options(${module_base_name} PRIVATE -Wall -Wextra)
         endif()
     endif()
 

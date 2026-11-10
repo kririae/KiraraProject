@@ -26,6 +26,9 @@ struct OptixImageTexture {
     /// Whether the image is the placeholder of a file that failed to load.
     bool placeholder;
 
+    /// Number of components stored in the CUDA array.
+    unsigned char componentCount;
+
     /// Value that replaces the component mapping of a texel of a placeholder.
     float4 fallback;
 
@@ -34,9 +37,6 @@ struct OptixImageTexture {
 
     /// Term that \c apply adds after the scale.
     float4 bias;
-
-    /// Number of components stored in the CUDA array.
-    unsigned char componentCount;
 
     /// \brief Returns the value of \p texel.
     ///
