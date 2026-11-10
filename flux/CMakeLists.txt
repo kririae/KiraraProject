@@ -172,8 +172,10 @@ flux_embed(flux/Mtlx/MtlxSlangLibraries.inc Mtlx/libraries/mx-prelude.slang
            Mtlx/libraries/mx-oren-nayar-diffuse-bsdf.slang Mtlx/libraries/mx-sheen-bsdf.slang
            Mtlx/libraries/mx-subsurface-bsdf.slang Mtlx/libraries/mx-translucent-bsdf.slang)
 
-add_library(flux_mtlx STATIC Mtlx/FluxShaderGenerator.cpp Mtlx/FluxShaderGraphRefactor.cpp
-                             Mtlx/FluxSourceCodeNode.cpp Mtlx/MtlxBSDFGenerator.cpp)
+add_library(
+    flux_mtlx STATIC
+    Mtlx/FluxShaderGenerator.cpp Mtlx/FluxShaderGraphRefactor.cpp Mtlx/FluxSourceCodeNode.cpp
+    Mtlx/MtlxBSDFGenerator.cpp Mtlx/MtlxEmission.cpp)
 target_include_directories(flux_mtlx PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated
                                              ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(

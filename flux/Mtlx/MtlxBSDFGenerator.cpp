@@ -38,6 +38,7 @@
 #include "flux/Mtlx/FluxShaderGenerator.h"
 #include "flux/Mtlx/FluxShaderGraphRefactor.h"
 #include "flux/Mtlx/FluxSourceCodeNode.h"
+#include "flux/Mtlx/MtlxEmission.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
@@ -143,16 +144,17 @@ void requireWrittenGeomProp(MaterialX::ShaderGraph const &graph) {
     });
 }
 
-/// \brief Appends a diagnostic for each network of EDFs or VDFs that ends in an unread input.
-void reportUnreadEDFAndVDF(
+/// \brief Appends a diagnostic for each network of VDFs that ends in an unread input.
+void reportUnreadVDF(
     MaterialX::ShaderGraph const &graph, std::string const &materialName,
     std::vector<std::string> &diagnostics
 ) {
     for (auto const *node : graph.getNodes()) {
-        if (isEDFOrVDF(node->getOutput()->getType()))
+        if (node->getOutput()->getType() == MaterialX::Type::VDF)
             continue;
         for (auto const *input : node->getInputs())
-            if (isEDFOrVDF(input->getType()) && input->getConnection() && !isRead(*input))
+            if (input->getType() == MaterialX::Type::VDF && input->getConnection() &&
+                !isRead(*input))
                 diagnostics.push_back(
                     fmt::format(
                         "MaterialX material '{}': '{}/{}' is not read", materialName,
@@ -174,10 +176,11 @@ void reportUnreadEDFAndVDF(
     }
 }
 
-/// \brief Declares the variable of \p socket as the value that the words hold at \p offset.
-void emitWordRead(
+/// \brief The line that declares the variable of \p socket as the value that the words hold at
+/// \p offset.
+[[nodiscard]] std::string makeWordDeclaration(
     MaterialX::ShaderGenerator const &shadergen, MaterialX::ShaderGraphInputSocket const &socket,
-    std::size_t count, std::size_t offset, MaterialX::ShaderStage &stage
+    std::size_t count, std::size_t offset
 ) {
     auto const slangType = shadergen.getSyntax().getTypeName(socket.getType());
     auto value = fmt::format("asfloat(words[{}])", offset);
@@ -188,15 +191,12 @@ void emitWordRead(
         });
         value = fmt::format("{}({})", slangType, fmt::join(components, ", "));
     }
-    shadergen.emitLine(
-        fmt::format("{} {} = {};", slangType, socket.getVariable(), value), stage, false
-    );
+    return fmt::format("{} {} = {};", slangType, socket.getVariable(), value);
 }
 
-/// \brief Declares the variable of \p socket as the constant that \p socket holds.
-void emitConstant(
-    MaterialX::ShaderGenerator const &shadergen, MaterialX::ShaderGraphInputSocket const &socket,
-    MaterialX::ShaderStage &stage
+/// \brief The line that declares the variable of \p socket as the constant that \p socket holds.
+[[nodiscard]] std::string makeConstantDeclaration(
+    MaterialX::ShaderGenerator const &shadergen, MaterialX::ShaderGraphInputSocket const &socket
 ) {
     auto const &syntax = shadergen.getSyntax();
     auto const type = socket.getType();
@@ -205,7 +205,7 @@ void emitConstant(
     auto line = fmt::format("{} {}", syntax.getTypeName(type), socket.getVariable());
     if (!literal.empty())
         line = "static const " + line + " = " + literal;
-    shadergen.emitLine(line + ";", stage, false);
+    return line + ";";
 }
 
 template <class T>
@@ -396,6 +396,49 @@ void reportMissingTransmission(
     }
 }
 
+/// \brief The categories of the EDFs that the generator turns into an empty EDF.
+constexpr auto unsupportedEDFs = std::to_array<std::string_view>({"conical_edf", "measured_edf"});
+
+/// \brief Appends a diagnostic for each unsupported EDF, which emits nothing.
+void reportUnsupportedEDFs(
+    MaterialX::DocumentPtr const &document, MaterialX::ShaderGraph const &graph,
+    std::string const &materialName, std::vector<std::string> &diagnostics
+) {
+    for (auto const category : unsupportedEDFs)
+        for (auto const &node : findNodes(document, graph, category))
+            diagnostics.push_back(
+                fmt::format(
+                    "MaterialX material '{}': '{}' is a {}, which emits nothing", materialName,
+                    node->getNamePath(), category
+                )
+            );
+}
+
+/// \brief Emits the function \p name, which declares \p declarations, evaluates the nodes of
+/// \p graph, and returns the \p member of the surface that the graph builds.
+void emitSurfaceFunction(
+    MaterialX::ShaderGenerator const &shadergen, MaterialX::GenContext &context,
+    MaterialX::ShaderGraph const &graph, std::span<std::string const> declarations,
+    std::string_view returnType, std::string_view name, std::string_view member,
+    MaterialX::ShaderStage &stage
+) {
+    shadergen.emitLine(
+        fmt::format("public {} {}(uint* words, ShadingContext ctx)", returnType, name), stage, false
+    );
+    stage.beginScope();
+    for (auto const &line : declarations)
+        shadergen.emitLine(line, stage, false);
+    shadergen.emitFunctionCalls(graph, context, stage);
+    shadergen.emitLine(
+        fmt::format(
+            "let surface = {};", shadergen.getUpstreamResult(graph.getOutputSocket(), context)
+        ),
+        stage, false
+    );
+    shadergen.emitLine(fmt::format("return surface.{};", member), stage, false);
+    stage.endScope();
+}
+
 [[nodiscard]] MaterialX::FileSearchPath
 makeSearchPath(std::span<std::filesystem::path const> folders) {
     auto searchPath = MaterialX::FileSearchPath{};
@@ -503,7 +546,8 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::pImpl::makeInstance(
     context.getOptions().premultipliedBsdfAdd = false;
     context.getOptions().shaderInterfaceType = MaterialX::SHADER_INTERFACE_COMPLETE;
     context.getOptions().elideConstantNodes = false;
-    context.pushUserData(InteractiveInputs::name, std::make_shared<InteractiveInputs>(interactive));
+    auto const interactiveInputs = std::make_shared<InteractiveInputs>(interactive);
+    context.pushUserData(InteractiveInputs::name, interactiveInputs);
 
     auto const material = document->getChild(materialName);
     constexpr auto sourceName = "material";
@@ -512,6 +556,7 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::pImpl::makeInstance(
     auto const shader = generator->createShader(materialName, material, context);
     auto const &graph = shader->getGraph();
     requireWrittenGeomProp(graph);
+    requireEmissionWithoutTangent(graph, *interactiveInputs);
 
     auto const stage = generator->makeStage();
     generator->emitLine("import flux_bsdf;", *stage, false);
@@ -520,9 +565,8 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::pImpl::makeInstance(
     generator->emitLibraryInclude("stdlib/genslang/lib/mx_math.slang", context, *stage);
     generator->emitLineBreak(*stage);
     generator->emitFunctionDefinitions(graph, context, *stage);
-    generator->emitLine("public IBSDF makeBSDF(uint* words, ShadingContext ctx)", *stage, false);
-    stage->beginScope();
 
+    auto declarations = std::vector<std::string>{};
     auto unmatched = std::set<std::string, std::less<>>{interactive.begin(), interactive.end()};
     auto words = std::vector<std::uint32_t>{};
     auto textures = std::vector<ImageTextureSpec>{};
@@ -556,19 +600,19 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::pImpl::makeInstance(
             );
         if (typeDesc == MaterialX::Type::FILENAME) {
             auto const image = getImageNode(document, *socket);
-            generator->emitLine(
-                fmt::format("uint {} = {};", socket->getVariable(), textures.size()), *stage, false
+            declarations.push_back(
+                fmt::format("uint {} = {};", socket->getVariable(), textures.size())
             );
             auto const file = socket->getValue() ? socket->getValue()->getValueString() : "";
             textures.push_back(makeImageTextureSpec(*image, file, materialName, diagnostics));
             continue;
         }
         if (!isInteractive || !count) {
-            emitConstant(*generator, *socket, *stage);
+            declarations.push_back(makeConstantDeclaration(*generator, *socket));
             continue;
         }
 
-        emitWordRead(*generator, *socket, *count, words.size(), *stage);
+        declarations.push_back(makeWordDeclaration(*generator, *socket, *count, words.size()));
         appendWords(socket->getValue(), *count, words);
     }
     for (auto const &path : unmatched)
@@ -580,20 +624,20 @@ MtlxBSDFGenerator::Instance MtlxBSDFGenerator::pImpl::makeInstance(
 
     reportDroppedRetroreflection(document, graph, materialName, diagnostics);
     reportMissingTransmission(document, graph, materialName, diagnostics);
-    reportUnreadEDFAndVDF(graph, materialName, diagnostics);
+    reportUnsupportedEDFs(document, graph, materialName, diagnostics);
+    reportUnreadVDF(graph, materialName, diagnostics);
 
-    generator->emitFunctionCalls(graph, context, *stage);
-    generator->emitLine(
-        fmt::format("return {};", generator->getUpstreamResult(graph.getOutputSocket(), context)),
-        *stage, false
+    emitSurfaceFunction(
+        *generator, context, graph, declarations, "IBSDF", "makeBSDF", "bsdf", *stage
     );
-    stage->endScope();
+    emitSurfaceFunction(*generator, context, graph, declarations, "IEDF", "makeEDF", "edf", *stage);
     generator->substituteTokens(*stage);
 
     return Instance{
-        .spec = {.source = stage->getSourceCode()},
+        .spec =
+            {.source = stage->getSourceCode(), .mayEmit = flux::mayEmit(graph, *interactiveInputs)},
         .words = std::move(words),
-        .textures = std::move(textures)
+        .textures = std::move(textures),
     };
 }
 } // namespace flux

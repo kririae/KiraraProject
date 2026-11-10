@@ -11,6 +11,10 @@ namespace flux {
 struct ShaderAssetSpec {
     /// \brief The Slang module that declares \c makeBSDF.
     std::string source;
+
+    /// \brief False only if the source provably gives an EDF that emits nothing, whatever the
+    /// words, assuming that every value is finite.
+    bool mayEmit{true};
 };
 
 /// \brief Generated shader shared by materials.

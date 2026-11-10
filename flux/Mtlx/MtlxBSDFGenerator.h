@@ -14,7 +14,8 @@
 namespace flux {
 /// \brief Turns the materials of MaterialX documents into the Slang of the BSDF library.
 ///
-/// The generated source imports \c flux_bsdf and \c flux_context, which a backend provides.
+/// The generated source defines \c makeBSDF and \c makeEDF. It imports \c flux_bsdf and
+/// \c flux_context, which a backend provides.
 ///
 /// Calls to \c generate must not overlap.
 class MtlxBSDFGenerator final {

@@ -146,6 +146,10 @@ public struct ShadingContext
 
 public float3 fluxGetWorldNormal(ShadingContext ctx) { return ctx.normal; }
 
+public float3 fluxGetWorldTangent(ShadingContext ctx) { return float3(1.0, 0.0, 0.0); }
+
+public float3 fluxGetWorldGeometricNormal(ShadingContext ctx) { return ctx.normal; }
+
 public float2 fluxGetTexCoord(ShadingContext ctx) { return ctx.uv; }
 
 public float4 fluxSampleTexture(ShadingContext ctx, uint slot, float2 uv)
@@ -172,6 +176,19 @@ public BSDFResult entry(
     uint* words, ShadingContext ctx, float3 wo, float3 wi, bool eval, float u1, float2 u2)
 {
     return execute(makeBSDF(words, ctx), wo, wi, eval, u1, u2);
+}
+)slang";
+
+/// \brief The entry of a backend, which calls the generated \c makeEDF.
+constexpr auto edfEntrySource = R"slang(
+import flux_bsdf;
+import flux_context;
+import material;
+
+[CudaDeviceExport]
+public float3 entry(uint* words, ShadingContext ctx, float3 wo)
+{
+    return makeEDF(words, ctx).evaluate(wo);
 }
 )slang";
 
@@ -259,6 +276,95 @@ constexpr auto malformedDocument = R"mtlx(<?xml version="1.0"?>
   </surfacematerial>
 </materialx>)mtlx";
 
+/// \brief A \c standard_surface with the inputs \p inputs, and the nodes \p nodes that they read.
+[[nodiscard]] std::string
+standardSurfaceDocument(std::string const &inputs, std::string const &nodes = {}) {
+    return fmt::format(
+        R"mtlx(<?xml version="1.0"?>
+<materialx version="1.39">
+  {}
+  <standard_surface name="s" type="surfaceshader">
+    {}
+  </standard_surface>
+  <surfacematerial name="M" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="s" />
+  </surfacematerial>
+</materialx>)mtlx",
+        nodes, inputs
+    );
+}
+
+/// \brief A material whose emission uses every EDF node that the generator supports, except the
+/// ones that emit nothing.
+constexpr auto emissionNodesDocument = R"mtlx(<?xml version="1.0"?>
+<materialx version="1.39">
+  <uniform_edf name="uniform" type="EDF">
+    <input name="color" type="color3" value="0.5, 0.25, 0.125" />
+  </uniform_edf>
+  <multiply name="scaled" type="EDF">
+    <input name="in1" type="EDF" nodename="uniform" />
+    <input name="in2" type="color3" value="2, 2, 2" />
+  </multiply>
+  <multiply name="halved" type="EDF">
+    <input name="in1" type="EDF" nodename="scaled" />
+    <input name="in2" type="float" value="0.5" />
+  </multiply>
+  <generalized_schlick_edf name="rim" type="EDF">
+    <input name="color0" type="color3" value="0.1, 0.1, 0.1" />
+    <input name="color90" type="color3" value="1, 1, 1" />
+    <input name="base" type="EDF" nodename="halved" />
+  </generalized_schlick_edf>
+  <add name="sum" type="EDF">
+    <input name="in1" type="EDF" nodename="rim" />
+    <input name="in2" type="EDF" nodename="uniform" />
+  </add>
+  <mix name="blend" type="EDF">
+    <input name="fg" type="EDF" nodename="sum" />
+    <input name="bg" type="EDF" nodename="uniform" />
+    <input name="mix" type="float" value="0.5" />
+  </mix>
+  <surface name="s" type="surfaceshader">
+    <input name="edf" type="EDF" nodename="blend" />
+  </surface>
+  <surfacematerial name="M" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="s" />
+  </surfacematerial>
+</materialx>)mtlx";
+
+/// \brief A material whose uniform emission is black.
+constexpr auto blackUniformDocument = R"mtlx(<?xml version="1.0"?>
+<materialx version="1.39">
+  <uniform_edf name="e" type="EDF">
+    <input name="color" type="color3" value="0, 0, 0" />
+  </uniform_edf>
+  <surface name="s" type="surfaceshader">
+    <input name="edf" type="EDF" nodename="e" />
+  </surface>
+  <surfacematerial name="M" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="s" />
+  </surfacematerial>
+</materialx>)mtlx";
+
+/// \brief A material whose emission is a conical EDF.
+constexpr auto conicalDocument = R"mtlx(<?xml version="1.0"?>
+<materialx version="1.39">
+  <conical_edf name="cone" type="EDF" />
+  <surface name="s" type="surfaceshader">
+    <input name="edf" type="EDF" nodename="cone" />
+  </surface>
+  <surfacematerial name="M" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="s" />
+  </surfacematerial>
+</materialx>)mtlx";
+
+constexpr auto usdPreviewSurfaceDocument = R"mtlx(<?xml version="1.0"?>
+<materialx version="1.39">
+  <UsdPreviewSurface name="s" type="surfaceshader" />
+  <surfacematerial name="M" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="s" />
+  </surfacematerial>
+</materialx>)mtlx";
+
 [[nodiscard]] flux::MtlxBSDFGenerator::GenerationResult
 tryGenerate(std::string const &document, std::vector<std::string> const &interactive = {}) {
     auto const generator = flux::MtlxBSDFGenerator{FLUX_MATERIALX_DIR};
@@ -281,19 +387,22 @@ generate(std::string const &document, std::vector<std::string> const &interactiv
     return {std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}};
 }
 
-[[nodiscard]] std::string compile(flux::ShaderAssetSpec const &spec) {
+[[nodiscard]] std::string
+compile(flux::ShaderAssetSpec const &spec, std::string const &entry = entrySource) {
     auto const compiler = flux::SlangCompiler{flux::SlangCompiler::Target::CudaSource};
     auto const modules = std::vector{
         flux::SlangModule{.name = "flux_bsdf", .source = readLibrary()},
         flux::SlangModule{.name = "flux_context", .source = contextSource},
         flux::SlangModule{.name = "material", .source = spec.source},
-        flux::SlangModule{.name = "entry", .source = entrySource},
+        flux::SlangModule{.name = "entry", .source = entry},
     };
     return compiler.compile(modules, "entry");
 }
 
-void expectOneConcreteType(flux::MtlxBSDFGenerator::Instance const &instance) {
-    auto const code = compile(instance.spec);
+void expectOneConcreteType(
+    flux::MtlxBSDFGenerator::Instance const &instance, std::string const &entry = entrySource
+) {
+    auto const code = compile(instance.spec, entry);
 
     EXPECT_EQ(code.find("AnyValue"), std::string::npos);
 }
@@ -423,4 +532,65 @@ TEST(MtlxGeneratorTests, AFloatImageIsLinearWhateverItsFileSays) {
 
     ASSERT_EQ(instance.textures.size(), 1U);
     EXPECT_EQ(instance.textures[0].image.colorSpace, flux::linearRec709);
+}
+
+TEST(MtlxGeneratorTests, ASourceMayEmitUnlessItsEmissionIsProvablyZero) {
+    struct Row {
+        char const *name;
+        std::string document;
+        std::vector<std::string> interactive;
+        bool mayEmit;
+        bool reportsUnsupportedEDF;
+    };
+    auto const rows = std::vector<Row>{
+        {"no emission",
+         standardSurfaceDocument(R"(<input name="emission" type="float" value="0" />)"),
+         {},
+         false,
+         false},
+        {"a literal emission",
+         standardSurfaceDocument(
+             R"(<input name="emission" type="float" value="2" />
+                <input name="emission_color" type="color3" value="1, 0.5, 0" />)"
+         ),
+         {},
+         true,
+         false},
+        {"an image as the emission color",
+         standardSurfaceDocument(
+             R"(<input name="emission" type="float" value="1" />
+                <input name="emission_color" type="color3" nodename="tex" />)",
+             R"(<image name="tex" type="color3">
+                  <input name="file" type="filename" value="a.png" />
+                </image>)"
+         ),
+         {},
+         true,
+         false},
+        {"a black uniform EDF", blackUniformDocument, {}, false, false},
+        {"the same black color as an interactive input",
+         blackUniformDocument,
+         {"e/color"},
+         true,
+         false},
+        {"the defaults of UsdPreviewSurface", usdPreviewSurfaceDocument, {}, false, false},
+        {"a conical EDF", conicalDocument, {}, false, true},
+    };
+
+    for (auto const &row : rows) {
+        SCOPED_TRACE(row.name);
+        auto const result = tryGenerate(row.document, row.interactive);
+
+        ASSERT_TRUE(result.instance);
+        EXPECT_EQ(result.instance->spec.mayEmit, row.mayEmit);
+        if (row.reportsUnsupportedEDF)
+            EXPECT_EQ(result.diagnostics.size(), 1U);
+    }
+}
+
+TEST(MtlxGeneratorTests, CompilesTheEdfNodesToOneConcreteType) {
+    auto const instance = generate(emissionNodesDocument);
+
+    EXPECT_TRUE(instance.spec.mayEmit);
+    expectOneConcreteType(instance, edfEntrySource);
 }

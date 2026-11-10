@@ -258,3 +258,96 @@ public BSDFResult execute<B : IBSDF>(B bsdf, float3 wo, float3 wi, bool eval, fl
     result.sample = sample(bsdf, wo, u1, u2);
     return result;
 }
+
+/// \brief Directions are shading-local and normalized.
+public interface IEDF
+{
+    /// The radiance that the surface emits toward \p wo, on either side of the surface.
+    float3 evaluate(float3 wo);
+};
+
+/// \brief Emits nothing.
+public struct EmptyEDF : IEDF
+{
+    public float3 evaluate(float3 wo) { return float3(0.0); }
+};
+
+public struct UniformEDF : IEDF
+{
+    public float3 color;
+
+    public float3 evaluate(float3 wo) { return color; }
+};
+
+public UniformEDF makeUniformEDF(float3 color) { return {color}; }
+
+/// \brief \c base scaled by MaterialX's generalized Schlick factor of the angle to the normal.
+public struct GeneralizedSchlickEDF<Base : IEDF> : IEDF
+{
+    public float3 color0;
+    public float3 color90;
+    public float exponent;
+    public Base base;
+
+    public float3 evaluate(float3 wo)
+    {
+        let cosine = clamp(abs(wo.z), 1e-8, 1.0);
+        return base.evaluate(wo) * lerp(color0, color90, pow(1.0 - cosine, exponent));
+    }
+};
+
+public GeneralizedSchlickEDF<Base> makeGeneralizedSchlickEDF<Base : IEDF>(
+    float3 color0, float3 color90, float exponent, Base base)
+{
+    return {color0, color90, exponent, base};
+}
+
+public struct AddEDF<A : IEDF, B : IEDF> : IEDF
+{
+    public A in1;
+    public B in2;
+
+    public float3 evaluate(float3 wo) { return in1.evaluate(wo) + in2.evaluate(wo); }
+};
+
+public AddEDF<A, B> makeAddEDF<A : IEDF, B : IEDF>(A in1, B in2) { return {in1, in2}; }
+
+public struct MixEDF<A : IEDF, B : IEDF> : IEDF
+{
+    public A fg;
+    public B bg;
+    /// The weight of \c fg, in [0, 1].
+    public float mix;
+
+    public float3 evaluate(float3 wo) { return lerp(bg.evaluate(wo), fg.evaluate(wo), mix); }
+};
+
+public MixEDF<A, B> makeMixEDF<A : IEDF, B : IEDF>(A fg, B bg, float mix)
+{
+    return {fg, bg, mix};
+}
+
+/// \brief \p edf with its value scaled by \c tint, as MaterialX's \c multiply.
+public struct MultiplyEDF<A : IEDF> : IEDF
+{
+    public A edf;
+    public float3 tint;
+
+    public float3 evaluate(float3 wo) { return edf.evaluate(wo) * tint; }
+};
+
+public MultiplyEDF<A> makeMultiplyEDF<A : IEDF>(A edf, float3 tint) { return {edf, tint}; }
+
+public MultiplyEDF<A> makeMultiplyEDF<A : IEDF>(A edf, float tint)
+{
+    return {edf, float3(tint)};
+}
+
+/// \brief What a MaterialX \c surface constructs: a BSDF and an EDF.
+public struct Surface<B : IBSDF, E : IEDF>
+{
+    public B bsdf;
+    public E edf;
+};
+
+public Surface<B, E> makeSurface<B : IBSDF, E : IEDF>(B bsdf, E edf) { return {bsdf, edf}; }

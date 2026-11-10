@@ -34,21 +34,27 @@
   <implementation name="IM_mix_bsdf_genflux" nodedef="ND_mix_bsdf" target="genflux"
                   sourcecode="makeMixBSDF({{fg}}, {{bg}}, {{mix}})"/>
   <implementation name="IM_surface_genflux" nodedef="ND_surface" target="genflux"
-                  sourcecode="{{bsdf}}"/>
+                  sourcecode="makeSurface({{bsdf}}, {{edf}})"/>
 
-  <!-- An EDF emits nothing, and a VDF does nothing. Neither reads an input. -->
   <implementation name="IM_uniform_edf_genflux" nodedef="ND_uniform_edf" target="genflux"
-                  sourcecode="0.0"/>
+                  sourcecode="makeUniformEDF({{color}})"/>
   <implementation name="IM_generalized_schlick_edf_genflux" nodedef="ND_generalized_schlick_edf" target="genflux"
-                  sourcecode="0.0"/>
+                  sourcecode="makeGeneralizedSchlickEDF({{color0}}, {{color90}}, {{exponent}}, {{base}})"/>
   <implementation name="IM_mix_edf_genflux" nodedef="ND_mix_edf" target="genflux"
-                  sourcecode="0.0"/>
+                  sourcecode="makeMixEDF({{fg}}, {{bg}}, {{mix}})"/>
   <implementation name="IM_add_edf_genflux" nodedef="ND_add_edf" target="genflux"
-                  sourcecode="0.0"/>
+                  sourcecode="makeAddEDF({{in1}}, {{in2}})"/>
   <implementation name="IM_multiply_edfC_genflux" nodedef="ND_multiply_edfC" target="genflux"
-                  sourcecode="0.0"/>
+                  sourcecode="makeMultiplyEDF({{in1}}, {{in2}})"/>
   <implementation name="IM_multiply_edfF_genflux" nodedef="ND_multiply_edfF" target="genflux"
-                  sourcecode="0.0"/>
+                  sourcecode="makeMultiplyEDF({{in1}}, {{in2}})"/>
+  <!-- A conical EDF and a measured EDF emit nothing, and read no input. -->
+  <implementation name="IM_conical_edf_genflux" nodedef="ND_conical_edf" target="genflux"
+                  sourcecode="EmptyEDF()"/>
+  <implementation name="IM_measured_edf_genflux" nodedef="ND_measured_edf" target="genflux"
+                  sourcecode="EmptyEDF()"/>
+
+  <!-- A VDF does nothing, and reads no input. -->
   <implementation name="IM_absorption_vdf_genflux" nodedef="ND_absorption_vdf" target="genflux"
                   sourcecode="0.0"/>
   <implementation name="IM_anisotropic_vdf_genflux" nodedef="ND_anisotropic_vdf" target="genflux"
