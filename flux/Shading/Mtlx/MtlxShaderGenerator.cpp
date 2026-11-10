@@ -1,4 +1,4 @@
-#include "flux/Mtlx/MtlxShaderGenerator.h"
+#include "flux/Shading/Mtlx/MtlxShaderGenerator.h"
 
 #include <MaterialXCore/Definition.h>
 #include <MaterialXCore/Document.h>
@@ -35,16 +35,16 @@
 #include <utility>
 #include <vector>
 
-#include "flux/Mtlx/FluxShaderGenerator.h"
-#include "flux/Mtlx/FluxShaderGraphRefactor.h"
-#include "flux/Mtlx/FluxSourceCodeNode.h"
-#include "flux/Mtlx/MtlxEmission.h"
+#include "flux/Shading/Mtlx/FluxShaderGenerator.h"
+#include "flux/Shading/Mtlx/FluxShaderGraphRefactor.h"
+#include "flux/Shading/Mtlx/FluxSourceCodeNode.h"
+#include "flux/Shading/Mtlx/MtlxEmission.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
 namespace {
 constexpr auto libraryFiles = std::to_array<std::pair<char const *, char const *>>({
-#include "flux/Mtlx/MtlxLibraries.inc"
+#include "flux/Shading/Mtlx/MtlxLibraries.inc"
 });
 
 /// \brief An input of a node, named by its path in the document, such as \c img/file.

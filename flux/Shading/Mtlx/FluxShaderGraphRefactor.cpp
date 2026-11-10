@@ -1,4 +1,4 @@
-#include "flux/Mtlx/FluxShaderGraphRefactor.h"
+#include "flux/Shading/Mtlx/FluxShaderGraphRefactor.h"
 
 #include <MaterialXGenShader/ShaderNode.h>
 

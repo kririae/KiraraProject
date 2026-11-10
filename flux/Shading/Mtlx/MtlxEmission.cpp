@@ -1,4 +1,4 @@
-#include "flux/Mtlx/MtlxEmission.h"
+#include "flux/Shading/Mtlx/MtlxEmission.h"
 
 #include <MaterialXCore/Types.h>
 #include <MaterialXGenShader/ShaderNode.h>
@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <string>
 
-#include "flux/Mtlx/FluxShaderGraphRefactor.h"
+#include "flux/Shading/Mtlx/FluxShaderGraphRefactor.h"
 
 namespace flux {
 namespace {

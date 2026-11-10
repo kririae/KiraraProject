@@ -161,21 +161,21 @@ target_link_libraries(
 # ----------------------------------------------------------
 # MaterialX
 # ----------------------------------------------------------
-flux_embed(flux/Mtlx/MtlxLibraries.inc Mtlx/libraries/genflux.mtlx
-           Mtlx/libraries/stdlib_genflux_impl.mtlx
-           Mtlx/libraries/pbrlib_genflux_impl.mtlx)
-flux_embed(flux/Mtlx/MtlxSlangLibraries.inc Mtlx/libraries/mx-prelude.slang
-           Mtlx/libraries/mx-ggx-reflection-sampler.slang
-           Mtlx/libraries/mx-ggx-refraction-sampler.slang Mtlx/libraries/mx-burley-diffuse-bsdf.slang
-           Mtlx/libraries/mx-conductor-bsdf.slang Mtlx/libraries/mx-dielectric-bsdf.slang
-           Mtlx/libraries/mx-generalized-schlick-bsdf.slang
-           Mtlx/libraries/mx-oren-nayar-diffuse-bsdf.slang Mtlx/libraries/mx-sheen-bsdf.slang
-           Mtlx/libraries/mx-subsurface-bsdf.slang Mtlx/libraries/mx-translucent-bsdf.slang)
+flux_embed(flux/Shading/Mtlx/MtlxLibraries.inc Shading/Mtlx/libraries/genflux.mtlx
+           Shading/Mtlx/libraries/stdlib_genflux_impl.mtlx
+           Shading/Mtlx/libraries/pbrlib_genflux_impl.mtlx)
+flux_embed(flux/Shading/Mtlx/MtlxSlangLibraries.inc Shading/Mtlx/libraries/mx-prelude.slang
+           Shading/Mtlx/libraries/mx-ggx-reflection-sampler.slang
+           Shading/Mtlx/libraries/mx-ggx-refraction-sampler.slang Shading/Mtlx/libraries/mx-burley-diffuse-bsdf.slang
+           Shading/Mtlx/libraries/mx-conductor-bsdf.slang Shading/Mtlx/libraries/mx-dielectric-bsdf.slang
+           Shading/Mtlx/libraries/mx-generalized-schlick-bsdf.slang
+           Shading/Mtlx/libraries/mx-oren-nayar-diffuse-bsdf.slang Shading/Mtlx/libraries/mx-sheen-bsdf.slang
+           Shading/Mtlx/libraries/mx-subsurface-bsdf.slang Shading/Mtlx/libraries/mx-translucent-bsdf.slang)
 
 add_library(
     flux_mtlx STATIC
-    Mtlx/FluxShaderGenerator.cpp Mtlx/FluxShaderGraphRefactor.cpp Mtlx/FluxSourceCodeNode.cpp
-    Mtlx/MtlxShaderGenerator.cpp Mtlx/MtlxEmission.cpp)
+    Shading/Mtlx/FluxShaderGenerator.cpp Shading/Mtlx/FluxShaderGraphRefactor.cpp Shading/Mtlx/FluxSourceCodeNode.cpp
+    Shading/Mtlx/MtlxShaderGenerator.cpp Shading/Mtlx/MtlxEmission.cpp)
 target_include_directories(flux_mtlx PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated
                                              ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(

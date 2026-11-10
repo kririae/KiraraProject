@@ -9,8 +9,8 @@
 #include <utility>
 #include <vector>
 
-#include "flux/Mtlx/MtlxShaderGenerator.h"
 #include "flux/Optix/SlangCompiler.h"
+#include "flux/Shading/Mtlx/MtlxShaderGenerator.h"
 #include "kira/Anyhow.h"
 
 namespace {

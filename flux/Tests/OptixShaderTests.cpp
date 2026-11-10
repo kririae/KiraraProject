@@ -13,7 +13,6 @@
 #include "SceneUtils.h"
 #include "TestUtils.h"
 #include "flux/Core/MathUtils.h"
-#include "flux/Mtlx/MtlxShaderGenerator.h"
 #include "flux/Optix/OptixAccumulationBuffer.h"
 #include "flux/Optix/OptixHandler.h"
 #include "flux/Scene/Camera.h"
@@ -23,6 +22,7 @@
 #include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
 #include "flux/Shading/EDF.h"
+#include "flux/Shading/Mtlx/MtlxShaderGenerator.h"
 #include "flux/Shading/Texture.h"
 #include "kira/Anyhow.h"
 

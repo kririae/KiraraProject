@@ -2,7 +2,7 @@
 
 #include <MaterialXGenShader/ShaderGraph.h>
 
-#include "flux/Mtlx/FluxShaderGraphRefactor.h"
+#include "flux/Shading/Mtlx/FluxShaderGraphRefactor.h"
 
 namespace flux {
 /// \brief Returns false only if the surface of \p graph provably emits nothing.

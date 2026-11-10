@@ -5,8 +5,8 @@
 #include <filesystem>
 
 #include "flux/Core/Object.h"
-#include "flux/Mtlx/MtlxShaderGenerator.h"
 #include "flux/Optix/OptixHandler.h"
+#include "flux/Shading/Mtlx/MtlxShaderGenerator.h"
 
 namespace flux {
 class BSDF;

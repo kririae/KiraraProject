@@ -1,4 +1,4 @@
-#include "flux/Mtlx/FluxSourceCodeNode.h"
+#include "flux/Shading/Mtlx/FluxSourceCodeNode.h"
 
 #include <MaterialXGenShader/Exception.h>
 #include <MaterialXGenShader/GenContext.h>
@@ -23,10 +23,11 @@ constexpr auto variablePrefix = "{{";
 constexpr auto variableSuffix = "}}";
 
 constexpr auto slangLibraryFiles = std::to_array<std::pair<char const *, char const *>>({
-#include "flux/Mtlx/MtlxSlangLibraries.inc"
+#include "flux/Shading/Mtlx/MtlxSlangLibraries.inc"
 });
 
-/// \brief The source of the Slang file \p name of \c Mtlx/libraries, or null if there is none.
+/// \brief The source of the Slang file \p name of \c Shading/Mtlx/libraries, or null if there is
+/// none.
 [[nodiscard]] char const *findSlangLibrary(std::string_view name) {
     auto const found = std::ranges::find_if(slangLibraryFiles, [&](auto const &entry) {
         return std::filesystem::path{entry.first}.filename() == name;

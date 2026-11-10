@@ -15,7 +15,6 @@
 #include "flux/Core/Logging.h"
 #include "flux/FLux/FLuxCLI.h"
 #include "flux/Integrator/PathIntegrator.h"
-#include "flux/Mtlx/MtlxShaderGenerator.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
@@ -23,6 +22,7 @@
 #include "flux/Scene/Primitive.h"
 #include "flux/Shading/BSDF.h"
 #include "flux/Shading/EDF.h"
+#include "flux/Shading/Mtlx/MtlxShaderGenerator.h"
 #include "flux/Shading/Texture.h"
 #include "kira/Anyhow.h"
 

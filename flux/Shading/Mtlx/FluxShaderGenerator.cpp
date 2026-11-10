@@ -1,4 +1,4 @@
-#include "flux/Mtlx/FluxShaderGenerator.h"
+#include "flux/Shading/Mtlx/FluxShaderGenerator.h"
 
 #include <MaterialXCore/Definition.h>
 #include <MaterialXGenShader/Exception.h>
@@ -13,9 +13,9 @@
 #include <string_view>
 #include <utility>
 
-#include "flux/Mtlx/FluxShaderGraphRefactor.h"
-#include "flux/Mtlx/FluxSourceCodeNode.h"
-#include "flux/Mtlx/FluxSyntax.h"
+#include "flux/Shading/Mtlx/FluxShaderGraphRefactor.h"
+#include "flux/Shading/Mtlx/FluxSourceCodeNode.h"
+#include "flux/Shading/Mtlx/FluxSyntax.h"
 
 namespace flux {
 namespace {
