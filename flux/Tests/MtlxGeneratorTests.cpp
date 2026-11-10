@@ -258,6 +258,44 @@ constexpr auto inheritedDocument = R"mtlx(<?xml version="1.0"?>
   </surfacematerial>
 </materialx>)mtlx";
 
+/// \brief A material whose weight and roughness read two outputs of a node that a nodegraph
+/// defines, and the nodegraph reads two outputs of a node with several outputs.
+constexpr auto multiOutputDocument = R"mtlx(<?xml version="1.0"?>
+<materialx version="1.39">
+  <nodedef name="ND_split" node="split" nodegroup="material">
+    <input name="in" type="color3" value="0.1, 0.2, 0.3" />
+    <output name="first" type="float" />
+    <output name="last" type="float" />
+  </nodedef>
+  <nodegraph name="NG_split" nodedef="ND_split">
+    <separate3 name="parts" type="multioutput">
+      <input name="in" type="color3" interfacename="in" />
+    </separate3>
+    <output name="first" type="float" nodename="parts" output="outr" />
+    <output name="last" type="float" nodename="parts" output="outb" />
+  </nodegraph>
+  <nodedef name="ND_extinction_only" node="extinction_only" nodegroup="material">
+    <output name="out" type="color3" />
+  </nodedef>
+  <nodegraph name="NG_extinction_only" nodedef="ND_extinction_only">
+    <artistic_ior name="metal" type="multioutput" />
+    <output name="out" type="color3" nodename="metal" output="extinction" />
+  </nodegraph>
+  <split name="s" type="multioutput" />
+  <extinction_only name="ext" type="color3" />
+  <oren_nayar_diffuse_bsdf name="fg" type="BSDF">
+    <input name="color" type="color3" nodename="ext" />
+    <input name="weight" type="float" nodename="s" output="first" />
+    <input name="roughness" type="float" nodename="s" output="last" />
+  </oren_nayar_diffuse_bsdf>
+  <surface name="surf" type="surfaceshader">
+    <input name="bsdf" type="BSDF" nodename="fg" />
+  </surface>
+  <surfacematerial name="M" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="surf" />
+  </surfacematerial>
+</materialx>)mtlx";
+
 /// \brief A material whose mix input has a type that its definition does not hold.
 constexpr auto malformedDocument = R"mtlx(<?xml version="1.0"?>
 <materialx version="1.39">
@@ -593,4 +631,15 @@ TEST(MtlxGeneratorTests, CompilesTheEdfNodesToOneConcreteType) {
 
     EXPECT_TRUE(instance.spec.mayEmit);
     expectOneConcreteType(instance, edfEntrySource);
+}
+
+TEST(MtlxGeneratorTests, EachOutputOfAGraphDefinedNodeReadsItsOwnChannel) {
+    auto const instance = generate(multiOutputDocument);
+
+    EXPECT_NE(
+        instance.spec.source.find(
+            "makeOrenNayarDiffuseBSDF(N_extract_0_out, metal_extinction, N_extract_2_out,"
+        ),
+        std::string::npos
+    );
 }

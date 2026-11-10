@@ -449,15 +449,51 @@ makeSearchPath(std::span<std::filesystem::path const> folders) {
     return searchPath;
 }
 
-/// \brief Replaces each node that a nodegraph defines by its network, in the document and in each
-/// of its nodegraphs.
+/// \brief The first node of \p graph that a nodegraph defines for \p target, or null.
 ///
-/// A node that \p target implements itself stays. A nodegraph of the data library stays too.
+/// A node that \p target implements itself is not one.
+[[nodiscard]] MaterialX::NodePtr
+findGraphDefinedNode(MaterialX::GraphElement const &graph, std::string const &target) {
+    for (auto const &node : graph.getNodes()) {
+        auto const implementation = node->getImplementation(target);
+        if (implementation && implementation->isA<MaterialX::NodeGraph>())
+            return node;
+    }
+    return nullptr;
+}
+
+/// \brief Replaces each node that a nodegraph defines by its network, in \p graph, and keeps the
+/// output of each node that a subgraph output reads.
+void flattenSubgraphs(MaterialX::GraphElement &graph, std::string const &target) {
+    while (auto const node = findGraphDefinedNode(graph, target)) {
+        auto const subgraph = node->getImplementation(target)->asA<MaterialX::NodeGraph>();
+        auto const subgraphOutputs = subgraph->getOutputs();
+        auto kept = std::vector<std::pair<MaterialX::PortElementPtr, std::string>>{};
+        for (auto const &port : node->getDownstreamPorts()) {
+            // A port with no output reads the first one.
+            auto const name = port->getOutputString();
+            auto const output = name.empty()
+                                    ? (subgraphOutputs.empty() ? nullptr : subgraphOutputs[0])
+                                    : subgraph->getOutput(name);
+            if (output && output->hasOutputString())
+                kept.emplace_back(port, output->getOutputString());
+        }
+
+        graph.flattenSubgraphs(target, [&](MaterialX::NodePtr const &candidate) {
+            return candidate == node;
+        });
+        for (auto const &[port, output] : kept)
+            port->setOutputString(output);
+    }
+}
+
+/// \brief Replaces each node that a nodegraph defines by its network, in the document and in each
+/// of its nodegraphs. A nodegraph of the data library stays.
 void flattenGraphDefinedNodes(MaterialX::Document &document, std::string const &target) {
-    document.flattenSubgraphs(target);
+    flattenSubgraphs(document, target);
     for (auto const &child : document.getChildren())
         if (auto const graph = child->asA<MaterialX::NodeGraph>())
-            graph->flattenSubgraphs(target);
+            flattenSubgraphs(*graph, target);
 }
 } // namespace
 
