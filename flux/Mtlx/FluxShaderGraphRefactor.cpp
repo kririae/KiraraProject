@@ -42,21 +42,20 @@ void bypassInput(
     graph.bypass(&node, std::ranges::find(inputs, node.getInput(name)) - inputs.begin());
 }
 
-/// \brief The category of the document node that \p node comes from, or an empty string.
-[[nodiscard]] std::string
-getCategory(MaterialX::ShaderGraph const &graph, MaterialX::ShaderNode const &node) {
-    auto const element = graph.getDocument()->getDescendant(node.getUniqueId());
-    return element ? element->getCategory() : std::string{};
-}
-
 [[nodiscard]] bool isConsumed(MaterialX::ShaderNode const &node) {
     return !node.getOutput()->getConnections().empty();
 }
 } // namespace
 
+std::string
+getDocumentNodeCategory(MaterialX::ShaderGraph const &graph, MaterialX::ShaderNode const &node) {
+    auto const element = graph.getDocument()->getDescendant(node.getUniqueId());
+    return element ? element->getCategory() : std::string{};
+}
+
 std::string const &LiteralMixElisionRefactor::getName() const {
-    static auto const name = std::string{"literalMixElision"};
-    return name;
+    static auto const Name = std::string{"literalMixElision"};
+    return Name;
 }
 
 std::size_t
@@ -76,8 +75,8 @@ LiteralMixElisionRefactor::execute(MaterialX::ShaderGraph &graph, MaterialX::Gen
 }
 
 std::string const &ZeroWeightBsdfElisionRefactor::getName() const {
-    static auto const name = std::string{"zeroWeightBsdfElision"};
-    return name;
+    static auto const Name = std::string{"zeroWeightBsdfElision"};
+    return Name;
 }
 
 std::size_t ZeroWeightBsdfElisionRefactor::execute(
@@ -85,8 +84,9 @@ std::size_t ZeroWeightBsdfElisionRefactor::execute(
 ) {
     auto edits = std::size_t{};
     for (auto *node : graph.getNodes()) {
-        if (!isConsumed(*node) || std::ranges::find(emptyAtZeroWeight, getCategory(graph, *node)) ==
-                                      emptyAtZeroWeight.end())
+        if (!isConsumed(*node) ||
+            std::ranges::find(emptyAtZeroWeight, getDocumentNodeCategory(graph, *node)) ==
+                emptyAtZeroWeight.end())
             continue;
         auto const weight = getLiteral(*node, "weight", context);
         if (!weight || *weight >= weightEpsilon)
@@ -98,8 +98,8 @@ std::size_t ZeroWeightBsdfElisionRefactor::execute(
 }
 
 std::string const &EmptyTopLayerElisionRefactor::getName() const {
-    static auto const name = std::string{"emptyTopLayerElision"};
-    return name;
+    static auto const Name = std::string{"emptyTopLayerElision"};
+    return Name;
 }
 
 std::size_t

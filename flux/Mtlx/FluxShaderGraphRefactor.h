@@ -4,6 +4,7 @@
 #include <MaterialXGenShader/GenUserData.h>
 #include <MaterialXGenShader/ShaderGraph.h>
 #include <MaterialXGenShader/ShaderGraphRefactor.h>
+#include <MaterialXGenShader/ShaderNode.h>
 
 #include <cstddef>
 #include <set>
@@ -27,6 +28,10 @@ public:
 private:
     std::set<std::string, std::less<>> paths_;
 };
+
+/// \brief The category of the document node that \p node comes from, or an empty string.
+[[nodiscard]] std::string
+getDocumentNodeCategory(MaterialX::ShaderGraph const &graph, MaterialX::ShaderNode const &node);
 
 /// \brief Replaces a BSDF mix whose literal mix is 0 or 1 by the BSDF that it selects.
 class LiteralMixElisionRefactor final : public MaterialX::ShaderGraphRefactor {
