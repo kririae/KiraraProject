@@ -37,13 +37,12 @@ parseAddressMode(kira::Properties const &props, std::string_view property) {
     throw kira::Anyhow("ImageTexture: unsupported filter mode '{}'", value);
 }
 
-[[nodiscard]] ImageTextureSpec parseSpec(TXContext &tx, kira::Properties const &props) {
+[[nodiscard]] ImageTextureSpec parseSpec(kira::Properties const &props) {
     auto const path = props.use<std::filesystem::path>("path");
     auto const colorSpace = props.use_or<std::string>("color_space", "linear");
     auto imageColorSpace = std::string{linearRec709};
     if (colorSpace == "auto")
-        imageColorSpace =
-            tx.getImageAssetPool().chooseColorSpace(tx.getFileResolver().resolve(path));
+        imageColorSpace = autoColorSpace;
     else if (colorSpace == "srgb")
         imageColorSpace = srgbTexture;
     else if (colorSpace != "linear")
@@ -127,7 +126,7 @@ ImageTexture::ImageTexture(TXContext &tx, ImageTextureSpec const &spec)
       componentMapping_(imageAsset_->getDefaultComponentMapping()), fallback_(spec.fallback) {}
 
 ImageTexture::ImageTexture(TXContext &tx, kira::Properties const &props)
-    : ImageTexture(tx, parseSpec(tx, props)) {
+    : ImageTexture(tx, parseSpec(props)) {
     if (props.contains("component_mapping")) {
         auto const value = props.use<std::string>("component_mapping");
         auto const parseSource = [](char source) {

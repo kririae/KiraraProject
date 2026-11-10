@@ -47,6 +47,9 @@ TEST_F(ImageAssetTests, UsesColorSpaceInPoolKey) {
 
     EXPECT_NE(linear, srgb);
     EXPECT_NE(linear->getId(), srgb->getId());
+    EXPECT_EQ(
+        pool.getOrCreate({.path = imagePath, .colorSpace = std::string{flux::autoColorSpace}}), srgb
+    );
 }
 
 TEST_F(ImageAssetTests, SharesOneAssetAmongTheNamesOfLinearRec709) {
