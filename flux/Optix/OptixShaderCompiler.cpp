@@ -91,12 +91,17 @@ extern "C" __device__ float3 {edfCallable}(
     unsigned int wordOffset, unsigned int textureOffset, float2 uv, float3 normal, float3 wo
 ) {{
     auto *words = const_cast<unsigned int *>(optixLaunchParams.callable.words) + wordOffset;
-    // The fields that the parameters lack stay zero, and the geometric normal is the shading normal.
+    // The derivatives stay zero, and the geometric normal is the shading normal.
     flux::OptixShadingContext context{{}};
     context.uv = uv;
     context.normal = normal;
     context.geometricNormal = normal;
     context.textureOffset = textureOffset;
+    // The tangent of flux::Frame around the normal.
+    auto const sign = copysignf(1.0F, normal.z);
+    auto const a = -1.0F / (sign + normal.z);
+    auto const b = normal.x * normal.y * a;
+    context.tangent = make_float3(1.0F + sign * normal.x * normal.x * a, sign * b, -sign * normal.x);
     return fluxEvaluateEDF(words, context, wo);
 }}
 

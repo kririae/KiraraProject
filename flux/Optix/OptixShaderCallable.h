@@ -70,7 +70,8 @@ template <typename Result, typename... Parameters> struct ParameterWords<Result(
 /// that it emits toward \p wo.
 ///
 /// \p textureOffset, \p uv, and \p normal are the fields of \c OptixShadingContext of those names.
-/// \p normal and \p wo are in world space, and \p wo points away from the surface.
+/// \p normal and \p wo are in world space, and \p wo points away from the surface. The tangent is
+/// that of \c Frame around \p normal.
 using OptixEDFCallable = float3(
     unsigned int wordOffset, unsigned int textureOffset, float2 uv, float3 normal, float3 wo
 );

@@ -556,7 +556,6 @@ ShaderInstance MtlxShaderGenerator::pImpl::makeInstance(
     auto const shader = generator->createShader(materialName, material, context);
     auto const &graph = shader->getGraph();
     requireWrittenGeomProp(graph);
-    requireEmissionWithoutTangent(graph, *interactiveInputs);
 
     auto const stage = generator->makeStage();
     generator->emitLine("import flux_material;", *stage, false);

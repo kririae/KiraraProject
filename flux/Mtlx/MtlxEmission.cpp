@@ -1,16 +1,10 @@
 #include "flux/Mtlx/MtlxEmission.h"
 
 #include <MaterialXCore/Types.h>
-#include <MaterialXGenShader/Exception.h>
 #include <MaterialXGenShader/ShaderNode.h>
-#include <fmt/format.h>
 
 #include <algorithm>
-#include <array>
-#include <set>
 #include <string>
-#include <string_view>
-#include <vector>
 
 #include "flux/Mtlx/FluxShaderGraphRefactor.h"
 
@@ -84,50 +78,14 @@ template <class Vector> [[nodiscard]] bool isZeroVector(Vector const &vector) {
         return zero("base") || (zero("color0") && zero("color90"));
     return false;
 }
+} // namespace
 
-/// \brief The implementations of the nodes that read the tangent of the shading context.
-constexpr auto tangentImplementations =
-    std::to_array<std::string_view>({"IM_tangent_vector3_genflux", "IM_bitangent_vector3_genflux"});
-
-/// \brief Returns the surface node of \p graph, or null if it has none.
-[[nodiscard]] MaterialX::ShaderNode const *findSurface(MaterialX::ShaderGraph const &graph) {
+bool mayEmit(MaterialX::ShaderGraph const &graph, InteractiveInputs const &interactive) {
     auto const surface =
         std::ranges::find_if(graph.getNodes(), [](MaterialX::ShaderNode const *node) {
         return node->hasClassification(MaterialX::ShaderNode::Classification::SURFACE);
     });
-    return surface == graph.getNodes().end() ? nullptr : *surface;
-}
-} // namespace
-
-bool mayEmit(MaterialX::ShaderGraph const &graph, InteractiveInputs const &interactive) {
-    auto const *surface = findSurface(graph);
-    return surface && !isKnownZero(graph, interactive, *surface->getInput("edf"));
-}
-
-void requireEmissionWithoutTangent(
-    MaterialX::ShaderGraph const &graph, InteractiveInputs const &interactive
-) {
-    if (!mayEmit(graph, interactive))
-        return;
-
-    auto visited = std::set<MaterialX::ShaderNode const *>{};
-    auto pending = std::vector<MaterialX::ShaderNode const *>{};
-    auto const visitSource = [&](MaterialX::ShaderInput const &input) {
-        auto const *source = input.getConnection();
-        if (source && !source->getNode()->isAGraph() && visited.insert(source->getNode()).second)
-            pending.push_back(source->getNode());
-    };
-    visitSource(*findSurface(graph)->getInput("edf"));
-    while (!pending.empty()) {
-        auto const *node = pending.back();
-        pending.pop_back();
-        if (std::ranges::find(tangentImplementations, node->getImplementation().getName()) !=
-            tangentImplementations.end())
-            throw MaterialX::ExceptionShaderGenError{
-                fmt::format("'{}' reads a tangent, which an emission cannot read", node->getName())
-            };
-        for (auto const *input : node->getInputs())
-            visitSource(*input);
-    }
+    return surface != graph.getNodes().end() &&
+           !isKnownZero(graph, interactive, *(*surface)->getInput("edf"));
 }
 } // namespace flux
