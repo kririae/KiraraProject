@@ -33,11 +33,16 @@ inline constexpr std::string_view linearRec709{"lin_rec709"};
 /// \brief OCIO name of the color space that an 8-bit image of this color space stays stored in.
 inline constexpr std::string_view srgbTexture{"srgb_texture"};
 
+/// \brief The name that stands for the color space that \c ImageAssetPool::chooseColorSpace
+/// returns.
+inline constexpr std::string_view autoColorSpace{"auto"};
+
 /// \brief Image file and the OCIO name of the color space of its color components.
 ///
 /// An empty name is the color space that the OCIO file rules of the active config give the path,
-/// or \c linearRec709 if only their default rule matches. A name that the config does not know
-/// becomes \c linearRec709, and the pool warns.
+/// or \c linearRec709 if only their default rule matches. \c autoColorSpace is the color space of
+/// \c ImageAssetPool::chooseColorSpace for the path. A name that the config does not know becomes
+/// \c linearRec709, and the pool warns.
 struct ImageAssetSpec {
     std::filesystem::path path;
     std::string colorSpace;

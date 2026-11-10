@@ -432,7 +432,10 @@ Ref<ImageAsset const> ImageAssetPool::getOrCreate(ImageAssetSpec const &spec) {
     auto canonical = spec;
     if (!spec.path.empty())
         canonical.path = canonicalize(spec.path);
-    canonical.colorSpace = canonicalizeColorSpace(spec);
+    auto resolved = spec;
+    if (spec.colorSpace == autoColorSpace)
+        resolved.colorSpace = chooseColorSpace(spec.path);
+    canonical.colorSpace = canonicalizeColorSpace(resolved);
     return assets_.acquire(canonical, [&] {
         auto const create = [&](std::filesystem::path const &path, bool placeholder,
                                 std::string_view colorSpace) {
