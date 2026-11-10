@@ -334,11 +334,13 @@ void appendWords(
     else if (filter != "linear")
         warn(fmt::format("has filtertype '{}', which becomes linear", filter));
 
-    auto const fallback = node.getInputValue("default");
-    if (fallback)
-        spec.fallback = makeFallback(getComponents(*fallback));
-    else
-        warn("has a connected default, which the texture does not read");
+    // An unauthored default keeps the magenta of a native texture, not the black of the nodedef.
+    if (auto const input = node.getInput("default")) {
+        if (auto const fallback = input->getValue())
+            spec.fallback = makeFallback(getComponents(*fallback));
+        else
+            warn("has a connected default, which the texture does not read");
+    }
 
     return spec;
 }
