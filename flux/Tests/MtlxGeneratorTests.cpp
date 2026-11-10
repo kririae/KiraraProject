@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <cstddef>
 #include <fstream>
 #include <string>
 #include <string_view>
@@ -332,6 +333,24 @@ standardSurfaceDocument(std::string const &inputs, std::string const &nodes = {}
     );
 }
 
+/// \brief A \c UsdPreviewSurface with the inputs \p inputs, and the nodes \p nodes that they read.
+[[nodiscard]] std::string
+previewSurfaceDocument(std::string const &inputs, std::string const &nodes = {}) {
+    return fmt::format(
+        R"mtlx(<?xml version="1.0"?>
+<materialx version="1.39">
+  {}
+  <UsdPreviewSurface name="s" type="surfaceshader">
+    {}
+  </UsdPreviewSurface>
+  <surfacematerial name="M" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="s" />
+  </surfacematerial>
+</materialx>)mtlx",
+        nodes, inputs
+    );
+}
+
 /// \brief A material whose emission uses every EDF node that the generator supports, except the
 /// ones that emit nothing.
 constexpr auto emissionNodesDocument = R"mtlx(<?xml version="1.0"?>
@@ -642,4 +661,65 @@ TEST(MtlxGeneratorTests, EachOutputOfAGraphDefinedNodeReadsItsOwnChannel) {
         ),
         std::string::npos
     );
+}
+
+TEST(MtlxGeneratorTests, APreviewSurfaceGeneratesAndWarnsOnlyOfTheInputsThatItDrops) {
+    struct Row {
+        char const *name;
+        std::string document;
+        bool mayEmit;
+        std::vector<std::string> diagnostics;
+        std::size_t textures;
+    };
+    auto const rows = std::vector<Row>{
+        {"every input authored", previewSurfaceDocument(R"(
+             <input name="diffuseColor" type="color3" value="0.8, 0.2, 0.1" />
+             <input name="emissiveColor" type="color3" value="1, 0.5, 0.25" />
+             <input name="useSpecularWorkflow" type="integer" value="1" />
+             <input name="specularColor" type="color3" value="0.5, 0.5, 0.5" />
+             <input name="metallic" type="float" value="0.3" />
+             <input name="roughness" type="float" value="0.4" />
+             <input name="clearcoat" type="float" value="0.5" />
+             <input name="clearcoatRoughness" type="float" value="0.2" />
+             <input name="opacity" type="float" value="0.7" />
+             <input name="ior" type="float" value="1.4" />
+             <input name="normal" type="vector3" value="0.6, 0.2, 0.8" />
+             <input name="displacement" type="float" value="0.1" />
+             <input name="occlusion" type="float" value="0.5" />)"),
+         true, std::vector<std::string>{"s/opacity", "s/displacement"}, 0},
+        {"textures through a primvar reader and a transform",
+         previewSurfaceDocument(
+             R"(<input name="diffuseColor" type="color3" nodename="tex" output="rgb" />
+                <input name="roughness" type="float" nodename="tex" output="r" />
+                <input name="metallic" type="float" nodename="tex" output="g" />)",
+             R"(<UsdPrimvarReader name="st" type="vector2">
+                  <input name="varname" type="string" value="st" />
+                </UsdPrimvarReader>
+                <UsdTransform2d name="xf" type="vector2">
+                  <input name="in" type="vector2" nodename="st" />
+                  <input name="rotation" type="float" value="30" />
+                  <input name="scale" type="vector2" value="2, 3" />
+                </UsdTransform2d>
+                <UsdUVTexture name="tex" type="multioutput">
+                  <input name="file" type="filename" value="a.png" colorspace="srgb_texture" />
+                  <input name="st" type="vector2" nodename="xf" />
+                  <input name="scale" type="color4" value="2, 2, 2, 1" />
+                </UsdUVTexture>)"
+         ),
+         false, std::vector<std::string>{}, 1},
+    };
+
+    for (auto const &row : rows) {
+        SCOPED_TRACE(row.name);
+        auto const result = tryGenerate(row.document);
+
+        ASSERT_TRUE(result.instance);
+        EXPECT_EQ(result.instance->spec.mayEmit, row.mayEmit);
+        ASSERT_EQ(result.diagnostics.size(), row.diagnostics.size());
+        for (auto i = std::size_t{}; i < row.diagnostics.size(); ++i)
+            EXPECT_NE(result.diagnostics[i].find(row.diagnostics[i]), std::string::npos);
+        EXPECT_EQ(result.instance->textures.size(), row.textures);
+        expectOneConcreteType(*result.instance);
+        expectOneConcreteType(*result.instance, edfEntrySource);
+    }
 }
