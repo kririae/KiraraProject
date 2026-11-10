@@ -723,3 +723,28 @@ TEST(MtlxGeneratorTests, APreviewSurfaceGeneratesAndWarnsOnlyOfTheInputsThatItDr
         expectOneConcreteType(*result.instance, edfEntrySource);
     }
 }
+
+TEST(MtlxGeneratorTests, APreviewTextureKeepsItsColorSpaceAndTakesBlackAsABorder) {
+    auto const result = tryGenerate(previewSurfaceDocument(
+        R"(<input name="diffuseColor" type="color3" nodename="tex" output="rgb" />)",
+        R"(<UsdUVTexture name="tex" type="multioutput">
+             <input name="file" type="filename" value="a.png" colorspace="auto" />
+             <input name="wrapS" type="string" value="black" />
+             <input name="wrapT" type="string" value="black" />
+           </UsdUVTexture>)"
+    ));
+
+    ASSERT_TRUE(result.instance);
+    for (auto const &diagnostic : result.diagnostics)
+        EXPECT_EQ(diagnostic.find("addressmode"), std::string::npos);
+    ASSERT_EQ(result.instance->textures.size(), 1U);
+    EXPECT_EQ(
+        result.instance->textures[0],
+        (flux::ImageTextureSpec{
+            .image = {.path = "a.png", .colorSpace = "auto"},
+            .addressModes =
+                {flux::ImageTextureAddressMode::Border, flux::ImageTextureAddressMode::Border},
+            .fallback = {0.0F, 0.0F, 0.0F, 1.0F},
+        })
+    );
+}

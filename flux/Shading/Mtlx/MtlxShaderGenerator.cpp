@@ -295,6 +295,17 @@ void appendWords(
     }
 }
 
+/// \brief Appends the address mode \c black to the enums of the image nodes of \p library.
+void appendBlackAddressMode(MaterialX::Document &library) {
+    for (auto const &nodeDef : library.getMatchingNodeDefs("image"))
+        for (auto const *name : {"uaddressmode", "vaddressmode"})
+            if (auto const input = nodeDef->getInput(name))
+                input->setAttribute(
+                    MaterialX::ValueElement::ENUM_ATTRIBUTE,
+                    input->getAttribute(MaterialX::ValueElement::ENUM_ATTRIBUTE) + ",black"
+                );
+}
+
 /// \brief The texture that the image node \p node samples from the file \p file.
 [[nodiscard]] ImageTextureSpec makeImageTextureSpec(
     MaterialX::Node const &node, std::string const &file, std::string const &materialName,
@@ -324,6 +335,8 @@ void appendWords(
             return ImageTextureAddressMode::Clamp;
         if (mode == "mirror")
             return ImageTextureAddressMode::Mirror;
+        if (mode == "black")
+            return ImageTextureAddressMode::Border;
         if (mode == "constant") {
             warn(fmt::format("has {} 'constant', which becomes border", input));
             return ImageTextureAddressMode::Border;
@@ -574,6 +587,7 @@ MtlxShaderGenerator::pImpl::pImpl(std::filesystem::path const &root)
         throw kira::Anyhow("MtlxShaderGenerator: {} holds no MaterialX libraries", root.string());
     for (auto const *source : std::views::values(libraryFiles))
         MaterialX::readFromXmlString(libraries, source, searchPath);
+    appendBlackAddressMode(*libraries);
 
     generator = std::make_shared<FluxShaderGenerator>(MaterialX::TypeSystem::create());
 }
