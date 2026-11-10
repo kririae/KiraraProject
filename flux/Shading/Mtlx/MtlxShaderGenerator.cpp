@@ -3,6 +3,7 @@
 #include <MaterialXCore/Definition.h>
 #include <MaterialXCore/Document.h>
 #include <MaterialXCore/Library.h>
+#include <MaterialXCore/Material.h>
 #include <MaterialXCore/Node.h>
 #include <MaterialXCore/Types.h>
 #include <MaterialXFormat/Util.h>
@@ -89,6 +90,11 @@ constexpr auto texCoordProperty = std::string_view{"st"};
 
 [[nodiscard]] bool isGeomPropInput(InputPath const &path) {
     return path.node && path.node->getCategory() == "geompropvalue" && path.input == "geomprop";
+}
+
+/// \brief Whether \p path is the \c default input of \c geompropvalue.
+[[nodiscard]] bool isGeomPropDefaultInput(InputPath const &path) {
+    return path.node && path.node->getCategory() == "geompropvalue" && path.input == "default";
 }
 
 /// \brief Checks that \p socket names the geometric property that \c geompropvalue reads.
@@ -416,6 +422,40 @@ void reportUnsupportedEDFs(
             );
 }
 
+/// \brief The inputs of \c UsdPreviewSurface that the generated shader never reads, with the value
+/// at which each asks for nothing.
+constexpr auto unreadPreviewInputs =
+    std::to_array<std::pair<std::string_view, float>>({{"opacity", 1.0F}, {"displacement", 0.0F}});
+
+/// \brief Appends a diagnostic for each input of a \c UsdPreviewSurface of \p material that asks
+/// for something and that the shader never reads.
+void reportUnreadPreviewInputs(
+    MaterialX::ElementPtr const &material, std::string const &materialName,
+    std::vector<std::string> &diagnostics
+) {
+    auto const node = material->asA<MaterialX::Node>();
+    if (!node)
+        return;
+    for (auto const &shader : MaterialX::getShaderNodes(node)) {
+        if (shader->getCategory() != "UsdPreviewSurface")
+            continue;
+        for (auto const &[name, value] : unreadPreviewInputs) {
+            auto const input = shader->getInput(std::string{name});
+            if (!input)
+                continue;
+            // A connected input holds no value.
+            auto const authored = input->getValue();
+            if (authored && authored->isA<float>() && authored->asA<float>() == value)
+                continue;
+            diagnostics.push_back(
+                fmt::format(
+                    "MaterialX material '{}': '{}' is not read", materialName, input->getNamePath()
+                )
+            );
+        }
+    }
+}
+
 /// \brief Emits the function \p name, which declares \p declarations, evaluates the nodes of
 /// \p graph, and returns the \p member of the material that the graph builds.
 void emitEntryFunction(
@@ -577,6 +617,8 @@ ShaderInstance MtlxShaderGenerator::pImpl::makeInstance(
     auto message = std::string{};
     if (!document->validate(&message))
         throw MaterialX::ExceptionShaderGenError{message};
+    auto const material = document->getChild(materialName);
+    reportUnreadPreviewInputs(material, materialName, diagnostics);
     flattenGraphDefinedNodes(*document, generator->getTarget());
 
     auto context = MaterialX::GenContext{generator};
@@ -587,7 +629,6 @@ ShaderInstance MtlxShaderGenerator::pImpl::makeInstance(
     auto const interactiveInputs = std::make_shared<InteractiveInputs>(interactive);
     context.pushUserData(InteractiveInputs::name, interactiveInputs);
 
-    auto const material = document->getChild(materialName);
     constexpr auto sourceName = "material";
     if (material->getName() != sourceName)
         material->setName(document->createValidChildName(sourceName));
@@ -615,7 +656,8 @@ ShaderInstance MtlxShaderGenerator::pImpl::makeInstance(
         }
         if (!isRead(*socket)) {
             if (!socket->getConnections().empty() && writesValue(path) &&
-                !isImageTextureInput(path) && !feedsEDFOrVDF(*socket))
+                !isImageTextureInput(path) && !isGeomPropDefaultInput(path) &&
+                !feedsEDFOrVDF(*socket))
                 diagnostics.push_back(
                     fmt::format(
                         "MaterialX material '{}': '{}' is not read", materialName, socket->getPath()
