@@ -1,10 +1,12 @@
 #pragma once
 
+#include <pxr/base/gf/matrix4d.h>
 #include <pxr/base/vt/array.h>
+#include <pxr/base/vt/types.h>
 #include <pxr/imaging/hd/mesh.h>
 #include <pxr/imaging/hd/meshTopology.h>
 
-#include <array>
+#include <vector>
 
 #include "flux/Core/HostBuffer.h"
 #include "flux/Core/Math.h"
@@ -12,9 +14,15 @@
 
 namespace flux {
 class Primitive;
+class TriangleMesh;
 } // namespace flux
 
-/// \brief A Hydra mesh that renders as triangles.
+/// \brief A Hydra mesh that renders as triangles, once per instance.
+///
+/// After a sync that throws nothing, \c primitives_ holds one primitive per element of
+/// \c instanceTransforms_ when \c geometry_ is non-null, and none otherwise. Primitive \c i has
+/// the geometry \c geometry_, the transform <tt>transform_ * instanceTransforms_[i]</tt>, and the
+/// visibility and material of the mesh.
 class HdFluxMesh final : public pxr::HdMesh {
 public:
     explicit HdFluxMesh(pxr::SdfPath const &id);
@@ -43,9 +51,11 @@ private:
     flux::Shared<flux::HostBuffer<flux::Vec3u>> triangles_;
     pxr::VtIntArray trianglePrimitiveParams_;
 
-    /// The last transform that Hydra gave, in the form of \c flux::Primitive.
-    std::array<float, 12> transform_;
+    flux::Ref<flux::TriangleMesh const> geometry_;
 
-    /// Null when the mesh is not rendered.
-    flux::Ref<flux::Primitive> primitive_;
+    pxr::GfMatrix4d transform_{1.0};
+
+    pxr::VtMatrix4dArray instanceTransforms_;
+
+    std::vector<flux::Ref<flux::Primitive>> primitives_;
 };

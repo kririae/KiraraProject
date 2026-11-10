@@ -26,6 +26,7 @@ add_library(
     AreaLight.cpp
     Camera.cpp
     DomeLight.cpp
+    Instancer.cpp
     Material.cpp
     MaterialXXml.cpp
     Mesh.cpp

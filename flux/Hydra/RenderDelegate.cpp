@@ -16,6 +16,7 @@
 #include "flux/Hydra/AovMapping.h"
 #include "flux/Hydra/AreaLight.h"
 #include "flux/Hydra/DomeLight.h"
+#include "flux/Hydra/Instancer.h"
 #include "flux/Hydra/Material.h"
 #include "flux/Hydra/Mesh.h"
 #include "flux/Hydra/RenderBuffer.h"
@@ -135,8 +136,8 @@ pxr::HdRenderPassSharedPtr HdFluxRenderDelegate::CreateRenderPass(
 }
 
 pxr::HdInstancer *
-HdFluxRenderDelegate::CreateInstancer(pxr::HdSceneDelegate *, pxr::SdfPath const &) {
-    return nullptr;
+HdFluxRenderDelegate::CreateInstancer(pxr::HdSceneDelegate *delegate, pxr::SdfPath const &id) {
+    return new HdFluxInstancer(delegate, id);
 }
 
 void HdFluxRenderDelegate::DestroyInstancer(pxr::HdInstancer *instancer) { delete instancer; }
