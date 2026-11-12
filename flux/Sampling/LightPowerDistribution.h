@@ -1,13 +1,12 @@
 #pragma once
 
-#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <span>
 #include <type_traits>
 #include <vector>
 
-#include "flux/Core/MathUtils.h"
+#include "flux/Sampling/AliasTable.h"
 #include "kira/Compiler.h"
 
 namespace flux {
@@ -19,6 +18,8 @@ struct LightPowerDistribution {
 
     /// Cumulative selection weights.
     float const *cdf{};
+    /// Alias table of the distribution that \c cdf describes.
+    AliasBin const *bins{};
     /// Final value of \c cdf.
     float sum{};
     /// Number of selectable lights.
@@ -40,10 +41,8 @@ public:
             return 0;
         }
 
-        auto target = u * sum;
-        if (!(target < sum))
-            target = std::nextafter(sum, 0.0F);
-        auto const index = static_cast<std::uint32_t>(upperBoundIndex(cdf, numLights, target));
+        float remapped;
+        auto const index = sampleAliasTable(bins, numLights, u, remapped);
         pmfValue = pmf(index);
         return index;
     }

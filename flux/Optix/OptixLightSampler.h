@@ -86,6 +86,7 @@ private:
     // The selection distribution.
     DeviceBuffer<LightHandle> handles_{getStream()};
     DeviceBuffer<float> cdf_{getStream()};
+    DeviceBuffer<AliasBin> bins_{getStream()};
     DeviceBuffer<std::uint32_t> primSlots_{getStream()};
 };
 

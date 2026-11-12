@@ -49,6 +49,7 @@ void OptixLightSampler::sync(
     envMap_.clear();
     handles_.clear();
     cdf_.clear();
+    bins_.clear();
     primSlots_.clear();
 
     auto const envMap = context.getActiveEnvMap();
@@ -84,6 +85,7 @@ void OptixLightSampler::sync(
     primVolumeScales_.copyFromHost(table_.lights.primVolumeScales, deletionQueue_);
     handles_.copyFromHost(table_.slots.handles, deletionQueue_);
     cdf_.copyFromHost(table_.slots.cdf, deletionQueue_);
+    bins_.copyFromHost(table_.slots.bins, deletionQueue_);
     primSlots_.copyFromHost(table_.slots.primSlots, deletionQueue_);
 }
 
@@ -169,6 +171,7 @@ OptixLightSampler::Impl OptixLightSampler::getImpl() const noexcept {
         .envMapSlot = table_.slots.envMapSlot,
         .power = {
             .cdf = cdf_.data(),
+            .bins = bins_.data(),
             .sum = table_.slots.cdf.empty() ? 0.0F : table_.slots.cdf.back(),
             .numLights = static_cast<std::uint32_t>(handles_.size()),
         },

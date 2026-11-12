@@ -6,6 +6,7 @@
 
 #include "flux/Core/HostBuffer.h"
 #include "flux/Core/Math.h"
+#include "flux/Sampling/AliasTable.h"
 #include "flux/Scene/Geometry.h"
 #include "kira/Compiler.h"
 #include "kira/SmallVector.h"
@@ -124,6 +125,8 @@ public:
     /// \brief Per-triangle arrays for selecting a triangle by area.
     struct SamplingDistribution {
         kira::SmallVector<float, 0> areaCDF;
+        /// Alias table of the distribution that \c areaCDF describes, empty when the area is zero.
+        kira::SmallVector<AliasBin, 0> areaBins;
         kira::SmallVector<float, 0> areaPDF;
     };
 
@@ -184,8 +187,8 @@ struct TriangleMesh::Impl {
     /// Number of elements in \c triangles.
     std::uint32_t numTriangles{};
 
-    /// Cumulative geometry-space triangle areas, or null when unavailable.
-    float const *triangleAreaCDF{};
+    /// Alias table selecting a triangle by geometry-space area, or null when unavailable.
+    AliasBin const *triangleAreaBins{};
 
     /// Geometry-space area densities, or null when unavailable.
     float const *triangleAreaPDF{};

@@ -44,6 +44,9 @@ struct LightTableData final : private Noncopyable {
         /// Cumulative selection weight at each slot.
         std::vector<float> cdf;
 
+        /// Alias table of the distribution that \c cdf describes.
+        std::vector<AliasBin> bins;
+
         /// Slot of each primitive by primitive index, or \c invalidSlot. A hole has none.
         std::vector<std::uint32_t> primSlots;
 

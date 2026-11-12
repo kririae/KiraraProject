@@ -91,8 +91,8 @@ void expectSameMesh(
 
     auto const distribution = TriangleMesh::computeSamplingDistribution(want);
     expectArray(
-        "triangleAreaCDF", got.triangleAreaCDF, distribution.areaCDF.data(),
-        distribution.areaCDF.size(), stream
+        "triangleAreaBins", got.triangleAreaBins, distribution.areaBins.data(),
+        distribution.areaBins.size(), stream
     );
     expectArray(
         "triangleAreaPDF", got.triangleAreaPDF, distribution.areaPDF.data(),

@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -13,6 +14,7 @@
 #include "TestUtils.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/OptixUtils.h"
+#include "flux/Sampling/AliasTable.h"
 #include "flux/Sampling/Distribution2D.h"
 #include "flux/Sampling/LightPowerDistribution.h"
 #include "flux/Sampling/SamplerImpl.h"
@@ -145,6 +147,39 @@ __global__ void drawSobolOnDevice(flux::Sampler::Impl sampler, SobolDraw *draws,
         };
     }
 }
+
+/// Number of samples that a sampler tells apart.
+constexpr std::uint32_t numUnitSamples = 1U << 24U;
+
+/// Returns the unit sample \p index of \c numUnitSamples, as \c toUnitFloat makes it.
+[[nodiscard]] float unitSample(std::uint32_t index) { return static_cast<float>(index) * 0x1p-24F; }
+
+/// Returns how many of all the unit samples select each light of \p sampler.
+[[nodiscard]] std::vector<std::uint32_t> countSelections(flux::LightPowerDistribution sampler) {
+    std::vector<std::uint32_t> counts(sampler.numLights);
+    for (std::uint32_t index = 0; index < numUnitSamples; ++index) {
+        float pmf;
+        ++counts[sampler.sample(unitSample(index), pmf)];
+    }
+    return counts;
+}
+
+/// Returns the light sampler of \p cdf, whose alias table is \p bins.
+[[nodiscard]] flux::LightPowerDistribution
+makeLightSampler(std::span<float const> cdf, std::vector<flux::AliasBin> &bins) {
+    bins.resize(cdf.size());
+    flux::buildAliasTable(cdf, bins);
+    return {
+        .cdf = cdf.data(),
+        .bins = bins.data(),
+        .sum = cdf.back(),
+        .numLights = static_cast<std::uint32_t>(cdf.size()),
+    };
+}
+
+// Weights 3, 3, 0, 2 over 8 give every bin a threshold of 0, 1/2 or 1, so that a count over all
+// the unit samples is exact. They include a large bin that turns small, and a weight of zero.
+constexpr auto aliasTestCDF = std::array{3.0F, 6.0F, 6.0F, 8.0F};
 } // namespace
 
 TEST(SamplerTests, MatchesUpperBoundAcrossTableSizes) {
@@ -277,11 +312,8 @@ TEST(SamplerTests, DispatchesDeterministicPixelSequences) {
 TEST(SamplerTests, SelectsLightsByPower) {
     auto const powers = std::array{1.0F, 2.0F};
     auto const powerCDF = flux::buildLightPowerCDF(powers);
-    auto const sampler = flux::LightPowerDistribution{
-        .cdf = powerCDF.data(),
-        .sum = powerCDF.back(),
-        .numLights = static_cast<std::uint32_t>(powers.size()),
-    };
+    std::vector<flux::AliasBin> bins;
+    auto const sampler = makeLightSampler(powerCDF, bins);
     float firstPMF;
     float lastPMF;
     auto const first = sampler.sample(0.0F, firstPMF);
@@ -322,15 +354,57 @@ TEST(SamplerTests, BoundsNegativeLightPowers) {
 TEST(SamplerTests, KeepsPositiveLightsSelectableAcrossLargePowerRatios) {
     auto const powers = std::array{std::numeric_limits<float>::max(), 1.0F};
     auto const powerCDF = flux::buildLightPowerCDF(powers);
-    auto const sampler = flux::LightPowerDistribution{
-        .cdf = powerCDF.data(),
-        .sum = powerCDF.back(),
-        .numLights = static_cast<std::uint32_t>(powers.size()),
-    };
-    float pmf;
-    auto const sample = sampler.sample(std::nextafter(1.0F, 0.0F), pmf);
-    EXPECT_EQ(sample, 1);
-    EXPECT_GT(pmf, 0.0F);
+    std::vector<flux::AliasBin> bins;
+    auto const sampler = makeLightSampler(powerCDF, bins);
+
+    EXPECT_GT(countSelections(sampler)[1], 0U);
+    EXPECT_GT(sampler.pmf(1), 0.0F);
+}
+
+TEST(SamplerTests, SelectsEachLightWithItsProbability) {
+    // Weights 1 and 3 alternate over 512 lights, which gives thresholds of 1/2 and 1. A unit
+    // sample times 512 needs more than 32 bits.
+    std::vector<float> largeCDF(512);
+    for (std::size_t light = 0; light < largeCDF.size(); ++light)
+        largeCDF[light] = static_cast<float>(light / 2 * 4 + (light % 2 == 0 ? 1 : 4));
+
+    auto const cdfs = std::array<std::span<float const>, 2>{aliasTestCDF, largeCDF};
+    for (auto const cdf : cdfs) {
+        SCOPED_TRACE(cdf.size());
+        std::vector<flux::AliasBin> bins;
+        auto const sampler = makeLightSampler(cdf, bins);
+
+        auto const counts = countSelections(sampler);
+        for (std::uint32_t light = 0; light < counts.size(); ++light)
+            EXPECT_EQ(static_cast<float>(counts[light]), sampler.pmf(light) * 0x1p24F) << light;
+    }
+}
+
+TEST(SamplerTests, RemapsAliasSamplesUniformly) {
+    std::vector<flux::AliasBin> bins(aliasTestCDF.size());
+    flux::buildAliasTable(aliasTestCDF, bins);
+
+    // The remapped samples of an index are evenly spaced grids from 0, one per part of a bin that
+    // selects it, so their mean lies below one half by at most half a spacing.
+    std::vector<std::uint32_t> counts(bins.size());
+    std::vector<double> sums(bins.size());
+    for (std::uint32_t index = 0; index < numUnitSamples; ++index) {
+        float remapped;
+        auto const selected = flux::sampleAliasTable(
+            bins.data(), static_cast<std::uint32_t>(bins.size()), unitSample(index), remapped
+        );
+        ASSERT_GE(remapped, 0.0F);
+        ASSERT_LT(remapped, 1.0F);
+        ++counts[selected];
+        sums[selected] += remapped;
+    }
+    for (std::size_t index = 0; index < bins.size(); ++index) {
+        if (counts[index] == 0)
+            continue;
+        auto const mean = sums[index] / counts[index];
+        EXPECT_LE(mean, 0.5) << index;
+        EXPECT_GE(mean, 0.5 - 0x1p-21) << index;
+    }
 }
 
 TEST(SamplerTests, BuildsAndSamplesTwoDimensionalDistributions) {

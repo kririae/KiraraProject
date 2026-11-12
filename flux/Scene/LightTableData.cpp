@@ -84,8 +84,10 @@ void LightTableData::build(
             numDropped, maxSlots
         );
 
-    // Build the CDF over the assigned slots.
+    // Build the distribution over the assigned slots.
     slots.cdf = buildLightPowerCDF(powers);
+    slots.bins.resize(slots.cdf.size());
+    buildAliasTable(slots.cdf, slots.bins);
 }
 
 void LightTableData::clear() noexcept {
@@ -93,6 +95,7 @@ void LightTableData::clear() noexcept {
     lights.primVolumeScales.clear();
     slots.handles.clear();
     slots.cdf.clear();
+    slots.bins.clear();
     slots.primSlots.clear();
     slots.envMapSlot = invalidSlot;
 }

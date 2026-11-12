@@ -66,8 +66,8 @@ private:
         /// Shared arrays that the child scene and the geometry \c Impl read.
         TriangleMesh::Data data;
 
-        /// Cumulative geometry-space triangle areas.
-        kira::SmallVector<float, 0> areaCDF;
+        /// Alias table selecting a triangle by geometry-space area.
+        kira::SmallVector<AliasBin, 0> areaBins;
 
         /// Geometry-space area density of each triangle.
         kira::SmallVector<float, 0> areaPDF;
