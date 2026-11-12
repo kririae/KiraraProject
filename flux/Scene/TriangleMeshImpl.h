@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cmath>
 #include <limits>
 
@@ -22,12 +23,21 @@ KIRA_HOST_DEVICE inline Vec3f TriangleMesh::Impl::interpolateShadingNormal(
     if (!normals)
         return geometricNormal;
 
-    auto const u = preliminary.coordinates.x();
-    auto const v = preliminary.coordinates.y();
-    auto const w = 1.0F - u - v;
     auto const indices = normalIndices[preliminary.elementIndex];
-    auto const interpolated =
-        normals[indices[0]] * w + normals[indices[1]] * u + normals[indices[2]] * v;
+    return interpolateShadingNormal(
+        {normals[indices[0]], normals[indices[1]], normals[indices[2]]}, preliminary.coordinates,
+        geometricNormal
+    );
+}
+
+KIRA_HOST_DEVICE inline Vec3f TriangleMesh::Impl::interpolateShadingNormal(
+    std::array<Vec3f, 3> const &cornerNormals, Vec2f const &coordinates,
+    Vec3f const &geometricNormal
+) noexcept {
+    auto const u = coordinates.x();
+    auto const v = coordinates.y();
+    auto const w = 1.0F - u - v;
+    auto const interpolated = cornerNormals[0] * w + cornerNormals[1] * u + cornerNormals[2] * v;
     auto const lengthSquared = interpolated.norm2();
     if (lengthSquared > 1.0e-20F && lengthSquared < std::numeric_limits<float>::max())
         return interpolated.normalize();
@@ -36,10 +46,22 @@ KIRA_HOST_DEVICE inline Vec3f TriangleMesh::Impl::interpolateShadingNormal(
 
 KIRA_HOST_DEVICE inline GeometryInteraction
 TriangleMesh::Impl::computeInteraction(PreliminaryIntersection const &preliminary) const noexcept {
-    auto const indices = triangles[preliminary.elementIndex];
+    // Every load comes before the arithmetic, and a select, not a branch, skips an absent array.
+    // The three index arrays load together, and then the three attribute arrays.
+    auto const element = preliminary.elementIndex;
+    auto const indices = triangles[element];
+    auto const textureIndices = texCoords ? texCoordIndices[element] : Vec3u{};
+    auto const shadingIndices = normals ? normalIndices[element] : Vec3u{};
     auto const vertex0 = vertices[indices[0]];
     auto const vertex1 = vertices[indices[1]];
     auto const vertex2 = vertices[indices[2]];
+    auto const texture0 = texCoords ? texCoords[textureIndices[0]] : Vec2f{};
+    auto const texture1 = texCoords ? texCoords[textureIndices[1]] : Vec2f{};
+    auto const texture2 = texCoords ? texCoords[textureIndices[2]] : Vec2f{};
+    auto const shadingNormal0 = normals ? normals[shadingIndices[0]] : Vec3f{};
+    auto const shadingNormal1 = normals ? normals[shadingIndices[1]] : Vec3f{};
+    auto const shadingNormal2 = normals ? normals[shadingIndices[2]] : Vec3f{};
+
     auto const u = preliminary.coordinates.x();
     auto const v = preliminary.coordinates.y();
     auto const w = 1.0F - u - v;
@@ -55,10 +77,6 @@ TriangleMesh::Impl::computeInteraction(PreliminaryIntersection const &preliminar
     auto uvGradU = Vec3f{};
     auto uvGradV = Vec3f{};
     if (texCoords) {
-        auto const textureIndices = texCoordIndices[preliminary.elementIndex];
-        auto const texture0 = texCoords[textureIndices[0]];
-        auto const texture1 = texCoords[textureIndices[1]];
-        auto const texture2 = texCoords[textureIndices[2]];
         auto const inverseArea2 = 1.0F / areaNormal.norm2();
         auto const gradientB = cross(edge2, areaNormal) * inverseArea2;
         auto const gradientC = cross(areaNormal, edge1) * inverseArea2;
@@ -72,7 +90,11 @@ TriangleMesh::Impl::computeInteraction(PreliminaryIntersection const &preliminar
     return {
         .position = vertex0 + edge1 * u + edge2 * v,
         .geometricNormal = normal,
-        .shadingNormal = interpolateShadingNormal(preliminary, normal),
+        .shadingNormal = normals ? interpolateShadingNormal(
+                                       {shadingNormal0, shadingNormal1, shadingNormal2},
+                                       preliminary.coordinates, normal
+                                   )
+                                 : normal,
         .uv = uv,
         .uvGradU = uvGradU,
         .uvGradV = uvGradV,

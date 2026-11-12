@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <filesystem>
 #include <span>
 #include <type_traits>
@@ -204,6 +205,13 @@ public:
     [[nodiscard]] KIRA_HOST_DEVICE inline Vec3f interpolateShadingNormal(
         PreliminaryIntersection const &preliminary, Vec3f const &geometricNormal
     ) const noexcept;
+
+    /// \brief Interpolates \p cornerNormals at \p coordinates, or returns \p geometricNormal
+    ///        when the result has no direction.
+    [[nodiscard]] KIRA_HOST_DEVICE static inline Vec3f interpolateShadingNormal(
+        std::array<Vec3f, 3> const &cornerNormals, Vec2f const &coordinates,
+        Vec3f const &geometricNormal
+    ) noexcept;
 
     /// \brief Reconstructs a geometry-space interaction from \p preliminary.
     ///
