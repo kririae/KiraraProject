@@ -4,7 +4,10 @@
 #include <MaterialXGenShader/ShaderNode.h>
 
 #include <algorithm>
+#include <initializer_list>
+#include <optional>
 #include <string>
+#include <utility>
 
 #include "flux/Shading/Mtlx/FluxShaderGraphRefactor.h"
 
@@ -27,65 +30,72 @@ template <class Vector> [[nodiscard]] bool isZeroVector(Vector const &vector) {
     return false;
 }
 
-[[nodiscard]] bool isKnownZero(
-    MaterialX::ShaderGraph const &graph, InteractiveInputs const &interactive,
-    MaterialX::ShaderNode const &node
-);
+[[nodiscard]] std::optional<ZeroProof>
+findZeroProof(MaterialX::ShaderGraph const &graph, MaterialX::ShaderNode const &node);
 
-/// \brief Whether the value on \p input is provably zero.
-[[nodiscard]] bool isKnownZero(
-    MaterialX::ShaderGraph const &graph, InteractiveInputs const &interactive,
-    MaterialX::ShaderInput const &input
-) {
+/// \brief A proof that the value on \p input is zero, or \c std::nullopt if none is found.
+[[nodiscard]] std::optional<ZeroProof>
+findZeroProof(MaterialX::ShaderGraph const &graph, MaterialX::ShaderInput const &input) {
     auto const *source = input.getConnection();
     if (source && !source->getNode()->isAGraph())
-        return isKnownZero(graph, interactive, *source->getNode());
+        return findZeroProof(graph, *source->getNode());
     if (!source && input.getType() == MaterialX::Type::EDF)
-        return true;
+        return ZeroProof{};
 
-    auto const &path = source ? source->getPath() : input.getPath();
     auto const value = source ? source->getValue() : input.getValue();
-    return value && !interactive.contains(path) && isZero(*value);
+    if (!value || !isZero(*value))
+        return std::nullopt;
+    return ZeroProof{source ? source->getPath() : input.getPath()};
 }
 
-/// \brief Whether the value of \p node is provably zero.
-[[nodiscard]] bool isKnownZero(
-    MaterialX::ShaderGraph const &graph, InteractiveInputs const &interactive,
-    MaterialX::ShaderNode const &node
-) {
+/// \brief A proof that the value of \p node is zero, or \c std::nullopt if none is found.
+[[nodiscard]] std::optional<ZeroProof>
+findZeroProof(MaterialX::ShaderGraph const &graph, MaterialX::ShaderNode const &node) {
     auto const category = getDocumentNodeCategory(graph, node);
-    auto const zero = [&](std::string const &name) {
-        return isKnownZero(graph, interactive, *node.getInput(name));
+    auto const allZero = [&](std::initializer_list<char const *> names) {
+        auto proof = std::optional<ZeroProof>{std::in_place};
+        for (auto const *name : names) {
+            auto const part = findZeroProof(graph, *node.getInput(name));
+            if (!part)
+                return std::optional<ZeroProof>{};
+            proof->insert(part->begin(), part->end());
+        }
+        return proof;
     };
 
     if (category == "constant")
-        return zero("value");
+        return allZero({"value"});
     if (category == "convert")
-        return zero("in");
+        return allZero({"in"});
     if (category == "uniform_edf")
-        return zero("color");
+        return allZero({"color"});
     if (category == "conical_edf" || category == "measured_edf")
-        return true;
+        return ZeroProof{};
     if (category == "add" || category == "subtract")
-        return zero("in1") && zero("in2");
-    if (category == "multiply")
-        return zero("in1") || zero("in2");
+        return allZero({"in1", "in2"});
+    if (category == "multiply") {
+        auto proof = allZero({"in1"});
+        return proof ? proof : allZero({"in2"});
+    }
     if (category == "divide")
-        return zero("in1");
+        return allZero({"in1"});
     if (category == "mix")
-        return zero("fg") && zero("bg");
-    if (category == "generalized_schlick_edf")
-        return zero("base") || (zero("color0") && zero("color90"));
-    return false;
+        return allZero({"fg", "bg"});
+    if (category == "generalized_schlick_edf") {
+        auto proof = allZero({"base"});
+        return proof ? proof : allZero({"color0", "color90"});
+    }
+    return std::nullopt;
 }
 } // namespace
 
-bool mayEmit(MaterialX::ShaderGraph const &graph, InteractiveInputs const &interactive) {
+std::optional<ZeroProof> findZeroProof(MaterialX::ShaderGraph const &graph) {
     auto const surface =
         std::ranges::find_if(graph.getNodes(), [](MaterialX::ShaderNode const *node) {
         return node->hasClassification(MaterialX::ShaderNode::Classification::SURFACE);
     });
-    return surface != graph.getNodes().end() &&
-           !isKnownZero(graph, interactive, *(*surface)->getInput("edf"));
+    if (surface == graph.getNodes().end())
+        return ZeroProof{};
+    return findZeroProof(graph, *(*surface)->getInput("edf"));
 }
 } // namespace flux

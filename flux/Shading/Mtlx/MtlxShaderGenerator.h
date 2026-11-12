@@ -41,8 +41,7 @@ public:
     /// \p document, in XML.
     [[nodiscard]] GenerationResult generate(
         std::string const &document, std::string const &materialName,
-        std::span<std::filesystem::path const> searchPath,
-        std::span<std::string const> interactive = {}
+        std::span<std::filesystem::path const> searchPath
     ) const;
 
 private:

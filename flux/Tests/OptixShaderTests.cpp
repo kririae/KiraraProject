@@ -137,8 +137,7 @@ constexpr auto fullReflectanceConductorDocument = R"mtlx(<?xml version="1.0"?>
 /// \brief The reflector, with its color read from the words.
 [[nodiscard]] flux::ShaderInstance generateSmoothDiffuse() {
     auto const generator = flux::MtlxShaderGenerator{FLUX_MATERIALX_DIR};
-    auto const interactive = std::array<std::string, 1>{"fg/color"};
-    auto result = generator.generate(smoothDocument, "M", {}, interactive);
+    auto result = generator.generate(smoothDocument, "M", {});
     if (!result.instance)
         throw kira::Anyhow{"the generator produced no shader"};
     return *std::move(result.instance);

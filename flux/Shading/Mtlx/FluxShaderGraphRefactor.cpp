@@ -21,15 +21,11 @@ constexpr auto weightEpsilon = 1e-8F;
 constexpr auto emptyAtZeroWeight =
     std::to_array<std::string_view>({"dielectric_bsdf", "generalized_schlick_bsdf", "sheen_bsdf"});
 
-/// \brief The float that the document writes at \p input, if it is unconnected and not interactive.
-[[nodiscard]] std::optional<float> getLiteral(
-    MaterialX::ShaderNode const &node, std::string const &name, MaterialX::GenContext &context
-) {
+/// \brief The float that the document writes at \p input, if it is unconnected.
+[[nodiscard]] std::optional<float>
+getLiteral(MaterialX::ShaderNode const &node, std::string const &name) {
     auto const *input = node.getInput(name);
     if (!input || input->getConnection() || !input->getValue() || !input->getValue()->isA<float>())
-        return std::nullopt;
-    auto const interactive = context.getUserData<InteractiveInputs>(InteractiveInputs::name);
-    if (interactive && interactive->contains(input->getPath()))
         return std::nullopt;
     return input->getValue()->asA<float>();
 }
@@ -59,13 +55,13 @@ std::string const &LiteralMixElisionRefactor::getName() const {
 }
 
 std::size_t
-LiteralMixElisionRefactor::execute(MaterialX::ShaderGraph &graph, MaterialX::GenContext &context) {
+LiteralMixElisionRefactor::execute(MaterialX::ShaderGraph &graph, MaterialX::GenContext &) {
     auto edits = std::size_t{};
     for (auto *node : graph.getNodes()) {
         if (!node->hasClassification(bsdfClassification | Classification::MIX) ||
             !isConsumed(*node))
             continue;
-        auto const mix = getLiteral(*node, "mix", context);
+        auto const mix = getLiteral(*node, "mix");
         if (mix != 0.0F && mix != 1.0F)
             continue;
         bypassInput(graph, *node, mix == 1.0F ? "fg" : "bg");
@@ -79,16 +75,15 @@ std::string const &ZeroWeightBsdfElisionRefactor::getName() const {
     return Name;
 }
 
-std::size_t ZeroWeightBsdfElisionRefactor::execute(
-    MaterialX::ShaderGraph &graph, MaterialX::GenContext &context
-) {
+std::size_t
+ZeroWeightBsdfElisionRefactor::execute(MaterialX::ShaderGraph &graph, MaterialX::GenContext &) {
     auto edits = std::size_t{};
     for (auto *node : graph.getNodes()) {
         if (!isConsumed(*node) ||
             std::ranges::find(emptyAtZeroWeight, getDocumentNodeCategory(graph, *node)) ==
                 emptyAtZeroWeight.end())
             continue;
-        auto const weight = getLiteral(*node, "weight", context);
+        auto const weight = getLiteral(*node, "weight");
         if (!weight || *weight >= weightEpsilon)
             continue;
         node->getOutput()->breakConnections();

@@ -23,12 +23,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
-#include <functional>
 #include <iterator>
 #include <memory>
 #include <optional>
 #include <ranges>
-#include <set>
 #include <span>
 #include <string>
 #include <string_view>
@@ -306,6 +304,49 @@ void appendBlackAddressMode(MaterialX::Document &library) {
                 );
 }
 
+/// \brief The attribute that marks a node of a library nodegraph, and each of its inputs that holds
+/// a literal.
+constexpr auto libraryLiteralAttribute = "fluxlibraryliteral";
+
+/// \brief Marks each node of the nodegraphs of \p library, and each of their inputs that holds a
+/// literal.
+void markLibraryLiterals(MaterialX::Document &library) {
+    for (auto const &graph : library.getNodeGraphs())
+        for (auto const &node : graph->getNodes()) {
+            node->setAttribute(libraryLiteralAttribute, "true");
+            for (auto const &input : node->getInputs())
+                if (input->hasValueString() && !input->hasInterfaceName() &&
+                    !input->hasNodeName() && !input->hasOutputString())
+                    input->setAttribute(libraryLiteralAttribute, "true");
+        }
+}
+
+/// \brief Adds to the library node \p node each input that it leaves at a value of its declaration,
+/// marked as a library literal.
+void markLibraryDefaults(MaterialX::Node &node, std::string const &target) {
+    auto const declaration = node.getDeclaration(target);
+    if (!declaration)
+        return;
+    for (auto const &defaultInput : declaration->getActiveInputs()) {
+        if (node.getInput(defaultInput->getName()) || !defaultInput->hasValueString() ||
+            defaultInput->hasDefaultGeomPropString())
+            continue;
+        auto const input = node.addInput(defaultInput->getName(), defaultInput->getType());
+        input->setValueString(defaultInput->getValueString());
+        input->setAttribute(libraryLiteralAttribute, "true");
+    }
+}
+
+/// \brief Whether the value of \p path is a literal of a library nodegraph, or the default of an
+/// input that a node of one leaves unset.
+[[nodiscard]] bool isLibraryLiteral(InputPath const &path) {
+    if (!path.node)
+        return false;
+    auto const input = path.node->getInput(path.input);
+    return input ? input->hasAttribute(libraryLiteralAttribute)
+                 : path.node->hasAttribute(libraryLiteralAttribute);
+}
+
 /// \brief The texture that the image node \p node samples from the file \p file.
 [[nodiscard]] ImageTextureSpec makeImageTextureSpec(
     MaterialX::Node const &node, std::string const &file, std::string const &materialName,
@@ -530,6 +571,8 @@ void flattenSubgraphs(MaterialX::GraphElement &graph, std::string const &target)
                 kept.emplace_back(port, output->getOutputString());
         }
 
+        if (node->hasAttribute(libraryLiteralAttribute))
+            markLibraryDefaults(*node, target);
         graph.flattenSubgraphs(target, [&](MaterialX::NodePtr const &candidate) {
             return candidate == node;
         });
@@ -556,8 +599,7 @@ struct MtlxShaderGenerator::pImpl final {
     /// \throw MaterialX::Exception If the content cannot be generated.
     [[nodiscard]] ShaderInstance makeInstance(
         MaterialX::DocumentPtr const &document, std::string const &materialName,
-        MaterialX::FileSearchPath const &searchPath, std::span<std::string const> interactive,
-        std::vector<std::string> &diagnostics
+        MaterialX::FileSearchPath const &searchPath, std::vector<std::string> &diagnostics
     ) const;
 
     MaterialX::FilePath mtlxRoot;
@@ -586,6 +628,7 @@ MtlxShaderGenerator::pImpl::pImpl(std::filesystem::path const &root)
     for (auto const *source : std::views::values(libraryFiles))
         MaterialX::readFromXmlString(libraries, source, searchPath);
     appendBlackAddressMode(*libraries);
+    markLibraryLiterals(*libraries);
 
     generator = std::make_shared<FluxShaderGenerator>(MaterialX::TypeSystem::create());
 }
@@ -597,7 +640,7 @@ MtlxShaderGenerator::~MtlxShaderGenerator() = default;
 
 MtlxShaderGenerator::GenerationResult MtlxShaderGenerator::generate(
     std::string const &document, std::string const &materialName,
-    std::span<std::filesystem::path const> searchPath, std::span<std::string const> interactive
+    std::span<std::filesystem::path const> searchPath
 ) const {
     auto result = GenerationResult{};
     try {
@@ -608,8 +651,7 @@ MtlxShaderGenerator::GenerationResult MtlxShaderGenerator::generate(
         if (!element || element->getCategory() != "surfacematerial")
             return {};
 
-        result.instance =
-            pImpl_->makeInstance(parsed, materialName, folders, interactive, result.diagnostics);
+        result.instance = pImpl_->makeInstance(parsed, materialName, folders, result.diagnostics);
     } catch (MaterialX::Exception const &error) {
         result.diagnostics.push_back(
             fmt::format("MaterialX material '{}': {}", materialName, error.what())
@@ -620,8 +662,7 @@ MtlxShaderGenerator::GenerationResult MtlxShaderGenerator::generate(
 
 ShaderInstance MtlxShaderGenerator::pImpl::makeInstance(
     MaterialX::DocumentPtr const &document, std::string const &materialName,
-    MaterialX::FileSearchPath const &searchPath, std::span<std::string const> interactive,
-    std::vector<std::string> &diagnostics
+    MaterialX::FileSearchPath const &searchPath, std::vector<std::string> &diagnostics
 ) const {
     MaterialX::flattenFilenames(document, searchPath);
     document->setDataLibrary(libraries);
@@ -638,8 +679,6 @@ ShaderInstance MtlxShaderGenerator::pImpl::makeInstance(
     context.getOptions().premultipliedBsdfAdd = false;
     context.getOptions().shaderInterfaceType = MaterialX::SHADER_INTERFACE_COMPLETE;
     context.getOptions().elideConstantNodes = false;
-    auto const interactiveInputs = std::make_shared<InteractiveInputs>(interactive);
-    context.pushUserData(InteractiveInputs::name, interactiveInputs);
 
     constexpr auto sourceName = "material";
     if (material->getName() != sourceName)
@@ -656,8 +695,8 @@ ShaderInstance MtlxShaderGenerator::pImpl::makeInstance(
     generator->emitLineBreak(*stage);
     generator->emitFunctionDefinitions(graph, context, *stage);
 
+    auto const zeroProof = findZeroProof(graph);
     auto declarations = std::vector<std::string>{};
-    auto unmatched = std::set<std::string, std::less<>>{interactive.begin(), interactive.end()};
     auto words = std::vector<std::uint32_t>{};
     auto textures = std::vector<ImageTextureSpec>{};
     for (auto const *socket : graph.getInputSockets()) {
@@ -678,18 +717,7 @@ ShaderInstance MtlxShaderGenerator::pImpl::makeInstance(
             continue;
         }
 
-        auto const typeDesc = socket->getType();
-        auto const count = wordCount(typeDesc);
-        auto const isInteractive = unmatched.erase(socket->getPath()) > 0;
-        if (isInteractive && !count)
-            diagnostics.push_back(
-                fmt::format(
-                    "MaterialX material '{}': '{}' cannot be interactive, since no word holds "
-                    "the type '{}'",
-                    materialName, socket->getPath(), typeDesc.getName()
-                )
-            );
-        if (typeDesc == MaterialX::Type::FILENAME) {
+        if (socket->getType() == MaterialX::Type::FILENAME) {
             auto const image = getImageNode(document, *socket);
             declarations.push_back(
                 fmt::format("uint {} = {};", socket->getVariable(), textures.size())
@@ -698,7 +726,9 @@ ShaderInstance MtlxShaderGenerator::pImpl::makeInstance(
             textures.push_back(makeImageTextureSpec(*image, file, materialName, diagnostics));
             continue;
         }
-        if (!isInteractive || !count) {
+        auto const count = wordCount(socket->getType());
+        if (!count || isLibraryLiteral(path) ||
+            (zeroProof && zeroProof->contains(socket->getPath()))) {
             declarations.push_back(makeConstantDeclaration(*generator, *socket));
             continue;
         }
@@ -706,12 +736,6 @@ ShaderInstance MtlxShaderGenerator::pImpl::makeInstance(
         declarations.push_back(makeWordDeclaration(*generator, *socket, *count, words.size()));
         appendWords(socket->getValue(), *count, words);
     }
-    for (auto const &path : unmatched)
-        diagnostics.push_back(
-            fmt::format(
-                "MaterialX material '{}': '{}' names no input that is read", materialName, path
-            )
-        );
 
     reportDroppedRetroreflection(document, graph, materialName, diagnostics);
     reportMissingTransmission(document, graph, materialName, diagnostics);
@@ -725,8 +749,7 @@ ShaderInstance MtlxShaderGenerator::pImpl::makeInstance(
     generator->substituteTokens(*stage);
 
     return ShaderInstance{
-        .spec =
-            {.source = stage->getSourceCode(), .mayEmit = flux::mayEmit(graph, *interactiveInputs)},
+        .spec = {.source = stage->getSourceCode(), .mayEmit = !zeroProof},
         .words = std::move(words),
         .textures = std::move(textures),
     };

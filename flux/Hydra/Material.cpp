@@ -34,8 +34,6 @@ generateShader(HdSceneDelegate &sceneDelegate, HdFluxRenderParam const &param, S
     if (!materialXml)
         return std::nullopt;
 
-    // TODO: generate the shader with constant values at its first sync, and make an input that
-    // a later edit changes interactive.
     auto generation =
         param.GetShaderGenerator().generate(materialXml->xml, materialXml->surfaceMaterialName, {});
     for (auto const &diagnostic : generation.diagnostics)

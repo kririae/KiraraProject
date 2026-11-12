@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <bit>
 #include <cstddef>
+#include <cstdint>
 #include <fstream>
 #include <string>
 #include <string_view>
@@ -315,6 +316,42 @@ constexpr auto malformedDocument = R"mtlx(<?xml version="1.0"?>
   </surfacematerial>
 </materialx>)mtlx";
 
+/// \brief A material whose roughness is a triangle wave, which a library nodegraph defines with
+/// the literal 0.5 and a \c modulo whose divisor is left at its default.
+constexpr auto triangleWaveDocument = R"mtlx(<?xml version="1.0"?>
+<materialx version="1.39">
+  <trianglewave name="wave" type="float">
+    <input name="in" type="float" value="0.3" />
+  </trianglewave>
+  <oren_nayar_diffuse_bsdf name="fg" type="BSDF">
+    <input name="roughness" type="float" nodename="wave" />
+  </oren_nayar_diffuse_bsdf>
+  <surface name="s" type="surfaceshader">
+    <input name="bsdf" type="BSDF" nodename="fg" />
+  </surface>
+  <surfacematerial name="M" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="s" />
+  </surfacematerial>
+</materialx>)mtlx";
+
+/// \brief A material whose roughness is a random float, whose library nodegraph holds a \c range
+/// that leaves its \c gamma at its default.
+constexpr auto randomFloatDocument = R"mtlx(<?xml version="1.0"?>
+<materialx version="1.39">
+  <randomfloat name="random" type="float">
+    <input name="in" type="float" value="0.3" />
+  </randomfloat>
+  <oren_nayar_diffuse_bsdf name="fg" type="BSDF">
+    <input name="roughness" type="float" nodename="random" />
+  </oren_nayar_diffuse_bsdf>
+  <surface name="s" type="surfaceshader">
+    <input name="bsdf" type="BSDF" nodename="fg" />
+  </surface>
+  <surfacematerial name="M" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="s" />
+  </surfacematerial>
+</materialx>)mtlx";
+
 /// \brief A \c standard_surface with the inputs \p inputs, and the nodes \p nodes that they read.
 [[nodiscard]] std::string
 standardSurfaceDocument(std::string const &inputs, std::string const &nodes = {}) {
@@ -422,15 +459,13 @@ constexpr auto usdPreviewSurfaceDocument = R"mtlx(<?xml version="1.0"?>
   </surfacematerial>
 </materialx>)mtlx";
 
-[[nodiscard]] flux::MtlxShaderGenerator::GenerationResult
-tryGenerate(std::string const &document, std::vector<std::string> const &interactive = {}) {
+[[nodiscard]] flux::MtlxShaderGenerator::GenerationResult tryGenerate(std::string const &document) {
     auto const generator = flux::MtlxShaderGenerator{FLUX_MATERIALX_DIR};
-    return generator.generate(document, "M", {}, interactive);
+    return generator.generate(document, "M", {});
 }
 
-[[nodiscard]] flux::ShaderInstance
-generate(std::string const &document, std::vector<std::string> const &interactive = {}) {
-    auto result = tryGenerate(document, interactive);
+[[nodiscard]] flux::ShaderInstance generate(std::string const &document) {
+    auto result = tryGenerate(document);
     if (!result.instance)
         throw kira::Anyhow{"the generator produced no shader"};
     return *std::move(result.instance);
@@ -465,18 +500,45 @@ void expectOneConcreteType(
 }
 } // namespace
 
-TEST(MtlxGeneratorTests, OnlyTheInteractiveInputsBecomeWordsHoldingTheirValues) {
-    auto const instance = generate(mixedDocument, {"fg/color", "m/mix"});
+TEST(MtlxGeneratorTests, AFloatValueChangesTheWordsAndNotTheSource) {
+    struct Row {
+        char const *name;
+        std::string document;
+    };
+    auto const rows = std::vector<Row>{
+        {"an input of a node", mixedDocument},
+        {"an interface input of a library nodegraph", triangleWaveDocument},
+    };
 
-    auto values = std::vector<float>{};
-    for (auto const word : instance.words)
-        values.push_back(std::bit_cast<float>(word));
-    std::ranges::sort(values);
-    EXPECT_EQ(values, (std::vector<float>{0.2F, 0.2F, 0.25F, 0.8F}));
+    for (auto const &row : rows) {
+        SCOPED_TRACE(row.name);
+        auto changed = row.document;
+        changed.replace(changed.find(R"(value="0.3")"), 11, R"(value="0.4")");
+
+        auto const first = generate(row.document);
+        auto const second = generate(changed);
+
+        auto expected = first.words;
+        std::ranges::replace(
+            expected, std::bit_cast<std::uint32_t>(0.3F), std::bit_cast<std::uint32_t>(0.4F)
+        );
+        EXPECT_EQ(first.spec.source, second.spec.source);
+        EXPECT_NE(second.words, first.words);
+        EXPECT_EQ(second.words, expected);
+    }
+}
+
+TEST(MtlxGeneratorTests, ALibraryLiteralStaysInTheSource) {
+    auto const source = generate(triangleWaveDocument).spec.source;
+    auto const nestedSource = generate(randomFloatDocument).spec.source;
+
+    EXPECT_NE(source.find("static const float subtract1_in2 = 0.5;"), std::string::npos);
+    EXPECT_NE(source.find("static const float modulo1_in2 = 1;"), std::string::npos);
+    EXPECT_NE(nestedSource.find("static const float N_recip_float_in2 = 1;"), std::string::npos);
 }
 
 TEST(MtlxGeneratorTests, CompilesAMixedMaterialToOneConcreteType) {
-    expectOneConcreteType(generate(mixedDocument, {"fg/color"}));
+    expectOneConcreteType(generate(mixedDocument));
 }
 
 TEST(MtlxGeneratorTests, CompilesAnUnconnectedClosureInputToOneConcreteType) {
@@ -513,13 +575,6 @@ TEST(MtlxGeneratorTests, GeneratesNothingForADocumentThatDoesNotParse) {
     auto const result = tryGenerate("<materialx");
 
     EXPECT_FALSE(result.instance);
-    EXPECT_EQ(result.diagnostics.size(), 1U);
-}
-
-TEST(MtlxGeneratorTests, ReportsAnInteractivePathThatNoInputMatches) {
-    auto const result = tryGenerate(mixedDocument, {"fg/color", "nothing/here"});
-
-    EXPECT_TRUE(result.instance);
     EXPECT_EQ(result.diagnostics.size(), 1U);
 }
 
@@ -595,24 +650,19 @@ TEST(MtlxGeneratorTests, ASourceMayEmitUnlessItsEmissionIsProvablyZero) {
     struct Row {
         char const *name;
         std::string document;
-        std::vector<std::string> interactive;
         bool mayEmit;
         bool reportsUnsupportedEDF;
     };
     auto const rows = std::vector<Row>{
         {"no emission",
-         standardSurfaceDocument(R"(<input name="emission" type="float" value="0" />)"),
-         {},
-         false,
+         standardSurfaceDocument(R"(<input name="emission" type="float" value="0" />)"), false,
          false},
         {"a literal emission",
          standardSurfaceDocument(
              R"(<input name="emission" type="float" value="2" />
                 <input name="emission_color" type="color3" value="1, 0.5, 0" />)"
          ),
-         {},
-         true,
-         false},
+         true, false},
         {"an image as the emission color",
          standardSurfaceDocument(
              R"(<input name="emission" type="float" value="1" />
@@ -621,28 +671,32 @@ TEST(MtlxGeneratorTests, ASourceMayEmitUnlessItsEmissionIsProvablyZero) {
                   <input name="file" type="filename" value="a.png" />
                 </image>)"
          ),
-         {},
-         true,
-         false},
-        {"a black uniform EDF", blackUniformDocument, {}, false, false},
-        {"the same black color as an interactive input",
-         blackUniformDocument,
-         {"e/color"},
-         true,
-         false},
-        {"the defaults of UsdPreviewSurface", usdPreviewSurfaceDocument, {}, false, false},
-        {"a conical EDF", conicalDocument, {}, false, true},
+         true, false},
+        {"a black uniform EDF", blackUniformDocument, false, false},
+        {"the defaults of UsdPreviewSurface", usdPreviewSurfaceDocument, false, false},
+        {"a conical EDF", conicalDocument, false, true},
     };
 
     for (auto const &row : rows) {
         SCOPED_TRACE(row.name);
-        auto const result = tryGenerate(row.document, row.interactive);
+        auto const result = tryGenerate(row.document);
 
         ASSERT_TRUE(result.instance);
         EXPECT_EQ(result.instance->spec.mayEmit, row.mayEmit);
         if (row.reportsUnsupportedEDF)
             EXPECT_EQ(result.diagnostics.size(), 1U);
     }
+}
+
+TEST(MtlxGeneratorTests, AMaterialThatEmitsNothingSharesNoSourceWithOneThatEmits) {
+    auto const dark =
+        generate(standardSurfaceDocument(R"(<input name="emission" type="float" value="0" />)"));
+    auto const bright =
+        generate(standardSurfaceDocument(R"(<input name="emission" type="float" value="2" />)"));
+
+    EXPECT_FALSE(dark.spec.mayEmit);
+    EXPECT_TRUE(bright.spec.mayEmit);
+    EXPECT_NE(dark.spec.source, bright.spec.source);
 }
 
 TEST(MtlxGeneratorTests, CompilesTheEdfNodesToOneConcreteType) {
