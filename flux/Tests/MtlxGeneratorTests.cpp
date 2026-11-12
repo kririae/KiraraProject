@@ -354,40 +354,64 @@ constexpr auto randomFloatDocument = R"mtlx(<?xml version="1.0"?>
   </surfacematerial>
 </materialx>)mtlx";
 
-/// \brief A \c standard_surface with the inputs \p inputs, and the nodes \p nodes that they read.
-[[nodiscard]] std::string
-standardSurfaceDocument(std::string const &inputs, std::string const &nodes = {}) {
+/// \brief A material whose roughness comes from a nodegraph, which multiplies its interface input
+/// \p scale by the factor \p factor.
+[[nodiscard]] std::string nodegraphDocument(std::string_view scale, std::string_view factor) {
     return fmt::format(
         R"mtlx(<?xml version="1.0"?>
 <materialx version="1.39">
-  {}
-  <standard_surface name="s" type="surfaceshader">
-    {}
-  </standard_surface>
+  <nodegraph name="NG">
+    <input name="scale" type="float" value="{}" />
+    <multiply name="product" type="float">
+      <input name="in1" type="float" interfacename="scale" />
+      <input name="in2" type="float" value="{}" />
+    </multiply>
+    <output name="out" type="float" nodename="product" />
+  </nodegraph>
+  <oren_nayar_diffuse_bsdf name="fg" type="BSDF">
+    <input name="roughness" type="float" nodegraph="NG" output="out" />
+  </oren_nayar_diffuse_bsdf>
+  <surface name="s" type="surfaceshader">
+    <input name="bsdf" type="BSDF" nodename="fg" />
+  </surface>
   <surfacematerial name="M" type="material">
     <input name="surfaceshader" type="surfaceshader" nodename="s" />
   </surfacematerial>
 </materialx>)mtlx",
-        nodes, inputs
+        scale, factor
     );
+}
+
+/// \brief A material whose surface is the node \p category, with the inputs \p inputs, and the
+/// nodes \p nodes that they read.
+[[nodiscard]] std::string surfaceDocument(
+    std::string_view category, std::string const &inputs, std::string const &nodes = {}
+) {
+    return fmt::format(
+        R"mtlx(<?xml version="1.0"?>
+<materialx version="1.39">
+  {}
+  <{} name="s" type="surfaceshader">
+    {}
+  </{}>
+  <surfacematerial name="M" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="s" />
+  </surfacematerial>
+</materialx>)mtlx",
+        nodes, category, inputs, category
+    );
+}
+
+/// \brief A \c standard_surface with the inputs \p inputs, and the nodes \p nodes that they read.
+[[nodiscard]] std::string
+standardSurfaceDocument(std::string const &inputs, std::string const &nodes = {}) {
+    return surfaceDocument("standard_surface", inputs, nodes);
 }
 
 /// \brief A \c UsdPreviewSurface with the inputs \p inputs, and the nodes \p nodes that they read.
 [[nodiscard]] std::string
 previewSurfaceDocument(std::string const &inputs, std::string const &nodes = {}) {
-    return fmt::format(
-        R"mtlx(<?xml version="1.0"?>
-<materialx version="1.39">
-  {}
-  <UsdPreviewSurface name="s" type="surfaceshader">
-    {}
-  </UsdPreviewSurface>
-  <surfacematerial name="M" type="material">
-    <input name="surfaceshader" type="surfaceshader" nodename="s" />
-  </surfacematerial>
-</materialx>)mtlx",
-        nodes, inputs
-    );
+    return surfaceDocument("UsdPreviewSurface", inputs, nodes);
 }
 
 /// \brief A material whose emission uses every EDF node that the generator supports, except the
@@ -510,12 +534,19 @@ TEST(MtlxGeneratorTests, AFloatValueChangesTheWordsAndNotTheSource) {
     auto const rows = std::vector<Row>{
         {"an input of a node", mixedDocument},
         {"an interface input of a library nodegraph", triangleWaveDocument},
+        {"an interface input of a nodegraph of the document", nodegraphDocument("0.3", "0.5")},
+        {"an input of a node of a nodegraph of the document", nodegraphDocument("0.5", "0.3")},
+        {"an interface input that a library nodegraph reads through a library nodegraph inside it",
+         surfaceDocument(
+             "open_pbr_surface",
+             R"(<input name="specular_roughness_anisotropy" type="float" value="0.3" />)"
+         )},
     };
 
     for (auto const &row : rows) {
         SCOPED_TRACE(row.name);
         auto changed = row.document;
-        changed.replace(changed.find(R"(value="0.3")"), 11, R"(value="0.4")");
+        changed.replace(changed.find(R"("0.3)"), 4, R"("0.4)");
 
         auto const first = generate(row.document);
         auto const second = generate(changed);
@@ -530,13 +561,68 @@ TEST(MtlxGeneratorTests, AFloatValueChangesTheWordsAndNotTheSource) {
     }
 }
 
-TEST(MtlxGeneratorTests, ALibraryLiteralStaysInTheSource) {
-    auto const source = generate(triangleWaveDocument).spec.source;
-    auto const nestedSource = generate(randomFloatDocument).spec.source;
+TEST(MtlxGeneratorTests, AValueThatTheDocumentDoesNotAuthorStaysInTheSource) {
+    struct Row {
+        char const *name;
+        std::string document;
+        std::vector<std::string> lines;
+    };
+    auto const rows = std::vector<Row>{
+        {"a literal of a library nodegraph, and an input that a node of one omits",
+         triangleWaveDocument,
+         {R"(static const float n\d+_in2 = 0\.5;)", R"(static const float n\d+_in2 = 1;)"}},
+        {"an input that a node of a nested library nodegraph omits",
+         randomFloatDocument,
+         {R"(static const float n\d+_in2 = 1;)"}},
+        {"an input that a node with its own implementation omits",
+         mixedDocument,
+         {R"(static const float n\d+_weight = 1;)"}},
+        {"an input that a node that a library nodegraph defines omits",
+         inheritedDocument,
+         {R"(static const float n\d+_in2 = 0\.5;)"}},
+        {"an input that a node that a nodegraph of the document defines omits",
+         multiOutputDocument,
+         {R"(static const float3 n\d+_in = float3\(0\.1, 0\.2, 0\.3\);)"}},
+    };
 
-    EXPECT_TRUE(std::regex_search(source, std::regex{R"(static const float n\d+_in2 = 0\.5;)"}));
-    EXPECT_TRUE(std::regex_search(source, std::regex{R"(static const float n\d+_in2 = 1;)"}));
-    EXPECT_TRUE(std::regex_search(nestedSource, std::regex{R"(static const float n\d+_in2 = 1;)"}));
+    for (auto const &row : rows) {
+        SCOPED_TRACE(row.name);
+        auto const source = generate(row.document).spec.source;
+
+        for (auto const &line : row.lines)
+            EXPECT_TRUE(std::regex_search(source, std::regex{line})) << line;
+    }
+}
+
+TEST(MtlxGeneratorTests, AnInputThatTheDocumentAuthorsAtItsDefaultIsAWord) {
+    struct Row {
+        char const *name;
+        std::string document;
+        std::string after;
+        std::string input;
+        std::string line;
+    };
+    auto const rows = std::vector<Row>{
+        {"a node with its own implementation", mixedDocument,
+         R"(<input name="roughness" type="float" value="0.3" />)",
+         R"(<input name="weight" type="float" value="1" />)",
+         R"(float n\d+_weight = asfloat\(words\[)"},
+        {"a node that a nodegraph defines", inheritedDocument,
+         R"(<input name="amount" type="float" value="1.5" />)",
+         R"(<input name="pivot" type="float" value="0.5" />)",
+         R"(float n\d+_in2 = asfloat\(words\[)"},
+    };
+
+    for (auto const &row : rows) {
+        SCOPED_TRACE(row.name);
+        auto document = row.document;
+        auto const at = document.find(row.after) + row.after.size();
+        document.insert(at, row.input);
+
+        auto const source = generate(document).spec.source;
+
+        EXPECT_TRUE(std::regex_search(source, std::regex{row.line}));
+    }
 }
 
 TEST(MtlxGeneratorTests, CompilesAMixedMaterialToOneConcreteType) {

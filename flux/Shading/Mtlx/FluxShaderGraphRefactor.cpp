@@ -21,7 +21,7 @@ constexpr auto weightEpsilon = 1e-8F;
 constexpr auto emptyAtZeroWeight =
     std::to_array<std::string_view>({"dielectric_bsdf", "generalized_schlick_bsdf", "sheen_bsdf"});
 
-/// \brief The float that the document writes at \p input, if it is unconnected.
+/// \brief The float of the input \p name of \p node, authored or a default, if it is unconnected.
 [[nodiscard]] std::optional<float>
 getLiteral(MaterialX::ShaderNode const &node, std::string const &name) {
     auto const *input = node.getInput(name);

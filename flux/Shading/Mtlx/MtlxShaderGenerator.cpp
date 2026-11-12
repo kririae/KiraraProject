@@ -304,47 +304,22 @@ void appendBlackAddressMode(MaterialX::Document &library) {
                 );
 }
 
-/// \brief The attribute that marks a node of a library nodegraph, and each of its inputs that holds
-/// a literal.
-constexpr auto libraryLiteralAttribute = "fluxlibraryliteral";
+/// \brief The attribute that marks each input whose value the document authors.
+constexpr auto authoredAttribute = "fluxauthored";
 
-/// \brief Marks each node of the nodegraphs of \p library, and each of their inputs that holds a
-/// literal.
-void markLibraryLiterals(MaterialX::Document &library) {
-    for (auto const &graph : library.getNodeGraphs())
-        for (auto const &node : graph->getNodes()) {
-            node->setAttribute(libraryLiteralAttribute, "true");
-            for (auto const &input : node->getInputs())
-                if (input->hasValueString() && !input->hasInterfaceName() &&
-                    !input->hasNodeName() && !input->hasOutputString())
-                    input->setAttribute(libraryLiteralAttribute, "true");
-        }
-}
-
-/// \brief Adds to the library node \p node each input that it leaves at a value of its declaration,
-/// marked as a library literal.
-void markLibraryDefaults(MaterialX::Node &node, std::string const &target) {
-    auto const declaration = node.getDeclaration(target);
-    if (!declaration)
-        return;
-    for (auto const &defaultInput : declaration->getActiveInputs()) {
-        if (node.getInput(defaultInput->getName()) || !defaultInput->hasValueString() ||
-            defaultInput->hasDefaultGeomPropString())
-            continue;
-        auto const input = node.addInput(defaultInput->getName(), defaultInput->getType());
-        input->setValueString(defaultInput->getValueString());
-        input->setAttribute(libraryLiteralAttribute, "true");
+/// \brief Marks each input of \p document that holds a value.
+void markAuthoredInputs(MaterialX::Document &document) {
+    for (auto const &element : document.traverseTree()) {
+        auto const input = element->asA<MaterialX::Input>();
+        if (input && input->hasValueString())
+            input->setAttribute(authoredAttribute, "true");
     }
 }
 
-/// \brief Whether the value of \p path is a literal of a library nodegraph, or the default of an
-/// input that a node of one leaves unset.
-[[nodiscard]] bool isLibraryLiteral(InputPath const &path) {
-    if (!path.node)
-        return false;
-    auto const input = path.node->getInput(path.input);
-    return input ? input->hasAttribute(libraryLiteralAttribute)
-                 : path.node->hasAttribute(libraryLiteralAttribute);
+/// \brief Whether the document authors the value of the input at \p path.
+[[nodiscard]] bool isAuthored(MaterialX::DocumentPtr const &document, std::string const &path) {
+    auto const element = document->getDescendant(path);
+    return element && element->hasAttribute(authoredAttribute);
 }
 
 /// \brief The texture that the image node \p node samples from the file \p file.
@@ -588,8 +563,6 @@ void flattenSubgraphs(MaterialX::GraphElement &graph, std::string const &target)
                 kept.emplace_back(port, output->getOutputString());
         }
 
-        if (node->hasAttribute(libraryLiteralAttribute))
-            markLibraryDefaults(*node, target);
         graph.flattenSubgraphs(target, [&](MaterialX::NodePtr const &candidate) {
             return candidate == node;
         });
@@ -645,7 +618,6 @@ MtlxShaderGenerator::pImpl::pImpl(std::filesystem::path const &root)
     for (auto const *source : std::views::values(libraryFiles))
         MaterialX::readFromXmlString(libraries, source, searchPath);
     appendBlackAddressMode(*libraries);
-    markLibraryLiterals(*libraries);
 
     generator = std::make_shared<FluxShaderGenerator>(MaterialX::TypeSystem::create());
 }
@@ -682,6 +654,7 @@ ShaderInstance MtlxShaderGenerator::pImpl::makeInstance(
     MaterialX::FileSearchPath const &searchPath, std::vector<std::string> &diagnostics
 ) const {
     MaterialX::flattenFilenames(document, searchPath);
+    markAuthoredInputs(*document);
     document->setDataLibrary(libraries);
 
     auto message = std::string{};
@@ -742,7 +715,7 @@ ShaderInstance MtlxShaderGenerator::pImpl::makeInstance(
             continue;
         }
         auto const count = wordCount(socket->getType());
-        if (!count || isLibraryLiteral(path) ||
+        if (!count || !isAuthored(document, socket->getPath()) ||
             (zeroProof && zeroProof->contains(socket->getPath()))) {
             declarations.push_back(makeConstantDeclaration(*generator, *socket));
             continue;
