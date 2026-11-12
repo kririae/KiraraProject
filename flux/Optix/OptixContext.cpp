@@ -4,15 +4,19 @@
 
 #include <algorithm>
 #include <bit>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <optional>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
+#include "flux/Core/Logging.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/OptixGeometryPool.h"
 #include "flux/Optix/OptixIas.h"
@@ -36,6 +40,72 @@
 #include "kira/SmallVector.h"
 
 namespace flux {
+namespace {
+/// Statistics of what one sync compiled and linked.
+struct CompileStats {
+    /// The modules of the shaders that the sync compiled.
+    std::vector<OptixShaderPool::ModuleStats> shaders;
+
+    std::size_t liveShaderCount{};
+
+    /// The wall time to compile the shaders and build their modules.
+    std::chrono::nanoseconds shaderTime{};
+
+    std::chrono::nanoseconds megaKernelModuleTime{};
+
+    /// Absent if the sync linked no pipeline.
+    std::optional<std::chrono::nanoseconds> linkTime;
+
+    /// Logs a table of the shaders at Debug, then a summary at Info.
+    /// \pre \c linkTime holds a value.
+    void log() const;
+};
+
+void CompileStats::log() const {
+    using Milliseconds = std::chrono::duration<double, std::chrono::milliseconds::period>;
+    auto const toMilliseconds = [](std::chrono::nanoseconds time) {
+        return std::chrono::duration_cast<Milliseconds>(time).count();
+    };
+
+    std::chrono::nanoseconds slangTime{};
+    std::chrono::nanoseconds nvrtcTime{};
+    std::chrono::nanoseconds moduleTime{};
+    std::string table;
+    for (auto const &shader : shaders) {
+        slangTime += shader.slangTime;
+        nvrtcTime += shader.nvrtcTime;
+        moduleTime += shader.moduleTime;
+        table += fmt::format(
+            "\n\t{:<26}  {:>10.1f}  {:>10.1f}  {:>11.1f}  {:>25}  {:>24}", shader.programName,
+            toMilliseconds(shader.slangTime), toMilliseconds(shader.nvrtcTime),
+            toMilliseconds(shader.moduleTime), shader.bsdfDirectStackSize, shader.edfDirectStackSize
+        );
+    }
+    if (!shaders.empty())
+        LogDebug(
+            "OptixContext: statistics for each new shader\n\t{:<26}  Slang (ms)  NVRTC (ms)  "
+            "module (ms)  BSDF direct stack (bytes)  EDF direct stack (bytes){}",
+            "shader", table
+        );
+
+    LogInfo(
+        "OptixContext: compile statistics\n"
+        "\tnew shader(s)              : {:>8}\n"
+        "\tlive shader(s)             : {:>8}\n"
+        "\twall time (ms)             : {:>8.1f}\n"
+        "\tSlang, summed (ms)         : {:>8.1f}\n"
+        "\tNVRTC, summed (ms)         : {:>8.1f}\n"
+        "\tshader module, summed (ms) : {:>8.1f}\n"
+        "\tmegakernel module (ms)     : {:>8.1f}\n"
+        "\tlink (ms)                  : {:>8.1f}",
+        shaders.size(), liveShaderCount,
+        toMilliseconds(shaderTime + megaKernelModuleTime + *linkTime), toMilliseconds(slangTime),
+        toMilliseconds(nvrtcTime), toMilliseconds(moduleTime), toMilliseconds(megaKernelModuleTime),
+        toMilliseconds(*linkTime)
+    );
+}
+} // namespace
+
 struct OptixContext::pImpl final : private CudaStreamMixin {
 public:
     pImpl(
@@ -104,7 +174,7 @@ public:
     /// Makes the pool hold exactly the assets of the live shader BSDFs and shader EDFs, gives the
     /// assets of the BSDFs a slot and those of the EDFs an EDF slot, and uploads the buffers that
     /// the callables read.
-    void syncShaders();
+    void syncShaders(CompileStats &stats);
 
     OptixShaderPool shaderPool{deviceContext};
 
@@ -124,7 +194,7 @@ public:
     // Megakernel module. Memoized by specialization. The program and the SBT follow it.
 
     /// Rebuilds the module, the program, and the SBT when the specialization differs.
-    void syncProgram();
+    void syncProgram(CompileStats &stats);
 
     std::filesystem::path modulePath;
     std::shared_ptr<OptixMegaKernelModule const> megaKernelModule;
@@ -202,13 +272,16 @@ OptixContext::Impl OptixContext::getImpl() const noexcept {
 }
 
 void OptixContext::pImpl::sync() {
+    CompileStats compileStats;
     syncGeometry();
     buildTables();
-    syncShaders();
+    syncShaders(compileStats);
     syncTextures();
-    syncProgram();
+    syncProgram(compileStats);
     buildIas();
     lightSampler.sync(context, {.textures = imageTextures.data()}, ias.getSceneRadius());
+    if (compileStats.linkTime)
+        compileStats.log();
 }
 
 void OptixContext::pImpl::syncGeometry() {
@@ -249,7 +322,7 @@ void OptixContext::pImpl::buildTables() {
     edfs.copyFromHost({table.edfs.data(), table.edfs.size()}, deletionQueue);
 }
 
-void OptixContext::pImpl::syncShaders() {
+void OptixContext::pImpl::syncShaders(CompileStats &stats) {
     std::map<std::size_t, Ref<ShaderAsset const>> bsdfAssets;
     for (auto const &bsdf : context.getObjects<BSDF>())
         if (bsdf->getType() == BSDFType::Shader) {
@@ -330,7 +403,10 @@ void OptixContext::pImpl::syncShaders() {
         if (!live.contains(id))
             removed.push_back(id);
     shaderPool.remove(removed);
-    shaderPool.add({added.data(), added.size()});
+    auto const start = std::chrono::steady_clock::now();
+    stats.shaders = shaderPool.add({added.data(), added.size()});
+    stats.shaderTime = std::chrono::steady_clock::now() - start;
+    stats.liveShaderCount = live.size();
 
     shaderWords.copyFromHost({hostWords.data(), hostWords.size()}, deletionQueue);
     shaderTextureIndices.copyFromHost(
@@ -405,7 +481,7 @@ void OptixContext::pImpl::syncTextures() {
     imageTextures.copyFromHost({hostImageTextures.data(), hostImageTextures.size()}, deletionQueue);
 }
 
-void OptixContext::pImpl::syncProgram() {
+void OptixContext::pImpl::syncProgram(CompileStats &stats) {
     // The program links the module of each slot and of each EDF slot, so it follows the slots.
     auto const spec = OptixMegaKernelModule::makeSpec(context);
     auto const getModules = [&](std::vector<std::size_t> const &ids) {
@@ -424,10 +500,15 @@ void OptixContext::pImpl::syncProgram() {
 
     if (program)
         deletionQueue.deleteLater(std::shared_ptr<OptixProgram const>(std::move(program)));
-    if (!megaKernelModule || megaKernelModule->getSpec() != spec)
+    if (!megaKernelModule || megaKernelModule->getSpec() != spec) {
+        auto const start = std::chrono::steady_clock::now();
         megaKernelModule = std::make_shared<OptixMegaKernelModule>(deviceContext, modulePath, spec);
+        stats.megaKernelModuleTime = std::chrono::steady_clock::now() - start;
+    }
+    auto const start = std::chrono::steady_clock::now();
     program =
         std::make_unique<OptixProgram>(deviceContext, megaKernelModule, bsdfModules, edfModules);
+    stats.linkTime = std::chrono::steady_clock::now() - start;
     sbt.build(*megaKernelModule, bsdfModules, edfModules);
 }
 

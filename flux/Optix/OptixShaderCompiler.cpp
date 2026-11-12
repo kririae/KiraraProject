@@ -176,10 +176,6 @@ static_assert(is_same_v<decltype({edfCallable}), flux::OptixEDFCallable>);
     return fmt::format("-arch=compute_{}{}", major, minor);
 }
 
-[[nodiscard]] double millisecondsSince(std::chrono::steady_clock::time_point start) noexcept {
-    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start)
-        .count();
-}
 } // namespace
 
 struct OptixShaderCompiler::pImpl {
@@ -195,7 +191,8 @@ OptixShaderCompiler::OptixShaderCompiler() : pImpl_(std::make_unique<pImpl>()) {
 
 OptixShaderCompiler::~OptixShaderCompiler() = default;
 
-std::vector<char> OptixShaderCompiler::compile(std::string const &source) const {
+OptixShaderCompiler::CompilationResult
+OptixShaderCompiler::compile(std::string const &source) const {
     auto start = std::chrono::steady_clock::now();
     std::vector<SlangModule> modules;
     for (auto const &[path, text] : slangModules) {
@@ -207,16 +204,17 @@ std::vector<char> OptixShaderCompiler::compile(std::string const &source) const 
     auto const &slangCompiler = pImpl_->slangCompilers.local();
     auto const cuda = slangCompiler.compile(modules, callableModule);
     auto const &prelude = slangCompiler.getTargetPrelude();
-    auto const slangMilliseconds = millisecondsSince(start);
+    std::chrono::nanoseconds const slangTime = std::chrono::steady_clock::now() - start;
 
+    auto programName = getProgramName(source);
     start = std::chrono::steady_clock::now();
-    auto ir = compileToOptixIr(cuda, prelude, pImpl_->architectureOption, getProgramName(source));
-    auto const nvrtcMilliseconds = millisecondsSince(start);
-
-    LogInfo(
-        "OptixShaderCompiler: compiled a shader in {:.1f} ms (Slang {:.1f} ms, NVRTC {:.1f} ms)",
-        slangMilliseconds + nvrtcMilliseconds, slangMilliseconds, nvrtcMilliseconds
-    );
-    return ir;
+    auto ir = compileToOptixIr(cuda, prelude, pImpl_->architectureOption, programName);
+    std::chrono::nanoseconds const nvrtcTime = std::chrono::steady_clock::now() - start;
+    return {
+        .ir = std::move(ir),
+        .programName = std::move(programName),
+        .slangTime = slangTime,
+        .nvrtcTime = nvrtcTime,
+    };
 }
 } // namespace flux

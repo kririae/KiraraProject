@@ -2,10 +2,12 @@
 
 #include <optix_types.h>
 
+#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <optional>
 #include <span>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -22,6 +24,24 @@ namespace flux {
 /// external synchronization.
 class OptixShaderPool final : private Noncopyable {
 public:
+    /// \brief Statistics of the module that the pool made for one asset.
+    struct ModuleStats {
+        /// \brief The name of the NVRTC program.
+        std::string programName;
+
+        std::chrono::nanoseconds slangTime{};
+        std::chrono::nanoseconds nvrtcTime{};
+
+        /// \brief The time to create the OptiX module and its program groups.
+        std::chrono::nanoseconds moduleTime{};
+
+        /// \brief The direct stack size of the BSDF callable, in bytes.
+        unsigned int bsdfDirectStackSize{};
+
+        /// \brief The direct stack size of the EDF callable, in bytes.
+        unsigned int edfDirectStackSize{};
+    };
+
     /// \brief Creates an empty pool whose modules borrow \p deviceContext, which must outlive it.
     explicit OptixShaderPool(OptixDeviceContext deviceContext) noexcept
         : deviceContext_(deviceContext) {}
@@ -29,7 +49,8 @@ public:
     /// \brief Compiles the sources of \p assets and builds their modules.
     /// \pre No asset of \p assets is present, and their IDs are distinct.
     /// \throw kira::Anyhow If compiling or building fails. Then nothing is added.
-    void add(std::span<Ref<ShaderAsset const> const> assets);
+    /// \return The statistics of each module, in the order of \p assets.
+    std::vector<ModuleStats> add(std::span<Ref<ShaderAsset const> const> assets);
 
     /// \brief Drops the modules of \p ids from the pool.
     ///

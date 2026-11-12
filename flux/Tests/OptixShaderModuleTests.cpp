@@ -71,7 +71,7 @@ TEST(OptixShaderModule, HasABSDFProgramGroup) {
     Device const device;
     flux::OptixShaderCompiler const compiler;
 
-    auto const ir = compiler.compile(shaderSource);
+    auto const ir = compiler.compile(shaderSource).ir;
     flux::OptixShaderModule const module(device.context, ir);
 
     EXPECT_NE(module.getBSDFProgramGroup(), nullptr);
@@ -81,9 +81,9 @@ TEST(OptixShaderModule, TwoSourcesThatDifferOnlyByACommentLinkIntoOnePipeline) {
     Device const device;
     flux::OptixShaderCompiler const compiler;
 
-    auto const firstIr = compiler.compile(shaderSourceWithCall);
+    auto const firstIr = compiler.compile(shaderSourceWithCall).ir;
     auto const secondIr =
-        compiler.compile(std::string{shaderSourceWithCall} + "// Another source.\n");
+        compiler.compile(std::string{shaderSourceWithCall} + "// Another source.\n").ir;
     flux::OptixShaderModule const first(device.context, firstIr);
     flux::OptixShaderModule const second(device.context, secondIr);
 

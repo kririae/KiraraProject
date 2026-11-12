@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <memory>
 #include <string>
 #include <vector>
@@ -20,19 +21,29 @@ public:
     /// \brief The name of the direct callable of the EDF, of type \c OptixEDFCallable.
     static constexpr auto edfCallableName = "__direct_callable__edf";
 
+    /// \brief The OptiX IR of a shader, and what it took to make it.
+    struct CompilationResult {
+        std::vector<char> ir;
+
+        /// \brief The name of the NVRTC program, which the errors of NVRTC cite.
+        std::string programName;
+
+        std::chrono::nanoseconds slangTime{};
+        std::chrono::nanoseconds nvrtcTime{};
+    };
+
     /// \brief Targets the virtual architecture of the current CUDA device.
     ///
     /// \throw kira::Anyhow If CUDA fails.
     OptixShaderCompiler();
     ~OptixShaderCompiler();
 
-    /// \brief Returns the OptiX IR of the shader \p source, which declares \c makeBSDF and
-    /// \c makeEDF.
+    /// \brief Compiles the shader \p source, which declares \c makeBSDF and \c makeEDF.
     ///
     /// The IR names its launch parameters \c optixLaunchParams.
     ///
     /// \throw kira::Anyhow If Slang or NVRTC fails, with its log.
-    [[nodiscard]] std::vector<char> compile(std::string const &source) const;
+    [[nodiscard]] CompilationResult compile(std::string const &source) const;
 
 private:
     struct pImpl;
