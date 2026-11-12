@@ -105,7 +105,7 @@ void requireTexCoordProperty(MaterialX::ShaderGraphInputSocket const &socket) {
 /// \brief Checks that no \c geompropvalue node takes its \c geomprop from another node.
 ///
 /// \throw MaterialX::ExceptionShaderGenError if one does.
-void requireWrittenGeomProp(MaterialX::ShaderGraph const &graph) {
+void requireLiteralGeomProp(MaterialX::ShaderGraph const &graph) {
     for (auto const *node : graph.getNodes()) {
         auto const *input = node->getInput("geomprop");
         if (input && input->getConnection() && input->getConnection()->getNode() != &graph)
@@ -667,7 +667,7 @@ ShaderInstance MtlxShaderGenerator::pImpl::makeInstance(
 
     auto const shader = generator->createShader(materialName, material, context);
     auto &graph = shader->getGraph();
-    requireWrittenGeomProp(graph);
+    requireLiteralGeomProp(graph);
     setPositionalVariableNames(graph);
 
     auto const stage = generator->makeStage();
