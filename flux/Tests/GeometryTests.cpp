@@ -161,7 +161,7 @@ TEST(GeometryTests, SamplesTriangleMeshesByGeometrySpaceArea) {
     auto mesh = context->create<flux::TriangleMesh>(triangleProperties("Polygons.ply"));
     auto impl = mesh->getImpl();
     auto const distribution = flux::TriangleMesh::computeSamplingDistribution(impl);
-    impl.triangleAreaCDF = distribution.areaCDF.data();
+    impl.triangleAreaBins = distribution.areaBins.data();
     impl.triangleAreaPDF = distribution.areaPDF.data();
     impl.surfaceArea = distribution.areaCDF.back();
 
@@ -170,6 +170,39 @@ TEST(GeometryTests, SamplesTriangleMeshesByGeometrySpaceArea) {
     ASSERT_GT(sample.pdf, 0.0F);
     EXPECT_NEAR(distribution.areaCDF.back(), mesh->getSurfaceArea(), 1.0e-5F);
     EXPECT_NEAR(sample.pdf, 1.0F / mesh->getSurfaceArea(), 1.0e-6F);
+}
+
+TEST(GeometryTests, SelectsEachTriangleWithTheProbabilityOfItsDensity) {
+    // Areas 3, 3, 0, 2 over 8 give every alias bin a threshold of 0, 1/2 or 1, so that the counts
+    // over all 2^24 unit samples are exact.
+    auto const vertices = std::array{
+        flux::Vec3f{0.0F, 0.0F, 0.0F}, flux::Vec3f{2.0F, 0.0F, 0.0F}, flux::Vec3f{0.0F, 3.0F, 0.0F},
+        flux::Vec3f{4.0F, 0.0F, 0.0F}, flux::Vec3f{2.0F, 2.0F, 0.0F},
+    };
+    auto const triangles = std::array{
+        flux::Vec3u{0, 1, 2},
+        flux::Vec3u{1, 3, 2},
+        flux::Vec3u{0, 1, 3},
+        flux::Vec3u{1, 3, 4},
+    };
+    auto impl = flux::TriangleMesh::Impl{
+        .vertices = vertices.data(),
+        .triangles = triangles.data(),
+        .numVertices = static_cast<std::uint32_t>(vertices.size()),
+        .numTriangles = static_cast<std::uint32_t>(triangles.size()),
+    };
+    auto const distribution = flux::TriangleMesh::computeSamplingDistribution(impl);
+    impl.triangleAreaBins = distribution.areaBins.data();
+    impl.triangleAreaPDF = distribution.areaPDF.data();
+    impl.surfaceArea = distribution.areaCDF.back();
+
+    std::array<std::uint32_t, triangles.size()> counts{};
+    for (std::uint32_t index = 0; index < (1U << 24U); ++index)
+        ++counts[impl.sample({static_cast<float>(index) * 0x1p-24F, 0.5F}).elementIndex];
+    for (std::uint32_t triangle = 0; triangle < triangles.size(); ++triangle) {
+        auto const probability = impl.pdf(triangle) * impl.getTriangleArea(triangle);
+        EXPECT_EQ(static_cast<float>(counts[triangle]), probability * 0x1p24F) << triangle;
+    }
 }
 
 TEST(GeometryTests, ReportsZeroDensityForAZeroAreaTriangle) {

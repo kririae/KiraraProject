@@ -28,8 +28,8 @@ void OptixGeometryPool::add(std::span<Ref<TriangleMesh const> const> meshes) {
         auto const hostImpl = mesh->getImpl();
         auto const distribution = TriangleMesh::computeSamplingDistribution(hostImpl);
 
-        entry.triangleAreaCDF.copyFromHostAndWait(
-            {distribution.areaCDF.data(), distribution.areaCDF.size()}
+        entry.triangleAreaBins.copyFromHostAndWait(
+            {distribution.areaBins.data(), distribution.areaBins.size()}
         );
         entry.triangleAreaPDF.copyFromHostAndWait(
             {distribution.areaPDF.data(), distribution.areaPDF.size()}
@@ -101,7 +101,7 @@ Geometry::Impl OptixGeometryPool::getImpl(std::size_t id) const {
         .texCoordIndices = entry.texCoords.empty() ? nullptr : texCoordIndices,
         .numVertices = static_cast<std::uint32_t>(entry.vertices.size()),
         .numTriangles = static_cast<std::uint32_t>(entry.triangles.size()),
-        .triangleAreaCDF = entry.triangleAreaCDF.data(),
+        .triangleAreaBins = entry.triangleAreaBins.data(),
         .triangleAreaPDF = entry.triangleAreaPDF.data(),
         .surfaceArea = entry.surfaceArea,
     };

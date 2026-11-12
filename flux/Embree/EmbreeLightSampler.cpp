@@ -97,6 +97,7 @@ EmbreeLightSampler::Impl EmbreeLightSampler::getImpl() const noexcept {
         .envMapSlot = tableData_.slots.envMapSlot,
         .power = {
             .cdf = tableData_.slots.cdf.data(),
+            .bins = tableData_.slots.bins.data(),
             .sum = tableData_.slots.cdf.empty() ? 0.0F : tableData_.slots.cdf.back(),
             .numLights = static_cast<std::uint32_t>(tableData_.slots.handles.size()),
         },

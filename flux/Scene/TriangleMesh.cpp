@@ -278,6 +278,9 @@ TriangleMesh::SamplingDistribution TriangleMesh::computeSamplingDistribution(Imp
         return result;
     }
 
+    result.areaBins.resize_for_overwrite(mesh.numTriangles);
+    buildAliasTable(areaCDF, {result.areaBins.data(), result.areaBins.size()});
+
     auto const cdfTotal = areaCDF.back();
     tbb::parallel_for(std::size_t{0}, areaPDF.size(), [&](std::size_t index) {
         auto const previous = index == 0 ? 0.0F : areaCDF[index - 1];

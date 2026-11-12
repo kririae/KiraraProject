@@ -82,23 +82,16 @@ TriangleMesh::Impl::computeInteraction(PreliminaryIntersection const &preliminar
 
 KIRA_HOST_DEVICE inline GeometrySample
 TriangleMesh::Impl::sample(Vec2f const &sampleValue) const noexcept {
-    if (!triangleAreaCDF || !triangleAreaPDF || !(surfaceArea > 0.0F) || numTriangles == 0)
+    if (!triangleAreaBins || !triangleAreaPDF || !(surfaceArea > 0.0F) || numTriangles == 0)
         return {};
 
-    auto const target = sampleValue.x() * surfaceArea;
-    auto const triangle = static_cast<std::uint32_t>(std::min(
-        upperBoundIndex(triangleAreaCDF, numTriangles, target),
-        static_cast<std::size_t>(numTriangles - 1)
-    ));
-    auto const previousArea = triangle == 0 ? 0.0F : triangleAreaCDF[triangle - 1];
-    auto const triangleArea = triangleAreaCDF[triangle] - previousArea;
-    if (!(triangleArea > 0.0F))
-        return {};
+    float remapped;
+    auto const triangle =
+        sampleAliasTable(triangleAreaBins, numTriangles, sampleValue.x(), remapped);
 
 #if 0 // Enable with a low-discrepancy sampler.
     auto const barycentric = lowDiscrepancySampleTriangle(sampleValue.y());
 #else
-    auto const remapped = std::min((target - previousArea) / triangleArea, 1.0F);
     auto const root = std::sqrt(remapped);
     auto const b1 = sampleValue.y() * root;
     auto const b2 = root - b1;

@@ -149,13 +149,14 @@ void EmbreeContext::rebuild() try {
         // Build the triangle selection distribution.
         auto impl = TriangleMesh::makeImpl(entry.data, mesh->getSurfaceArea());
         auto distribution = TriangleMesh::computeSamplingDistribution(impl);
-        entry.areaCDF = std::move(distribution.areaCDF);
+        entry.areaBins = std::move(distribution.areaBins);
         entry.areaPDF = std::move(distribution.areaPDF);
 
         // Publish the Impl with the distribution.
-        impl.triangleAreaCDF = entry.areaCDF.data();
+        impl.triangleAreaBins = entry.areaBins.data();
         impl.triangleAreaPDF = entry.areaPDF.data();
-        impl.surfaceArea = entry.areaCDF.empty() ? impl.surfaceArea : entry.areaCDF.back();
+        impl.surfaceArea =
+            distribution.areaCDF.empty() ? impl.surfaceArea : distribution.areaCDF.back();
         geometryImpls_[index] = impl;
     }
 

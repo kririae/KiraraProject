@@ -107,6 +107,7 @@ add_library(
     Optix/OptixSbt.cpp
     Optix/OptixTextureObject.cpp
     Optix/SlangCompiler.cpp
+    Sampling/AliasTable.cpp
     Sampling/Distribution2D.cpp
     Sampling/LightPowerDistribution.cpp
     Sampling/Sampler.cpp

@@ -58,7 +58,7 @@ private:
     struct Entry {
         explicit Entry(cudaStream_t stream)
             : vertices(stream), triangles(stream), normals(stream), normalIndices(stream),
-              texCoords(stream), texCoordIndices(stream), triangleAreaCDF(stream),
+              texCoords(stream), texCoordIndices(stream), triangleAreaBins(stream),
               triangleAreaPDF(stream), gas(stream) {}
 
         DeviceBuffer<Vec3f> vertices;
@@ -67,7 +67,7 @@ private:
         DeviceBuffer<Vec3u> normalIndices;
         DeviceBuffer<Vec2f> texCoords;
         DeviceBuffer<Vec3u> texCoordIndices;
-        DeviceBuffer<float> triangleAreaCDF;
+        DeviceBuffer<AliasBin> triangleAreaBins;
         DeviceBuffer<float> triangleAreaPDF;
         float surfaceArea{};
         OptixGas gas;
