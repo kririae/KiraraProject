@@ -67,6 +67,10 @@ TEST(PathIntegratorTests, BoundsRussianRouletteProbabilityToUnitRange) {
     EXPECT_EQ(context->create<flux::PathIntegrator>(props)->getImpl().rrProb, 1.0F);
 }
 
+TEST(PathIntegratorTests, GivesFullWeightToAPdfWhoseSquareOverflows) {
+    EXPECT_EQ(flux::PathIntegrator::Impl::misWeight(0x1p64F, 1.0F), 1.0F);
+}
+
 TEST(PathIntegratorTests, WeightsBsdfSampledEmitterHits) {
     auto const context = EmitterHitContext{
         .table = {
