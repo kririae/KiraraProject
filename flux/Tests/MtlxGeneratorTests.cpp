@@ -625,6 +625,32 @@ TEST(MtlxGeneratorTests, AnInputThatTheDocumentAuthorsAtItsDefaultIsAWord) {
     }
 }
 
+TEST(MtlxGeneratorTests, WarnsOfAnUnreadInputOnlyIfTheDocumentAuthorsIt) {
+    struct Row {
+        char const *name;
+        std::string document;
+        std::vector<std::string> diagnostics;
+    };
+    auto const rows = std::vector<Row>{
+        {"no input authored", surfaceDocument("open_pbr_surface", ""), {}},
+        {"an unread input authored",
+         surfaceDocument(
+             "open_pbr_surface", R"(<input name="geometry_opacity" type="float" value="0.5" />)"
+         ),
+         {"opacity' is not read"}},
+    };
+
+    for (auto const &row : rows) {
+        SCOPED_TRACE(row.name);
+        auto const result = tryGenerate(row.document);
+
+        ASSERT_TRUE(result.instance);
+        ASSERT_EQ(result.diagnostics.size(), row.diagnostics.size());
+        for (auto i = std::size_t{}; i < row.diagnostics.size(); ++i)
+            EXPECT_NE(result.diagnostics[i].find(row.diagnostics[i]), std::string::npos);
+    }
+}
+
 TEST(MtlxGeneratorTests, CompilesAMixedMaterialToOneConcreteType) {
     expectOneConcreteType(generate(mixedDocument));
 }

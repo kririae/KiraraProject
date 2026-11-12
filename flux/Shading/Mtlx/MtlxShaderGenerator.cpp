@@ -63,11 +63,6 @@ splitInputPath(MaterialX::DocumentPtr const &document, std::string const &path) 
     return {element ? element->asA<MaterialX::Node>() : nullptr, path.substr(slash + 1)};
 }
 
-/// \brief Whether the document itself writes the value of the input \p path.
-[[nodiscard]] bool writesValue(InputPath const &path) {
-    return path.node && path.node->getInput(path.input);
-}
-
 [[nodiscard]] bool isImageNodeInput(InputPath const &path) {
     return path.node && path.node->getCategory() == "image";
 }
@@ -694,7 +689,7 @@ ShaderInstance MtlxShaderGenerator::pImpl::makeInstance(
             continue;
         }
         if (!isRead(*socket)) {
-            if (!socket->getConnections().empty() && writesValue(path) &&
+            if (!socket->getConnections().empty() && isAuthored(document, socket->getPath()) &&
                 !isImageTextureInput(path) && !isGeomPropDefaultInput(path) &&
                 !feedsEDFOrVDF(*socket))
                 diagnostics.push_back(
