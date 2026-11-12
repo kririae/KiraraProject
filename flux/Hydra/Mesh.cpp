@@ -99,7 +99,7 @@ findInterpolation(HdSceneDelegate &sceneDelegate, SdfPath const &id, TfToken con
         HdInterpolationVertex,   HdInterpolationFaceVarying,
     };
 
-    auto const *const found =
+    auto const found =
         std::ranges::find_if(interpolations, [&](HdInterpolation interpolation) {
         auto const descriptors = sceneDelegate.GetPrimvarDescriptors(id, interpolation);
         return std::ranges::any_of(descriptors, [&](HdPrimvarDescriptor const &descriptor) {

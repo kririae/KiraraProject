@@ -5,6 +5,11 @@
 #include "flux/Shading/PrincipledBSDFImpl.h"
 
 namespace flux {
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4702)
+#endif
+
 template <typename Evaluator>
 KIRA_HOST_DEVICE inline BSDFResult BSDF::Dispatcher::execute(
     BSDF::Impl const &bsdf, ShadingContext const &ctx, Vec3f const &wo, Vec3f const &wi, bool eval,
@@ -26,4 +31,8 @@ KIRA_HOST_DEVICE inline BSDFResult BSDF::Dispatcher::execute(
         return Evaluator::execute(bsdf.storage.shader.index, ctx, wo, wi, eval, u1, u2);
     KIRA_UNREACHABLE();
 }
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 } // namespace flux

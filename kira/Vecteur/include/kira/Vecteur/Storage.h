@@ -45,13 +45,19 @@ public:
             x = v;
     }
 
-    /// Construct a vector with the elements set to `ts...`.
-    template <typename... Ts>
-    constexpr VecteurStorage(Ts... ts)
-        requires(sizeof...(Ts) == Size)
-        : storage{static_cast<Scalar>(ts)...} {
+    /// Construct a vector with the elements set to `first` and `rest...`.
+    ///
+    /// \note The first element stands apart from the pack so that this is not a default constructor
+    /// ([class.default.ctor]), which MSVC would otherwise let suppress the zero-initialization of a
+    /// value-initialized object that inherits it.
+    template <typename First, typename... Rest>
+    constexpr VecteurStorage(First first, Rest... rest)
+        requires(1 + sizeof...(Rest) == Size)
+        : storage{static_cast<Scalar>(first), static_cast<Scalar>(rest)...} {
         static_assert(
-            std::conjunction_v<is_safely_convertible_t<Ts, Scalar>...>,
+            std::conjunction_v<
+                is_safely_convertible_t<First, Scalar>,
+                is_safely_convertible_t<Rest, Scalar>...>,
             "The types of the arguments must be safely convertible to the scalar type."
         );
     }

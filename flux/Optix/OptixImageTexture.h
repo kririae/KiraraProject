@@ -12,6 +12,11 @@
 #include "flux/Scene/ImageComponentMapping.h"
 
 namespace flux {
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4324)
+#endif
+
 /// \brief Samples one image texture with CUDA.
 struct OptixImageTexture {
     /// CUDA texture object using the ImageTexture filter mode.
@@ -58,6 +63,10 @@ struct OptixImageTexture {
     /// \brief Samples stored components with point filtering, before \c apply.
     [[nodiscard]] __device__ float4 samplePoint(float2 uv) const noexcept;
 };
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 /// \brief Image textures by image-texture index, as device programs read them.
 struct OptixImageTextureTable {

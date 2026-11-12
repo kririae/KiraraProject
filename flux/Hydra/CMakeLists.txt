@@ -1,5 +1,6 @@
-if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" OR NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
-    message(FATAL_ERROR "The Hydra delegate supports only x64 Linux")
+if((NOT WIN32 AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+   OR NOT CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|amd64|x86_64)$")
+    message(FATAL_ERROR "The Hydra delegate requires x64 Windows or Linux")
 endif()
 
 # The delegate is a plugin of the USD that Houdini ships, so it builds against that USD.
@@ -10,9 +11,13 @@ set(Houdini_DIR "$ENV{HFS}/toolkit/cmake")
 find_package(Houdini CONFIG REQUIRED)
 
 foreach(library MaterialXCore MaterialXFormat pxr_hdMtlx)
-    add_library(Houdini::Dep::${library} SHARED IMPORTED)
+    find_library(houdini_${library}
+                 NAMES ${library} lib${library}
+                 PATHS "$ENV{HFS}/custom/houdini/dsolib" "$ENV{HFS}/dsolib"
+                 NO_DEFAULT_PATH NO_CACHE REQUIRED)
+    add_library(Houdini::Dep::${library} UNKNOWN IMPORTED)
     set_target_properties(Houdini::Dep::${library} PROPERTIES IMPORTED_LOCATION
-                                                              "$ENV{HFS}/dsolib/lib${library}.so")
+                                                              "${houdini_${library}}")
 endforeach()
 
 add_library(
@@ -45,6 +50,7 @@ target_link_libraries(
            flux_mtlx
            Houdini::Dep::MaterialXCore
            Houdini::Dep::MaterialXFormat
+           Houdini::Dep::pxr_arch
            Houdini::Dep::pxr_gf
            Houdini::Dep::pxr_hd
            Houdini::Dep::pxr_hdMtlx
@@ -62,7 +68,16 @@ target_link_libraries(
 # tf/hashset.h includes libstdc++'s deprecated <ext/hash_set>.
 target_compile_definitions(flux_hydra PUBLIC _GLIBCXX_PERMIT_BACKWARD_HASH)
 
-target_compile_options(flux_hydra PUBLIC -Wall -Wextra)
+if(WIN32)
+    target_compile_definitions(
+        flux_hydra PUBLIC NOMINMAX HBOOST_ALL_NO_LIB
+                          _SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING)
+endif()
+if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    target_compile_options(flux_hydra PRIVATE /W4 /bigobj)
+else()
+    target_compile_options(flux_hydra PRIVATE -Wall -Wextra)
+endif()
 
 set_target_properties(flux_hydra PROPERTIES POSITION_INDEPENDENT_CODE ON CXX_VISIBILITY_PRESET hidden
                                             VISIBILITY_INLINES_HIDDEN ON)
@@ -78,12 +93,12 @@ target_compile_definitions(hdFlux PRIVATE MFB_PACKAGE_NAME=hdFlux MFB_ALT_PACKAG
 # visibility also lets the compiler bind the plugin's calls to its own functions directly.
 set_target_properties(hdFlux PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
 
-set(exportMap "${CMAKE_CURRENT_SOURCE_DIR}/exports.map")
-target_link_options(hdFlux PRIVATE "LINKER:--version-script=${exportMap}")
-set_property(TARGET hdFlux APPEND PROPERTY LINK_DEPENDS "${exportMap}")
-
-# A symbol that no linked library defines fails the link, not the load.
-target_link_options(hdFlux PRIVATE "LINKER:--no-undefined")
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(exportMap "${CMAKE_CURRENT_SOURCE_DIR}/exports.map")
+    target_link_options(hdFlux PRIVATE "LINKER:--version-script=${exportMap}")
+    set_property(TARGET hdFlux APPEND PROPERTY LINK_DEPENDS "${exportMap}")
+    target_link_options(hdFlux PRIVATE "LINKER:--no-undefined")
+endif()
 
 # A Houdini package: Houdini loads the plugin from dso/usd and finds its Plug resources under
 # dso/usd_plugins. The generator expression keeps a multi-config generator from adding a

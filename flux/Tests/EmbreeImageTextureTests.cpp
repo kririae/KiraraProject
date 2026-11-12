@@ -20,7 +20,13 @@ namespace {
 /// OIIO reads \c $OCIO when it first needs its default config, so this runs before any test.
 class OcioEnvironment : public testing::Environment {
 public:
-    void SetUp() override { setenv("OCIO", "ocio://default", /* overwrite = */ 1); }
+    void SetUp() override {
+#ifdef _WIN32
+        _putenv_s("OCIO", "ocio://default");
+#else
+        setenv("OCIO", "ocio://default", /* overwrite = */ 1);
+#endif
+    }
 };
 
 [[maybe_unused]] auto *const ocioEnvironment =
