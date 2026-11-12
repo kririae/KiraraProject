@@ -508,6 +508,23 @@ void reportUnreadPreviewInputs(
     }
 }
 
+/// \brief Names each variable of \p graph by the index of its node in \c getNodes.
+///
+/// A port of the node at index k, counting from 0, is \c n<k>_<port>. An input socket takes the
+/// variable of the first input that it feeds.
+void setPositionalVariableNames(MaterialX::ShaderGraph &graph) {
+    for (std::size_t index{0}; auto *node : graph.getNodes()) {
+        for (auto *input : node->getInputs())
+            input->setVariable(fmt::format("n{}_{}", index, input->getName()));
+        for (auto *output : node->getOutputs())
+            output->setVariable(fmt::format("n{}_{}", index, output->getName()));
+        ++index;
+    }
+    for (auto *socket : graph.getInputSockets())
+        if (!socket->getConnections().empty())
+            socket->setVariable(socket->getConnections().front()->getVariable());
+}
+
 /// \brief Emits the function \p name, which declares \p declarations, evaluates the nodes of
 /// \p graph, and returns the \p member of the material that the graph builds.
 void emitEntryFunction(
@@ -680,12 +697,10 @@ ShaderInstance MtlxShaderGenerator::pImpl::makeInstance(
     context.getOptions().shaderInterfaceType = MaterialX::SHADER_INTERFACE_COMPLETE;
     context.getOptions().elideConstantNodes = false;
 
-    constexpr auto sourceName = "material";
-    if (material->getName() != sourceName)
-        material->setName(document->createValidChildName(sourceName));
     auto const shader = generator->createShader(materialName, material, context);
-    auto const &graph = shader->getGraph();
+    auto &graph = shader->getGraph();
     requireWrittenGeomProp(graph);
+    setPositionalVariableNames(graph);
 
     auto const stage = generator->makeStage();
     generator->emitLine("import flux_material;", *stage, false);

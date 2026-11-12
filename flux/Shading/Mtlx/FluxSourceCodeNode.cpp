@@ -160,7 +160,7 @@ void FluxSourceCodeNode::emitFunctionCall(
             if (input->getConnection()) {
                 code.push_back(shadergen.getUpstreamResult(input, context));
             } else {
-                string variableName = node.getName() + "_" + input->getName() + "_tmp";
+                string variableName = input->getVariable() + "_tmp";
                 if (!variableNames.count(variableName)) {
                     ShaderPort v(nullptr, input->getType(), variableName, input->getValue());
                     shadergen.emitLineBegin(stage);

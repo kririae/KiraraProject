@@ -2,10 +2,12 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
+#include <regex>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -532,9 +534,9 @@ TEST(MtlxGeneratorTests, ALibraryLiteralStaysInTheSource) {
     auto const source = generate(triangleWaveDocument).spec.source;
     auto const nestedSource = generate(randomFloatDocument).spec.source;
 
-    EXPECT_NE(source.find("static const float subtract1_in2 = 0.5;"), std::string::npos);
-    EXPECT_NE(source.find("static const float modulo1_in2 = 1;"), std::string::npos);
-    EXPECT_NE(nestedSource.find("static const float N_recip_float_in2 = 1;"), std::string::npos);
+    EXPECT_TRUE(std::regex_search(source, std::regex{R"(static const float n\d+_in2 = 0\.5;)"}));
+    EXPECT_TRUE(std::regex_search(source, std::regex{R"(static const float n\d+_in2 = 1;)"}));
+    EXPECT_TRUE(std::regex_search(nestedSource, std::regex{R"(static const float n\d+_in2 = 1;)"}));
 }
 
 TEST(MtlxGeneratorTests, CompilesAMixedMaterialToOneConcreteType) {
@@ -590,17 +592,39 @@ TEST(MtlxGeneratorTests, AnImageFileChangesTheTexturesAndNotTheSource) {
     expectOneConcreteType(first);
 }
 
-TEST(MtlxGeneratorTests, TheNameOfTheMaterialDoesNotChangeTheSource) {
+TEST(MtlxGeneratorTests, TheNameOfANodeChangesNeitherTheSourceNorTheWords) {
+    struct Row {
+        char const *name;
+        std::string_view document;
+        std::string from;
+        std::string to;
+    };
+    auto const rows = std::to_array<Row>({
+        {"the material", mixedDocument, "M", "Other"},
+        {"a node", mixedDocument, "fg", "zz"},
+        {"a node with an unconnected closure input", unconnectedDocument, "m", "zz"},
+    });
+
     auto const generator = flux::MtlxShaderGenerator{FLUX_MATERIALX_DIR};
-    auto renamed = std::string{mixedDocument};
-    renamed.replace(renamed.find(R"(name="M")"), 8, R"(name="Other")");
+    for (auto const &row : rows) {
+        SCOPED_TRACE(row.name);
+        // The name of an element, or a connection to it, and not the name of an input.
+        auto const reference =
+            std::regex{fmt::format(R"re(((<(?!input)\w+ |node)name=)"{}")re", row.from)};
+        auto const renamed = std::regex_replace(
+            std::string{row.document}, reference, fmt::format(R"re($1"{}")re", row.to)
+        );
+        auto const material = row.from == "M" ? row.to : std::string{"M"};
 
-    auto const first = generator.generate(mixedDocument, "M", {});
-    auto const second = generator.generate(renamed, "Other", {});
+        auto const first = generator.generate(std::string{row.document}, "M", {});
+        auto const second = generator.generate(renamed, material, {});
 
-    ASSERT_TRUE(first.instance);
-    ASSERT_TRUE(second.instance);
-    EXPECT_EQ(first.instance->spec.source, second.instance->spec.source);
+        ASSERT_NE(renamed, row.document);
+        ASSERT_TRUE(first.instance);
+        ASSERT_TRUE(second.instance);
+        EXPECT_EQ(first.instance->spec.source, second.instance->spec.source);
+        EXPECT_EQ(first.instance->words, second.instance->words);
+    }
 }
 
 TEST(MtlxGeneratorTests, AnImageNodeSetsTheSpecOfItsTexture) {
@@ -709,12 +733,20 @@ TEST(MtlxGeneratorTests, CompilesTheEdfNodesToOneConcreteType) {
 TEST(MtlxGeneratorTests, EachOutputOfAGraphDefinedNodeReadsItsOwnChannel) {
     auto const instance = generate(multiOutputDocument);
 
-    EXPECT_NE(
-        instance.spec.source.find(
-            "makeOrenNayarDiffuseBSDF(N_extract_0_out, metal_extinction, N_extract_2_out,"
-        ),
-        std::string::npos
+    auto const &source = instance.spec.source;
+    auto first = std::smatch{};
+    auto last = std::smatch{};
+    ASSERT_TRUE(
+        std::regex_search(source, first, std::regex{R"(static const int (n\d+)_index = 0;)"})
     );
+    ASSERT_TRUE(
+        std::regex_search(source, last, std::regex{R"(static const int (n\d+)_index = 2;)"})
+    );
+    auto const call = fmt::format(
+        R"(makeOrenNayarDiffuseBSDF\({}_out, n\d+_extinction, {}_out,)", first[1].str(),
+        last[1].str()
+    );
+    EXPECT_TRUE(std::regex_search(source, std::regex{call}));
 }
 
 TEST(MtlxGeneratorTests, APreviewSurfaceGeneratesAndWarnsOnlyOfTheInputsThatItDrops) {
