@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <type_traits>
 
 #include "flux/Core/Ray.h"
@@ -99,9 +100,14 @@ public:
             : maxDepth(maxDepth), rrDepth(rrDepth), rrProb(rrProb) {}
 
         /// \brief Returns the power-heuristic weight for the first PDF.
+        ///
+        /// A first PDF whose square overflows weighs one.
         [[nodiscard]] KIRA_HOST_DEVICE static float
         misWeight(float firstPdf, float secondPdf) noexcept {
             firstPdf *= firstPdf;
+            if (firstPdf > std::numeric_limits<float>::max())
+                return 1.0F;
+
             secondPdf *= secondPdf;
             return firstPdf / (firstPdf + secondPdf);
         }
