@@ -88,7 +88,7 @@ TEST_F(LoggerThreadSafeTests, LoggingFunctionsThreadSafety) {
             LogInfo("Thread {} iteration {}", threadId, i);
     };
 
-    ::testing::internal::CaptureStdout();
+    ::testing::internal::CaptureStderr();
     threads.reserve(numThreads);
     for (int i = 0; i < numThreads; ++i)
         threads.emplace_back(threadFunction, i);
@@ -100,7 +100,7 @@ TEST_F(LoggerThreadSafeTests, LoggingFunctionsThreadSafety) {
 
     for (auto &thread : threads)
         thread.join();
-    auto const output = ::testing::internal::GetCapturedStdout();
+    auto const output = ::testing::internal::GetCapturedStderr();
 
     std::vector<std::vector<int>> threadIterations(numThreads);
     std::regex logPattern(R"(Thread (\d+) iteration (\d+))");

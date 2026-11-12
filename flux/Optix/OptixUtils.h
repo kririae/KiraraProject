@@ -1,0 +1,261 @@
+#pragma once
+
+#include <cuda.h>
+#include <cuda_runtime_api.h>
+#include <optix_stubs.h>
+
+#include <algorithm>
+#include <array>
+#include <chrono>
+#include <cstddef>
+#include <new>
+#include <source_location>
+#include <string_view>
+#include <utility>
+
+#include "flux/Core/Logging.h"
+#include "flux/Core/Object.h"
+#include "kira/Anyhow.h"
+
+namespace flux {
+/// \brief Converts a CUDA allocation pointer to an OptiX device address.
+/// \param pointer CUDA allocation pointer, or null.
+/// \return The corresponding OptiX device address.
+template <typename T> [[nodiscard]] CUdeviceptr devicePointer(T const *pointer) noexcept {
+    return reinterpret_cast<CUdeviceptr>(pointer);
+}
+
+/// \brief Records the CUDA stream that orders an object's lifetime.
+///
+/// The mixin does not own or synchronize the stream. The caller must keep the
+/// stream alive and establish any required ordering before changing it.
+class CudaStreamMixin {
+public:
+    /// \brief Binds the object to \p stream.
+    /// \param stream Stream that orders the object's lifetime.
+    explicit CudaStreamMixin(cudaStream_t stream) noexcept : stream_(stream) {}
+
+    /// \brief Returns the stream that currently orders the object's lifetime.
+    [[nodiscard]] cudaStream_t getStream() const noexcept { return stream_; }
+
+    /// \brief Publishes \p stream as the new lifetime stream.
+    ///
+    /// This function does not add cross-stream synchronization.
+    /// \param stream Stream to use for subsequent ordered operations.
+    void setStream(cudaStream_t stream) noexcept { stream_ = stream; }
+
+    friend void swap(CudaStreamMixin &lhs, CudaStreamMixin &rhs) noexcept {
+        using std::swap;
+        swap(lhs.stream_, rhs.stream_);
+    }
+
+private:
+    cudaStream_t stream_;
+};
+
+/// \brief Checks a CUDA Runtime API result.
+///
+/// \tparam ShouldThrow Whether an error should throw. Destructors pass
+/// \c false so cleanup remains non-throwing.
+/// \param result CUDA result to check.
+/// \param location Call site reported on failure.
+/// \throw kira::Anyhow if \p result is an error and \c ShouldThrow is \c true.
+template <bool ShouldThrow = true>
+inline void cudaCheck(
+    cudaError_t result, std::source_location location = std::source_location::current()
+) noexcept(!ShouldThrow) {
+    if (result == cudaSuccess)
+        return;
+
+    auto const message = fmt::format(
+        "cudaCheck(): CUDA API call error {} ({}): \"{}\" at {}:{}", static_cast<int>(result),
+        cudaGetErrorName(result), cudaGetErrorString(result), location.file_name(), location.line()
+    );
+    if constexpr (ShouldThrow)
+        throw kira::Anyhow("{}", message);
+    else
+        LogError("{}", message);
+}
+
+/// \brief Checks a CUDA Driver API result.
+///
+/// \tparam ShouldThrow Whether an error should throw. Destructors pass
+/// \c false so cleanup remains non-throwing.
+/// \param result Driver result to check.
+/// \param location Call site reported on failure.
+/// \throw kira::Anyhow if \p result is an error and \c ShouldThrow is \c true.
+template <bool ShouldThrow = true>
+inline void cuCheck(
+    CUresult result, std::source_location location = std::source_location::current()
+) noexcept(!ShouldThrow) {
+    if (result == CUDA_SUCCESS)
+        return;
+
+    char const *name = nullptr;
+    char const *description = nullptr;
+    if (cuGetErrorName(result, &name) != CUDA_SUCCESS)
+        name = "unknown";
+    if (cuGetErrorString(result, &description) != CUDA_SUCCESS)
+        description = "unknown error";
+    auto const message = fmt::format(
+        "cuCheck(): CUDA driver API call error {} ({}): \"{}\" at {}:{}", static_cast<int>(result),
+        name, description, location.file_name(), location.line()
+    );
+    if constexpr (ShouldThrow)
+        throw kira::Anyhow("{}", message);
+    else
+        LogError("{}", message);
+}
+
+/// \brief Makes a CUDA context current on the calling thread for the guard's lifetime.
+///
+/// Destroying the guard makes current again exactly what the thread had current before, including
+/// no context or a context the caller created.
+class CudaContextGuard final : private Noncopyable {
+public:
+    /// \brief Makes \p context current.
+    /// \throw kira::Anyhow If the driver cannot push \p context.
+    explicit CudaContextGuard(CUcontext context) {
+        cuCheck(cuCtxPushCurrent(context));
+        pushed_ = true;
+    }
+
+    /// \brief Makes \p context current, or logs the failure and leaves the current context
+    /// unchanged.
+    CudaContextGuard(CUcontext context, std::nothrow_t) noexcept {
+        auto const result = cuCtxPushCurrent(context);
+        cuCheck<false>(result);
+        pushed_ = result == CUDA_SUCCESS;
+    }
+
+    ~CudaContextGuard() {
+        if (pushed_)
+            cuCheck<false>(cuCtxPopCurrent(nullptr));
+    }
+
+private:
+    /// Whether this guard pushed a context that it must still pop.
+    bool pushed_{};
+};
+
+/// \brief Measures work ordered by a CUDA stream.
+class CudaStreamTimer final : private Noncopyable, private CudaStreamMixin {
+public:
+    explicit CudaStreamTimer(cudaStream_t stream) : CudaStreamTimer(EmptyState{}, stream) {
+        cudaCheck(cudaEventCreate(&start_));
+        cudaCheck(cudaEventCreate(&stop_));
+    }
+
+    ~CudaStreamTimer() {
+        if (stop_)
+            cudaCheck<false>(cudaEventDestroy(stop_));
+        if (start_)
+            cudaCheck<false>(cudaEventDestroy(start_));
+    }
+
+    void start() { cudaCheck(cudaEventRecord(start_, getStream())); }
+
+    /// \brief Waits for the measured work and returns its elapsed time.
+    [[nodiscard]] std::chrono::nanoseconds stop() {
+        cudaCheck(cudaEventRecord(stop_, getStream()));
+        cudaCheck(cudaEventSynchronize(stop_));
+
+        float milliseconds = 0.0F;
+        cudaCheck(cudaEventElapsedTime(&milliseconds, start_, stop_));
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::duration<float, std::milli>{milliseconds}
+        );
+    }
+
+private:
+    struct EmptyState {};
+
+    CudaStreamTimer(EmptyState, cudaStream_t stream) noexcept : CudaStreamMixin(stream) {}
+
+    cudaEvent_t start_{};
+    cudaEvent_t stop_{};
+};
+
+/// \brief Checks an OptiX API result.
+///
+/// \tparam ShouldThrow Whether an error should throw. Destructors pass
+/// \c false so cleanup remains non-throwing.
+/// \param result OptiX result to check.
+/// \param location Call site reported on failure.
+/// \throw kira::Anyhow if \p result is an error and \c ShouldThrow is \c true.
+template <bool ShouldThrow = true>
+inline void optixCheck(
+    OptixResult result, std::source_location location = std::source_location::current()
+) noexcept(!ShouldThrow) {
+    if (result == OPTIX_SUCCESS)
+        return;
+
+    auto const *name = optixGetErrorName(result);
+    auto const *description = optixGetErrorString(result);
+    auto const message = fmt::format(
+        "optixCheck(): OptiX API call error {} ({}): \"{}\" at {}:{}", static_cast<int>(result),
+        name, description, location.file_name(), location.line()
+    );
+    if constexpr (ShouldThrow)
+        throw kira::Anyhow("{}", message);
+    else
+        LogError("{}", message);
+}
+
+/// \brief Checks an OptiX API result of a call that writes a log.
+///
+/// \param result OptiX result to check.
+/// \param log Buffer that the call wrote its log to.
+/// \param logSize Size that the call returned for its log, with the terminator.
+/// \param location Call site reported on failure.
+/// \throw kira::Anyhow if \p result is an error. The message holds the log.
+inline void optixCheck(
+    OptixResult result, std::array<char, 4096> const &log, std::size_t logSize,
+    std::source_location location = std::source_location::current()
+) {
+    if (result == OPTIX_SUCCESS)
+        return;
+    if (logSize <= 1) {
+        optixCheck(result, location);
+        return;
+    }
+
+    auto const output = std::string_view(log.data(), std::min(logSize - 1, log.size()));
+    throw kira::Anyhow(
+        "optixCheck(): OptiX API call error {} ({}): \"{}\" at {}:{}\n{}", static_cast<int>(result),
+        optixGetErrorName(result), optixGetErrorString(result), location.file_name(),
+        location.line(), output
+    );
+}
+
+/// \brief Creates one program group from \p description.
+/// \throw kira::Anyhow If OptiX rejects it.
+[[nodiscard]] inline OptixProgramGroup
+createProgramGroup(OptixDeviceContext deviceContext, OptixProgramGroupDesc const &description) {
+    OptixProgramGroupOptions options{};
+    OptixProgramGroup program{};
+    std::array<char, 4096> log{};
+    std::size_t logSize = log.size();
+    // clang-format off
+    auto const result = optixProgramGroupCreate(
+        /* context =             */ deviceContext,
+        /* programDescriptions = */ &description,
+        /* numProgramGroups =    */ 1,
+        /* options =             */ &options,
+        /* logString =           */ log.data(),
+        /* logStringSize =       */ &logSize,
+        /* programGroups =       */ &program);
+    // clang-format on
+    optixCheck(result, log, logSize);
+    return program;
+}
+
+/// \brief Returns the device limit \p property of \p context.
+/// \throw kira::Anyhow If OptiX cannot query it.
+[[nodiscard]] inline unsigned int
+getDeviceLimit(OptixDeviceContext context, OptixDeviceProperty property) {
+    unsigned int limit{};
+    optixCheck(optixDeviceContextGetProperty(context, property, &limit, sizeof(limit)));
+    return limit;
+}
+} // namespace flux

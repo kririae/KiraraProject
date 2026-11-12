@@ -14,14 +14,14 @@ namespace kira {
 namespace detail {
 spdlog::sink_ptr SinkManager::CreateConsoleSink() {
     if (!consoleSink)
-        consoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+        consoleSink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
     return consoleSink;
 }
 
 spdlog::sink_ptr SinkManager::CreateFileSink(std::filesystem::path const &path) {
     auto it = fileSinks.find(path);
     if (it == fileSinks.end()) {
-        auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(path.string(), true);
+        auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(path.string());
         fileSinks[path] = sink;
         return sink;
     }
@@ -99,15 +99,14 @@ std::shared_ptr<spdlog::logger> LoggerBuilder::init() const {
     try {
         spdlog::initialize_logger(logger);
 #ifdef NDEBUG
-        logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%n] [%^%l%$] %v");
+        logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%n] [%^%L%$] %v");
 #else
-        logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%n] [%^%l%$] [%s:%#] %v");
+        logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%n] [%^%L%$] [%s:%#] %v");
 #endif
     } catch (std::exception const &e) {
-        auto const str = fmt::format("kira: Failed to initialize logger: {}\n", e.what());
-        fmt::print(stderr, "{:s}", str);
-        std::fflush(stderr);
-        throw std::runtime_error(str);
+        throw std::runtime_error(
+            fmt::format("failed to initialize logger '{}': {}", name, e.what())
+        );
     }
 
     // Override the environment variable if the level is set.

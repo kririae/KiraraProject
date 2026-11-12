@@ -1,0 +1,57 @@
+CompileFlags:
+  Add:
+    - "-std=c++20"
+    - "-ferror-limit=0"
+
+  Remove:
+    # misc
+    - "--options-file"
+    - "--options-file=*"
+    - "--compiler-options*"
+    - "--expt-extended-lambda"
+    - "--expt-relaxed-constexpr"
+    - "--generate-code*"
+    - "-Werror=cross-execution-space-call"
+    - "-Xfatbin*"
+    - "-ccbin*"
+    - "-forward-unknown-to-host-compiler"
+    - "-gencode*"
+    - "--default-stream"
+    - "--expt-relaxed-constexpr"
+    - "--extended-lambda"
+    - "--extra-device-vectorization"
+    - "--fmad=true"
+    - "--ftz=true"
+    - "--generate-code*"
+    - "--generate-line-info"
+    - "--prec-div=false"
+    - "--prec-sqrt=false"
+    - "-Xcompiler=-fPIC"
+    - "-Xcudafe"
+    - "-Xptxas"
+    - "-arch=native"
+    - "-forward-unknown-to-host-compiler"
+    - "-rdc=true"
+    - "-warn-double-usage"
+    - "-warn-lmem-usage"
+    - "-warn-spills"
+Diagnostics:
+  Suppress:
+    - "variadic_device_fn"
+    - "attributes_not_allowed"
+    - "module_odr_violation_function"
+
+---
+If:
+  PathMatch: .*\.cuh
+CompileFlags:
+  Add:
+    - "-xcuda"
+    - "--cuda-gpu-arch=sm_80"
+    - "--cuda-gpu-arch=sm_86"
+    - "--cuda-gpu-arch=sm_89"
+    - "--cuda-gpu-arch=sm_120"
+    - "--cuda-host-only"
+  Remove:
+    - "-fopenmp"
+    - "-fopenmp-targets*"

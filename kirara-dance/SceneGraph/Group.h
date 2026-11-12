@@ -32,9 +32,9 @@ public:
 #if 0
     /// \brief Gets a reference to the vector of child nodes.
     /// \return A reference to the internal storage of child nodes.
-    [[nodiscard]] ranges::any_view<Ref<Node>> getChildren() { 
+    [[nodiscard]] ranges::any_view<Ref<Node>> getChildren() {
         std::lock_guard lock(GSL);
-        return ranges::views::all(children); 
+        return ranges::views::all(children);
     }
 
     /// \brief Gets a constant reference to the vector of child nodes.

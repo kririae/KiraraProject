@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<materialx version="1.39">
+  <targetdef name="genflux" inherit="genslang" />
+</materialx>

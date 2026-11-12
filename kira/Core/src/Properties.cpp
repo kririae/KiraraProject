@@ -41,7 +41,9 @@ get_diagnostic_impl(toml::source_region const &region, auto const &sourceLines) 
                 "{0:{1}} | {2}", "", lineNumberWidth, std::string(region.begin.column - 1, ' ')
             );
             if (lineNumber == region.end.line)
-                oss << std::string(region.end.column - region.begin.column, '^');
+                oss << std::string(
+                    std::max<std::size_t>(region.end.column - region.begin.column, 1), '^'
+                );
             else
                 oss << std::string(line.length() - region.begin.column + 1, '^');
             oss << '\n';
@@ -80,6 +82,19 @@ void erase_used_nodes(
 
 Properties::Properties() : root_{std::make_shared<detail::PropertiesRoot>()} {
     table_ = &root_->table;
+}
+
+Properties Properties::parse(std::string_view source, std::filesystem::path const &path) {
+    try {
+        return {toml::parse(source, path.string()), source};
+    } catch (toml::parse_error const &error) {
+        Properties diagnosticContext{toml::table{}, source};
+        throw Anyhow(
+            "Failed to parse TOML '{}': {} (line {}, column {}){}", path.string(),
+            error.description(), error.source().begin.line, error.source().begin.column,
+            diagnosticContext.get_diagnostic_(error.source()).value_or("")
+        );
+    }
 }
 
 Properties::Properties(toml::table table, std::string_view source)

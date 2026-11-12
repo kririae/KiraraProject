@@ -31,6 +31,14 @@ namespace kira {
 #endif
 #endif
 
+#if defined(__CUDACC__)
+#define KIRA_DEVICE      __device__
+#define KIRA_HOST_DEVICE __host__ __device__
+#else
+#define KIRA_DEVICE
+#define KIRA_HOST_DEVICE
+#endif
+
 #if __has_builtin(__builtin_expect) || defined(__GNUC__)
 #define KIRA_LIKELY(EXPR)   __builtin_expect((bool)(EXPR), true)
 #define KIRA_UNLIKELY(EXPR) __builtin_expect((bool)(EXPR), false)
@@ -82,6 +90,14 @@ namespace kira {
 #define KIRA_ASSUME(expr) __builtin_assume(expr)
 #elif defined(_MSC_VER)
 #define KIRA_ASSUME(expr) __assume(expr)
+#endif
+
+#if __has_builtin(__builtin_unreachable) || defined(__GNUC__)
+#define KIRA_UNREACHABLE() __builtin_unreachable()
+#elif defined(_MSC_VER)
+#define KIRA_UNREACHABLE() __assume(false)
+#else
+#define KIRA_UNREACHABLE() ((void)0)
 #endif
 /// \}
 } // namespace kira

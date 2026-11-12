@@ -1,0 +1,326 @@
+include(KRR_AddTest)
+
+krr_add_test(
+    flux CLI CLITests
+    SOURCES FLuxCLITests.cpp ../FLux/FLuxCLI.cpp
+    HARD_DEPENDENCIES argparse::argparse flux)
+
+krr_add_test(
+    flux CLI TomlSceneTests
+    SOURCES TomlSceneTests.cpp ../FLux/TomlScene.cpp
+    HARD_DEPENDENCIES flux flux_mtlx)
+target_compile_definitions(
+    flux.CLI.TomlSceneTests PRIVATE FLUX_MATERIALX_DIR="${flux_materialx_root}"
+                                    FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures")
+
+krr_add_test(
+    flux Slang CompilerTests
+    SOURCES SlangCompilerTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
+    flux Slang MaterialLibraryTests
+    SOURCES SlangMaterialLibraryTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(flux.Slang.MaterialLibraryTests PRIVATE FLUX_SLANG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../Shading")
+
+krr_add_test(
+    flux Mtlx GeneratorTests
+    SOURCES MtlxGeneratorTests.cpp
+    HARD_DEPENDENCIES flux flux_mtlx)
+target_compile_definitions(
+    flux.Mtlx.GeneratorTests
+    PRIVATE FLUX_SLANG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../Shading"
+            FLUX_MATERIALX_DIR="${flux_materialx_root}")
+
+add_test(NAME flux.CLI.CboxSmoke
+         COMMAND $<TARGET_FILE:flux_cli> ${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/Cbox/Cbox.toml --backend embree --spp 1
+                 --output ${CMAKE_CURRENT_BINARY_DIR}/FluxCLISmoke/cbox.exr)
+
+add_test(NAME flux.CLI.WritesTheFilmForZeroSamples
+         COMMAND ${CMAKE_COMMAND} -DFLUX=$<TARGET_FILE:flux_cli>
+                 -DSCENE=${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/Cbox/Cbox.toml -DSPP=0
+                 -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/FluxCLIZeroSamples/cbox.exr -DEXPECT=exists
+                 -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckCLIOutput.cmake)
+
+add_test(NAME flux.CLI.WritesNothingForZeroResolution
+         COMMAND ${CMAKE_COMMAND} -DFLUX=$<TARGET_FILE:flux_cli>
+                 -DSCENE=${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/Cli/ZeroResolution.toml
+                 -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/FluxCLIZeroResolution/empty.exr -DEXPECT=absent
+                 -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckCLIOutput.cmake)
+
+option(KRR_FLUX_TEST_REFERENCES "Run image comparisons against generated Mitsuba references" OFF)
+find_program(FLUX_TEST_UV uv)
+if(FLUX_TEST_UV)
+    set(flux_uv_python ${FLUX_TEST_UV} run --frozen --project ${CMAKE_CURRENT_SOURCE_DIR}/Integration python)
+    set(flux_render_output ${CMAKE_CURRENT_BINARY_DIR}/Integration)
+    set(flux_analytic_cases white_sphere checker mtlx_checker zero_samples)
+    set(flux_optix_only_cases mtlx_cbox mtlx_checker)
+    set(flux_reference_cases)
+    if(KRR_FLUX_TEST_REFERENCES)
+        set(flux_reference_cases
+            cbox
+            principled_cbox
+            veach_mis
+            transmission
+            sobol_cbox
+            sobol_transmission
+            mtlx_cbox)
+        # Renders the references whose recorded inputs changed and keeps the rest.
+        set(flux_reference_args)
+        foreach(case IN LISTS flux_reference_cases)
+            list(APPEND flux_reference_args --case ${case})
+        endforeach()
+        add_test(
+            NAME flux.Render.references
+            COMMAND ${flux_uv_python} ${CMAKE_CURRENT_SOURCE_DIR}/Integration/reference.py --output-dir
+                    ${flux_render_output} --variant cuda_ad_rgb --stale ${flux_reference_args})
+        set_tests_properties(
+            flux.Render.references
+            PROPERTIES FIXTURES_SETUP
+                       flux_references
+                       LABELS
+                       integration
+                       TIMEOUT
+                       1800
+                       RESOURCE_LOCK
+                       flux_render)
+    endif()
+    foreach(case IN LISTS flux_analytic_cases flux_reference_cases)
+        set(flux_backends embree optix)
+        if(case IN_LIST flux_optix_only_cases)
+            set(flux_backends optix)
+        endif()
+        foreach(backend IN LISTS flux_backends)
+            add_test(
+                NAME flux.Render.${case}.${backend}
+                COMMAND ${flux_uv_python} ${CMAKE_CURRENT_SOURCE_DIR}/Integration/run.py --flux-bin
+                        $<TARGET_FILE:flux_cli> --output-dir ${flux_render_output} --case ${case} --backend ${backend})
+            set_tests_properties(
+                flux.Render.${case}.${backend}
+                PROPERTIES LABELS
+                           integration
+                           TIMEOUT
+                           660
+                           RESOURCE_LOCK
+                           flux_render)
+            if(case IN_LIST flux_reference_cases)
+                set_tests_properties(flux.Render.${case}.${backend} PROPERTIES FIXTURES_REQUIRED flux_references)
+            endif()
+        endforeach()
+    endforeach()
+else()
+    message(STATUS "FLux render integration tests require uv")
+endif()
+
+krr_add_test(
+    flux Scene ContextTests
+    SOURCES ContextTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
+    flux Scene DirtyTests
+    SOURCES DirtyTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(flux.Scene.DirtyTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures")
+
+krr_add_test(
+    flux Scene RemovalTests
+    SOURCES RemovalTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
+    flux Core ConcurrentPoolTests
+    SOURCES ConcurrentPoolTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
+    flux Core HostBufferTests
+    SOURCES HostBufferTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
+    flux Core RayFootprintTests
+    SOURCES RayFootprintTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
+    flux Scene ImageAssetTests
+    SOURCES ImageAssetTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(
+    flux.Scene.ImageAssetTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
+                                       FLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/ImageAssetTests")
+
+krr_add_test(
+    flux Scene ShaderAssetTests
+    SOURCES ShaderAssetTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(
+    flux.Scene.ShaderAssetTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures")
+
+krr_add_test(
+    flux Embree ImageTextureTests
+    SOURCES EmbreeImageTextureTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(
+    flux.Embree.ImageTextureTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
+                                          FLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/EmbreeImageTextureTests")
+target_link_libraries(flux.Embree.ImageTextureTests PRIVATE OpenImageIO::OpenImageIO)
+
+krr_add_test(
+    flux Scene PrimitiveTests
+    SOURCES PrimitiveTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(flux.Scene.PrimitiveTests
+                           PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures")
+
+krr_add_test(
+    flux Scene LightTests
+    SOURCES LightTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
+    flux Scene CameraTests
+    SOURCES CameraTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
+    flux Scene SceneTableTests
+    SOURCES SceneTableTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
+    flux Scene LightTableTests
+    SOURCES LightTableTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
+    flux Scene FilmTests
+    SOURCES FilmTests.cpp FilmTests.cu
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
+    flux Scene GeometryTests
+    SOURCES GeometryTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(flux.Scene.GeometryTests
+                           PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures")
+
+krr_add_test(
+    flux Shading ShadingTests
+    SOURCES ShadingTests.cu
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
+    flux Sampling SamplerTests
+    SOURCES SamplerTests.cu
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
+    flux Integrator PathIntegratorTests
+    SOURCES PathIntegratorTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
+    flux Embree PipelineTests
+    SOURCES EmbreePipelineTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(
+    flux.Embree.PipelineTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
+                                      FLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/EmbreePipelineTests")
+target_link_libraries(flux.Embree.PipelineTests PRIVATE OpenImageIO::OpenImageIO)
+
+krr_add_test(
+    flux Optix PipelineTests
+    SOURCES OptixPipelineTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(
+    flux.Optix.PipelineTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
+                                     FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
+add_dependencies(flux.Optix.PipelineTests flux_megakernel_ir)
+
+krr_add_test(
+    flux Optix ShaderTests
+    SOURCES OptixShaderTests.cpp
+    HARD_DEPENDENCIES flux flux_mtlx)
+target_compile_definitions(
+    flux.Optix.ShaderTests PRIVATE FLUX_MATERIALX_DIR="${flux_materialx_root}"
+                                   FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
+                                   FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
+add_dependencies(flux.Optix.ShaderTests flux_megakernel_ir)
+
+krr_add_test(
+    flux Optix FuzzUpdateTests
+    SOURCES OptixFuzzUpdateTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(
+    flux.Optix.FuzzUpdateTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
+                                       FLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/OptixFuzzUpdateTests"
+                                       FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
+add_dependencies(flux.Optix.FuzzUpdateTests flux_megakernel_ir)
+
+krr_add_test(
+    flux Optix LaunchParamsTests
+    SOURCES OptixLaunchParamsTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
+    flux Optix GeometryTests
+    SOURCES OptixGeometryTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(
+    flux.Optix.GeometryTests
+    PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
+            FLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/OptixGeometryTests"
+            FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
+add_dependencies(flux.Optix.GeometryTests flux_megakernel_ir)
+
+krr_add_test(
+    flux Optix GeometryPoolTests
+    SOURCES OptixGeometryPoolTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(
+    flux.Optix.GeometryPoolTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures")
+
+krr_add_test(
+    flux Optix ImageTextureTests
+    SOURCES OptixImageTextureTests.cu WhiteImageWithBlackMipLevel.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(
+    flux.Optix.ImageTextureTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
+                                         FLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/OptixImageTextureTests")
+target_include_directories(
+    flux.Optix.ImageTextureTests PRIVATE $<TARGET_PROPERTY:OpenImageIO::OpenImageIO,INTERFACE_INCLUDE_DIRECTORIES>)
+
+krr_add_test(
+    flux Optix DeviceBufferTests
+    SOURCES DeviceBufferTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
+    flux Optix KernelUtilsTests
+    SOURCES KernelUtilsTests.cu
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
+    flux Optix DeletionQueueTests
+    SOURCES DeletionQueueTests.cpp
+    HARD_DEPENDENCIES flux)
+
+krr_add_test(
+    flux Optix DeviceSessionTests
+    SOURCES OptixDeviceSessionTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(flux.Optix.DeviceSessionTests
+                           PRIVATE FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
+target_link_libraries(flux.Optix.DeviceSessionTests PRIVATE CUDA::cuda_driver)
+add_dependencies(flux.Optix.DeviceSessionTests flux_megakernel_ir)
+
+krr_add_test(
+    flux Optix ShaderModuleTests
+    SOURCES OptixShaderModuleTests.cpp
+    HARD_DEPENDENCIES flux)
+target_compile_definitions(flux.Optix.ShaderModuleTests
+                           PRIVATE FLUX_TEST_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>")
+add_dependencies(flux.Optix.ShaderModuleTests flux_megakernel_ir)

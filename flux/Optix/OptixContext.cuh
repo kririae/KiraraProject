@@ -1,0 +1,114 @@
+#pragma once
+
+#include <optix_device.h>
+
+#include <cstdint>
+
+#include "flux/Core/MathUtils.h"
+#include "flux/Optix/OptixContext.h"
+#include "flux/Optix/OptixInteraction.cuh"
+#include "flux/Scene/GeometryImpl.h"
+#include "flux/Scene/LightSamplingImpl.h"
+#include "flux/Shading/EDF.h"
+
+namespace flux {
+KIRA_DEVICE inline bool
+OptixContext::Impl::intersect(Ray const &ray, Hit &hit, bool shaderReorder) const noexcept {
+    // A branch around a traversal would give every continuation its own copy of the loop.
+    // clang-format off
+    optixTraverse(
+        /* handle =          */ traversable,
+        /* rayOrigin =       */ make_float3(ray.origin.x(), ray.origin.y(), ray.origin.z()),
+        /* rayDirection =    */ make_float3(ray.direction.x(), ray.direction.y(), ray.direction.z()),
+        /* tmin =            */ ray.minDistance,
+        /* tmax =            */ ray.maxDistance,
+        /* rayTime =         */ 0.0F,
+        /* visibilityMask =  */ 255,
+        /* rayFlags =        */ OPTIX_RAY_FLAG_DISABLE_ANYHIT |
+                               OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
+        /* sbtOffset =       */ 0,
+        /* sbtStride =       */ 1,
+        /* missSbtIndex =    */ 0);
+    // clang-format on
+    if (!optixHitObjectIsHit())
+        return false;
+    auto const primitiveIndex = optixHitObjectGetInstanceId();
+    auto const &primitive = table.getPrimitive(primitiveIndex);
+    if (shaderReorder) {
+        // Sort by the SBT record, then by the slot of a shader BSDF. Every other hit hints 0.
+        auto const hint =
+            primitive.hasBSDF() && table.getBSDF(primitive.getBSDFIndex()).type == BSDFType::Shader
+                ? shaderBSDFBindings[primitive.getBSDFIndex()].slot
+                : 0U;
+        optixReorder(hint, shaderBSDFSlotBits);
+    }
+
+    // Capture the world-space interaction while the outgoing hit object provides its transform.
+    auto const &geometry = table.getGeometry(primitive.getGeometryIndex());
+    auto const barycentrics = optixHitObjectGetTriangleBarycentrics();
+    auto const preliminary = PreliminaryIntersection{
+        .distance = optixHitObjectGetRayTmax(),
+        .coordinates = {barycentrics.x, barycentrics.y},
+        .elementIndex = optixHitObjectGetPrimitiveIndex(),
+    };
+    hit = {
+        .surface = optix::makeSurfaceInteraction(geometry, preliminary, primitiveIndex, ray),
+    };
+    return true;
+}
+
+KIRA_DEVICE inline bool
+OptixContext::Impl::isVisible(Ray const &ray, unsigned int mask) const noexcept {
+    // clang-format off
+    optixTraverse(
+        /* handle =          */ traversable,
+        /* rayOrigin =       */ make_float3(ray.origin.x(), ray.origin.y(), ray.origin.z()),
+        /* rayDirection =    */ make_float3(ray.direction.x(), ray.direction.y(), ray.direction.z()),
+        /* tmin =            */ ray.minDistance,
+        /* tmax =            */ ray.maxDistance,
+        /* rayTime =         */ 0.0F,
+        /* visibilityMask =  */ mask,
+        /* rayFlags =        */ OPTIX_RAY_FLAG_DISABLE_ANYHIT |
+                               OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT |
+                               OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT,
+        /* sbtOffset =       */ 0,
+        /* sbtStride =       */ 1,
+        /* missSbtIndex =    */ 0);
+    // clang-format on
+    return !optixHitObjectIsHit();
+}
+
+KIRA_DEVICE inline Vec3f OptixContext::Impl::transformPointToWorld(
+    std::uint32_t primitiveIndex, Vec3f const &point
+) const noexcept {
+    auto const instance =
+        optixGetInstanceTraversableFromIAS(traversable, instanceIndices[primitiveIndex]);
+    auto const *transform = optixGetInstanceTransformFromHandle(instance);
+    return transformPoint(transform, point);
+}
+
+KIRA_DEVICE inline Vec3f OptixContext::Impl::transformNormalToWorld(
+    std::uint32_t primitiveIndex, Vec3f const &normal
+) const noexcept {
+    auto const instance =
+        optixGetInstanceTraversableFromIAS(traversable, instanceIndices[primitiveIndex]);
+    auto const *transform = optixGetInstanceInverseTransformFromHandle(instance);
+    return transformTransposeVec(transform, normal);
+}
+
+KIRA_DEVICE inline Vec3f OptixContext::Impl::transformNormalToObject(
+    std::uint32_t primitiveIndex, Vec3f const &normal
+) const noexcept {
+    auto const instance =
+        optixGetInstanceTraversableFromIAS(traversable, instanceIndices[primitiveIndex]);
+    auto const *transform = optixGetInstanceTransformFromHandle(instance);
+    return transformTransposeVec(transform, normal);
+}
+
+KIRA_DEVICE inline float OptixContext::Impl::pdfDirectLight(
+    LightSamplingContext const &ctx, SurfaceInteraction const &isect
+) const noexcept {
+    return flux::pdfDirectLight(*this, ctx, isect);
+}
+
+} // namespace flux

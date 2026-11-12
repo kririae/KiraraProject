@@ -12,18 +12,6 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/kira/Version.h.in ${CMAKE_CUR
 find_package(fmt CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 
-# We do need a typed-array constexpr container. So let's use mp~!
-CPMAddPackage(
-    NAME mp
-    GITHUB_REPOSITORY qlibs/mp
-    VERSION 2.0.11)
-
-if(mp_ADDED)
-    add_library(mp INTERFACE)
-    target_include_directories(mp SYSTEM INTERFACE ${mp_SOURCE_DIR})
-    add_library(mp::mp ALIAS mp)
-endif()
-
 find_package(tomlplusplus CONFIG REQUIRED)
 find_package(magic_enum CONFIG REQUIRED)
 

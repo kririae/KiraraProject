@@ -29,6 +29,13 @@ option(KRR_ENABLE_CLANG_TIDY "Enable clang-tidy for analysis" OFF)
 
 # Optional modules
 option(KRR_BUILD_KIRARA_DANCE "Build the KiraraDance application" OFF)
+option(KRR_BUILD_FLUX "Build the Flux renderer" OFF)
+cmake_dependent_option(
+    KRR_BUILD_FLUX_HYDRA
+    "Build the FLux Hydra render delegate against the Houdini that HFS names"
+    OFF
+    "KRR_BUILD_FLUX"
+    OFF)
 
 # ----------------------------------------------------------
 # vcpkg setup
@@ -60,6 +67,12 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_PCH_WARN_INVALID ON)
+# A static library may be linked into a shared library, such as a plugin that a host application
+# loads.
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+# vcpkg's tiff installs no Tiff CMake package, so a Tiff package that CMake finds belongs to the
+# system. Without one, FindTIFF takes vcpkg's library.
+set(CMAKE_DISABLE_FIND_PACKAGE_Tiff ON)
 
 set(KRR_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -175,6 +188,10 @@ endif()
 # Setup projects
 # ----------------------------------------------------------
 add_subdirectory(kira)
+
+if(KRR_BUILD_FLUX)
+    add_subdirectory(flux)
+endif()
 
 if(KRR_BUILD_KIRARA_DANCE)
     add_subdirectory(kirara-dance2)

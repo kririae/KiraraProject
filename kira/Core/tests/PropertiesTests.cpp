@@ -1,10 +1,19 @@
 #include <gtest/gtest.h>
 
 #include <numbers>
+#include <type_traits>
 
 #include "kira/Properties.h"
+#include "kira/SmallVector.h"
 
 using namespace kira;
+
+static_assert(std::is_nothrow_move_constructible_v<SmallVector<int, 0>>);
+static_assert(std::is_nothrow_move_assignable_v<SmallVector<int, 0>>);
+static_assert(std::is_nothrow_swappable_v<SmallVector<int, 0>>);
+static_assert(noexcept(
+    std::swap(std::declval<SmallVector<int, 0> &>(), std::declval<SmallVector<int, 0> &>())
+));
 
 class PropertiesTests : public ::testing::Test {
 protected:
@@ -167,6 +176,21 @@ TEST_F(PropertiesTests, ViewsKeepRootAlive) {
 
     EXPECT_FLOAT_EQ(camera.get<float>("focal_length"), 20e-3f);
     EXPECT_EQ(primitives.get_view(0).get<std::string>("type"), "trimesh");
+}
+
+TEST(PropertiesParseTests, ReportsTheSourceLocation) {
+    constexpr std::string_view malformed = "[camera\nposition = [0, 0, 0]\n";
+
+    try {
+        (void)Properties::parse(malformed, "scene.toml");
+        FAIL();
+    } catch (Anyhow const &error) {
+        std::string_view const message = error.what();
+        EXPECT_NE(message.find("scene.toml"), std::string_view::npos);
+        EXPECT_NE(message.find("line 1, column 8"), std::string_view::npos);
+        EXPECT_NE(message.find("[camera"), std::string_view::npos);
+        EXPECT_NE(message.find('^'), std::string_view::npos);
+    }
 }
 
 TEST_F(PropertiesTests, SettingValuesClearsUsageOnReplacedNodes) {

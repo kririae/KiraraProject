@@ -30,6 +30,8 @@ public:
     FileResolver(FileResolver const &fr);
 
     /// Walk through the list of search paths and try to resolve the input path
+    ///
+    /// An empty path names no file, so it resolves to itself.
     [[nodiscard]] std::filesystem::path resolve(std::filesystem::path const &path) const;
 
     /// Return the number of search paths

@@ -1,0 +1,46 @@
+diff --git a/src/libtexture/imagecache_pvt.h b/src/libtexture/imagecache_pvt.h
+index 071fdc9..5d788bf 100644
+--- a/src/libtexture/imagecache_pvt.h
++++ b/src/libtexture/imagecache_pvt.h
+@@ -1096,7 +1096,7 @@ public:
+                     stride_t xstride = AutoStride,
+                     stride_t ystride = AutoStride,
+                     stride_t zstride = AutoStride, int cache_chbegin = 0,
+-                    int cache_chend = -1);
++                    int cache_chend = -1, int colortransformid = 0);
+
+     // Find the ImageCacheFile record for the named image, adding an entry
+     // if it is not already in the cache. This returns a plain old pointer,
+diff --git a/src/libtexture/imagecache.cpp b/src/libtexture/imagecache.cpp
+index f708ef3..f9374b0 100644
+--- a/src/libtexture/imagecache.cpp
++++ b/src/libtexture/imagecache.cpp
+@@ -1250,6 +1250,9 @@ ImageCacheFile::read_unmipped(ImageCachePerThreadInfo* thread_info,
+                                           miplevel - 1, xlow, xlow + 2, ylow,
+                                           ylow + 2, 0, 1, chbegin, chend,
+-                                          TypeFloat, bilerppels.data());
++                                          TypeFloat, bilerppels.data(),
++                                          // Keep the requested color transform for generated mips.
++                                          AutoStride, AutoStride, AutoStride,
++                                          chbegin, chend, id.colortransformid());
+             bilerp(bilerppels.data() + 0, bilerppels.data() + nchans,
+                    bilerppels.data() + 2 * nchans,
+                    bilerppels.data() + 3 * nchans, xfrac, yfrac, nchans,
+@@ -3591,6 +3594,7 @@ ImageCacheImpl::get_pixels(ImageCacheFile* file,
+                            int chend, TypeDesc format, void* result,
+                            stride_t xstride, stride_t ystride, stride_t zstride,
+-                           int cache_chbegin, int cache_chend)
++                           int cache_chbegin, int cache_chend,
++                           int colortransformid)
+ {
+     if (!thread_info)
+         thread_info = get_perthread_info();
+@@ -3677,6 +3681,7 @@ ImageCacheImpl::get_pixels(ImageCacheFile* file,
+                     // pointer when we move across a tile boundary.
+                     TileID tileid(*file, subimage, miplevel, tx, ty, tz,
+-                                  cache_chbegin, cache_chend);
++                                  cache_chbegin, cache_chend,
++                                  colortransformid);
+                     ok &= find_tile(tileid, thread_info, npixelsread == 0);
+                     if (!ok)
+                         return false;  // Just stop if file read failed

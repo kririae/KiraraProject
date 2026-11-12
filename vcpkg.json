@@ -1,14 +1,29 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
   "dependencies": [
+    "argparse",
     "backward-cpp",
+    {
+      "name": "embree",
+      "default-features": false,
+      "features": [
+        "geometry-instance",
+        "geometry-triangle",
+        "tasking-tbb"
+      ]
+    },
     "eigen3",
     "fmt",
     "gtest",
     "highway",
     "libigl",
     "magic-enum",
+    "materialx",
+    "miniply",
+    "openimageio",
+    "shader-slang",
     "spdlog",
+    "tbb",
     "tomlplusplus"
   ],
   "features": {
@@ -18,10 +33,16 @@
         "assimp",
         "glfw3",
         "range-v3",
-        "shader-slang",
         "tbb",
         "usd"
       ]
     }
-  }
+  },
+  "overrides": [
+    {
+      "$comment": "Houdini ships oneTBB 2022.1. Code built against newer TBB headers may not run on it.",
+      "name": "tbb",
+      "version": "2022.1.0"
+    }
+  ]
 }

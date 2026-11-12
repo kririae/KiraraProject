@@ -1,0 +1,94 @@
+<scene version="3.0.0">
+    <integrator type="path">
+        <integer name="max_depth" value="16"/>
+        <integer name="rr_depth" value="8"/>
+    </integrator>
+    <sensor type="perspective">
+        <float name="fov" value="20.11429322446647"/>
+        <string name="fov_axis" value="y"/>
+        <transform name="to_world">
+            <lookat origin="28.2792,3.5,0" target="27.2792,3.5,0" up="0,1,0"/>
+        </transform>
+        <sampler type="independent">
+            <integer name="sample_count" value="256"/>
+        </sampler>
+        <film type="hdrfilm">
+            <integer name="width" value="640"/>
+            <integer name="height" value="360"/>
+            <string name="pixel_format" value="rgb"/>
+            <string name="component_format" value="float32"/>
+            <rfilter type="box"/>
+        </film>
+    </sensor>
+    <bsdf type="diffuse" id="diffuse">
+        <rgb name="reflectance" value="0.5,0.5,0.5"/>
+    </bsdf>
+    <bsdf type="principled" id="smooth">
+        <rgb name="base_color" value="0.286,0.186,0.153"/>
+        <float name="roughness" value="0.03162"/>
+        <float name="metallic" value="1"/>
+    </bsdf>
+    <bsdf type="principled" id="glossy">
+        <rgb name="base_color" value="0.286,0.186,0.153"/>
+        <float name="roughness" value="0.2"/>
+        <float name="metallic" value="1"/>
+    </bsdf>
+    <bsdf type="principled" id="rough">
+        <rgb name="base_color" value="0.286,0.186,0.153"/>
+        <float name="roughness" value="0.3"/>
+        <float name="metallic" value="1"/>
+    </bsdf>
+    <bsdf type="principled" id="superrough">
+        <rgb name="base_color" value="0.286,0.186,0.153"/>
+        <float name="roughness" value="0.5"/>
+        <float name="metallic" value="1"/>
+    </bsdf>
+    <shape type="ply">
+        <string name="filename" value="geometry/LightLarge.ply"/>
+        <boolean name="face_normals" value="true"/>
+        <bsdf type="diffuse"><rgb name="reflectance" value="0,0,0"/></bsdf>
+        <emitter type="area"><rgb name="radiance" value="7.59909,7.59909,7.59909"/></emitter>
+    </shape>
+    <shape type="ply">
+        <string name="filename" value="geometry/LightMedium.ply"/>
+        <boolean name="face_normals" value="true"/>
+        <bsdf type="diffuse"><rgb name="reflectance" value="0,0,0"/></bsdf>
+        <emitter type="area"><rgb name="radiance" value="30.3964,30.3964,30.3964"/></emitter>
+    </shape>
+    <shape type="ply">
+        <string name="filename" value="geometry/LightSmall.ply"/>
+        <boolean name="face_normals" value="true"/>
+        <bsdf type="diffuse"><rgb name="reflectance" value="0,0,0"/></bsdf>
+        <emitter type="area"><rgb name="radiance" value="3039.64,3039.64,3039.64"/></emitter>
+    </shape>
+    <shape type="ply">
+        <string name="filename" value="geometry/DiffuseRectangle0.ply"/>
+        <boolean name="face_normals" value="true"/>
+        <ref id="diffuse"/>
+    </shape>
+    <shape type="ply">
+        <string name="filename" value="geometry/DiffuseRectangle1.ply"/>
+        <boolean name="face_normals" value="true"/>
+        <ref id="diffuse"/>
+    </shape>
+    <shape type="ply">
+        <string name="filename" value="geometry/SmoothCube0.ply"/>
+        <boolean name="face_normals" value="true"/>
+        <ref id="smooth"/>
+    </shape>
+    <shape type="ply">
+        <string name="filename" value="geometry/GlossyCube1.ply"/>
+        <boolean name="face_normals" value="true"/>
+        <ref id="glossy"/>
+    </shape>
+    <shape type="ply">
+        <string name="filename" value="geometry/RoughCube2.ply"/>
+        <boolean name="face_normals" value="true"/>
+        <ref id="rough"/>
+    </shape>
+    <shape type="ply">
+        <string name="filename" value="geometry/SuperRoughCube3.ply"/>
+        <boolean name="face_normals" value="true"/>
+        <ref id="superrough"/>
+    </shape>
+</scene>
