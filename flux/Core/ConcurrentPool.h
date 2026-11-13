@@ -30,7 +30,7 @@ public:
         std::shared_ptr<Entry> entry;
         auto owner = false;
         {
-            std::scoped_lock lock(mutex_);
+            std::scoped_lock<std::mutex> lock(mutex_);
             auto [iterator, inserted] = entries_.try_emplace(key);
             if (inserted) {
                 try {
@@ -55,7 +55,7 @@ public:
         } catch (...) {
             entry->error = std::current_exception();
             {
-                std::scoped_lock lock(mutex_);
+                std::scoped_lock<std::mutex> lock(mutex_);
                 auto const iterator = entries_.find(key);
                 if (iterator != entries_.end() && iterator->second == entry)
                     entries_.erase(iterator);
@@ -70,7 +70,7 @@ public:
     ///
     /// \pre No call to \c acquire runs concurrently.
     template <typename Keep> void prune(Keep &&keep) {
-        std::scoped_lock lock(mutex_);
+        std::scoped_lock<std::mutex> lock(mutex_);
         std::erase_if(entries_, [&](auto const &item) {
             auto const &entry = *item.second;
             return entry.state.load(std::memory_order_acquire) == State::Ready &&
@@ -80,7 +80,7 @@ public:
 
     /// \brief Returns the number of keys, including values still being computed.
     [[nodiscard]] std::size_t size() const {
-        std::scoped_lock lock(mutex_);
+        std::scoped_lock<std::mutex> lock(mutex_);
         return entries_.size();
     }
 

@@ -20,7 +20,7 @@ pcg32(std::uint64_t &state, std::uint64_t increment) noexcept {
     state = previous * 6364136223846793005ULL + (increment | 1ULL);
     auto const shifted = static_cast<std::uint32_t>(((previous >> 18U) ^ previous) >> 27U);
     auto const rotation = static_cast<std::uint32_t>(previous >> 59U);
-    return (shifted >> rotation) | (shifted << ((-rotation) & 31U));
+    return (shifted >> rotation) | (shifted << ((32U - rotation) & 31U));
 }
 
 KIRA_HOST_DEVICE inline float toUnitFloat(std::uint32_t value) noexcept {

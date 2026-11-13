@@ -363,13 +363,13 @@ struct ShaderBSDF::Impl {
 /// A value-initialized Impl is the empty BSDF: a valid diffuse BSDF with zero
 /// reflectance, which scatters nothing.
 struct BSDF::Impl {
-    BSDFType type;
+    BSDFType type{BSDFType::Diffuse};
 
     union Storage {
         DiffuseBSDF::Impl diffuse;
         PrincipledBSDF::Impl principled;
         ShaderBSDF::Impl shader;
-    } storage;
+    } storage{.diffuse = {}};
 };
 
 /// \brief Executes one BSDF.

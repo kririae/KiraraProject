@@ -119,9 +119,9 @@ Vec4f EmbreeImageTexturePool::Impl::eval4f(
         case 2: gradient.x() = -gradient.x(); break;
         case 3: gradient = -gradient; break;
         case 4: gradient.y() = -gradient.y(); break;
-        case 5: std::swap(gradient.x(), gradient.y()); break;
+        case 5: gradient = Vec2f{-gradient.y(), -gradient.x()}; break;
         case 6: gradient = Vec2f{-gradient.y(), gradient.x()}; break;
-        case 7: gradient = Vec2f{-gradient.y(), -gradient.x()}; break;
+        case 7: std::swap(gradient.x(), gradient.y()); break;
         case 8: gradient = Vec2f{gradient.y(), -gradient.x()}; break;
         default: KIRA_UNREACHABLE();
         }
@@ -131,9 +131,9 @@ Vec4f EmbreeImageTexturePool::Impl::eval4f(
     case 2: uv.x() = 1.0F - uv.x(); break;
     case 3: uv = Vec2f{1.0F - uv.x(), 1.0F - uv.y()}; break;
     case 4: uv.y() = 1.0F - uv.y(); break;
-    case 5: std::swap(uv.x(), uv.y()); break;
+    case 5: uv = Vec2f{1.0F - uv.y(), 1.0F - uv.x()}; break;
     case 6: uv = Vec2f{1.0F - uv.y(), uv.x()}; break;
-    case 7: uv = Vec2f{1.0F - uv.y(), 1.0F - uv.x()}; break;
+    case 7: std::swap(uv.x(), uv.y()); break;
     case 8: uv = Vec2f{uv.y(), 1.0F - uv.x()}; break;
     default: KIRA_UNREACHABLE();
     }

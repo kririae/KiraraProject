@@ -1,38 +1,44 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
   "dependencies": [
-    "argparse",
     "backward-cpp",
-    {
-      "name": "embree",
-      "default-features": false,
-      "features": [
-        "geometry-instance",
-        "geometry-triangle",
-        "tasking-tbb"
-      ]
-    },
     "eigen3",
     "fmt",
     "gtest",
     "highway",
     "libigl",
     "magic-enum",
-    "materialx",
-    "miniply",
-    "openimageio",
-    "shader-slang",
     "spdlog",
-    "tbb",
     "tomlplusplus"
   ],
   "features": {
+    "flux": {
+      "description": "Build the FLux renderer",
+      "dependencies": [
+        "argparse",
+        {
+          "name": "embree",
+          "default-features": false,
+          "features": [
+            "geometry-instance",
+            "geometry-triangle",
+            "tasking-tbb"
+          ]
+        },
+        "materialx",
+        "miniply",
+        "openimageio",
+        "shader-slang",
+        "tbb"
+      ]
+    },
     "kirara-dance": {
       "description": "Build kirara-dance",
       "dependencies": [
         "assimp",
         "glfw3",
         "range-v3",
+        "shader-slang",
         "tbb",
         "usd"
       ]

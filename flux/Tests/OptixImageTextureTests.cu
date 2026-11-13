@@ -102,10 +102,10 @@ protected:
             .pointTexture = point.get(),
             .componentMapping = texture->getComponentMapping(),
             .placeholder = texture->getImageAsset()->isPlaceholder(),
+            .componentCount = image.componentCount,
             .fallback = {fallback.x(), fallback.y(), fallback.z(), fallback.w()},
             .scale = {scale.x(), scale.y(), scale.z(), scale.w()},
             .bias = {bias.x(), bias.y(), bias.z(), bias.w()},
-            .componentCount = image.componentCount,
         };
         textures.copyFromHostAndWait({&entry, 1});
     }
@@ -265,7 +265,8 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Values(
         ImageOrientationCase{"Identity", 1, {3, 2}, {4, 5, 6, 1, 2, 3}},
         ImageOrientationCase{"MirrorVertical", 4, {3, 2}, {1, 2, 3, 4, 5, 6}},
-        ImageOrientationCase{"Transpose", 5, {2, 3}, {4, 1, 5, 2, 6, 3}},
+        ImageOrientationCase{"Transpose", 5, {2, 3}, {3, 6, 2, 5, 1, 4}},
+        ImageOrientationCase{"Transverse", 7, {2, 3}, {4, 1, 5, 2, 6, 3}},
         ImageOrientationCase{"Rotate270", 8, {2, 3}, {1, 4, 2, 5, 3, 6}}
     ),
     [](testing::TestParamInfo<ImageOrientationCase> const &info) { return info.param.name; }

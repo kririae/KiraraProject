@@ -1,7 +1,19 @@
 # ----------------------------------------------------------
 # Language and CUDA runtime
 # ----------------------------------------------------------
+if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES AND "$ENV{CUDAARCHS}" STREQUAL "")
+    set(CMAKE_CUDA_ARCHITECTURES 70)
+endif()
+
 enable_language(CUDA)
+set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD})
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+
+if(CMAKE_CUDA_HOST_COMPILER_ID STREQUAL "MSVC")
+    add_compile_options($<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/Zc:preprocessor,/utf-8>)
+    add_compile_definitions($<$<COMPILE_LANGUAGE:CUDA>:FMT_UNICODE=0>)
+endif()
+
 # With a static CUDA runtime, a plugin carries its own copy, which the runtime of a host application
 # can neither replace nor conflict with.
 set(CMAKE_CUDA_RUNTIME_LIBRARY Static)
@@ -26,7 +38,8 @@ CPMAddPackage(
     NAME rapidobj
     GITHUB_REPOSITORY guybrush77/rapidobj
     GIT_TAG v1.1
-    GIT_SHALLOW TRUE)
+    GIT_SHALLOW TRUE
+    OPTIONS "CMAKE_POLICY_DEFAULT_CMP0159 NEW")
 
 CPMAddPackage(
     NAME optix
@@ -38,6 +51,7 @@ CPMAddPackage(
 add_library(flux_optix_headers INTERFACE)
 add_library(OptiX::OptiX ALIAS flux_optix_headers)
 target_include_directories(flux_optix_headers SYSTEM INTERFACE "${optix_SOURCE_DIR}/include")
+target_compile_definitions(flux_optix_headers INTERFACE $<$<PLATFORM_ID:Windows>:NOMINMAX>)
 
 # ----------------------------------------------------------
 # Compiler options
@@ -194,7 +208,7 @@ target_link_libraries(flux_megakernel_ir PRIVATE kira::Vecteur OptiX::OptiX)
 target_compile_options(flux_megakernel_ir PRIVATE --use_fast_math)
 
 add_executable(flux_cli FLux/FLux.cpp FLux/FLuxCLI.cpp FLux/TomlScene.cpp)
-set_target_properties(flux_cli PROPERTIES OUTPUT_NAME flux)
+set_target_properties(flux_cli PROPERTIES OUTPUT_NAME flux ARCHIVE_OUTPUT_NAME flux_cli)
 target_compile_definitions(
     flux_cli PRIVATE FLUX_OPTIX_IR="$<TARGET_OBJECTS:flux_megakernel_ir>"
                      FLUX_MATERIALX_DIR="${flux_materialx_root}")
@@ -204,13 +218,13 @@ add_dependencies(flux_cli flux_megakernel_ir)
 # ----------------------------------------------------------
 # Warnings
 # ----------------------------------------------------------
-if(MSVC)
-    target_compile_options(flux PRIVATE /W4 $<$<COMPILE_LANGUAGE:CXX>:/fp:fast>)
+if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    target_compile_options(flux PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:/W4;/fp:fast>")
     target_compile_options(flux_cli PRIVATE /W4)
     target_compile_options(flux_mtlx PRIVATE /W4)
     target_compile_options(flux_oiio PRIVATE /W4)
 else()
-    target_compile_options(flux PRIVATE -Wall -Wextra $<$<COMPILE_LANGUAGE:CXX>:-ffast-math>)
+    target_compile_options(flux PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:-Wall;-Wextra;-ffast-math>")
     target_compile_options(flux_cli PRIVATE -Wall -Wextra)
     target_compile_options(flux_mtlx PRIVATE -Wall -Wextra)
     target_compile_options(flux_oiio PRIVATE -Wall -Wextra)

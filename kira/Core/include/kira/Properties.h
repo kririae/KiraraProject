@@ -1,14 +1,8 @@
 #pragma once
 
-// clang-format off
-#define TOML_HEADER_ONLY 0
-#include <toml++/toml.hpp>
-// clang-format on
-
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
-#include <magic_enum/magic_enum.hpp>
 #include <memory>
 #include <optional>
 #include <sstream>
@@ -18,12 +12,23 @@
 #include <unordered_set>
 #include <utility>
 
+#if defined(__NVCC_DIAG_PRAGMA_SUPPORT__) && defined(_MSC_VER)
+#pragma nv_diagnostic push
+#pragma nv_diag_suppress 940, 1394
+#endif
+#include <toml++/toml.hpp>
+#if defined(__NVCC_DIAG_PRAGMA_SUPPORT__) && defined(_MSC_VER)
+#pragma nv_diagnostic pop
+#endif
+
 #include "kira/Anyhow.h"
 #include "kira/SmallVector.h"
 
 namespace kira {
 class Properties;
 class PropertiesArray;
+
+[[nodiscard]] std::string_view toml_type_name(toml::node_type type) noexcept;
 
 /// \brief Converts between TOML nodes and user-facing property values.
 template <class> struct PropertyProcessor : std::false_type {};
@@ -180,11 +185,11 @@ public:
 
         if (auto const diagnostic = get_diagnostic_(node->source()))
             throw Anyhow(
-                "Expected a table, but got a(an) {}: {}", magic_enum::enum_name(node->type()),
+                "Expected a table, but got a(an) {}: {}", toml_type_name(node->type()),
                 diagnostic.value()
             );
 
-        throw Anyhow("Expected a table, but got a(an) {}", magic_enum::enum_name(node->type()));
+        throw Anyhow("Expected a table, but got a(an) {}", toml_type_name(node->type()));
     }
 
     /// \brief Returns a table handle for this table.
@@ -395,7 +400,7 @@ public:
         if (auto *table = node->as_table())
             return {root_, *table};
 
-        throw Anyhow("Expected a table, but got a(an) {}", magic_enum::enum_name(node->type()));
+        throw Anyhow("Expected a table, but got a(an) {}", toml_type_name(node->type()));
     }
 
     /// \brief Returns an array handle for element \p index.
@@ -410,7 +415,7 @@ public:
         if (auto *array = node->as_array())
             return {root_, *array};
 
-        throw Anyhow("Expected an array, but got a(an) {}", magic_enum::enum_name(node->type()));
+        throw Anyhow("Expected an array, but got a(an) {}", toml_type_name(node->type()));
     }
 
     /// \brief Returns an array handle for this array.
@@ -461,11 +466,11 @@ inline PropertiesArray Properties::get_array_view(std::string_view name) const {
 
     if (auto const diagnostic = get_diagnostic_(node->source()))
         throw Anyhow(
-            "Expected an array, but got a(an) {}: {}", magic_enum::enum_name(node->type()),
+            "Expected an array, but got a(an) {}: {}", toml_type_name(node->type()),
             diagnostic.value()
         );
 
-    throw Anyhow("Expected an array, but got a(an) {}", magic_enum::enum_name(node->type()));
+    throw Anyhow("Expected an array, but got a(an) {}", toml_type_name(node->type()));
 }
 
 inline PropertiesArray Properties::use_array_view(std::string_view name) const {
@@ -479,11 +484,9 @@ inline PropertiesArray Properties::use_array_view(std::string_view name) const {
         static constexpr std::string_view name = #T;                                               \
         static T to_toml(auto const &v) { return v; }                                              \
         static T from_toml(auto &&node, auto...) {                                                 \
-            if (auto const &value = node.template value<T>())                                      \
-                return value.value();                                                              \
-            throw Anyhow(                                                                          \
-                "Expected a {}, but got a(an) {}", name, magic_enum::enum_name(node.type())        \
-            );                                                                                     \
+            if (auto const &parsed = node.template value<T>())                                     \
+                return parsed.value();                                                             \
+            throw Anyhow("Expected a {}, but got a(an) {}", name, toml_type_name(node.type()));    \
         }                                                                                          \
     };
 
@@ -500,9 +503,9 @@ template <std::size_t N> struct PropertyProcessor<char[N]> : std::true_type {
     static constexpr std::string_view name = "std::string";
     static auto to_toml(auto const &v) { return std::string{v}; }
     static auto from_toml(auto &&node, auto...) {
-        if (auto const &value = node.template value<std::string>())
-            return value.value();
-        throw Anyhow("Expected a {}, but got a(an) {}", name, magic_enum::enum_name(node.type()));
+        if (auto const &parsed = node.template value<std::string>())
+            return parsed.value();
+        throw Anyhow("Expected a {}, but got a(an) {}", name, toml_type_name(node.type()));
     }
 };
 
@@ -510,9 +513,9 @@ template <> struct PropertyProcessor<std::filesystem::path> : std::true_type {
     static constexpr std::string_view name = "std::filesystem::path";
     static auto to_toml(auto const &path) { return path.string(); }
     static auto from_toml(auto &&node, auto...) {
-        if (auto const &value = node.template value<std::string>())
-            return std::filesystem::path{value.value()};
-        throw Anyhow("Expected a {}, but got a(an) {}", name, magic_enum::enum_name(node.type()));
+        if (auto const &parsed = node.template value<std::string>())
+            return std::filesystem::path{parsed.value()};
+        throw Anyhow("Expected a {}, but got a(an) {}", name, toml_type_name(node.type()));
     }
 };
 
@@ -522,7 +525,7 @@ template <> struct PropertyProcessor<Properties> : std::true_type {
     static auto from_toml(toml::node &node, auto const &owner) {
         if (auto *table = node.as_table())
             return Properties{owner.root_, *table};
-        throw Anyhow("Expected a table, but got a(an) {}", magic_enum::enum_name(node.type()));
+        throw Anyhow("Expected a table, but got a(an) {}", toml_type_name(node.type()));
     }
 };
 
@@ -532,7 +535,7 @@ template <> struct PropertyProcessor<PropertiesArray> : std::true_type {
     static auto from_toml(toml::node &node, auto const &owner) {
         if (auto *array = node.as_array())
             return PropertiesArray{owner.root_, *array};
-        throw Anyhow("Expected an array, but got a(an) {}", magic_enum::enum_name(node.type()));
+        throw Anyhow("Expected an array, but got a(an) {}", toml_type_name(node.type()));
     }
 };
 } // namespace kira

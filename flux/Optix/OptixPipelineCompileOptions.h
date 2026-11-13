@@ -10,7 +10,7 @@ namespace flux {
     options.numPayloadValues = 0;
     options.numAttributeValues = 2;
     options.pipelineLaunchParamsVariableName = "optixLaunchParams";
-    options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE;
+    options.usesPrimitiveTypeFlags = static_cast<unsigned int>(OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE);
     return options;
 }
 } // namespace flux

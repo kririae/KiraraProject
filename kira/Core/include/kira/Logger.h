@@ -1,7 +1,5 @@
 #pragma once
 
-#include <spdlog/common.h>
-
 #include <optional>
 
 #include "kira/Compiler.h"

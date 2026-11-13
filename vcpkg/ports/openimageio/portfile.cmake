@@ -1,15 +1,14 @@
-# This overlay matches the vcpkg baseline port and adds the patch below.
-set(OPENIMAGEIO_BUILTIN_PORT "${VCPKG_ROOT_DIR}/ports/openimageio")
-
+# This overlay carries the port of the OIIO version that this project needs, together with the
+# patches that this project adds to it.
 set(PATCHES
-    "${OPENIMAGEIO_BUILTIN_PORT}/fix-dependencies.patch"
-    "${OPENIMAGEIO_BUILTIN_PORT}/fix-static-ffmpeg.patch"
-    "${OPENIMAGEIO_BUILTIN_PORT}/imath-version-guard.patch"
-    "${OPENIMAGEIO_BUILTIN_PORT}/fix-openimageio_include_dir.patch"
-    "${OPENIMAGEIO_BUILTIN_PORT}/fix-openexr-target-missing.patch"
+    fix-dependencies.patch
+    fix-static-ffmpeg.patch
+    imath-version-guard.patch
+    fix-openimageio_include_dir.patch
 
-    # OIIO 3.1.14 skips requested color transforms for scanline textures.
-    # Remove this patch after the fix reaches the minimum supported OIIO version.
+    # The image cache skips the requested color transform of a texture that it reads unbuffered or
+    # that it generates by auto-mipping.
+    # Remove these patches after the fix reaches the minimum supported OIIO version.
     fix-scanline-color-transform.patch
     fix-automip-color-transform.patch
 )
@@ -24,7 +23,7 @@ if(VCPKG_TARGET_IS_OSX)
     # xcodebuild: error: SDK "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" cannot be located.
     # xcrun: error: unable to lookup item 'SDKVersion' in SDK '/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk'
     if(NOT OSX_SDK_VERSION OR OSX_SDK_VERSION VERSION_GREATER_EQUAL 26)
-        list(APPEND PATCHES "${OPENIMAGEIO_BUILTIN_PORT}/remove-agl-framework.patch")
+        list(APPEND PATCHES remove-agl-framework.patch)
     endif()
 endif()
 
@@ -32,7 +31,7 @@ vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO AcademySoftwareFoundation/OpenImageIO
     REF "v${VERSION}"
-    SHA512 dd5cb30edf8d6c2d61260cc2d91a7a29bbad11b18f83af93527f9308bff0e24b218584635fdad6a154a2c32f0c8c12a458a86261c76c36d9aa41106af8533a39
+    SHA512 6d7b6fbbf2fe25c13d14dc3c0d89f73fba8a2f0b326b67ab4cf453d246cba4e447e10c7d1064ce5f47b28ffe759bce9cd032ebc17741428d09b42a450da0a378
     HEAD_REF master
     PATCHES ${PATCHES}
 )
@@ -71,7 +70,10 @@ vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
 
 if("pybind11" IN_LIST FEATURES)
     vcpkg_get_vcpkg_installed_python(PYTHON3)
-    list(APPEND FEATURE_OPTIONS "-DPython3_EXECUTABLE=${PYTHON3}")
+    list(APPEND FEATURE_OPTIONS
+        "-DPython3_EXECUTABLE=${PYTHON3}"
+        -DOIIO_PYTHON_BINDINGS_BACKEND=pybind11
+    )
 endif()
 
 vcpkg_cmake_configure(
@@ -88,6 +90,7 @@ vcpkg_cmake_configure(
         -DLINKSTATIC=OFF # LINKSTATIC breaks library lookup
         -DBUILD_MISSING_FMT=OFF
         -DOIIO_INTERNALIZE_FMT=OFF  # carry fmt's msvc utf8 usage requirements
+        -DOIIO_USE_COMPILED_FMT=ON  # link fmt::fmt so that the consumers share one fmt runtime
         -DBUILD_MISSING_ROBINMAP=OFF
         -DBUILD_MISSING_DEPS=OFF
         -DSTOP_ON_WARNING=OFF
@@ -103,6 +106,7 @@ vcpkg_cmake_configure(
         BUILD_MISSING_DEPS
         BUILD_MISSING_FMT
         BUILD_MISSING_ROBINMAP
+        OIIO_USE_COMPILED_FMT
         REQUIRED_DEPS
 )
 

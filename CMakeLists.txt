@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.27.4)
+cmake_minimum_required(VERSION 3.31)
 
 # ----------------------------------------------------------
 # User options
@@ -52,6 +52,10 @@ if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
     endif()
 endif()
 
+if(KRR_BUILD_FLUX)
+    list(APPEND VCPKG_MANIFEST_FEATURES flux)
+endif()
+
 if(KRR_BUILD_KIRARA_DANCE)
     list(APPEND VCPKG_MANIFEST_FEATURES kirara-dance)
 endif()
@@ -76,9 +80,7 @@ set(CMAKE_DISABLE_FIND_PACKAGE_Tiff ON)
 
 set(KRR_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
-if(MSVC)
-    add_compile_options(/Zc:preprocessor)
-endif()
+add_compile_options($<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/Zc:preprocessor>)
 
 execute_process(
     WORKING_DIRECTORY ${KRR_ROOT_DIR}
