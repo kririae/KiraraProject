@@ -10,6 +10,7 @@
 
 #include "TestUtils.h"
 #include "flux/Core/MathUtils.h"
+#include "flux/Core/ResolvedPath.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/TriangleMeshImpl.h"
 #include "kira/SmallVector.h"
@@ -29,7 +30,9 @@ constexpr flux::PreliminaryIntersection preliminary{
 
 [[nodiscard]] kira::Properties triangleProperties(char const *filename) {
     kira::Properties properties;
-    properties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / filename);
+    properties.set(
+        "path", flux::u8string(std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / filename)
+    );
     return properties;
 }
 } // namespace

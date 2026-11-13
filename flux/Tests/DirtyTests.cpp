@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <vector>
 
+#include "flux/Core/ResolvedPath.h"
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Context.h"
@@ -28,7 +29,9 @@ using ContextBits = flux::Context::DirtyBits;
 
 [[nodiscard]] kira::Properties triangleProperties() {
     kira::Properties properties;
-    properties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
+    properties.set(
+        "path", flux::u8string(std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj")
+    );
     return properties;
 }
 

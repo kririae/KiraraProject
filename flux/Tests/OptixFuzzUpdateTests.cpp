@@ -49,6 +49,7 @@
 #include <vector>
 
 #include "TestUtils.h"
+#include "flux/Core/ResolvedPath.h"
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Optix/OptixAccumulationBuffer.h"
 #include "flux/Optix/OptixHandler.h"
@@ -295,7 +296,10 @@ createMesh(flux::Context &context, Spec::Mesh const &mesh) {
 /// Returns the properties of an ImageTexture that reads \p image.
 [[nodiscard]] kira::Properties imageTextureProperties(Spec::Image const &image) {
     kira::Properties props;
-    props.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / imageFiles[image.file].path);
+    props.set(
+        "path",
+        flux::u8string(std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / imageFiles[image.file].path)
+    );
     props.set("color_space", std::string(image.srgb ? "srgb" : "linear"));
     props.set("filter_mode", std::string(image.point ? "point" : "linear"));
     props.set("address_mode", std::string(addressModes[image.addressMode]));

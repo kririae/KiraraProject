@@ -66,7 +66,7 @@ protected:
     ) {
         kira::Properties props;
         props.set("type", "image");
-        props.set("path", imagePath);
+        props.set("path", flux::u8string(imagePath));
         props.set("color_space", std::string{colorSpace});
         props.set("filter_mode", std::string{filterMode});
         props.set("address_mode", std::string{addressMode});
@@ -356,7 +356,9 @@ TEST_P(OptixAxisAddressModeTests, AppliesAddressModeToEachAxis) {
     auto const &parameter = GetParam();
     kira::Properties props;
     props.set("type", "image");
-    props.set("path", std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "Texture2x2.ppm");
+    props.set(
+        "path", flux::u8string(std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "Texture2x2.ppm")
+    );
     props.set("filter_mode", std::string{"point"});
     props.set("address_mode", std::string{"border"});
     props.set(parameter.property, std::string{"clamp"});
@@ -412,7 +414,7 @@ TEST_F(OptixImageTextureTests, AppliesScaleAndBiasAfterComponentMapping) {
     flux::test::writeFloatImage(imagePath, pixels, {1, 1}, componentNames);
     kira::Properties props;
     props.set("type", "image");
-    props.set("path", imagePath);
+    props.set("path", flux::u8string(imagePath));
     props.set("filter_mode", std::string{"point"});
     props.set("component_mapping", std::string{"zyx1"});
     props.set("scale", flux::Vec4f{2.0F, 4.0F, 8.0F, 0.5F});
@@ -534,7 +536,7 @@ namespace {
 createAsset(flux::Context &context, std::string_view filename) {
     kira::Properties props;
     props.set("type", "image");
-    props.set("path", std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / filename);
+    props.set("path", flux::u8string(std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / filename));
     (void)context.create<flux::Texture>(props);
     auto const textures = context.getObjects<flux::ImageTexture>();
     return textures.back()->getImageAsset();

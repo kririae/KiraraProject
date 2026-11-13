@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "TestUtils.h"
+#include "flux/Core/ResolvedPath.h"
 #include "flux/Optix/OptixGeometryPool.h"
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Scene/Context.h"
@@ -22,7 +23,7 @@ using flux::TriangleMesh;
 
 [[nodiscard]] kira::Properties meshProperties(std::string const &name) {
     kira::Properties properties;
-    properties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / name);
+    properties.set("path", flux::u8string(std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / name));
     return properties;
 }
 

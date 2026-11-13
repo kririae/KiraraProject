@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <stdexcept>
 
+#include "flux/Core/ResolvedPath.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/Geometry.h"
 #include "flux/Scene/Primitive.h"
@@ -20,7 +21,9 @@
 namespace {
 [[nodiscard]] kira::Properties triangleProperties() {
     kira::Properties properties;
-    properties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
+    properties.set(
+        "path", flux::u8string(std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj")
+    );
     return properties;
 }
 } // namespace
@@ -57,7 +60,9 @@ TEST(PrimitiveTests, ReadsRowMajorTransform) {
     )",
         "Transform.toml"
     );
-    props.set("path", std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "Triangle.obj");
+    props.set(
+        "path", flux::u8string(std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "Triangle.obj")
+    );
     auto primitive = context->create<flux::Primitive>(props);
     EXPECT_EQ(
         primitive->getTransform(), (std::array<float, 12>{0, 0, 4, 10, 0, 4, 0, 20, -4, 0, 0, 30})

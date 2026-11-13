@@ -495,16 +495,6 @@ template <std::size_t N> struct PropertyProcessor<char[N]> : std::true_type {
     }
 };
 
-template <> struct PropertyProcessor<std::filesystem::path> : std::true_type {
-    static constexpr std::string_view name = "std::filesystem::path";
-    static auto to_toml(auto const &path) { return path.string(); }
-    static auto from_toml(auto &&node, auto...) {
-        if (auto const &parsed = node.template value<std::string>())
-            return std::filesystem::path{parsed.value()};
-        throw Anyhow("Expected a {}, but got a(an) {}", name, toml_type_name(node.type()));
-    }
-};
-
 template <> struct PropertyProcessor<Properties> : std::true_type {
     static constexpr std::string_view name = "kira::Properties";
     static auto to_toml(Properties const &props) { return *props.table_; }

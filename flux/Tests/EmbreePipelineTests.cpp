@@ -15,6 +15,7 @@
 
 #include "SceneUtils.h"
 #include "TestUtils.h"
+#include "flux/Core/ResolvedPath.h"
 #include "flux/Embree/EmbreeAccumulationBuffer.h"
 #include "flux/Embree/EmbreeContext.h"
 #include "flux/Embree/EmbreeHandler.h"
@@ -185,7 +186,9 @@ TEST(EmbreePipelineTests, RendersSecondInstanceAndDownloadsFilmChannels) {
     flux::test::setActiveDefaults(*context);
 
     kira::Properties meshProperties;
-    meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
+    meshProperties.set(
+        "path", flux::u8string(std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj")
+    );
     auto mesh = context->create<flux::TriangleMesh>(meshProperties);
     auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
     (void)context->create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
@@ -271,7 +274,9 @@ TEST(EmbreePipelineTests, RejectsSingularInstanceTransforms) {
     flux::test::setActiveDefaults(*context);
 
     kira::Properties meshProperties;
-    meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
+    meshProperties.set(
+        "path", flux::u8string(std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj")
+    );
     auto mesh = context->create<flux::TriangleMesh>(meshProperties);
     auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
     auto primitive = context->create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
@@ -541,7 +546,9 @@ TEST(EmbreePipelineTests, RendersDirectLightIntoColorChannel) {
     flux::test::setActiveDefaults(*context);
 
     kira::Properties meshProperties;
-    meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
+    meshProperties.set(
+        "path", flux::u8string(std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj")
+    );
     auto mesh = context->create<flux::TriangleMesh>(meshProperties);
     auto bsdf = context->create<flux::DiffuseBSDF>(kira::Properties{});
     (void)context->create<flux::Primitive>(primitiveProperties(*mesh, *bsdf));
@@ -590,7 +597,9 @@ TEST(EmbreePipelineTests, RendersImageEnvironmentMapOnMiss) {
     flux::test::setActiveDefaults(*context);
     kira::Properties textureProps;
     textureProps.set("type", "image");
-    textureProps.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Texture2x2.ppm");
+    textureProps.set(
+        "path", flux::u8string(std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Texture2x2.ppm")
+    );
     kira::Properties lightProps;
     lightProps.set("texture", textureProps);
     context->setActiveEnvMap(context->create<flux::EnvMapLight>(lightProps));

@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <vector>
 
+#include "flux/Core/ResolvedPath.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/ShaderAsset.h"
 #include "flux/Shading/BSDF.h"
@@ -24,7 +25,9 @@ TEST(ShaderAssetTests, SharesOneAssetForEachSource) {
 TEST(ShaderAssetTests, RejectsATextureOfAnotherContext) {
     kira::Properties properties;
     properties.set(
-        "path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Shared/Textures/Checker.png"
+        "path", flux::u8string(
+                    std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Shared/Textures/Checker.png"
+                )
     );
     auto other = flux::Context::create();
     auto const texture = other->create<flux::ImageTexture>(properties);

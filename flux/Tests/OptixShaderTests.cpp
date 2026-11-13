@@ -13,6 +13,7 @@
 #include "SceneUtils.h"
 #include "TestUtils.h"
 #include "flux/Core/MathUtils.h"
+#include "flux/Core/ResolvedPath.h"
 #include "flux/Optix/OptixAccumulationBuffer.h"
 #include "flux/Optix/OptixHandler.h"
 #include "flux/Scene/Camera.h"
@@ -183,7 +184,9 @@ constexpr auto tangentDocument = R"mtlx(<?xml version="1.0"?>
 [[nodiscard]] kira::Properties constantTexture(flux::Vec4f const &color) {
     kira::Properties properties;
     properties.set(
-        "path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Shared/Textures/Checker.png"
+        "path", flux::u8string(
+                    std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Shared/Textures/Checker.png"
+                )
     );
     properties.set("scale", flux::Vec4f{0.0F});
     properties.set("bias", color);

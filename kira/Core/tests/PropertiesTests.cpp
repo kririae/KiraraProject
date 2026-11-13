@@ -61,7 +61,7 @@ TEST_F(PropertiesTests, ReadsValuesAndViews) {
     ASSERT_EQ(primitives.size(), 1);
     auto primitive = primitives.get_view(0);
     EXPECT_EQ(primitive.get<std::string>("type"), "trimesh");
-    EXPECT_EQ(primitive.get<std::filesystem::path>("path"), "geometry/orange_box.ply");
+    EXPECT_EQ(primitive.get<std::string>("path"), "geometry/orange_box.ply");
 }
 
 TEST_F(PropertiesTests, PropertyProcessorsReturnAliasingHandles) {
@@ -324,14 +324,12 @@ TEST_F(PropertiesTests, SetAcceptsSupportedScalarTypes) {
     values.set("float", std::numbers::pi_v<float>);
     values.set("double", std::numbers::pi);
     values.set("string", "hello");
-    values.set("path", std::filesystem::path{"a/b"});
 
     EXPECT_TRUE(values.get<bool>("bool"));
     EXPECT_EQ(values.get<int>("int"), 42);
     EXPECT_FLOAT_EQ(values.get<float>("float"), std::numbers::pi_v<float>);
     EXPECT_DOUBLE_EQ(values.get<double>("double"), std::numbers::pi);
     EXPECT_EQ(values.get<std::string>("string"), "hello");
-    EXPECT_EQ(values.get<std::filesystem::path>("path"), std::filesystem::path{"a/b"});
 }
 
 TEST_F(PropertiesTests, SerializesCurrentTable) {

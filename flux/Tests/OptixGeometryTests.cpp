@@ -7,6 +7,7 @@
 
 #include "SceneUtils.h"
 #include "TestUtils.h"
+#include "flux/Core/ResolvedPath.h"
 #include "flux/IO/ImageIO.h"
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Optix/OptixAccumulationBuffer.h"
@@ -57,11 +58,16 @@ TEST(OptixGeometryTests, PreservesFilteredAlbedoUnderInstanceTransforms) {
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
     kira::Properties meshProps;
-    meshProps.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "IndexedTriangle.obj");
+    meshProps.set(
+        "path",
+        flux::u8string(std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "IndexedTriangle.obj")
+    );
     auto mesh = context->create<flux::TriangleMesh>(meshProps);
     kira::Properties textureProps;
     textureProps.set("type", "image");
-    textureProps.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Texture2x2.ppm");
+    textureProps.set(
+        "path", flux::u8string(std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Texture2x2.ppm")
+    );
     textureProps.set("color_space", "linear");
     textureProps.set("filter_mode", "linear");
     kira::Properties bsdfProps;
@@ -102,7 +108,9 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
     kira::Properties meshProperties;
-    meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
+    meshProperties.set(
+        "path", flux::u8string(std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj")
+    );
     auto mesh = context->create<flux::TriangleMesh>(meshProperties);
     kira::Properties bsdfProperties;
     bsdfProperties.set("R", flux::Spectrum{0.2F, 0.4F, 0.8F});
@@ -154,7 +162,9 @@ TEST(OptixGeometryTests, RendersDirectLightIntoColorChannel) {
     flux::test::setActiveDefaults(*context);
 
     kira::Properties meshProperties;
-    meshProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj");
+    meshProperties.set(
+        "path", flux::u8string(std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Triangle.obj")
+    );
     auto mesh = context->create<flux::TriangleMesh>(meshProperties);
     auto const decoyImagePath = std::filesystem::path(FLUX_TEST_OUTPUT_DIR) / "diffuse.exr";
     auto const image = std::array{0.2F, 0.4F};
@@ -174,14 +184,16 @@ TEST(OptixGeometryTests, RendersDirectLightIntoColorChannel) {
     );
     kira::Properties decoyTextureProperties;
     decoyTextureProperties.set("type", "image");
-    decoyTextureProperties.set("path", decoyImagePath);
+    decoyTextureProperties.set("path", flux::u8string(decoyImagePath));
     decoyTextureProperties.set("color_space", "linear");
     decoyTextureProperties.set("filter_mode", "linear");
     decoyTextureProperties.set("component_mapping", "xxx1");
     static_cast<void>(context->create<flux::Texture>(decoyTextureProperties));
     kira::Properties textureProperties;
     textureProperties.set("type", "image");
-    textureProperties.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "SRGB.ppm");
+    textureProperties.set(
+        "path", flux::u8string(std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "SRGB.ppm")
+    );
     textureProperties.set("color_space", "srgb");
     textureProperties.set("filter_mode", "point");
     textureProperties.set("component_mapping", "yyy1");

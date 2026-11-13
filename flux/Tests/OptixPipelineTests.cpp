@@ -9,6 +9,7 @@
 
 #include "SceneUtils.h"
 #include "TestUtils.h"
+#include "flux/Core/ResolvedPath.h"
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Optix/OptixAccumulationBuffer.h"
 #include "flux/Optix/OptixHandler.h"
@@ -492,7 +493,9 @@ TEST(OptixPipelineTests, RendersImageEnvironmentMapOnMiss) {
     flux::test::setActiveDefaults(*context);
     kira::Properties textureProps;
     textureProps.set("type", "image");
-    textureProps.set("path", std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Texture2x2.ppm");
+    textureProps.set(
+        "path", flux::u8string(std::filesystem::path(FLUX_TEST_FIXTURES_DIR) / "Texture2x2.ppm")
+    );
     kira::Properties lightProps;
     lightProps.set("texture", textureProps);
     context->setActiveEnvMap(context->create<flux::EnvMapLight>(lightProps));
