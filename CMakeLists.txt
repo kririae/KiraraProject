@@ -14,12 +14,7 @@ cmake_dependent_option(
     OFF)
 option(KRR_BUILD_FOR_NATIVE "Build with -march=native -mtune=native" OFF)
 
-cmake_dependent_option(
-    KRR_USE_MOLD
-    "Use mold as the linker"
-    OFF
-    "NOT KRR_BUILD_FOR_MACOS"
-    OFF)
+option(KRR_USE_MOLD "Use mold as the linker" OFF)
 
 option(KRR_ENABLE_LSAN "Enable LSAN (leak sanitizer)" OFF)
 option(KRR_ENABLE_ASAN "Enable ASAN (address sanitizer)" OFF)

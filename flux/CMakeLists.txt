@@ -2,7 +2,7 @@
 # Language and CUDA runtime
 # ----------------------------------------------------------
 if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES AND "$ENV{CUDAARCHS}" STREQUAL "")
-    set(CMAKE_CUDA_ARCHITECTURES 70)
+    set(CMAKE_CUDA_ARCHITECTURES 75)
 endif()
 
 enable_language(CUDA)
@@ -171,6 +171,10 @@ target_link_libraries(
             slang::slang
             TBB::tbb
             unofficial::miniply::miniply)
+
+if(MSVC AND (NOT DEFINED CMAKE_MSVC_RUNTIME_LIBRARY OR CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "DLL$"))
+    target_link_options(flux INTERFACE "LINKER:/NODEFAULTLIB:LIBCMT")
+endif()
 
 # ----------------------------------------------------------
 # MaterialX
