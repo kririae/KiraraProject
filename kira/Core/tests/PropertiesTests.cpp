@@ -193,6 +193,21 @@ TEST(PropertiesParseTests, ReportsTheSourceLocation) {
     }
 }
 
+TEST(PropertiesArrayTests, AConversionErrorNamesTheIndexAndTheTypeAndNoElement) {
+    auto const props = Properties::parse("values = [0.05, 0.05]\n", "scene.toml");
+    auto const values = props.get_array_view("values");
+
+    try {
+        (void)values.get<std::string>(1);
+        FAIL();
+    } catch (Anyhow const &error) {
+        std::string_view const message = error.what();
+        EXPECT_NE(message.find("index 1"), std::string_view::npos);
+        EXPECT_NE(message.find("std::string"), std::string_view::npos);
+        EXPECT_EQ(message.find("0.05"), std::string_view::npos);
+    }
+}
+
 TEST_F(PropertiesTests, SettingValuesClearsUsageOnReplacedNodes) {
     EXPECT_TRUE(props.mark_used("camera"));
     props.set("camera", true);

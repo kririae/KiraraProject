@@ -360,20 +360,15 @@ public:
         requires(PropertyProcessor<T>::value)
     {
         auto *node = array_->get(index);
-        if (!node) {
-            std::ostringstream oss;
-            oss << *array_;
-            throw Anyhow("Index '{}' out of bounds in the array: \n{}\n", index, oss.str());
-        }
+        if (!node)
+            throw Anyhow("Index {} is out of bounds of an array of size {}", index, array_->size());
 
         try {
             return PropertyProcessor<T>::from_toml(*node, *this);
         } catch (std::exception const &e) {
-            std::ostringstream oss;
-            oss << *array_;
             throw Anyhow(
-                "Failed to convert element at index {} to type {}: {} in the array: \n{}\n", index,
-                PropertyProcessor<T>::name, e.what(), oss.str()
+                "Failed to convert element at index {} to the type {}: {}", index,
+                PropertyProcessor<T>::name, e.what()
             );
         }
     }
@@ -391,11 +386,8 @@ public:
     /// \brief Returns a table handle for element \p index.
     [[nodiscard]] Properties get_view(std::size_t index) const {
         auto *node = array_->get(index);
-        if (!node) {
-            std::ostringstream oss;
-            oss << *array_;
-            throw Anyhow("Index '{}' out of bounds in the array: \n{}\n", index, oss.str());
-        }
+        if (!node)
+            throw Anyhow("Index {} is out of bounds of an array of size {}", index, array_->size());
 
         if (auto *table = node->as_table())
             return {root_, *table};
@@ -406,11 +398,8 @@ public:
     /// \brief Returns an array handle for element \p index.
     [[nodiscard]] PropertiesArray get_array_view(std::size_t index) const {
         auto *node = array_->get(index);
-        if (!node) {
-            std::ostringstream oss;
-            oss << *array_;
-            throw Anyhow("Index '{}' out of bounds in the array: \n{}\n", index, oss.str());
-        }
+        if (!node)
+            throw Anyhow("Index {} is out of bounds of an array of size {}", index, array_->size());
 
         if (auto *array = node->as_array())
             return {root_, *array};
@@ -427,11 +416,8 @@ public:
         requires(PropertyProcessor<T>::value)
     {
         auto *node = array_->get(index);
-        if (!node) {
-            std::ostringstream oss;
-            oss << *array_;
-            throw Anyhow("Index '{}' out of bounds in the array: \n{}\n", index, oss.str());
-        }
+        if (!node)
+            throw Anyhow("Index {} is out of bounds of an array of size {}", index, array_->size());
 
         detail::erase_used_nodes(root_->usedNodes, *node);
         array_->replace(
