@@ -11,6 +11,12 @@ set(PATCHES
     # Remove these patches after the fix reaches the minimum supported OIIO version.
     fix-scanline-color-transform.patch
     fix-automip-color-transform.patch
+
+    # The image cache serves the unread pixels of a scanline file that failed to read, through a hit
+    # on a failed tile and through a mip level that it makes from one, and marks a file broken
+    # without synchronization. This patch follows fix-automip-color-transform.patch.
+    # Remove this patch after the fix reaches the minimum supported OIIO version.
+    fix-untiled-read-failure.patch
 )
 
 if(VCPKG_TARGET_IS_OSX)

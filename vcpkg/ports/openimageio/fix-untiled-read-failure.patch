@@ -1,0 +1,103 @@
+diff --git a/src/libtexture/imagecache_pvt.h b/src/libtexture/imagecache_pvt.h
+index 059e816..d654d66 100644
+--- a/src/libtexture/imagecache_pvt.h
++++ b/src/libtexture/imagecache_pvt.h
+@@ -484,7 +484,7 @@ private:
+     ustring m_filename_original;   ///< original filename before search path
+     ustring m_filename;            ///< Filename
+     std::atomic<bool> m_used;      ///< Recently used (in the LRU sense)
+-    bool m_broken;                 ///< has errors; can't be used properly
++    std::atomic<bool> m_broken;    ///< has errors; can't be used properly
+     bool m_allow_release = true;   ///< Allow the file to release()?
+     std::string m_broken_message;  ///< Error message for why it's broken
+ #if __cpp_lib_atomic_shared_ptr >= 201711L /* C++20 has atomic<shared_pr> */
+@@ -1170,7 +1170,8 @@ public:
+             if (tile->id() == id) {
+                 if (mark_same_tile_used)
+                     tile->use();
+-                return true;  // already have the tile we want
++                // A tile that failed to read holds no pixels.
++                return tile->valid();
+             }
+             // Tile didn't match, maybe lasttile will?  Swap tile
+             // and last tile.  Then the new one will either match,
+@@ -1178,7 +1179,7 @@ public:
+             tile.swap(thread_info->lasttile);
+             if (tile && tile->id() == id) {
+                 tile->use();
+-                return true;
++                return tile->valid();
+             }
+         }
+         return find_tile_main_cache(id, tile, thread_info);
+diff --git a/src/libtexture/imagecache.cpp b/src/libtexture/imagecache.cpp
+index e9a8742..b9d1fe0 100644
+--- a/src/libtexture/imagecache.cpp
++++ b/src/libtexture/imagecache.cpp
+@@ -1155,8 +1155,13 @@ ImageCacheFile::read_tile(ImageCachePerThreadInfo* thread_info,
+         return false;
+
+     // Special case for untiled images -- need to do tile emulation
+-    if (si.untiled)
+-        return read_untiled(thread_info, inp.get(), id, data);
++    if (si.untiled) {
++        bool ok = read_untiled(thread_info, inp.get(), id, data);
++        // A failed read leaves the file broken, as a failed tiled read does.
++        if (!ok)
++            m_broken = true;
++        return ok;
++    }
+
+     // Ordinary tiled
+     int x           = id.x();
+@@ -1275,7 +1280,7 @@ ImageCacheFile::read_unmipped(ImageCachePerThreadInfo* thread_info,
+     span<float> resultpel  = OIIO_ALLOCA_SPAN(float, nchans);
+     bool ok                = true;
+     // FIXME(volume) -- loop over z, too
+-    for (int j = y0; j <= y1; ++j) {
++    for (int j = y0; ok && j <= y1; ++j) {
+         float yf = (j + 0.5f) / dims.full_height;
+         int ylow;
+         float yfrac = floorfrac(yf * prev.full_height - 0.5, &ylow);
+@@ -1290,6 +1295,9 @@ ImageCacheFile::read_unmipped(ImageCachePerThreadInfo* thread_info,
+                                           // Keep the requested color transform for generated mips.
+                                           AutoStride, AutoStride, AutoStride,
+                                           chbegin, chend, id.colortransformid());
++            // A texel whose finer pixels failed to read ends the level.
++            if (!ok)
++                break;
+             bilerp(bilerppels.data() + 0, bilerppels.data() + nchans,
+                    bilerppels.data() + 2 * nchans,
+                    bilerppels.data() + 3 * nchans, xfrac, yfrac, nchans,
+@@ -1299,9 +1307,10 @@ ImageCacheFile::read_unmipped(ImageCachePerThreadInfo* thread_info,
+     }
+
+     // Now convert and copy those values out to the caller's buffer
+-    lores.get_pixels(ROI(0, tw, 0, th, 0, 1, 0, nchans), format,
+-                     make_span((std::byte*)data,
+-                               size_t(tw * th * nchans) * format.size()));
++    if (ok)
++        lores.get_pixels(ROI(0, tw, 0, th, 0, 1, 0, nchans), format,
++                         make_span((std::byte*)data,
++                                   size_t(tw * th * nchans) * format.size()));
+
+     // Restore the microcache to the way it was before.
+     thread_info->tile     = oldtile;
+@@ -2870,7 +2879,6 @@ bool
+ ImageCacheImpl::find_tile_main_cache(const TileID& id, ImageCacheTileRef& tile,
+                                      ImageCachePerThreadInfo* thread_info)
+ {
+-    OIIO_DASSERT(!id.file().broken());
+     ImageCacheStatistics& stats(thread_info->m_stats);
+
+     ++stats.find_tile_microcache_misses;
+@@ -2893,7 +2901,8 @@ ImageCacheImpl::find_tile_main_cache(const TileID& id, ImageCacheTileRef& tile,
+             tile->use();
+             OIIO_DASSERT(id == tile->id());
+             OIIO_DASSERT(tile);
+-            return true;
++            // A tile that failed to read holds no pixels.
++            return tile->valid();
+         }
+     }
+
