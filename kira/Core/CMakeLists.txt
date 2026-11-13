@@ -26,7 +26,6 @@ krr_add_module(
             kira/CommitHash.h
             kira/Compiler.h
             kira/Core.h
-            kira/FileResolver.h
             kira/Logger.h
             kira/Macros.h
             kira/Properties.h
@@ -35,7 +34,6 @@ krr_add_module(
             kira/Utils.h
             kira/Version.h
     SOURCES Core.cpp
-            FileResolver.cpp
             Logger.cpp
             Properties.cpp
             SmallVector.cpp
