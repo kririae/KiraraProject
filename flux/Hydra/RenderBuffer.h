@@ -5,7 +5,9 @@
 #include <pxr/imaging/hd/renderBuffer.h>
 
 #include <atomic>
+#include <cstdint>
 #include <span>
+#include <variant>
 #include <vector>
 
 #include "flux/Core/Math.h"
@@ -20,8 +22,6 @@ public:
     /// A call that repeats the dimensions and the format of the buffer keeps its pixels and its
     /// converged state. Any other call discards the pixels and clears the state.
     ///
-    /// \return Whether the depth of \p dimensions is one and \p format has 32-bit float
-    ///         components.
     /// \throw std::bad_alloc If the memory is not available. The buffer then holds no pixels.
     bool Allocate(pxr::GfVec3i const &dimensions, pxr::HdFormat format, bool multiSampled) override;
 
@@ -51,6 +51,7 @@ public:
     /// \pre \p pixels has one value per pixel of the buffer.
     void Write(std::span<flux::Vec3f const> pixels);
     void Write(std::span<float const> pixels);
+    void Write(std::span<std::int32_t const> pixels);
 
 private:
     void _Deallocate() override;
@@ -60,7 +61,7 @@ private:
     pxr::HdFormat format_ = pxr::HdFormatInvalid;
 
     /// Pixels row by row, bottom row first, each holding the components of \c format_.
-    std::vector<float> pixels_;
+    std::variant<std::vector<float>, std::vector<std::int32_t>> pixels_;
     std::atomic<int> mappers_ = 0;
     std::atomic<bool> converged_ = false;
 };
