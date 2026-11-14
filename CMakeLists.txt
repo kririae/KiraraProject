@@ -27,7 +27,7 @@ option(KRR_BUILD_KIRARA_DANCE "Build the KiraraDance application" OFF)
 option(KRR_BUILD_FLUX "Build the Flux renderer" OFF)
 cmake_dependent_option(
     KRR_BUILD_FLUX_HYDRA
-    "Build the FLux Hydra render delegate against the Houdini that HFS names"
+    "Build hdFlux, the Hydra render delegate of FLux"
     OFF
     "KRR_BUILD_FLUX"
     OFF)

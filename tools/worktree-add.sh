@@ -45,5 +45,5 @@ options=(-DCMAKE_TOOLCHAIN_FILE="$toolchain" -DVCPKG_MANIFEST_INSTALL=OFF
          -DVCPKG_INSTALLED_DIR="$installed")
 while IFS= read -r option; do
     options+=("$option")
-done < <(sed -n 's/^\(KRR_[^:]*\):BOOL=/-D\1=/p' "$cache")
+done < <(sed -n '/:INTERNAL=/!s/^\(KRR_[^:]*:[A-Z]*\)=/-D\1=/p' "$cache")
 (cd "$path" && cmake --preset "$preset" "${options[@]}")

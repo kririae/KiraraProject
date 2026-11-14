@@ -33,4 +33,4 @@ set_tests_properties(flux.Hydra.RenderTests PROPERTIES LABELS integration TIMEOU
 
 set_tests_properties(
     flux.Hydra.RenderTests
-    PROPERTIES ENVIRONMENT "PXR_MTLX_STDLIB_SEARCH_PATHS=$ENV{HFS}/houdini/materialx/libraries")
+    PROPERTIES ENVIRONMENT "PXR_MTLX_STDLIB_SEARCH_PATHS=${KRR_HFS}/houdini/materialx/libraries")

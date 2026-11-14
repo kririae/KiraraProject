@@ -3,17 +3,19 @@ if((NOT WIN32 AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
     message(FATAL_ERROR "The Hydra delegate requires x64 Windows or Linux")
 endif()
 
-# The delegate is a plugin of the USD that Houdini ships, so it builds against that USD.
-if(NOT DEFINED ENV{HFS})
-    message(FATAL_ERROR "KRR_BUILD_FLUX_HYDRA needs HFS, the Houdini installation to build against")
+set(KRR_HFS
+    ""
+    CACHE PATH "The Houdini installation whose USD hdFlux builds against")
+if(NOT KRR_HFS)
+    message(FATAL_ERROR "KRR_BUILD_FLUX_HYDRA needs KRR_HFS")
 endif()
-set(Houdini_DIR "$ENV{HFS}/toolkit/cmake")
+set(Houdini_DIR "${KRR_HFS}/toolkit/cmake")
 find_package(Houdini CONFIG REQUIRED)
 
 foreach(library MaterialXCore MaterialXFormat pxr_hdMtlx)
     find_library(houdini_${library}
                  NAMES ${library} lib${library}
-                 PATHS "$ENV{HFS}/custom/houdini/dsolib" "$ENV{HFS}/dsolib"
+                 PATHS "${KRR_HFS}/custom/houdini/dsolib" "${KRR_HFS}/dsolib"
                  NO_DEFAULT_PATH NO_CACHE REQUIRED)
     add_library(Houdini::Dep::${library} UNKNOWN IMPORTED)
     set_target_properties(Houdini::Dep::${library} PROPERTIES IMPORTED_LOCATION
