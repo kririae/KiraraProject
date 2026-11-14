@@ -8,6 +8,7 @@
 #include <string_view>
 
 #include "ImageWithUnreadableMipLevel.h"
+#include "InMemoryFileSystem.h"
 #include "TestUtils.h"
 #include "flux/Core/ResolvedPath.h"
 #include "flux/Embree/EmbreeImageTexturePool.h"
@@ -445,4 +446,29 @@ TEST_F(EmbreeImageTextureTests, AFileWhoseReadStopsInItsPixelsSamplesAsZero) {
     EXPECT_EQ(sample({0.25F, 0.5F}), flux::Vec4f{});
     EXPECT_EQ(sample({0.25F, 0.5F}), flux::Vec4f{});
     EXPECT_EQ(sample({0.75F, 0.5F}), flux::Vec4f{});
+}
+
+TEST_F(EmbreeImageTextureTests, SamplesANameThatIsNotAFileAsTheSameImageReadFromAFile) {
+    auto const imagePath = path("memory-sampled.exr");
+    auto const pixels = std::array{0.25F, 0.75F};
+    flux::test::writeFloatImage(imagePath, pixels, {2, 1});
+    auto fileSystem = std::make_unique<flux::test::InMemoryFileSystem>();
+    fileSystem->addFile(flux::ResolvedPath{"memory/a.exr"}, imagePath);
+    context = flux::Context::create(std::move(fileSystem));
+
+    kira::Properties served;
+    served.set("type", "image");
+    served.set("path", "memory/a.exr");
+    served.set("filter_mode", "point");
+    (void)context->create<flux::Texture>(served);
+    build(imagePath);
+
+    for (auto const uv : {flux::Vec2f{0.25F, 0.5F}, flux::Vec2f{0.75F, 0.5F}}) {
+        auto const fromMemory = pool.getImpl().eval4f(0, uv, {}, {});
+        auto const fromFile = pool.getImpl().eval4f(1, uv, {}, {});
+        EXPECT_EQ(fromMemory, fromFile);
+    }
+    EXPECT_EQ(
+        pool.getImpl().eval4f(0, {0.75F, 0.5F}, {}, {}), (flux::Vec4f{0.75F, 0.75F, 0.75F, 1.0F})
+    );
 }

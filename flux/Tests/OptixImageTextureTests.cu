@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "ImageWithUnreadableMipLevel.h"
+#include "InMemoryFileSystem.h"
 #include "TestUtils.h"
 #include "WhiteImageWithBlackMipLevel.h"
 #include "flux/Core/ResolvedPath.h"
@@ -588,4 +589,46 @@ TEST_F(OptixImageTextureTests, AnImageWithAnUnreadableMipLevelSamplesAsZero) {
     EXPECT_EQ(sample({0.5F, 0.5F}, true), (flux::Vec4f{0.0F, 0.0F, 0.0F, 0.0F}));
     place(*good);
     EXPECT_EQ(sample({0.5F, 0.5F}, true), (flux::Vec4f{0.25F, 0.5F, 0.75F, 1.0F}));
+}
+
+TEST_F(OptixImageTextureTests, SamplesANameThatIsNotAFileAsTheSameImageReadFromAFile) {
+    auto const imagePath = path("optix-memory-sampled.exr");
+    auto const pixels = std::array{0.25F, 0.75F};
+    flux::test::writeFloatImage(imagePath, pixels, {2, 1});
+    auto const uvs = std::array{flux::Vec2f{0.25F, 0.5F}, flux::Vec2f{0.75F, 0.5F}};
+    auto fileSystem = std::make_unique<flux::test::InMemoryFileSystem>();
+    fileSystem->addFile(flux::ResolvedPath{"memory/a.exr"}, imagePath);
+    context = flux::Context::create(std::move(fileSystem));
+    kira::Properties served;
+    served.set("type", "image");
+    served.set("path", "memory/a.exr");
+    served.set("filter_mode", "point");
+    build(served);
+    auto const fromMemory = sample(uvs, /* point = */ true);
+
+    context = flux::Context::create();
+    build(imagePath);
+    auto const fromFile = sample(uvs, /* point = */ true);
+
+    EXPECT_EQ(fromMemory, fromFile);
+    EXPECT_EQ(fromMemory[1], (flux::Vec4f{0.75F, 0.75F, 0.75F, 1.0F}));
+}
+
+TEST_F(OptixImageTextureTests, SamplesAsZeroAFileWhoseReadStopsInItsPixels) {
+    auto const imagePath = path("optix-memory-short-pixels.exr");
+    auto const pixels = std::array{0.25F, 0.5F, 0.75F, 0.75F, 0.5F, 0.25F};
+    flux::test::writeFloatImage(imagePath, pixels, {2, 1});
+    auto fileSystem = std::make_unique<flux::test::InMemoryFileSystem>();
+    fileSystem->addFile(
+        flux::ResolvedPath{"memory/a.exr"}, imagePath, std::filesystem::file_size(imagePath) - 1
+    );
+    context = flux::Context::create(std::move(fileSystem));
+    kira::Properties served;
+    served.set("type", "image");
+    served.set("path", "memory/a.exr");
+    served.set("filter_mode", "point");
+    build(served);
+
+    EXPECT_EQ(sample({0.25F, 0.5F}, /* point = */ true), flux::Vec4f{});
+    EXPECT_EQ(sample({0.75F, 0.5F}, /* point = */ true), flux::Vec4f{});
 }

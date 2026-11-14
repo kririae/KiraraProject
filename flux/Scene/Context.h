@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <stdexcept>
@@ -15,6 +16,7 @@
 #include <utility>
 
 #include "flux/Core/EnumFlags.h"
+#include "flux/Core/FileSystem.h"
 #include "flux/Scene/ContextIndexMap.h"
 #include "flux/Scene/ImageAsset.h"
 #include "flux/Scene/ShaderAsset.h"
@@ -57,8 +59,8 @@ public:
 public:
     // Construction and destruction.
 
-    /// \brief Creates an empty context.
-    [[nodiscard]] static Ref<Context> create();
+    [[nodiscard]] static Ref<Context>
+    create(std::unique_ptr<FileSystem const> fileSystem = nullptr);
 
     /// \brief Releases the context's ownership of its objects.
     ~Context() override;
@@ -264,7 +266,7 @@ public:
     [[nodiscard]] ShaderAssetPool &getShaderAssetPool() noexcept { return shaderAssetPool_; }
 
 private:
-    Context() = default;
+    explicit Context(std::unique_ptr<FileSystem const> fileSystem);
 
     [[nodiscard]] std::size_t allocateId() noexcept {
         return nextId_.fetch_add(1, std::memory_order_relaxed);
@@ -310,6 +312,7 @@ private:
     Ref<PathIntegrator const> activeIntegrator_;
     Ref<Sampler const> activeSampler_;
     Ref<EnvMapLight const> activeEnvMap_;
+    std::unique_ptr<FileSystem const> fileSystem_;
     ImageAssetPool imageAssetPool_;
     ShaderAssetPool shaderAssetPool_;
     /// Next context ID. Transactions on different threads allocate IDs concurrently.

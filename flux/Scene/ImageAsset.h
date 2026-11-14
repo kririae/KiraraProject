@@ -17,6 +17,7 @@
 
 namespace flux {
 class EmbreeImageTexturePool;
+class FileSystem;
 class OptixImagePool;
 
 /// \brief Color space of the image color components.
@@ -86,7 +87,7 @@ private:
     struct ImageBuffer;
     struct pImpl;
 
-    explicit ImageAsset(std::unique_ptr<pImpl> pImpl) noexcept;
+    ImageAsset(std::size_t id, std::unique_ptr<pImpl> pImpl) noexcept;
 
     /// \brief Reads the mip chain into bottom-up host buffers.
     ///
@@ -104,7 +105,7 @@ private:
 /// \brief Shares ImageAsset objects by canonical path and color space.
 class ImageAssetPool {
 public:
-    ImageAssetPool();
+    explicit ImageAssetPool(FileSystem const *fileSystem = nullptr);
     ~ImageAssetPool();
 
     /// \brief Returns the shared asset for \p spec.

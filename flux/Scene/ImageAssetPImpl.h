@@ -3,6 +3,7 @@
 /// \file
 /// \brief OIIO implementation of ImageAsset and ImageAssetPool.
 
+#include <OpenImageIO/filesystem.h>
 #include <OpenImageIO/imagebuf.h>
 #include <OpenImageIO/texture.h>
 
@@ -11,6 +12,7 @@
 #include <string>
 #include <string_view>
 
+#include "flux/Core/FileSystem.h"
 #include "flux/Scene/ImageAsset.h"
 
 namespace flux {
@@ -40,15 +42,28 @@ struct ImageAsset::pImpl {
     pImpl();
 
     pImpl(
-        std::shared_ptr<OIIO::TextureSystem> textureSystem, std::string const &name,
+        std::shared_ptr<OIIO::TextureSystem> textureSystem, ResolvedPath resolvedPath,
+        std::string const &filename, std::unique_ptr<RandomAccessFile> file,
         std::string_view colorSpace
     );
+
+    ~pImpl();
+
+    pImpl(pImpl const &) = delete;
+    pImpl &operator=(pImpl const &) = delete;
 
     std::shared_ptr<OIIO::TextureSystem> textureSystem;
 
     /// \c textureSystem owns this handle.
     OIIO::TextureSystem::TextureHandle *textureHandle{};
+
+    ResolvedPath resolvedPath;
     OIIO::ustring filename;
+
+    /// The file that OIIO reads, or null for a file that OIIO opens by path.
+    std::unique_ptr<RandomAccessFile> file;
+
+    std::unique_ptr<OIIO::Filesystem::IOProxy> cacheProxy;
 
     /// OCIO name of the color space of the file color components.
     std::string colorSpace;
@@ -84,7 +99,9 @@ struct ImageAsset::pImpl {
 
 /// \brief OIIO texture systems shared by one ImageAssetPool.
 struct ImageAssetPool::pImpl {
-    pImpl();
+    explicit pImpl(FileSystem const *fileSystem);
+
+    FileSystem const *fileSystem;
 
     /// OIIO applies one component type policy to every image in a cache. The
     /// converting system uses Float32 to preserve converted values before filtering.

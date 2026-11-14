@@ -5,7 +5,12 @@
 #include "flux/Scene/EnvMapLight.h"
 
 namespace flux {
-Ref<Context> Context::create() { return Ref<Context>{new Context}; }
+Ref<Context> Context::create(std::unique_ptr<FileSystem const> fileSystem) {
+    return Ref<Context>{new Context{std::move(fileSystem)}};
+}
+
+Context::Context(std::unique_ptr<FileSystem const> fileSystem)
+    : fileSystem_{std::move(fileSystem)}, imageAssetPool_{fileSystem_.get()} {}
 
 Context::~Context() {
     for (auto &entry : objects_)

@@ -5,6 +5,7 @@
 #include <string>
 #include <string_view>
 
+#include "InMemoryFileSystem.h"
 #include "TestUtils.h"
 #include "flux/Core/ResolvedPath.h"
 #include "flux/Scene/ImageAsset.h"
@@ -153,4 +154,55 @@ TEST_F(ImageAssetTests, CollectsAssetsThatOnlyThePoolHolds) {
     asset.reset();
     pool.collectGarbage();
     EXPECT_EQ(pool.size(), 0U);
+}
+
+namespace {
+void writeMemoryFixture(std::filesystem::path const &imagePath) {
+    auto const pixels = std::array{0.25F, 0.5F, 0.75F, 1.0F};
+    flux::test::writeFloatImage(
+        imagePath, pixels, {2, 1}, std::array<std::string_view, 2>{"Y", "A"},
+        flux::ImageComponentType::Float16
+    );
+}
+} // namespace
+
+TEST_F(ImageAssetTests, GivesTheEmptyAssetForANameThatTheFileSystemCannotOpen) {
+    auto const empty = pool.getOrCreate({});
+    auto fileSystem = flux::test::InMemoryFileSystem{};
+    auto memoryPool = flux::ImageAssetPool{&fileSystem};
+
+    auto const missing =
+        memoryPool.getOrCreate({.resolvedPath = flux::ResolvedPath{"memory/missing.exr"}});
+
+    EXPECT_EQ(fileSystem.getOpenCount(), 1);
+    EXPECT_EQ(missing->getExtent(), empty->getExtent());
+    EXPECT_EQ(missing->getComponentCount(), empty->getComponentCount());
+    EXPECT_EQ(missing->getComponentType(), empty->getComponentType());
+}
+
+TEST_F(ImageAssetTests, OpensARegularFileByPathWithAFileSystem) {
+    auto const imagePath = path("memory-fixture-file.exr");
+    writeMemoryFixture(imagePath);
+    auto fileSystem = flux::test::InMemoryFileSystem{};
+    auto memoryPool = flux::ImageAssetPool{&fileSystem};
+
+    auto const asset =
+        memoryPool.getOrCreate({.resolvedPath = flux::ResolvedPath{flux::u8string(imagePath)}});
+
+    EXPECT_EQ(fileSystem.getOpenCount(), 0);
+    EXPECT_EQ(asset->getExtent(), (flux::Vec2u{2, 1}));
+}
+
+TEST_F(ImageAssetTests, ChoosesTheColorSpaceOfANameThatIsNotAFileFromItsHeader) {
+    auto const imagePath = path("memory-rgb8.tif");
+    auto const pixels = std::array{0.25F, 0.5F, 0.75F};
+    flux::test::writeFloatImage(imagePath, pixels, {1, 1}, {}, flux::ImageComponentType::UNorm8);
+    auto fileSystem = flux::test::InMemoryFileSystem{};
+    fileSystem.addFile(flux::ResolvedPath{"memory/a.tif"}, imagePath);
+    auto memoryPool = flux::ImageAssetPool{&fileSystem};
+
+    EXPECT_EQ(memoryPool.chooseColorSpace(flux::ResolvedPath{"memory/a.tif"}), flux::srgbTexture);
+    EXPECT_EQ(
+        memoryPool.chooseColorSpace(flux::ResolvedPath{"memory/missing.tif"}), flux::linearRec709
+    );
 }

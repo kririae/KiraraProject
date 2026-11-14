@@ -9,13 +9,17 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <filesystem>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <utility>
 #include <vector>
 
+#include "flux/Core/FileSystem.h"
 #include "flux/Core/Logging.h"
+#include "flux/Core/ResolvedPath.h"
 #include "flux/Scene/ImageAssetPImpl.h"
 #include "kira/Anyhow.h"
 
@@ -79,12 +83,12 @@ void validateImageSpec(OIIO::ImageSpec const &spec) {
     return config.getColorSpaceFromFilepath(filePath);
 }
 
-/// Returns the name that the OCIO config gives the color space of \p spec.
-[[nodiscard]] std::string canonicalizeColorSpace(ImageAssetSpec const &spec) {
+[[nodiscard]] std::string
+canonicalizeColorSpace(ImageAssetSpec const &spec, std::string const &filename) {
     auto const &config = OIIO::ColorConfig::default_colorconfig();
     auto colorSpace = OIIO::string_view{spec.colorSpace};
-    if (colorSpace.empty() && !spec.name.empty())
-        colorSpace = findColorSpaceByFileRules(spec.name);
+    if (colorSpace.empty() && !spec.resolvedPath.isEmpty())
+        colorSpace = findColorSpaceByFileRules(filename);
     if (colorSpace.empty())
         colorSpace = linearRec709;
 
@@ -128,9 +132,57 @@ void validateImageSpec(OIIO::ImageSpec const &spec) {
     return result;
 }
 
+/// \brief An OIIO reader of a RandomAccessFile, with a position of its own.
+class FileProxy final : public OIIO::Filesystem::IOProxy {
+public:
+    FileProxy(std::string const &filename, RandomAccessFile const &file)
+        : IOProxy(filename, Read), file_(file) {}
+
+    [[nodiscard]] char const *proxytype() const override { return "flux"; }
+
+    std::size_t read(void *buffer, std::size_t size) override {
+        auto const count = pread(buffer, size, m_pos);
+        m_pos += static_cast<std::int64_t>(count);
+        return count;
+    }
+
+    std::size_t pread(void *buffer, std::size_t size, std::int64_t offset) override {
+        return file_.read(
+            {static_cast<std::byte *>(buffer), size}, static_cast<std::uint64_t>(offset)
+        );
+    }
+
+    [[nodiscard]] std::size_t size() const override { return file_.getSize(); }
+
+private:
+    RandomAccessFile const &file_;
+};
+
+[[nodiscard]] std::string makeProxyFilename(std::string_view stem, std::string const &extension) {
+    if (extension.empty())
+        return std::string{stem};
+    return fmt::format("{}.{}", stem, extension);
+}
+
+[[nodiscard]] bool
+opensInFileSystem(FileSystem const *fileSystem, ResolvedPath const &resolvedPath) {
+    auto error = std::error_code{};
+    return fileSystem && !resolvedPath.isEmpty() &&
+           !std::filesystem::is_regular_file(u8path(resolvedPath.getPathString()), error);
+}
+
+[[nodiscard]] std::string_view chooseColorSpaceOfHeader(OIIO::ImageSpec const &spec) {
+    auto const isUNorm8 = chooseComponentType(spec) == ImageComponentType::UNorm8;
+    return isUNorm8 && spec.nchannels >= 3 ? srgbTexture : linearRec709;
+}
+
 /// The number of mip levels that the file holds, which is 1 for a file without mip levels.
-[[nodiscard]] int countAuthoredMipLevels(std::string const &filename) {
-    auto const input = OIIO::ImageInput::open(filename);
+[[nodiscard]] int
+countAuthoredMipLevels(std::string const &filename, RandomAccessFile const *file) {
+    auto proxy = std::unique_ptr<FileProxy>{};
+    if (file)
+        proxy = std::make_unique<FileProxy>(filename, *file);
+    auto const input = OIIO::ImageInput::open(filename, /* config = */ nullptr, proxy.get());
     if (!input)
         throw BadImage(OIIO::geterror());
     auto count = 1;
@@ -140,11 +192,13 @@ void validateImageSpec(OIIO::ImageSpec const &spec) {
 }
 } // namespace
 
-ImageAssetPool::pImpl::pImpl() {
+ImageAssetPool::pImpl::pImpl(FileSystem const *fileSystem) : fileSystem(fileSystem) {
     auto createTextureSystem = [](bool converts) {
         auto imageCache = OIIO::ImageCache::create(/* shared = */ false);
         if (!imageCache)
             throw kira::Anyhow("ImageAssetPool: failed to create an OpenImageIO image cache");
+        if (!imageCache->attribute("deduplicate", 0))
+            throw kira::Anyhow("ImageAssetPool: failed to turn off OpenImageIO deduplication");
         if (!imageCache->attribute("autotile", 64))
             throw kira::Anyhow("ImageAssetPool: failed to configure the OpenImageIO tile cache");
         if (!imageCache->attribute("automip", 1))
@@ -177,12 +231,25 @@ ImageAsset::pImpl::pImpl()
       fileComponentCount{4}, authoredLevelCount{1} {}
 
 ImageAsset::pImpl::pImpl(
-    std::shared_ptr<OIIO::TextureSystem> system, std::string const &name,
-    std::string_view colorSpace
+    std::shared_ptr<OIIO::TextureSystem> system, ResolvedPath imageResolvedPath,
+    std::string const &oiioFilename, std::unique_ptr<RandomAccessFile> imageFile,
+    std::string_view imageColorSpace
 )
-    : textureSystem(std::move(system)), filename(name), colorSpace{colorSpace} {
+    : pImpl() {
+    textureSystem = std::move(system);
+    resolvedPath = std::move(imageResolvedPath);
+    filename = OIIO::ustring{oiioFilename};
+    file = std::move(imageFile);
+    colorSpace = imageColorSpace;
+
     auto const imageCache = textureSystem->imagecache();
-    if (!imageCache->add_file(filename))
+    auto config = OIIO::ImageSpec{};
+    if (file) {
+        cacheProxy = std::make_unique<FileProxy>(oiioFilename, *file);
+        auto *const proxy = cacheProxy.get();
+        config.attribute("oiio:ioproxy", OIIO::TypeDesc::PTR, &proxy);
+    }
+    if (!imageCache->add_file(filename, /* creator = */ nullptr, file ? &config : nullptr))
         throw BadImage(imageCache->geterror());
 
     auto *imageHandle = imageCache->get_image_handle(filename);
@@ -196,7 +263,7 @@ ImageAsset::pImpl::pImpl(
         throw BadImage(imageCache->geterror());
     validateImageSpec(spec);
 
-    authoredLevelCount = countAuthoredMipLevels(filename.string());
+    authoredLevelCount = countAuthoredMipLevels(oiioFilename, file.get());
 
     auto const converts = !isLinearRec709(colorSpace);
     if (converts && spec.nchannels < 3)
@@ -247,6 +314,11 @@ ImageAsset::pImpl::pImpl(
         );
 }
 
+ImageAsset::pImpl::~pImpl() {
+    if (cacheProxy)
+        textureSystem->imagecache()->invalidate(filename, /* force = */ true);
+}
+
 Vec4f ImageAsset::pImpl::sample(
     OIIO::TextureOpt options, Vec2f uv, Vec2f duvdx, Vec2f duvdy, int channelCount
 ) const {
@@ -274,7 +346,10 @@ Vec4f ImageAsset::pImpl::sample(
     if (found)
         return sampled;
 
-    LogWarn("ImageAsset: failed to sample '{}': {}", filename.string(), textureSystem->geterror());
+    LogWarn(
+        "ImageAsset: failed to sample '{}': {}", resolvedPath.getPathString(),
+        textureSystem->geterror()
+    );
     return unusableTexel;
 }
 
@@ -282,30 +357,42 @@ OIIO::ImageBuf ImageAsset::pImpl::readLevel(int miplevel) const {
     // Alpha is straight.
     auto config = OIIO::ImageSpec{};
     config.attribute("oiio:UnassociatedAlpha", 1);
-    auto image = OIIO::ImageBuf{
-        filename.string(), /* subimage = */ 0, miplevel, /* imagecache = */ nullptr, &config
-    };
+    auto proxy = std::unique_ptr<FileProxy>{};
+    if (file)
+        proxy = std::make_unique<FileProxy>(filename.string(), *file);
+    auto image =
+        OIIO::ImageBuf{filename.string(), /* subimage = */ 0, miplevel, /* imagecache = */ nullptr,
+                       &config,           proxy.get()};
     if (!image.read(
             /* subimage = */ 0, miplevel, /* chbegin = */ 0, fileComponentCount,
             /* force = */ true, toTypeDesc(componentType)
         ))
         throw BadImage(describeReadFailure(miplevel, image.geterror()));
-    if (colorTransformId == 0 || storedColorSpace == ImageColorSpace::SRGB)
-        return image;
+    if (colorTransformId == 0 || storedColorSpace == ImageColorSpace::SRGB) {
+        if (!proxy)
+            return image;
+        auto copied = OIIO::ImageBufAlgo::copy(image);
+        if (copied.has_error())
+            throw kira::Anyhow(
+                "ImageAsset: failed to copy '{}': {}", resolvedPath.getPathString(),
+                copied.geterror()
+            );
+        return copied;
+    }
 
     auto converted = OIIO::ImageBuf{};
     if (!OIIO::ImageBufAlgo::colorconvert(
             converted, image, colorSpace, linearRec709, /* unpremult = */ false
         ))
         throw kira::Anyhow(
-            "ImageAsset: failed to convert '{}' from '{}': {}", filename.string(), colorSpace,
-            converted.geterror()
+            "ImageAsset: failed to convert '{}' from '{}': {}", resolvedPath.getPathString(),
+            colorSpace, converted.geterror()
         );
     return converted;
 }
 
-ImageAsset::ImageAsset(std::unique_ptr<pImpl> pImpl) noexcept
-    : pImpl_(std::move(pImpl)), id_(nextImageAssetId.fetch_add(1, std::memory_order_relaxed)) {}
+ImageAsset::ImageAsset(std::size_t id, std::unique_ptr<pImpl> pImpl) noexcept
+    : pImpl_(std::move(pImpl)), id_(id) {}
 ImageAsset::~ImageAsset() = default;
 
 Vec2u ImageAsset::getExtent() const noexcept { return pImpl_->extent; }
@@ -334,7 +421,10 @@ std::vector<ImageAsset::ImageBuffer> ImageAsset::readMipChain() const {
         try {
             return readFileMipChain();
         } catch (BadImage const &bad) {
-            LogWarn("ImageAsset: '{}' cannot be read ({})", pImpl_->filename.string(), bad.what());
+            LogWarn(
+                "ImageAsset: '{}' cannot be read ({})", pImpl_->resolvedPath.getPathString(),
+                bad.what()
+            );
         }
     }
 
@@ -348,7 +438,7 @@ std::vector<ImageAsset::ImageBuffer> ImageAsset::readMipChain() const {
             texel, OIIO::cspan<float>{unusableTexel.data(), pImpl_->componentCount}
         ))
         throw kira::Anyhow(
-            "ImageAsset: failed to fill the texel of '{}'", pImpl_->filename.string()
+            "ImageAsset: failed to fill the texel of '{}'", pImpl_->resolvedPath.getPathString()
         );
     result.push_back(pImpl_->makeBuffer(std::move(texel)));
     return result;
@@ -356,7 +446,7 @@ std::vector<ImageAsset::ImageBuffer> ImageAsset::readMipChain() const {
 
 std::vector<ImageAsset::ImageBuffer> ImageAsset::readFileMipChain() const {
     auto const encodeSRGB = pImpl_->storedColorSpace == ImageColorSpace::SRGB;
-    auto const fileName = pImpl_->filename.string();
+    auto const &resolvedPath = pImpl_->resolvedPath;
 
     // A level of the file as a bottom-up level of the result, with an alpha channel.
     auto const prepare = [&](OIIO::ImageBuf image) {
@@ -364,15 +454,20 @@ std::vector<ImageAsset::ImageBuffer> ImageAsset::readFileMipChain() const {
             auto oriented = OIIO::ImageBuf{};
             if (!OIIO::ImageBufAlgo::reorient(oriented, image))
                 throw kira::Anyhow(
-                    "ImageAsset: failed to orient '{}': {}", fileName, oriented.geterror()
+                    "ImageAsset: failed to orient '{}': {}", resolvedPath.getPathString(),
+                    oriented.geterror()
                 );
             image = std::move(oriented);
         }
 
         auto flipped = OIIO::ImageBuf{};
         if (!OIIO::ImageBufAlgo::flip(flipped, image))
-            throw kira::Anyhow("ImageAsset: failed to flip '{}': {}", fileName, flipped.geterror());
-        return pImpl_->fileComponentCount == 3 ? appendAlpha(flipped, fileName) : flipped;
+            throw kira::Anyhow(
+                "ImageAsset: failed to flip '{}': {}", resolvedPath.getPathString(),
+                flipped.geterror()
+            );
+        return pImpl_->fileComponentCount == 3 ? appendAlpha(flipped, resolvedPath.getPathString())
+                                               : flipped;
     };
 
     auto result = std::vector<ImageBuffer>{};
@@ -397,7 +492,8 @@ std::vector<ImageAsset::ImageBuffer> ImageAsset::readFileMipChain() const {
                 linear, flipped, srgbTexture, linearRec709, /* unpremult = */ false
             ))
             throw kira::Anyhow(
-                "ImageAsset: failed to decode '{}': {}", fileName, linear.geterror()
+                "ImageAsset: failed to decode '{}': {}", resolvedPath.getPathString(),
+                linear.geterror()
             );
     }
 
@@ -416,7 +512,8 @@ std::vector<ImageAsset::ImageBuffer> ImageAsset::readFileMipChain() const {
         };
         if (!OIIO::ImageBufAlgo::resample(level, above, /* interpolate = */ true))
             throw kira::Anyhow(
-                "ImageAsset: failed to make a mip level of '{}': {}", fileName, level.geterror()
+                "ImageAsset: failed to make a mip level of '{}': {}", resolvedPath.getPathString(),
+                level.geterror()
             );
 
         if (!encodeSRGB) {
@@ -431,7 +528,8 @@ std::vector<ImageAsset::ImageBuffer> ImageAsset::readFileMipChain() const {
                 encoded, level, linearRec709, srgbTexture, /* unpremult = */ false
             ))
             throw kira::Anyhow(
-                "ImageAsset: failed to encode a mip level of '{}': {}", fileName, encoded.geterror()
+                "ImageAsset: failed to encode a mip level of '{}': {}",
+                resolvedPath.getPathString(), encoded.geterror()
             );
         linear = std::move(level);
         result.push_back(pImpl_->makeBuffer(std::move(encoded)));
@@ -439,25 +537,51 @@ std::vector<ImageAsset::ImageBuffer> ImageAsset::readFileMipChain() const {
     return result;
 }
 
-ImageAssetPool::ImageAssetPool() : pImpl_(std::make_unique<pImpl>()) {}
+ImageAssetPool::ImageAssetPool(FileSystem const *fileSystem)
+    : pImpl_(std::make_unique<pImpl>(fileSystem)) {}
 ImageAssetPool::~ImageAssetPool() = default;
 
 Ref<ImageAsset const> ImageAssetPool::getOrCreate(ImageAssetSpec const &spec) {
+    auto const *const fileSystem = pImpl_->fileSystem;
+    auto const inFileSystem = opensInFileSystem(fileSystem, spec.resolvedPath);
+    auto const extension =
+        inFileSystem ? fileSystem->getExtension(spec.resolvedPath) : std::string{};
+
     auto key = spec;
     auto resolved = spec;
     if (spec.colorSpace == autoColorSpace)
-        resolved.colorSpace = chooseColorSpace(spec.name);
-    key.colorSpace = canonicalizeColorSpace(resolved);
+        resolved.colorSpace = chooseColorSpace(spec.resolvedPath);
+    key.colorSpace = canonicalizeColorSpace(
+        resolved, inFileSystem ? makeProxyFilename("flux-image", extension)
+                               : spec.resolvedPath.getPathString()
+    );
     return assets_.acquire(key, [&] {
-        if (key.name.empty())
-            return Ref<ImageAsset const>{new ImageAsset(std::make_unique<ImageAsset::pImpl>())};
+        auto const id = nextImageAssetId.fetch_add(1, std::memory_order_relaxed);
+        auto const makeEmpty = [&] {
+            return Ref<ImageAsset const>{new ImageAsset(id, std::make_unique<ImageAsset::pImpl>())};
+        };
+        if (key.resolvedPath.isEmpty())
+            return makeEmpty();
+
+        auto file = std::unique_ptr<RandomAccessFile>{};
+        auto filename = key.resolvedPath.getPathString();
+        if (inFileSystem) {
+            file = fileSystem->open(key.resolvedPath);
+            if (!file) {
+                LogWarn("ImageAsset: '{}' cannot be opened", key.resolvedPath.getPathString());
+                return makeEmpty();
+            }
+            filename = makeProxyFilename(fmt::format("flux-image-{}", id), extension);
+        }
 
         auto const &textureSystem = isLinearRec709(key.colorSpace)
                                         ? pImpl_->linearTextureSystem
                                         : pImpl_->convertingTextureSystem;
         try {
             return Ref<ImageAsset const>{new ImageAsset(
-                std::make_unique<ImageAsset::pImpl>(textureSystem, key.name, key.colorSpace)
+                id, std::make_unique<ImageAsset::pImpl>(
+                        textureSystem, key.resolvedPath, filename, std::move(file), key.colorSpace
+                    )
             )};
         } catch (BadImage const &bad) {
             LogWarn(
@@ -465,20 +589,33 @@ Ref<ImageAsset const> ImageAssetPool::getOrCreate(ImageAssetSpec const &spec) {
                 key.resolvedPath.getPathString(), bad.what()
             );
         }
-        return Ref<ImageAsset const>{new ImageAsset(std::make_unique<ImageAsset::pImpl>())};
+        return makeEmpty();
     });
 }
 
-std::string ImageAssetPool::chooseColorSpace(std::string const &name) const {
-    auto const imageCache = pImpl_->linearTextureSystem->imagecache();
-    auto const *spec = imageCache->imagespec(OIIO::ustring{name});
-    if (!spec) {
-        (void)imageCache->geterror();
-        return std::string{linearRec709};
+std::string ImageAssetPool::chooseColorSpace(ResolvedPath const &resolvedPath) const {
+    auto const *const fileSystem = pImpl_->fileSystem;
+    if (!opensInFileSystem(fileSystem, resolvedPath)) {
+        auto const imageCache = pImpl_->linearTextureSystem->imagecache();
+        auto const *spec = imageCache->imagespec(OIIO::ustring{resolvedPath.getPathString()});
+        if (!spec) {
+            (void)imageCache->geterror();
+            return std::string{linearRec709};
+        }
+        return std::string{chooseColorSpaceOfHeader(*spec)};
     }
 
-    auto const isUNorm8 = chooseComponentType(*spec) == ImageComponentType::UNorm8;
-    return std::string{isUNorm8 && spec->nchannels >= 3 ? srgbTexture : linearRec709};
+    auto const file = fileSystem->open(resolvedPath);
+    if (!file)
+        return std::string{linearRec709};
+    auto const filename = makeProxyFilename("flux-image", fileSystem->getExtension(resolvedPath));
+    auto proxy = FileProxy{filename, *file};
+    auto const input = OIIO::ImageInput::open(filename, /* config = */ nullptr, &proxy);
+    if (!input) {
+        (void)OIIO::geterror();
+        return std::string{linearRec709};
+    }
+    return std::string{chooseColorSpaceOfHeader(input->spec())};
 }
 
 void ImageAssetPool::collectGarbage() {
