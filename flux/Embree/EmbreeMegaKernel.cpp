@@ -139,7 +139,7 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
                 }
 
                 candidate = params.integrator.makeDirectLightCandidate(
-                    state.throughput, directLight, result.evaluation
+                    state.throughput, isect, wo, directLight, result.evaluation
                 );
                 params.integrator.onSurfaceHit(
                     state, isect, frame.toWorld(result.sample.wi), result.sample

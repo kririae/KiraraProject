@@ -208,7 +208,7 @@ struct ShadowQuery {
     }
 
     auto const candidate = optixLaunchParams.integrator.makeDirectLightCandidate(
-        state.throughput, directLight, result.evaluation
+        state.throughput, isect, wo, directLight, result.evaluation
     );
     optixLaunchParams.integrator.onSurfaceHit(
         state, isect, frame.toWorld(result.sample.wi), result.sample

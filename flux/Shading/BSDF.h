@@ -77,6 +77,11 @@ public:
     [[nodiscard]] KIRA_HOST_DEVICE bool isDelta() const noexcept {
         return lobe == BSDFLobe::DeltaReflection || lobe == BSDFLobe::DeltaTransmission;
     }
+
+    [[nodiscard]] KIRA_HOST_DEVICE bool isTransmission() const noexcept {
+        return lobe == BSDFLobe::DiffuseTransmission || lobe == BSDFLobe::GlossyTransmission ||
+               lobe == BSDFLobe::DeltaTransmission;
+    }
 };
 
 /// \brief Results produced by one BSDF execution.

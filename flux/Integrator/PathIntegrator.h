@@ -112,6 +112,13 @@ public:
             return firstPdf / (firstPdf + secondPdf);
         }
 
+        /// \brief Returns whether \p a and \p b lie strictly on the same side of the plane normal
+        /// to \p normal.
+        [[nodiscard]] KIRA_HOST_DEVICE static bool
+        isSameHemisphere(Vec3f const &normal, Vec3f const &a, Vec3f const &b) noexcept {
+            return normal.dot(a) * normal.dot(b) > 0.0F;
+        }
+
         /// \brief Terminates a path that escaped the scene.
         KIRA_HOST_DEVICE void onMiss(PathState &state) const noexcept { state.active = false; }
 
@@ -172,13 +179,18 @@ public:
 
         /// \brief Builds a direct-light contribution awaiting a visibility test.
         ///
-        /// A valid candidate has a positive light PDF and a nonzero BSDF value.
+        /// A valid candidate has a positive light PDF and a nonzero BSDF value, and its light
+        /// direction lies on the side of \p wo against the geometric normal of \p isect exactly
+        /// when it does against the shading normal.
         [[nodiscard]] KIRA_HOST_DEVICE KIRA_FORCEINLINE DirectLightCandidate
         makeDirectLightCandidate(
-            Spectrum const &throughput, DirectLightSample const &lightSample,
-            BSDFEvaluation const &evaluation
+            Spectrum const &throughput, SurfaceInteraction const &isect, Vec3f const &wo,
+            DirectLightSample const &lightSample, BSDFEvaluation const &evaluation
         ) const noexcept {
             if (lightSample.pdf <= 0.0F || evaluation.value.norm2() == 0.0F)
+                return {};
+            if (isSameHemisphere(isect.geometricNormal, wo, lightSample.wi) !=
+                isSameHemisphere(isect.shadingNormal, wo, lightSample.wi))
                 return {};
 
             auto mis = 1.0F;
@@ -216,12 +228,17 @@ public:
 
         /// \brief Applies a BSDF sample at the current surface.
         ///
+        /// The path ends at a sample of a reflection lobe whose \p wi crosses the geometric
+        /// surface, and at a sample of a transmission lobe whose \p wi does not.
+        ///
         /// \param wi World-space direction toward the next path vertex.
         KIRA_HOST_DEVICE void onSurfaceHit(
             PathState &state, SurfaceInteraction const &isect, Vec3f const &wi,
             BSDFSample const &sample
         ) const noexcept {
-            if (sample.pdf <= 0.0F || sample.weight.norm2() == 0.0F) {
+            auto const reflects = isSameHemisphere(isect.geometricNormal, -state.rayDirection, wi);
+            if (sample.pdf <= 0.0F || sample.weight.norm2() == 0.0F ||
+                reflects == sample.isTransmission()) {
                 state.active = false;
                 return;
             }
