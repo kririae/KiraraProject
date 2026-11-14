@@ -19,7 +19,7 @@ protected:
 };
 } // namespace
 
-TEST_F(ImageAssetTests, LoadsMetadataAndSharesCanonicalPaths) {
+TEST_F(ImageAssetTests, LoadsMetadataAndSharesTheSamePath) {
     auto const imagePath = path("image-asset.exr");
     auto const componentNames = std::array<std::string_view, 3>{"R", "G", "B"};
     auto const pixels = std::array{
@@ -28,8 +28,7 @@ TEST_F(ImageAssetTests, LoadsMetadataAndSharesCanonicalPaths) {
     flux::test::writeFloatImage(imagePath, pixels, {2, 2}, componentNames);
 
     auto const asset = pool.getOrCreate({.path = imagePath});
-    auto const cached =
-        pool.getOrCreate({.path = imagePath.parent_path() / "." / imagePath.filename()});
+    auto const cached = pool.getOrCreate({.path = imagePath});
 
     EXPECT_EQ(asset, cached);
     EXPECT_EQ(asset->getExtent(), (flux::Vec2u{2, 2}));

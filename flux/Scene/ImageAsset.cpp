@@ -103,10 +103,6 @@ void validateImageSpec(OIIO::ImageSpec const &spec) {
     return std::string{config.resolve(name)};
 }
 
-[[nodiscard]] std::filesystem::path canonicalize(std::filesystem::path const &path) {
-    return std::filesystem::weakly_canonical(std::filesystem::absolute(path));
-}
-
 [[nodiscard]] OIIO::TypeDesc toTypeDesc(ImageComponentType type) noexcept {
     switch (type) {
     case ImageComponentType::UNorm8: return OIIO::TypeDesc::UINT8;
@@ -449,30 +445,25 @@ ImageAssetPool::ImageAssetPool() : pImpl_(std::make_unique<pImpl>()) {}
 ImageAssetPool::~ImageAssetPool() = default;
 
 Ref<ImageAsset const> ImageAssetPool::getOrCreate(ImageAssetSpec const &spec) {
-    auto canonical = spec;
-    if (!spec.path.empty())
-        canonical.path = canonicalize(spec.path);
+    auto key = spec;
     auto resolved = spec;
     if (spec.colorSpace == autoColorSpace)
         resolved.colorSpace = chooseColorSpace(spec.path);
-    canonical.colorSpace = canonicalizeColorSpace(resolved);
-    return assets_.acquire(canonical, [&] {
-        if (canonical.path.empty())
+    key.colorSpace = canonicalizeColorSpace(resolved);
+    return assets_.acquire(key, [&] {
+        if (key.path.empty())
             return Ref<ImageAsset const>{new ImageAsset(std::make_unique<ImageAsset::pImpl>())};
 
-        auto const &textureSystem = isLinearRec709(canonical.colorSpace)
+        auto const &textureSystem = isLinearRec709(key.colorSpace)
                                         ? pImpl_->linearTextureSystem
                                         : pImpl_->convertingTextureSystem;
         try {
             return Ref<ImageAsset const>{new ImageAsset(
-                std::make_unique<ImageAsset::pImpl>(
-                    textureSystem, canonical.path, canonical.colorSpace
-                )
+                std::make_unique<ImageAsset::pImpl>(textureSystem, key.path, key.colorSpace)
             )};
         } catch (BadImage const &bad) {
             LogWarn(
-                "ImageAsset: '{}' is not a well-formed image ({})", canonical.path.string(),
-                bad.what()
+                "ImageAsset: '{}' is not a well-formed image ({})", key.path.string(), bad.what()
             );
         }
         return Ref<ImageAsset const>{new ImageAsset(std::make_unique<ImageAsset::pImpl>())};
@@ -481,7 +472,7 @@ Ref<ImageAsset const> ImageAssetPool::getOrCreate(ImageAssetSpec const &spec) {
 
 std::string ImageAssetPool::chooseColorSpace(std::filesystem::path const &path) const {
     auto const imageCache = pImpl_->linearTextureSystem->imagecache();
-    auto const *spec = imageCache->imagespec(OIIO::ustring{canonicalize(path).string()});
+    auto const *spec = imageCache->imagespec(OIIO::ustring{path.string()});
     if (!spec) {
         (void)imageCache->geterror();
         return std::string{linearRec709};
