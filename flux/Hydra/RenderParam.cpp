@@ -77,6 +77,11 @@ std::vector<HdFLuxPendingMaterial> HdFLuxRenderParam::ExtractPendingMaterials() 
     return std::exchange(pendingMaterials_, {});
 }
 
+void HdFLuxRenderParam::SetProgress(double percentDone, double totalClockTime) noexcept {
+    percentDone_ = percentDone;
+    totalClockTime_ = totalClockTime;
+}
+
 void HdFLuxRenderParam::ReportFailure() noexcept {
     failed_ = true;
 

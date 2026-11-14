@@ -2,6 +2,7 @@
 
 #include <pxr/imaging/hd/renderDelegate.h>
 
+#include <atomic>
 #include <filesystem>
 #include <vector>
 
@@ -47,6 +48,12 @@ public:
     /// \brief Returns the backend that renders the scene.
     [[nodiscard]] flux::OptixHandler &GetHandler() noexcept { return handler_; }
 
+    void SetProgress(double percentDone, double totalClockTime) noexcept;
+
+    [[nodiscard]] double GetPercentDone() const noexcept { return percentDone_; }
+
+    [[nodiscard]] double GetTotalClockTime() const noexcept { return totalClockTime_; }
+
     /// \brief Returns whether a failure was reported.
     ///
     /// Once true, it stays true.
@@ -63,5 +70,7 @@ private:
     flux::ShaderInstance fallbackShaderInstance_;
     flux::Ref<flux::ShaderBSDF> fallbackBSDF_;
     std::vector<HdFLuxPendingMaterial> pendingMaterials_;
+    std::atomic<double> percentDone_{0.0};
+    std::atomic<double> totalClockTime_{0.0};
     bool failed_{false};
 };

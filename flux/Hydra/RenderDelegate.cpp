@@ -268,6 +268,9 @@ pxr::HdRenderSettingDescriptorList HdFLuxRenderDelegate::GetRenderSettingDescrip
 
 pxr::VtDictionary HdFLuxRenderDelegate::GetRenderStats() const {
     pxr::VtDictionary stats;
+    stats["rendererName"] = std::string{"FLux"};
+    stats["percentDone"] = renderParam_->GetPercentDone();
+    stats["totalClockTime"] = renderParam_->GetTotalClockTime();
     if (renderParam_->HasFailed())
         stats["huskErrorStatus"] = 1;
     return stats;

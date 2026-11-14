@@ -125,8 +125,10 @@ void HdFLuxRenderer::Render(HdFLuxRenderSpec const &spec, std::span<Output const
         restart = true;
     }
 
-    if (restart && image_)
+    if (restart && image_) {
         image_->accumulation.clear();
+        accumulationStart_ = std::chrono::steady_clock::now();
+    }
 
     bool launched{false};
 
@@ -162,7 +164,23 @@ void HdFLuxRenderer::Render(HdFLuxRenderSpec const &spec, std::span<Output const
         }
     }
 
+    publishProgress();
     setConverged(outputs);
+}
+
+void HdFLuxRenderer::publishProgress() {
+    if (!image_) {
+        param_.SetProgress(0.0, 0.0);
+        return;
+    }
+
+    auto const target = schedule_.GetTarget();
+    auto const samples = image_->accumulation.getSampleCount();
+    auto const percentDone =
+        target == 0 ? 100.0 : 100.0 * static_cast<double>(samples) / static_cast<double>(target);
+    auto const totalClockTime =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - accumulationStart_);
+    param_.SetProgress(percentDone, totalClockTime.count());
 }
 
 void HdFLuxRenderer::setConverged(std::span<Output const> outputs) const {

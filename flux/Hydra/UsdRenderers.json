@@ -3,8 +3,14 @@
         "menulabel": "FLux",
         "aovsupport": true,
         "depthstyle": "opengl",
+        "needsselection": true,
         "defaultpurposes": [
             "render"
-        ]
+        ],
+        "statsdatapaths": {
+            "rendererName": "rendererName",
+            "percentDone": "percentDone",
+            "totalClockTime": "totalClockTime"
+        }
     }
 }

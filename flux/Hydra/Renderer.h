@@ -2,6 +2,7 @@
 
 #include <pxr/base/vt/value.h>
 
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <span>
@@ -60,6 +61,7 @@ private:
     };
 
     void setConverged(std::span<Output const> outputs) const;
+    void publishProgress();
 
     HdFLuxRenderParam &param_;
     HdFLuxSampleSchedule schedule_;
@@ -70,6 +72,7 @@ private:
 
     /// The image of \c spec_, or null if \c spec_ renders nothing.
     std::unique_ptr<Image> image_;
+    std::chrono::steady_clock::time_point accumulationStart_;
 
     /// The sum over the launches that gave the image its samples.
     flux::RenderStats renderStats_;
