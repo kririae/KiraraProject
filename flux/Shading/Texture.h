@@ -146,17 +146,12 @@ private:
     Spectrum value_;
 };
 
-/// \brief The image, sampling, and fallback of an image texture.
-///
-/// The texture takes the default component mapping of the image, scale 1, and bias 0. An empty
-/// image path means no image, so the texture returns \c fallback.
 struct ImageTextureSpec {
     ImageAssetSpec image;
     ImageTextureAddressModes addressModes{
         ImageTextureAddressMode::Wrap, ImageTextureAddressMode::Wrap
     };
     ImageTextureFilterMode filterMode{ImageTextureFilterMode::Linear};
-    Vec4f fallback{1.0F, 0.0F, 1.0F, 1.0F};
 
     [[nodiscard]] friend bool
     operator==(ImageTextureSpec const &, ImageTextureSpec const &) = default;
@@ -166,9 +161,6 @@ struct ImageTextureSpec {
 ///
 /// Color components are converted before filtering and component mapping.
 /// Alpha keeps its stored value.
-///
-/// The value of a sampled texel is its component mapping, times \c scale, plus \c bias. If the
-/// image failed to load, \c fallback replaces the component mapping.
 ///
 /// \par Properties
 /// - \c path: required path of the image file. An empty path means no image.
@@ -181,7 +173,6 @@ struct ImageTextureSpec {
 /// - \c component_mapping: optional four selectors of \c x, \c y, \c z, \c w, \c 0, and \c 1,
 ///   defaults to the default mapping of the image.
 /// - \c scale and \c bias: optional RGBA vectors, default to 1 and 0.
-/// - \c fallback: optional RGBA vector, defaults to magenta.
 class ImageTexture final : public Texture {
     friend class TXContext;
 
@@ -207,7 +198,6 @@ public:
     }
     [[nodiscard]] Vec4f const &getScale() const noexcept { return scale_; }
     [[nodiscard]] Vec4f const &getBias() const noexcept { return bias_; }
-    [[nodiscard]] Vec4f const &getFallback() const noexcept { return fallback_; }
     [[nodiscard]] Texture::Impl getImpl() const override;
 
 private:
@@ -220,7 +210,6 @@ private:
     ImageComponentMapping componentMapping_;
     Vec4f scale_{1.0F};
     Vec4f bias_{0.0F};
-    Vec4f fallback_{1.0F, 0.0F, 1.0F, 1.0F};
 };
 
 struct ConstantTexture::Impl : TextureMixin<Impl> {

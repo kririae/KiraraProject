@@ -52,7 +52,6 @@ parseAddressMode(kira::Properties const &props, std::string_view property) {
         .addressModes =
             {parseAddressMode(props, "address_mode_u"), parseAddressMode(props, "address_mode_v")},
         .filterMode = parseFilterMode(props),
-        .fallback = props.use_or<Vec4f>("fallback", ImageTextureSpec{}.fallback),
     };
 }
 } // namespace
@@ -123,7 +122,7 @@ ImageTexture::ImageTexture(TXContext &tx, ImageTextureSpec const &spec)
                        .colorSpace = spec.image.colorSpace,
                    })),
       addressModes_(spec.addressModes), filterMode_(spec.filterMode),
-      componentMapping_(imageAsset_->getDefaultComponentMapping()), fallback_(spec.fallback) {}
+      componentMapping_(imageAsset_->getDefaultComponentMapping()) {}
 
 ImageTexture::ImageTexture(TXContext &tx, kira::Properties const &props)
     : ImageTexture(tx, parseSpec(props)) {

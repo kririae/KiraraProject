@@ -1,7 +1,6 @@
 #include "flux/Scene/ImageAsset.h"
 
 #include <OpenImageIO/color.h>
-#include <OpenImageIO/filesystem.h>
 #include <OpenImageIO/imagebufalgo.h>
 #include <OpenImageIO/imagecache.h>
 #include <OpenImageIO/imageio.h>
@@ -29,34 +28,9 @@ struct BadImage final : std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
-/// Name of the 1x1 magenta image that every texture system holds in place of a bad asset.
-constexpr auto magentaName = "flux-magenta.tif";
+Vec4f const unusableTexel{};
 
-[[nodiscard]] std::vector<unsigned char> encodeMagenta() {
-    auto bytes = std::vector<unsigned char>{};
-    auto proxy = OIIO::Filesystem::IOVecOutput{bytes};
-    auto output = OIIO::ImageOutput::create(magentaName, &proxy);
-    auto const spec = OIIO::ImageSpec{1, 1, 3, OIIO::TypeDesc::UINT8};
-    auto const pixel = std::array<std::uint8_t, 3>{255, 0, 255};
-    if (!output || !output->open(magentaName, spec) ||
-        !output->write_image(OIIO::TypeDesc::UINT8, pixel.data()) || !output->close())
-        throw kira::Anyhow("ImageAssetPool: failed to encode the magenta image");
-    return bytes;
-}
-
-/// The magenta image in memory. \c reader serves \c bytes as a file. Magenta is the same in sRGB
-/// and linear.
-struct Magenta {
-    std::vector<unsigned char> bytes{encodeMagenta()};
-    OIIO::Filesystem::IOMemReader reader{bytes.data(), bytes.size()};
-};
-
-/// A texture system and the magenta image that its cache may read at any time. The system is
-/// destroyed first, so the cache never outlives the image.
-struct MagentaTextureSystem {
-    Magenta magenta;
-    std::shared_ptr<OIIO::TextureSystem> system;
-};
+constexpr auto emptyExtent = Vec2u{1, 1};
 
 void validateImageSpec(OIIO::ImageSpec const &spec) {
     if (spec.width <= 0 || spec.height <= 0 || spec.depth != 1 || spec.deep)
@@ -170,8 +144,6 @@ void validateImageSpec(OIIO::ImageSpec const &spec) {
 
 ImageAssetPool::pImpl::pImpl() {
     auto createTextureSystem = [](bool converts) {
-        // Created before the image cache, so that the cache is destroyed first on every path.
-        auto const owner = std::make_shared<MagentaTextureSystem>();
         auto imageCache = OIIO::ImageCache::create(/* shared = */ false);
         if (!imageCache)
             throw kira::Anyhow("ImageAssetPool: failed to create an OpenImageIO image cache");
@@ -188,24 +160,23 @@ ImageAssetPool::pImpl::pImpl() {
                 "ImageAssetPool: failed to configure the converting image cache component type"
             );
 
-        OIIO::Filesystem::IOProxy *proxy = &owner->magenta.reader;
-        auto config = OIIO::ImageSpec{};
-        config.attribute("oiio:ioproxy", OIIO::TypeDesc::PTR, &proxy);
-        if (!imageCache->add_file(OIIO::ustring{magentaName}, nullptr, &config))
-            throw kira::Anyhow("ImageAssetPool: failed to add the magenta image to the cache");
-
-        owner->system = OIIO::TextureSystem::create(/* shared = */ false, std::move(imageCache));
-        if (!owner->system)
+        auto system = OIIO::TextureSystem::create(/* shared = */ false, std::move(imageCache));
+        if (!system)
             throw kira::Anyhow("ImageAssetPool: failed to create an OpenImageIO texture system");
-        if (!owner->system->attribute("flip_t", 1))
+        if (!system->attribute("flip_t", 1))
             throw kira::Anyhow("ImageAssetPool: failed to configure texture coordinates");
 
-        return std::shared_ptr<OIIO::TextureSystem>{owner, owner->system.get()};
+        return system;
     };
 
     linearTextureSystem = createTextureSystem(/* converts = */ false);
     convertingTextureSystem = createTextureSystem(/* converts = */ true);
 }
+
+ImageAsset::pImpl::pImpl()
+    : extent{emptyExtent}, componentCount{4}, componentType{ImageComponentType::UNorm8},
+      defaultComponentMapping{makeDefaultComponentMapping(4)}, orientation{1},
+      fileComponentCount{4} {}
 
 ImageAsset::pImpl::pImpl(
     std::shared_ptr<OIIO::TextureSystem> system, std::filesystem::path const &path,
@@ -250,6 +221,13 @@ ImageAsset::pImpl::pImpl(
             throw kira::Anyhow(
                 "ImageAsset: failed to create the color transform from '{}'", colorSpace
             );
+        auto const &colorConfig = OIIO::ColorConfig::default_colorconfig();
+        if (!colorConfig.createColorProcessor(
+                colorConfig.resolve(colorSpace), colorConfig.resolve(linearRec709)
+            ))
+            throw kira::Anyhow(
+                "ImageAsset: failed to create the color processor from '{}'", colorSpace
+            );
         // Only an 8-bit sRGB image stays 8-bit. Any other conversion leaves its range.
         if (componentType == ImageComponentType::UNorm8) {
             if (OIIO::ColorConfig::default_colorconfig().equivalent(colorSpace, srgbTexture))
@@ -267,25 +245,38 @@ ImageAsset::pImpl::pImpl(
         throw kira::Anyhow("ImageAsset: failed to create a texture handle for '{}'", path.string());
 }
 
-OIIO::ImageBuf ImageAsset::pImpl::readLevel(int miplevel) const {
-    if (filename == OIIO::ustring{magentaName}) {
-        // The placeholder is not a file, so only the texture system can read it.
-        auto const format = toTypeDesc(componentType);
-        auto const width = static_cast<int>(extent.x());
-        auto const height = static_cast<int>(extent.y());
-        auto texels = OIIO::ImageBuf{OIIO::ImageSpec{width, height, fileComponentCount, format}};
-        auto const roi = OIIO::ROI{0, width, 0, height, 0, 1, 0, fileComponentCount};
-        auto options = OIIO::TextureOpt{};
-        if (!textureSystem->get_texels(
-                textureHandle, /* threadInfo = */ nullptr, options, /* miplevel = */ 0, roi, format,
-                texels.localpixels_as_writable_byte_image_span()
-            ))
-            throw kira::Anyhow(
-                "ImageAsset: failed to read the placeholder: {}", textureSystem->geterror()
-            );
-        return texels;
-    }
+Vec4f ImageAsset::pImpl::sample(
+    OIIO::TextureOpt options, Vec2f uv, Vec2f duvdx, Vec2f duvdy, int channelCount
+) const {
+    if (!textureHandle)
+        return unusableTexel;
 
+    options.missingcolor = unusableTexel.data();
+    alignas(16) auto sampled = Vec4f{};
+    static_assert(sizeof(Vec4f) == 4 * sizeof(float));
+    // clang-format off
+    auto const found = textureSystem->texture(
+        /* textureHandle = */ textureHandle,
+        /* threadInfo =    */ nullptr,
+        /* options =       */ options,
+        /* s =             */ uv.x(),
+        /* t =             */ uv.y(),
+        /* dsdx =          */ duvdx.x(),
+        /* dtdx =          */ duvdx.y(),
+        /* dsdy =          */ duvdy.x(),
+        /* dtdy =          */ duvdy.y(),
+        /* numChannels =   */ channelCount,
+        /* result =        */ sampled.data()
+    );
+    // clang-format on
+    if (found)
+        return sampled;
+
+    LogWarn("ImageAsset: failed to sample '{}': {}", filename.string(), textureSystem->geterror());
+    return unusableTexel;
+}
+
+OIIO::ImageBuf ImageAsset::pImpl::readLevel(int miplevel) const {
     // Alpha is straight.
     auto config = OIIO::ImageSpec{};
     config.attribute("oiio:UnassociatedAlpha", 1);
@@ -313,9 +304,8 @@ OIIO::ImageBuf ImageAsset::pImpl::readLevel(int miplevel) const {
     return converted;
 }
 
-ImageAsset::ImageAsset(std::unique_ptr<pImpl> pImpl, bool placeholder) noexcept
-    : pImpl_(std::move(pImpl)), id_(nextImageAssetId.fetch_add(1, std::memory_order_relaxed)),
-      placeholder_(placeholder) {}
+ImageAsset::ImageAsset(std::unique_ptr<pImpl> pImpl) noexcept
+    : pImpl_(std::move(pImpl)), id_(nextImageAssetId.fetch_add(1, std::memory_order_relaxed)) {}
 ImageAsset::~ImageAsset() = default;
 
 Vec2u ImageAsset::getExtent() const noexcept { return pImpl_->extent; }
@@ -361,11 +351,24 @@ std::vector<ImageAsset::ImageBuffer> ImageAsset::readMipChain() const {
     };
 
     auto result = std::vector<ImageBuffer>{};
+    if (pImpl_->filename.empty()) {
+        auto const spec = OIIO::ImageSpec{
+            static_cast<int>(emptyExtent.x()), static_cast<int>(emptyExtent.y()),
+            pImpl_->componentCount, toTypeDesc(pImpl_->componentType)
+        };
+        auto texel = OIIO::ImageBuf{spec};
+        if (!OIIO::ImageBufAlgo::fill(
+                texel, OIIO::cspan<float>{unusableTexel.data(), pImpl_->componentCount}
+            ))
+            throw kira::Anyhow("ImageAsset: failed to fill the texel of an empty asset");
+        result.push_back(makeBuffer(std::move(texel)));
+        return result;
+    }
+
     auto flipped = prepare(pImpl_->readLevel(0));
 
     // A file with mip levels keeps them, as the image cache does.
-    auto const authoredLevelCount =
-        pImpl_->filename == OIIO::ustring{magentaName} ? 1 : countMipLevels(fileName);
+    auto const authoredLevelCount = countMipLevels(fileName);
     if (authoredLevelCount > 1) {
         result.push_back(makeBuffer(std::move(flipped)));
         for (auto level = 1; level < authoredLevelCount; ++level)
@@ -437,27 +440,25 @@ Ref<ImageAsset const> ImageAssetPool::getOrCreate(ImageAssetSpec const &spec) {
         resolved.colorSpace = chooseColorSpace(spec.path);
     canonical.colorSpace = canonicalizeColorSpace(resolved);
     return assets_.acquire(canonical, [&] {
-        auto const create = [&](std::filesystem::path const &path, bool placeholder,
-                                std::string_view colorSpace) {
-            auto const &textureSystem = isLinearRec709(colorSpace)
-                                            ? pImpl_->linearTextureSystem
-                                            : pImpl_->convertingTextureSystem;
-            return Ref<ImageAsset const>{new ImageAsset(
-                std::make_unique<ImageAsset::pImpl>(textureSystem, path, colorSpace), placeholder
-            )};
-        };
         if (canonical.path.empty())
-            return create(magentaName, true, linearRec709);
+            return Ref<ImageAsset const>{new ImageAsset(std::make_unique<ImageAsset::pImpl>())};
 
+        auto const &textureSystem = isLinearRec709(canonical.colorSpace)
+                                        ? pImpl_->linearTextureSystem
+                                        : pImpl_->convertingTextureSystem;
         try {
-            return create(canonical.path, false, canonical.colorSpace);
+            return Ref<ImageAsset const>{new ImageAsset(
+                std::make_unique<ImageAsset::pImpl>(
+                    textureSystem, canonical.path, canonical.colorSpace
+                )
+            )};
         } catch (BadImage const &bad) {
             LogWarn(
-                "ImageAsset: '{}' is not a well-formed image ({}), using a magenta pixel",
-                canonical.path.string(), bad.what()
+                "ImageAsset: '{}' is not a well-formed image ({})", canonical.path.string(),
+                bad.what()
             );
         }
-        return create(magentaName, true, linearRec709);
+        return Ref<ImageAsset const>{new ImageAsset(std::make_unique<ImageAsset::pImpl>())};
     });
 }
 

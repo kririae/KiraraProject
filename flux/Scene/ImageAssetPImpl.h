@@ -37,6 +37,8 @@ struct ImageAsset::ImageBuffer {
 
 /// \brief OIIO texture handle and image layout for one ImageAsset.
 struct ImageAsset::pImpl {
+    pImpl();
+
     pImpl(
         std::shared_ptr<OIIO::TextureSystem> textureSystem, std::filesystem::path const &path,
         std::string_view colorSpace
@@ -66,6 +68,9 @@ struct ImageAsset::pImpl {
     /// File layout used by OIIO texture lookups.
     std::uint8_t orientation;
     std::uint8_t fileComponentCount;
+
+    [[nodiscard]] Vec4f
+    sample(OIIO::TextureOpt options, Vec2f uv, Vec2f duvdx, Vec2f duvdy, int channelCount) const;
 
     /// \brief Reads a level of the file in its layout, in its stored color space.
     ///

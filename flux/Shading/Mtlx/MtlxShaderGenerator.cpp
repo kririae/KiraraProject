@@ -71,7 +71,7 @@ splitInputPath(MaterialX::DocumentPtr const &document, std::string const &path) 
 ///
 /// The source reads none of them.
 constexpr auto imageTextureInputs =
-    std::to_array<std::string_view>({"uaddressmode", "vaddressmode", "filtertype", "default"});
+    std::to_array<std::string_view>({"uaddressmode", "vaddressmode", "filtertype"});
 
 [[nodiscard]] bool isImageTextureInput(InputPath const &path) {
     return isImageNodeInput(path) &&
@@ -275,19 +275,6 @@ void appendWords(
     return value ? value->getValueString() : std::string{};
 }
 
-/// \brief The RGBA that a texture returns for the value of an image node's \c default input.
-///
-/// One component fills RGB, and alpha is 1 unless \p components holds it. Any other missing
-/// component is 0.
-[[nodiscard]] Vec4f makeFallback(std::vector<float> const &components) {
-    switch (components.size()) {
-    case 1: return {components[0], components[0], components[0], 1.0F};
-    case 2: return {components[0], components[1], 0.0F, 1.0F};
-    case 3: return {components[0], components[1], components[2], 1.0F};
-    default: return {components[0], components[1], components[2], components[3]};
-    }
-}
-
 /// \brief Appends the address mode \c black to the enums of the image nodes of \p library.
 void appendBlackAddressMode(MaterialX::Document &library) {
     for (auto const &nodeDef : library.getMatchingNodeDefs("image"))
@@ -363,12 +350,6 @@ void markAuthoredInputs(MaterialX::Document &document) {
         spec.filterMode = ImageTextureFilterMode::Point;
     else if (filter != "linear")
         warn(fmt::format("has filtertype '{}', which becomes linear", filter));
-
-    auto const fallback = node.getInputValue("default");
-    if (fallback)
-        spec.fallback = makeFallback(getComponents(*fallback));
-    else
-        warn("has a connected default, which the texture does not read");
 
     return spec;
 }

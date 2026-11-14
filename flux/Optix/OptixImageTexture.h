@@ -28,29 +28,16 @@ struct OptixImageTexture {
     /// Component mapping applied to a sampled texel.
     ImageComponentMapping componentMapping;
 
-    /// Whether the image is the placeholder of a file that failed to load.
-    bool placeholder;
-
     /// Number of components stored in the CUDA array.
     unsigned char componentCount;
 
-    /// Value that replaces the component mapping of a texel of a placeholder.
-    float4 fallback;
-
-    /// Factor that multiplies the component mapping or the fallback.
     float4 scale;
 
-    /// Term that \c apply adds after the scale.
     float4 bias;
 
     /// \brief Returns the value of \p texel.
-    ///
-    /// The value is the component mapping of the texel, or \c fallback instead if the image is a
-    /// placeholder, times \c scale, plus \c bias.
     [[nodiscard]] __device__ float4 apply(float4 texel) const noexcept {
-        auto const mapped =
-            placeholder ? fallback
-                        : componentMapping.apply<float4>(texel.x, texel.y, texel.z, texel.w);
+        auto const mapped = componentMapping.apply<float4>(texel.x, texel.y, texel.z, texel.w);
         return float4{
             mapped.x * scale.x + bias.x, mapped.y * scale.y + bias.y, mapped.z * scale.z + bias.z,
             mapped.w * scale.w + bias.w

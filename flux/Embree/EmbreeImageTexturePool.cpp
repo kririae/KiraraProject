@@ -11,27 +11,18 @@
 
 namespace flux {
 struct EmbreeImageTexturePool::Entry {
-    /// Keeps the OIIO texture system and handle alive.
     Ref<ImageAsset const> asset;
-    OIIO::TextureSystem *textureSystem{};
-    OIIO::TextureSystem::TextureHandle *textureHandle{};
     OIIO::TextureOpt options;
     std::uint8_t sampleComponentCount{};
     std::uint8_t orientation{};
     ImageComponentMapping componentMapping;
-    bool placeholder{};
-    Vec4f fallback;
     Vec4f scale;
     Vec4f bias;
 
     /// \brief Returns the value of \p texel.
-    ///
-    /// The value is the component mapping of the texel, or \c fallback instead if the image is a
-    /// placeholder, times \c scale, plus \c bias.
     [[nodiscard]] Vec4f apply(Vec4f const &texel) const noexcept {
         auto const mapped =
-            placeholder ? fallback
-                        : componentMapping.apply<Vec4f>(texel.x(), texel.y(), texel.z(), texel.w());
+            componentMapping.apply<Vec4f>(texel.x(), texel.y(), texel.z(), texel.w());
         return mapped * scale + bias;
     }
 };
@@ -81,14 +72,10 @@ void EmbreeImageTexturePool::build(Context const &context) {
 
         textures_[context.getIndex<ImageTexture>(texture->getContextId())] = {
             .asset = asset,
-            .textureSystem = asset->pImpl_->textureSystem.get(),
-            .textureHandle = asset->pImpl_->textureHandle,
             .options = options,
             .sampleComponentCount = sampleComponentCount,
             .orientation = asset->pImpl_->orientation,
             .componentMapping = texture->getComponentMapping(),
-            .placeholder = asset->isPlaceholder(),
-            .fallback = texture->getFallback(),
             .scale = texture->getScale(),
             .bias = texture->getBias(),
         };
@@ -140,31 +127,12 @@ Vec4f EmbreeImageTexturePool::Impl::eval4f(
     orientGradient(duvdx);
     orientGradient(duvdy);
 
-    alignas(16) auto sampled = Vec4f{};
-    static_assert(sizeof(Vec4f) == 4 * sizeof(float));
-    // TextureSystem may update the options during a lookup.
     auto options = texture.options;
     if (point)
         options.interpmode = OIIO::Tex::InterpMode::Closest;
-    // A null threadInfo lets OIIO manage per-thread data.
-    // clang-format off
-    auto const found = texture.textureSystem->texture(
-        /* textureHandle = */ texture.textureHandle,
-        /* threadInfo =    */ nullptr,
-        /* options =       */ options,
-        /* s =             */ uv.x(),
-        /* t =             */ uv.y(),
-        /* dsdx =          */ duvdx.x(),
-        /* dtdx =          */ duvdx.y(),
-        /* dsdy =          */ duvdy.x(),
-        /* dtdy =          */ duvdy.y(),
-        /* numChannels =   */ texture.sampleComponentCount,
-        /* result =        */ sampled.data()
+    auto const sampled = texture.asset->pImpl_->sample(
+        std::move(options), uv, duvdx, duvdy, texture.sampleComponentCount
     );
-    // clang-format on
-    if (!found)
-        return {};
-
     return texture.apply(sampled);
 }
 } // namespace flux

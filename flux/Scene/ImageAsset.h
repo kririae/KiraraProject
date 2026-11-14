@@ -88,14 +88,11 @@ public:
     /// alpha. Four components map to themselves.
     [[nodiscard]] ImageComponentMapping getDefaultComponentMapping() const noexcept;
 
-    /// \brief Returns whether this is the magenta placeholder of a file that failed to load.
-    [[nodiscard]] bool isPlaceholder() const noexcept { return placeholder_; }
-
 private:
     struct ImageBuffer;
     struct pImpl;
 
-    ImageAsset(std::unique_ptr<pImpl> pImpl, bool placeholder) noexcept;
+    explicit ImageAsset(std::unique_ptr<pImpl> pImpl) noexcept;
 
     /// \brief Reads the mip chain into bottom-up host buffers.
     ///
@@ -106,15 +103,9 @@ private:
 
     std::unique_ptr<pImpl> pImpl_;
     std::size_t id_;
-    bool placeholder_;
 };
 
 /// \brief Shares ImageAsset objects by canonical path and color space.
-///
-/// A file that is missing, unreadable, or not a well-formed image gets a 1x1
-/// magenta placeholder asset, and the pool warns once for the spec. An empty path means no image,
-/// so it gets the placeholder with no warning. Concurrent calls share one creation for each
-/// canonical path and color space.
 class ImageAssetPool {
 public:
     ImageAssetPool();

@@ -94,16 +94,13 @@ protected:
         point = flux::createTextureObject(
             image, texture->getAddressModes(), flux::ImageTextureFilterMode::Point
         );
-        auto const &fallback = texture->getFallback();
         auto const &scale = texture->getScale();
         auto const &bias = texture->getBias();
         auto const entry = flux::OptixImageTexture{
             .texture = filtered.get(),
             .pointTexture = point.get(),
             .componentMapping = texture->getComponentMapping(),
-            .placeholder = texture->getImageAsset()->isPlaceholder(),
             .componentCount = image.componentCount,
-            .fallback = {fallback.x(), fallback.y(), fallback.z(), fallback.w()},
             .scale = {scale.x(), scale.y(), scale.z(), scale.w()},
             .bias = {bias.x(), bias.y(), bias.z(), bias.w()},
         };
@@ -419,32 +416,16 @@ TEST_F(OptixImageTextureTests, AppliesScaleAndBiasAfterComponentMapping) {
     EXPECT_EQ(sample({0.5F, 0.5F}), (flux::Vec4f{2.5F, 2.0F, 1.0F, 0.75F}));
 }
 
-TEST_F(OptixImageTextureTests, FallbackReplacesComponentMappingOfAnImageThatFailsToLoad) {
-    kira::Properties props;
-    props.set("type", "image");
-    props.set("path", path("optix-missing-fallback.exr"));
-    props.set("component_mapping", std::string{"0000"});
-    props.set("scale", flux::Vec4f{2.0F, 4.0F, 8.0F, 0.5F});
-    props.set("bias", flux::Vec4f{1.0F, 0.25F, -1.0F, 0.25F});
-    props.set("fallback", flux::Vec4f{0.5F, 0.25F, 0.125F, 0.75F});
-    build(props);
+TEST_F(OptixImageTextureTests, MissingFileSamplesAsZero) {
+    build(path("optix-missing-file.exr"));
 
-    EXPECT_EQ(sample({0.5F, 0.5F}), (flux::Vec4f{2.0F, 1.25F, 0.0F, 0.625F}));
+    EXPECT_EQ(sample({0.5F, 0.5F}), flux::Vec4f{});
 }
 
-TEST_F(OptixImageTextureTests, FallbackLeavesALoadedImage) {
-    auto const imagePath = path("optix-fallback-loaded.exr");
-    auto const componentNames = std::array<std::string_view, 4>{"R", "G", "B", "A"};
-    auto const pixels = std::array{0.25F, 0.5F, 0.75F, 1.0F};
-    flux::test::writeFloatImage(imagePath, pixels, {1, 1}, componentNames);
-    kira::Properties props;
-    props.set("type", "image");
-    props.set("path", imagePath);
-    props.set("filter_mode", std::string{"point"});
-    props.set("fallback", flux::Vec4f{9.0F, 9.0F, 9.0F, 9.0F});
-    build(props);
+TEST_F(OptixImageTextureTests, EmptyPathSamplesAsZero) {
+    build("");
 
-    EXPECT_EQ(sample({0.5F, 0.5F}), (flux::Vec4f{0.25F, 0.5F, 0.75F, 1.0F}));
+    EXPECT_EQ(sample({0.5F, 0.5F}), flux::Vec4f{});
 }
 
 TEST_F(OptixImageTextureTests, ConvertsTheColorSpaceOfTheFileToLinearRec709) {

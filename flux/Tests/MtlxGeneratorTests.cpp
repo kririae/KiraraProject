@@ -750,7 +750,6 @@ TEST(MtlxGeneratorTests, AnImageNodeSetsTheSpecOfItsTexture) {
             .addressModes =
                 {flux::ImageTextureAddressMode::Clamp, flux::ImageTextureAddressMode::Mirror},
             .filterMode = flux::ImageTextureFilterMode::Point,
-            .fallback = {0.25F, 0.5F, 0.75F, 1.0F},
         })
     );
 }
@@ -940,9 +939,9 @@ TEST(MtlxGeneratorTests, APreviewTextureKeepsItsColorSpaceAndTakesBlackAsABorder
         result.instance->textures[0],
         (flux::ImageTextureSpec{
             .image = {.path = "a.png", .colorSpace = "auto"},
-            .addressModes =
-                {flux::ImageTextureAddressMode::Border, flux::ImageTextureAddressMode::Border},
-            .fallback = {0.0F, 0.0F, 0.0F, 1.0F},
+            .addressModes = {
+                flux::ImageTextureAddressMode::Border, flux::ImageTextureAddressMode::Border
+            },
         })
     );
 }
