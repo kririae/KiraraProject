@@ -3,8 +3,10 @@
 #include <pxr/base/tf/diagnostic.h>
 
 #include <exception>
+#include <memory>
 #include <utility>
 
+#include "flux/Hydra/ArFileSystem.h"
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Context.h"
@@ -15,7 +17,7 @@ PXR_NAMESPACE_USING_DIRECTIVE
 
 namespace {
 flux::Ref<flux::Context> makeContext() {
-    auto context = flux::Context::create();
+    auto context = flux::Context::create(std::make_unique<HdFluxArFileSystem>());
     context->setActiveIntegrator(context->create<flux::PathIntegrator>(kira::Properties{}));
     context->setActiveSampler(context->create<flux::IndependentSampler>(kira::Properties{}));
     return context;

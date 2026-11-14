@@ -13,6 +13,7 @@ function(add_hydra_test name)
 endfunction()
 
 add_hydra_test(AovMappingTests)
+add_hydra_test(ArFileSystemTests)
 add_hydra_test(CameraTests)
 add_hydra_test(RenderBufferTests)
 add_hydra_test(RenderTests)
@@ -22,6 +23,10 @@ add_hydra_test(SampleScheduleTests)
 add_dependencies(flux.Hydra.RenderTests hdFlux)
 
 target_link_libraries(flux.Hydra.RenderTests PRIVATE Houdini::Dep::pxr_cameraUtil)
+
+target_compile_definitions(
+    flux.Hydra.ArFileSystemTests
+    PRIVATE HDFLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/ArFileSystemTests")
 
 target_compile_definitions(
     flux.Hydra.RenderTests

@@ -25,7 +25,8 @@ endforeach()
 add_library(
     flux_hydra STATIC
     AovMapping.cpp
-    AssetName.cpp
+    ArFileSystem.cpp
+    ResolvedPath.cpp
     AreaLight.cpp
     Camera.cpp
     DomeLight.cpp
@@ -54,6 +55,7 @@ target_link_libraries(
            flux_mtlx
            Houdini::Dep::MaterialXCore
            Houdini::Dep::MaterialXFormat
+           Houdini::Dep::pxr_ar
            Houdini::Dep::pxr_arch
            Houdini::Dep::pxr_gf
            Houdini::Dep::pxr_hd
