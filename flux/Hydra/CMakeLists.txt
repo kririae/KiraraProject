@@ -115,6 +115,8 @@ file(GENERATE OUTPUT "${packageDir}/dso/usd_plugins/hdFlux/resources/plugInfo.js
      INPUT plugInfo.json.in)
 file(WRITE "${packageDir}/dso/usd_plugins/plugInfo.json" "{ \"Includes\": [ \"*/resources/\" ] }\n")
 configure_file(UsdRenderers.json "${packageDir}/UsdRenderers.json" COPYONLY)
+configure_file(HdFluxRendererPlugin_Viewport.ds
+               "${packageDir}/soho/parameters/HdFluxRendererPlugin_Viewport.ds" COPYONLY)
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/packages/flux.json" "{ \"hpath\": \"${packageDir}\" }\n")
 
 set(resourceDir "${packageDir}/dso/usd_plugins/hdFlux/resources")
