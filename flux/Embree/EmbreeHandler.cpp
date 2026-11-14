@@ -10,6 +10,7 @@
 #include <optional>
 #include <ranges>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
 
 #include "flux/Embree/EmbreeAccumulationBufferPImpl.h"
@@ -122,9 +123,8 @@ RenderStats EmbreeHandler::pImpl::render(
         std::uint64_t renderedPaths = 0;
         if (accumulatedSamples == 0)
             buffer.storage.forEach([](auto &channel) {
-                std::ranges::fill(
-                    channel.values, std::ranges::range_value_t<decltype(channel.values)>{}
-                );
+                using Channel = typename std::remove_reference_t<decltype(channel)>::ChannelType;
+                std::ranges::fill(channel.values, Channel::getClearValue());
             });
         if (buffer.getSpec().channels != FilmChannels::None) {
             tbb::parallel_for(

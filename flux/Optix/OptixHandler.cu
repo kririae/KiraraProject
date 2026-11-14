@@ -38,6 +38,12 @@ namespace {
     return context;
 }
 
+struct ClearFilmChannels {
+    Film::Impl film;
+
+    KIRA_DEVICE void operator()(std::size_t index) const noexcept { film.clear(index); }
+};
+
 struct ScaleFilmChannels {
     Film::Impl film;
     float factor;
@@ -212,14 +218,16 @@ RenderStats OptixHandler::pImpl::render(
         buffer.samples = 0;
         timer.start();
         auto const totalSamples = accumulatedSamples + samples;
-        if (accumulatedSamples == 0) {
-            buffer.storage.forEach([](auto &channel) { channel.buffer.zero(); });
-        } else if (buffer.getSpec().channels != FilmChannels::None) {
-            auto const factor =
-                static_cast<float>(accumulatedSamples) / static_cast<float>(totalSamples);
-            launchLinearKernel(
-                pixelCount, ScaleFilmChannels{.film = film, .factor = factor}, getStream()
-            );
+        if (buffer.getSpec().channels != FilmChannels::None) {
+            if (accumulatedSamples == 0) {
+                launchLinearKernel(pixelCount, ClearFilmChannels{.film = film}, getStream());
+            } else {
+                auto const factor =
+                    static_cast<float>(accumulatedSamples) / static_cast<float>(totalSamples);
+                launchLinearKernel(
+                    pixelCount, ScaleFilmChannels{.film = film, .factor = factor}, getStream()
+                );
+            }
         }
 
         // The stream orders normalization, parameter upload, and OptiX work.

@@ -90,6 +90,10 @@ void runMegaKernel(EmbreeLaunchParams const &params, std::size_t linearIndex) no
             if (isPrimary) {
                 normalSum = normalSum + isect.shadingNormal;
                 depthSum = depthSum + Vec2f{params.camera.getDepth(isect.position), 1.0F};
+                if (params.accumulatedSamples == 0 && batchIndex == 0) {
+                    params.film.set<ObjectIdChannel>(pixel, primitive.objectId);
+                    params.film.set<InstanceIdChannel>(pixel, primitive.instanceId);
+                }
             }
             if (!primitive.hasBSDF()) {
                 params.integrator.onSurfaceHit(state);

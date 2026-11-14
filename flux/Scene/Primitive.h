@@ -46,6 +46,8 @@ public:
         EDF = 1U << 2U,
         Transform = 1U << 3U,
         Visibility = 1U << 4U,
+        ObjectId = 1U << 5U,
+        InstanceId = 1U << 6U,
     };
 
     /// Kind whose index map holds primitives.
@@ -101,6 +103,22 @@ public:
     /// \brief Includes or excludes this primitive from rendering.
     void setVisible(bool visible) { setIfDifferent(visible_, visible, DirtyBits::Visibility); }
 
+    /// \brief Returns the object label that the host gave this primitive, or -1.
+    ///
+    /// Nothing indexes by a label, and primitives may share one.
+    [[nodiscard]] std::int32_t getObjectId() const noexcept { return objectId_; }
+
+    void setObjectId(std::int32_t objectId) {
+        setIfDifferent(objectId_, objectId, DirtyBits::ObjectId);
+    }
+
+    /// \brief Returns the instance label that the host gave this primitive, or -1.
+    [[nodiscard]] std::int32_t getInstanceId() const noexcept { return instanceId_; }
+
+    void setInstanceId(std::int32_t instanceId) {
+        setIfDifferent(instanceId_, instanceId, DirtyBits::InstanceId);
+    }
+
     /// \brief Returns whether this primitive is a light.
     ///
     /// A light is a visible primitive whose EDF may emit.
@@ -139,6 +157,8 @@ private:
         1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F,
     };
     bool visible_{true};
+    std::int32_t objectId_{-1};
+    std::int32_t instanceId_{-1};
 };
 
 /// \brief Links a primitive to its geometry and shading models.
@@ -158,6 +178,10 @@ struct Primitive::Impl {
 
     /// EDF index assigned by Context, or \c invalidEDFIndex.
     std::uint32_t edfIndex{invalidEDFIndex};
+
+    std::int32_t objectId{-1};
+
+    std::int32_t instanceId{-1};
 
 public:
     /// \brief Returns whether the entry has no visible primitive.

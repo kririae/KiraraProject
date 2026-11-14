@@ -29,7 +29,9 @@ enum class FilmChannels : std::uint32_t {
     Albedo = 1U << 1U,
     Color = 1U << 2U,
     Depth = 1U << 3U,
-    All = (1U << 0U) | (1U << 1U) | (1U << 2U) | (1U << 3U),
+    ObjectId = 1U << 4U,
+    InstanceId = 1U << 5U,
+    All = (1U << 0U) | (1U << 1U) | (1U << 2U) | (1U << 3U) | (1U << 4U) | (1U << 5U),
 };
 
 template <> inline constexpr bool isEnumFlags<FilmChannels> = true;
@@ -54,12 +56,20 @@ void checkFilmSpec(FilmSpec const &spec);
 struct NormalChannel {
     using Value = Vec3f;
     static constexpr FilmChannels flag = FilmChannels::Normal;
+    static constexpr bool accumulates = true;
+    [[nodiscard]] static KIRA_HOST_DEVICE constexpr Value getClearValue() noexcept {
+        return Value{};
+    }
 };
 
 /// \brief Describes the primary-surface albedo estimator channel.
 struct AlbedoChannel {
     using Value = Vec3f;
     static constexpr FilmChannels flag = FilmChannels::Albedo;
+    static constexpr bool accumulates = true;
+    [[nodiscard]] static KIRA_HOST_DEVICE constexpr Value getClearValue() noexcept {
+        return Value{};
+    }
 };
 
 /// \brief Describes the camera-space depth channel of primary hits.
@@ -70,16 +80,47 @@ struct AlbedoChannel {
 struct DepthChannel {
     using Value = Vec2f;
     static constexpr FilmChannels flag = FilmChannels::Depth;
+    static constexpr bool accumulates = true;
+    [[nodiscard]] static KIRA_HOST_DEVICE constexpr Value getClearValue() noexcept {
+        return Value{};
+    }
 };
 
 /// \brief Describes the accumulated scene-linear color channel.
 struct ColorChannel {
     using Value = Spectrum;
     static constexpr FilmChannels flag = FilmChannels::Color;
+    static constexpr bool accumulates = true;
+    [[nodiscard]] static KIRA_HOST_DEVICE constexpr Value getClearValue() noexcept {
+        return Value{};
+    }
+};
+
+/// \brief Describes the channel of the object labels of primary hits.
+///
+/// A pixel holds the label of the primitive that the first camera path of the image hits first,
+/// or -1 where it hits nothing.
+struct ObjectIdChannel {
+    using Value = std::int32_t;
+    static constexpr FilmChannels flag = FilmChannels::ObjectId;
+    static constexpr bool accumulates = false;
+    [[nodiscard]] static KIRA_HOST_DEVICE constexpr Value getClearValue() noexcept { return -1; }
+};
+
+/// \brief Describes the channel of the instance labels of primary hits.
+///
+/// A pixel holds the instance label of the primitive that the first camera path of the image hits
+/// first, or -1 where it hits nothing.
+struct InstanceIdChannel {
+    using Value = std::int32_t;
+    static constexpr FilmChannels flag = FilmChannels::InstanceId;
+    static constexpr bool accumulates = false;
+    [[nodiscard]] static KIRA_HOST_DEVICE constexpr Value getClearValue() noexcept { return -1; }
 };
 
 /// \brief Type list of all film channels supported by the renderer.
-using FilmChannelTypes = detail::TypeList<ColorChannel, NormalChannel, AlbedoChannel, DepthChannel>;
+using FilmChannelTypes = detail::TypeList<
+    ColorChannel, NormalChannel, AlbedoChannel, DepthChannel, ObjectIdChannel, InstanceIdChannel>;
 
 /// \brief Stores one channel-specific element for every type in \c Channels.
 ///
@@ -186,7 +227,6 @@ static_assert(std::is_same_v<
 /// \brief Holds the host pixels of an image.
 ///
 /// The resolution and the channels are fixed when the film is built.
-/// The values start at zero.
 ///
 /// A film that was moved from holds no channels.
 class Film final : private Noncopyable {
@@ -280,11 +320,23 @@ public:
     /// pixel may call this function.
     /// \pre \p pixel is in range.
     template <typename Channel>
+        requires(Channel::accumulates)
     KIRA_HOST_DEVICE inline void
     accumulate(Vec2u const &pixel, typename Channel::Value const &value) const noexcept;
 
-    /// \brief Scales every present channel at one linear pixel index.
+    /// An absent channel leaves storage unchanged.
+    /// \pre The pixel is in range.
+    /// \pre No other thread writes the same pixel of the channel at the same time.
+    template <typename Channel>
+        requires(!Channel::accumulates)
+    KIRA_HOST_DEVICE inline void
+    set(Vec2u const &pixel, typename Channel::Value const &value) const noexcept;
+
+    /// \brief Stores the clear value of every present channel at one linear pixel index.
     ///
+    /// \pre The index is less than the pixel count of the film.
+    KIRA_HOST_DEVICE inline void clear(std::size_t index) const noexcept;
+
     /// \pre \p index is less than \c width times \c height.
     KIRA_HOST_DEVICE inline void scale(std::size_t index, float factor) const noexcept;
 };

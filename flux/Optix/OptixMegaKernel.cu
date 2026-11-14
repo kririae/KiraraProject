@@ -158,6 +158,11 @@ struct ShadowQuery {
         optixLaunchParams.film.accumulate<flux::DepthChannel>(
             pixel, flux::Vec2f{depth, 1.0F} * sampleWeight
         );
+        if (optixLaunchParams.accumulatedSamples == 0 &&
+            index < optixLaunchParams.film.width * optixLaunchParams.film.height) {
+            optixLaunchParams.film.set<flux::ObjectIdChannel>(pixel, primitive.objectId);
+            optixLaunchParams.film.set<flux::InstanceIdChannel>(pixel, primitive.instanceId);
+        }
     }
     if (!primitive.hasBSDF()) {
         optixLaunchParams.integrator.onSurfaceHit(state);

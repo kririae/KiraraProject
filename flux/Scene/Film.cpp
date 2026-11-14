@@ -25,7 +25,7 @@ Film::Film(FilmSpec const &spec) : width_(spec.resolution.x()), height_(spec.res
     hostStorage_.forEach([&](auto &storage) {
         using Channel = typename std::remove_reference_t<decltype(storage)>::ChannelType;
         if ((bits(spec.channels) & bits(Channel::flag)) != 0)
-            storage.values.assign(pixelCount, typename Channel::Value{});
+            storage.values.assign(pixelCount, Channel::getClearValue());
     });
 }
 

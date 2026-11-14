@@ -19,7 +19,7 @@ EmbreeAccumulationBuffer::pImpl::pImpl(FilmSpec const &spec) {
         using Channel = typename std::remove_reference_t<decltype(channel)>::ChannelType;
         if (!any(spec.channels & Channel::flag))
             return;
-        channel.values.assign(pixelCount, typename Channel::Value{});
+        channel.values.assign(pixelCount, Channel::getClearValue());
         film.channels.template get<Channel>().data = channel.values.data();
     });
 }

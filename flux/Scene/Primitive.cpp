@@ -110,6 +110,8 @@ Primitive::Impl Primitive::getImpl() const {
         .geometryIndex = context.getIndex<Geometry>(geometry_->getContextId()),
         .bsdfIndex = bsdf_ ? context.getIndex<BSDF>(bsdf_->getContextId()) : Impl::invalidBSDFIndex,
         .edfIndex = isLight() ? context.getIndex<EDF>(edf_->getContextId()) : Impl::invalidEDFIndex,
+        .objectId = objectId_,
+        .instanceId = instanceId_,
     };
 }
 
