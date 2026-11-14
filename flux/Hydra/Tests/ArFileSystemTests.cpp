@@ -24,7 +24,7 @@ TEST(ArFileSystemTests, ReadsOnlyTheBytesBeforeTheEnd) {
         content.data(), static_cast<std::streamsize>(content.size())
     );
 
-    auto const file = HdFluxArFileSystem{}.open(flux::ResolvedPath{flux::u8string(path)});
+    auto const file = HdFLuxArFileSystem{}.open(flux::ResolvedPath{flux::u8string(path)});
     ASSERT_TRUE(file);
 
     auto buffer = std::array<std::byte, 8>{};

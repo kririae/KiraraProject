@@ -15,7 +15,7 @@ namespace {
 }
 } // namespace
 
-void HdFluxSetCamera(
+void HdFLuxSetCamera(
     flux::Camera &camera, pxr::GfMatrix4d const &worldToView, pxr::GfMatrix4d const &projection,
     double filmAspect
 ) {

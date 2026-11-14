@@ -20,7 +20,7 @@ How FLux writes C++, beyond what `.clang-format` and `.clang-tidy` check.
   - `sync` makes the state of FLux follow the Hydra scene.
   - `write` and `clear` set the pixels of a render buffer, as hdEmbree does.
   - `add` and `remove` put an object into its registry and take it out.
-- Code that meets another library may follow its style, as [naming](../../.agents/skills/naming/SKILL.md) says. hdFlux names the functions of a class derived from a Hydra class in upper camel case, such as `Clear`, as USD and hdEmbree do. An OptiX program starts with the prefix that OptiX requires, such as `__raygen__`.
+- Code that meets another library may follow its style, as [naming](../../.agents/skills/naming/SKILL.md) says. hdFLux names the functions of a class derived from a Hydra class in upper camel case, such as `Clear`, as USD and hdEmbree do. An OptiX program starts with the prefix that OptiX requires, such as `__raygen__`.
 - A mimic of a standard class keeps its names, case included, as [naming](../../.agents/skills/naming/SKILL.md) says, such as `size` and `data` of a buffer.
 - A test name is a sentence in the present tense that states the behavior it checks, such as `EmptyRangeDoesNotLaunch`.
 - A value that fully describes what to build is a spec, named `XSpec`. Equal specs build the same result. A spec holds values only, never a pointer to a live object, since a new object at the same address would compare equal.

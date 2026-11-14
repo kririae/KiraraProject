@@ -11,7 +11,7 @@
 
 namespace flux {
 /// \brief A \c SourceCodeNode whose inline implementations declare their values with \c let.
-class FluxSourceCodeNode final : public MaterialX::SourceCodeNode {
+class FLuxSourceCodeNode final : public MaterialX::SourceCodeNode {
 public:
     static MaterialX::ShaderNodeImplPtr create();
 

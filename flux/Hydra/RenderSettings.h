@@ -15,10 +15,10 @@ PXR_NAMESPACE_OPEN_SCOPE
     ((shaderReorder, "flux:shaderReorder"))
 // clang-format on
 
-TF_DECLARE_PUBLIC_TOKENS(HdFluxRenderSettingsTokens, HDFLUX_RENDER_SETTINGS_TOKENS);
+TF_DECLARE_PUBLIC_TOKENS(HdFLuxRenderSettingsTokens, HDFLUX_RENDER_SETTINGS_TOKENS);
 
 PXR_NAMESPACE_CLOSE_SCOPE
 
 /// The defaults of the render settings.
-inline constexpr int HdFluxDefaultConvergedSamplesPerPixel{128};
-inline constexpr int HdFluxDefaultInteractiveSamplesPerLaunch{4};
+inline constexpr int HdFLuxDefaultConvergedSamplesPerPixel{128};
+inline constexpr int HdFLuxDefaultInteractiveSamplesPerLaunch{4};

@@ -15,18 +15,18 @@ class Context;
 class ShaderBSDF;
 } // namespace flux
 
-struct HdFluxPendingMaterial;
+struct HdFLuxPendingMaterial;
 
 /// \brief The state that the delegate shares with its passes and prims.
-class HdFluxRenderParam final : public pxr::HdRenderParam {
+class HdFLuxRenderParam final : public pxr::HdRenderParam {
 public:
     /// \brief Creates a param that renders with the OptiX IR module at \p modulePath.
     ///
     /// \throw std::exception If the OptiX backend or the shader generator cannot start.
-    HdFluxRenderParam(
+    HdFLuxRenderParam(
         std::filesystem::path const &modulePath, std::filesystem::path const &mtlxRoot
     );
-    ~HdFluxRenderParam() override;
+    ~HdFLuxRenderParam() override;
 
     /// \brief Returns the scene.
     [[nodiscard]] flux::Ref<flux::Context> GetContext() const;
@@ -39,10 +39,10 @@ public:
         return shaderGenerator_;
     }
 
-    void AddPendingMaterial(HdFluxPendingMaterial material);
+    void AddPendingMaterial(HdFLuxPendingMaterial material);
 
     /// \brief Returns the pending materials, and leaves none pending.
-    [[nodiscard]] std::vector<HdFluxPendingMaterial> ExtractPendingMaterials() noexcept;
+    [[nodiscard]] std::vector<HdFLuxPendingMaterial> ExtractPendingMaterials() noexcept;
 
     /// \brief Returns the backend that renders the scene.
     [[nodiscard]] flux::OptixHandler &GetHandler() noexcept { return handler_; }
@@ -62,6 +62,6 @@ private:
     flux::MtlxShaderGenerator shaderGenerator_;
     flux::ShaderInstance fallbackShaderInstance_;
     flux::Ref<flux::ShaderBSDF> fallbackBSDF_;
-    std::vector<HdFluxPendingMaterial> pendingMaterials_;
+    std::vector<HdFLuxPendingMaterial> pendingMaterials_;
     bool failed_{false};
 };

@@ -9,9 +9,9 @@
 
 namespace flux {
 /// \brief Slang's syntax, with MaterialX's closure types named as the material library's interface.
-class FluxSyntax final : public MaterialX::SlangSyntax {
+class FLuxSyntax final : public MaterialX::SlangSyntax {
 public:
-    explicit FluxSyntax(MaterialX::TypeSystemPtr typeSystem)
+    explicit FLuxSyntax(MaterialX::TypeSystemPtr typeSystem)
         : MaterialX::SlangSyntax{std::move(typeSystem)} {
         registerClosureType(MaterialX::Type::BSDF, "IBSDF", "EmptyBSDF()");
         registerClosureType(MaterialX::Type::EDF, "IEDF", "EmptyEDF()");

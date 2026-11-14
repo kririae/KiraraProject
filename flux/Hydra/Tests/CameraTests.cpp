@@ -27,7 +27,7 @@ TEST(HydraCameraTests, CastsTheRaysOfAnOffCenterProjection) {
     auto const projection = frustum.ComputeProjectionMatrix();
 
     auto const camera = flux::Camera::create();
-    HdFluxSetCamera(*camera, worldToView, projection, static_cast<double>(width) / height);
+    HdFLuxSetCamera(*camera, worldToView, projection, static_cast<double>(width) / height);
     auto const impl = camera->getImpl();
 
     auto const inverse = (worldToView * projection).GetInverse();

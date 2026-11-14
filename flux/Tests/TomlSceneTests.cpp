@@ -18,7 +18,7 @@
 #include "kira/Anyhow.h"
 
 #ifndef FLUX_TEST_FIXTURES_DIR
-#error "FLUX_TEST_FIXTURES_DIR must name the Flux test fixtures directory"
+#error "FLUX_TEST_FIXTURES_DIR must name the FLux test fixtures directory"
 #endif
 
 namespace {
@@ -72,7 +72,7 @@ constexpr auto emittingDocument = R"mtlx(<?xml version="1.0"?>
 } // namespace
 
 TEST(TomlSceneTests, LoadsTheFilmOfAScene) {
-    auto options = flux::FluxCLIOptions{.scenePath = writeScene("num_samples = 16\n")};
+    auto options = flux::FLuxCLIOptions{.scenePath = writeScene("num_samples = 16\n")};
     auto scene = flux::loadTomlScene(options);
 
     EXPECT_EQ(scene.film.resolution, (flux::Vec2u{4, 2}));
@@ -84,12 +84,12 @@ TEST(TomlSceneTests, LoadsTheFilmOfAScene) {
 }
 
 TEST(TomlSceneTests, RendersOneSampleByDefault) {
-    auto const options = flux::FluxCLIOptions{.scenePath = writeScene("")};
+    auto const options = flux::FLuxCLIOptions{.scenePath = writeScene("")};
     EXPECT_EQ(flux::loadTomlScene(options).samplesPerPixel, 1);
 }
 
 TEST(TomlSceneTests, KeepsZeroSamples) {
-    auto options = flux::FluxCLIOptions{.scenePath = writeScene("num_samples = 0\n")};
+    auto options = flux::FLuxCLIOptions{.scenePath = writeScene("num_samples = 0\n")};
     EXPECT_EQ(flux::loadTomlScene(options).samplesPerPixel, 0);
 
     options.scenePath = writeScene("num_samples = 8\n");
@@ -117,7 +117,7 @@ TEST(TomlSceneTests, BindsTheShaderBSDFAndEDFOfAMaterialToItsPrimitive) {
     for (auto const &row : rows) {
         SCOPED_TRACE(row.name);
         auto const document = writeDocument("flux-cli-material.mtlx", row.document);
-        auto const options = flux::FluxCLIOptions{
+        auto const options = flux::FLuxCLIOptions{
             .scenePath = writeScene(
                 "", "[[bsdf]]\nname = \"b\"\ntype = \"diffuse\"\n"
                     "[[material]]\nname = \"m\"\ntype = \"materialx\"\nfile = \"" +

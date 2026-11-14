@@ -1,4 +1,4 @@
-#include "flux/Shading/Mtlx/FluxShaderGenerator.h"
+#include "flux/Shading/Mtlx/FLuxShaderGenerator.h"
 
 #include <MaterialXCore/Definition.h>
 #include <MaterialXGenShader/Exception.h>
@@ -13,9 +13,9 @@
 #include <string_view>
 #include <utility>
 
-#include "flux/Shading/Mtlx/FluxShaderGraphRefactor.h"
-#include "flux/Shading/Mtlx/FluxSourceCodeNode.h"
-#include "flux/Shading/Mtlx/FluxSyntax.h"
+#include "flux/Shading/Mtlx/FLuxShaderGraphRefactor.h"
+#include "flux/Shading/Mtlx/FLuxSourceCodeNode.h"
+#include "flux/Shading/Mtlx/FLuxSyntax.h"
 
 namespace flux {
 namespace {
@@ -51,29 +51,29 @@ hasClosureOutput(MaterialX::NodeDef const &nodeDef, MaterialX::TypeSystem const 
 }
 } // namespace
 
-FluxShaderGenerator::FluxShaderGenerator(MaterialX::TypeSystemPtr typeSystem)
+FLuxShaderGenerator::FLuxShaderGenerator(MaterialX::TypeSystemPtr typeSystem)
     : SlangShaderGenerator{typeSystem} {
-    _syntax = std::make_shared<FluxSyntax>(std::move(typeSystem));
+    _syntax = std::make_shared<FLuxSyntax>(std::move(typeSystem));
     registerRefactor(std::make_shared<LiteralMixElisionRefactor>());
     registerRefactor(std::make_shared<ZeroWeightBsdfElisionRefactor>());
     registerRefactor(std::make_shared<EmptyTopLayerElisionRefactor>());
 }
 
-MaterialX::ShaderStagePtr FluxShaderGenerator::makeStage() const {
+MaterialX::ShaderStagePtr FLuxShaderGenerator::makeStage() const {
     return std::make_shared<MaterialX::ShaderStage>(MaterialX::Stage::PIXEL, _syntax);
 }
 
-void FluxShaderGenerator::substituteTokens(MaterialX::ShaderStage &stage) const {
+void FLuxShaderGenerator::substituteTokens(MaterialX::ShaderStage &stage) const {
     replaceTokens(_tokenSubstitutions, stage);
     SlangSyntaxFromGlsl(stage);
 }
 
-std::string const &FluxShaderGenerator::getTarget() const {
+std::string const &FLuxShaderGenerator::getTarget() const {
     static auto const Target = std::string{"genflux"};
     return Target;
 }
 
-MaterialX::ShaderNodeImplPtr FluxShaderGenerator::getImplementation(
+MaterialX::ShaderNodeImplPtr FLuxShaderGenerator::getImplementation(
     MaterialX::NodeDef const &nodeDef, MaterialX::GenContext &context
 ) const {
     auto const implementation = nodeDef.getImplementation(getTarget());
@@ -85,9 +85,9 @@ MaterialX::ShaderNodeImplPtr FluxShaderGenerator::getImplementation(
     return SlangShaderGenerator::getImplementation(nodeDef, context);
 }
 
-MaterialX::ShaderNodeImplPtr FluxShaderGenerator::createShaderNodeImplForImplementation(
+MaterialX::ShaderNodeImplPtr FLuxShaderGenerator::createShaderNodeImplForImplementation(
     MaterialX::Implementation const &
 ) const {
-    return FluxSourceCodeNode::create();
+    return FLuxSourceCodeNode::create();
 }
 } // namespace flux

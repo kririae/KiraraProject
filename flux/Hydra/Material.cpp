@@ -20,7 +20,7 @@ PXR_NAMESPACE_USING_DIRECTIVE
 
 namespace {
 [[nodiscard]] std::optional<flux::ShaderInstance> generateShader(
-    HdFluxRenderParam const &param, SdfPath const &id, HdFluxMaterialXXml const &materialXml
+    HdFLuxRenderParam const &param, SdfPath const &id, HdFLuxMaterialXXml const &materialXml
 ) {
     auto generation =
         param.GetShaderGenerator().generate(materialXml.xml, materialXml.surfaceMaterialName, {});
@@ -46,14 +46,14 @@ void setShader(
     edf.setShader(instance.spec, instance.words, textures);
 }
 
-[[nodiscard]] std::vector<std::optional<HdFluxMaterialXXml>>
-toMaterialXXmls(std::vector<HdFluxPendingMaterial> const &materials) {
-    std::vector<std::optional<HdFluxMaterialXXml>> materialXmls(materials.size());
+[[nodiscard]] std::vector<std::optional<HdFLuxMaterialXXml>>
+toMaterialXXmls(std::vector<HdFLuxPendingMaterial> const &materials) {
+    std::vector<std::optional<HdFLuxMaterialXXml>> materialXmls(materials.size());
     WorkParallelForN(materials.size(), [&](std::size_t begin, std::size_t end) {
         for (auto index = begin; index < end; ++index) {
             auto const &material = materials[index];
             try {
-                materialXmls[index] = HdFluxToMaterialXXml(material.network, material.id);
+                materialXmls[index] = HdFLuxToMaterialXXml(material.network, material.id);
             } catch (std::exception const &error) {
                 TF_WARN("%s: %s", material.id.GetText(), error.what());
             }
@@ -63,15 +63,15 @@ toMaterialXXmls(std::vector<HdFluxPendingMaterial> const &materials) {
 }
 } // namespace
 
-HdFluxMaterial::HdFluxMaterial(SdfPath const &id) : HdMaterial(id) {}
+HdFLuxMaterial::HdFLuxMaterial(SdfPath const &id) : HdMaterial(id) {}
 
-HdFluxMaterial::~HdFluxMaterial() = default;
+HdFLuxMaterial::~HdFLuxMaterial() = default;
 
-void HdFluxMaterial::Sync(
+void HdFLuxMaterial::Sync(
     HdSceneDelegate *sceneDelegate, HdRenderParam *renderParam, HdDirtyBits *dirtyBits
 ) {
     auto const &id = GetId();
-    auto &param = *static_cast<HdFluxRenderParam *>(renderParam);
+    auto &param = *static_cast<HdFLuxRenderParam *>(renderParam);
 
     try {
         auto const context = param.GetContext();
@@ -92,13 +92,13 @@ void HdFluxMaterial::Sync(
     *dirtyBits = Clean;
 }
 
-HdDirtyBits HdFluxMaterial::GetInitialDirtyBitsMask() const { return DirtyParams | DirtyResource; }
+HdDirtyBits HdFLuxMaterial::GetInitialDirtyBitsMask() const { return DirtyParams | DirtyResource; }
 
-flux::Ref<flux::BSDF const> HdFluxMaterial::GetBSDF() const { return bsdf_; }
+flux::Ref<flux::BSDF const> HdFLuxMaterial::GetBSDF() const { return bsdf_; }
 
-flux::Ref<flux::EDF const> HdFluxMaterial::GetEDF() const { return edf_; }
+flux::Ref<flux::EDF const> HdFLuxMaterial::GetEDF() const { return edf_; }
 
-void HdFluxCommitMaterials(HdFluxRenderParam &param) {
+void HdFLuxCommitMaterials(HdFLuxRenderParam &param) {
     auto const materials = param.ExtractPendingMaterials();
     auto const materialXmls = toMaterialXXmls(materials);
 

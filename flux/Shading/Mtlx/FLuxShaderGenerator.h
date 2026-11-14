@@ -11,9 +11,9 @@ namespace flux {
 /// \brief The Slang generator of the \c genflux target.
 ///
 /// A node that \c genflux does not implement keeps the implementation that its target inherits.
-class FluxShaderGenerator final : public MaterialX::SlangShaderGenerator {
+class FLuxShaderGenerator final : public MaterialX::SlangShaderGenerator {
 public:
-    explicit FluxShaderGenerator(MaterialX::TypeSystemPtr typeSystem);
+    explicit FLuxShaderGenerator(MaterialX::TypeSystemPtr typeSystem);
 
     using MaterialX::SlangShaderGenerator::createShader;
 

@@ -21,7 +21,7 @@
 #include "flux/Scene/Film.h"
 
 #ifndef FLUX_OPTIX_IR
-#error "FLUX_OPTIX_IR must name the Flux OptiX IR module"
+#error "FLUX_OPTIX_IR must name the FLux OptiX IR module"
 #endif
 
 namespace {
@@ -42,7 +42,7 @@ template <typename Handler, typename Buffer>
 }
 
 int run(int argc, char **argv) {
-    auto const options = flux::parseFluxCLI(argc, argv);
+    auto const options = flux::parseFLuxCLI(argc, argv);
     flux::configureLogging(options);
     auto scene = flux::loadTomlScene(options);
 

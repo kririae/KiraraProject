@@ -36,13 +36,13 @@ private:
 } // namespace
 
 std::unique_ptr<flux::RandomAccessFile>
-HdFluxArFileSystem::open(flux::ResolvedPath const &resolvedPath) const {
+HdFLuxArFileSystem::open(flux::ResolvedPath const &resolvedPath) const {
     auto asset = ArGetResolver().OpenAsset(ArResolvedPath{resolvedPath.getPathString()});
     if (!asset)
         return nullptr;
     return std::make_unique<ArFile>(std::move(asset));
 }
 
-std::string HdFluxArFileSystem::getExtension(flux::ResolvedPath const &resolvedPath) const {
+std::string HdFLuxArFileSystem::getExtension(flux::ResolvedPath const &resolvedPath) const {
     return ArGetResolver().GetExtension(resolvedPath.getPathString());
 }

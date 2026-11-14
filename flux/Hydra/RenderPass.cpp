@@ -21,8 +21,8 @@ PXR_NAMESPACE_USING_DIRECTIVE
 namespace {
 /// \brief What a pass asks the renderer to render, and the warnings about what it cannot.
 struct PassRequest {
-    HdFluxRenderSpec spec;
-    std::vector<HdFluxRenderer::Output> outputs;
+    HdFLuxRenderSpec spec;
+    std::vector<HdFLuxRenderer::Output> outputs;
     std::vector<std::string> warnings;
 };
 
@@ -34,10 +34,10 @@ struct PassRequest {
         if (!binding.renderBuffer)
             continue;
 
-        auto *const buffer = dynamic_cast<HdFluxRenderBuffer *>(binding.renderBuffer);
+        auto *const buffer = dynamic_cast<HdFLuxRenderBuffer *>(binding.renderBuffer);
         if (!buffer)
             throw std::invalid_argument(
-                "HdFluxRenderPass: an AOV buffer is not an HdFluxRenderBuffer"
+                "HdFLuxRenderPass: an AOV buffer is not an HdFLuxRenderBuffer"
             );
 
         // A buffer that was not allocated has no pixels to fill, but its converged state is set.
@@ -46,7 +46,7 @@ struct PassRequest {
             continue;
         }
 
-        auto channel = HdFluxGetAovChannel(binding);
+        auto channel = HdFLuxGetAovChannel(binding);
         if (channel == flux::FilmChannels::None) {
             request.warnings.push_back(
                 pxr::TfStringPrintf(
@@ -78,7 +78,7 @@ struct PassRequest {
     if (camera && camera->GetProjection() != pxr::HdCamera::Perspective) {
         request.warnings.emplace_back("An orthographic camera is not rendered");
     } else if (camera) {
-        request.spec.view = HdFluxRenderSpec::View{
+        request.spec.view = HdFLuxRenderSpec::View{
             renderPassState.GetWorldToViewMatrix(), renderPassState.GetProjectionMatrix()
         };
     }
@@ -87,14 +87,14 @@ struct PassRequest {
 }
 } // namespace
 
-HdFluxRenderPass::HdFluxRenderPass(
-    pxr::HdRenderIndex *index, pxr::HdRprimCollection const &collection, HdFluxRenderParam &param
+HdFLuxRenderPass::HdFLuxRenderPass(
+    pxr::HdRenderIndex *index, pxr::HdRprimCollection const &collection, HdFLuxRenderParam &param
 )
     : pxr::HdRenderPass(index, collection), param_{param}, renderer_{param} {}
 
-bool HdFluxRenderPass::IsConverged() const { return renderer_.IsConverged(); }
+bool HdFLuxRenderPass::IsConverged() const { return renderer_.IsConverged(); }
 
-void HdFluxRenderPass::_Execute(
+void HdFLuxRenderPass::_Execute(
     pxr::HdRenderPassStateSharedPtr const &renderPassState, pxr::TfTokenVector const &
 ) try {
     auto *const delegate = GetRenderIndex()->GetRenderDelegate();
@@ -107,16 +107,16 @@ void HdFluxRenderPass::_Execute(
                            ) ||
                            delegate->GetRenderSetting<std::string>(huskRenderMode, {}) == "batch";
 
-        renderer_.SetSchedule(HdFluxSampleSchedule(
+        renderer_.SetSchedule(HdFLuxSampleSchedule(
             delegate->GetRenderSetting<int>(
                 pxr::HdRenderSettingsTokens->convergedSamplesPerPixel,
-                HdFluxDefaultConvergedSamplesPerPixel
+                HdFLuxDefaultConvergedSamplesPerPixel
             ),
             delegate->GetRenderSetting<int>(
-                HdFluxRenderSettingsTokens->interactiveSamplesPerLaunch,
-                HdFluxDefaultInteractiveSamplesPerLaunch
+                HdFLuxRenderSettingsTokens->interactiveSamplesPerLaunch,
+                HdFLuxDefaultInteractiveSamplesPerLaunch
             ),
-            batch ? HdFluxSampleSchedule::Mode::Batch : HdFluxSampleSchedule::Mode::Interactive
+            batch ? HdFLuxSampleSchedule::Mode::Batch : HdFLuxSampleSchedule::Mode::Interactive
         ));
     }
 

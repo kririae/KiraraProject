@@ -31,7 +31,7 @@ class EDF;
 class ImageTexture;
 class EnvMapLight;
 
-/// \brief Owns the host-side objects in a Flux scene.
+/// \brief Owns the host-side objects in a FLux scene.
 ///
 /// A root is a type that no other object references, such as \c Primitive. The host removes a
 /// root with \c remove. A dependent, such as \c BSDF, leaves when \c collectGarbage finds that

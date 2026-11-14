@@ -29,7 +29,7 @@ template <typename Array>
     auto const cast = VtValue::Cast<Array>(value);
     if (cast.IsEmpty()) {
         TF_WARN(
-            "%s: the primvar %s holds %s, which hdFlux does not read, so it is ignored",
+            "%s: the primvar %s holds %s, which hdFLux does not read, so it is ignored",
             id.GetText(), name.GetText(), value.GetTypeName().c_str()
         );
         return {};
@@ -64,10 +64,10 @@ template <typename Array> [[nodiscard]] bool covers(Array const &array, int inde
 }
 } // namespace
 
-HdFluxInstancer::HdFluxInstancer(HdSceneDelegate *sceneDelegate, SdfPath const &id)
+HdFLuxInstancer::HdFLuxInstancer(HdSceneDelegate *sceneDelegate, SdfPath const &id)
     : HdInstancer(sceneDelegate, id) {}
 
-void HdFluxInstancer::Sync(
+void HdFLuxInstancer::Sync(
     HdSceneDelegate *sceneDelegate, HdRenderParam *, HdDirtyBits *dirtyBits
 ) {
     auto const &id = GetId();
@@ -95,7 +95,7 @@ void HdFluxInstancer::Sync(
         toArray<VtMatrix4dArray>(id, tokens->instanceTransforms, get(tokens->instanceTransforms));
 }
 
-VtMatrix4dArray HdFluxInstancer::ComputeInstanceTransforms(SdfPath const &prototypeId) const {
+VtMatrix4dArray HdFLuxInstancer::ComputeInstanceTransforms(SdfPath const &prototypeId) const {
     auto const &id = GetId();
     auto &sceneDelegate = *GetDelegate();
 
@@ -133,7 +133,7 @@ VtMatrix4dArray HdFluxInstancer::ComputeInstanceTransforms(SdfPath const &protot
         return {};
 
     auto const parentTransforms =
-        static_cast<HdFluxInstancer const *>(parent)->ComputeInstanceTransforms(id);
+        static_cast<HdFLuxInstancer const *>(parent)->ComputeInstanceTransforms(id);
     VtMatrix4dArray nested;
     nested.reserve(parentTransforms.size() * transforms.size());
     for (auto const &parentTransform : parentTransforms)
@@ -142,7 +142,7 @@ VtMatrix4dArray HdFluxInstancer::ComputeInstanceTransforms(SdfPath const &protot
     return nested;
 }
 
-VtMatrix4dArray HdFluxComputeInstanceTransforms(
+VtMatrix4dArray HdFLuxComputeInstanceTransforms(
     HdRenderIndex &renderIndex, SdfPath const &instancerId, SdfPath const &prototypeId
 ) {
     if (instancerId.IsEmpty())
@@ -153,10 +153,10 @@ VtMatrix4dArray HdFluxComputeInstanceTransforms(
     auto *const instancer = renderIndex.GetInstancer(instancerId);
     if (!TF_VERIFY(instancer))
         return {};
-    return static_cast<HdFluxInstancer const *>(instancer)->ComputeInstanceTransforms(prototypeId);
+    return static_cast<HdFLuxInstancer const *>(instancer)->ComputeInstanceTransforms(prototypeId);
 }
 
-void HdFluxTruncatePrimitives(
+void HdFLuxTruncatePrimitives(
     flux::Context &context, std::vector<flux::Ref<flux::Primitive>> &primitives, std::size_t count
 ) {
     while (primitives.size() > count) {

@@ -14,26 +14,26 @@
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Film.h"
 
-class HdFluxRenderBuffer;
-class HdFluxRenderParam;
+class HdFLuxRenderBuffer;
+class HdFLuxRenderParam;
 
 /// \brief Renders the image of a spec into buffers, one spec at a time.
-class HdFluxRenderer final {
+class HdFLuxRenderer final {
 public:
     /// \brief A buffer that receives one channel of the image.
     struct Output {
-        HdFluxRenderBuffer *buffer;
+        HdFLuxRenderBuffer *buffer;
         flux::FilmChannels channel;
         pxr::VtValue clearValue;
     };
 
     /// \pre \p param outlives the renderer.
-    explicit HdFluxRenderer(HdFluxRenderParam &param);
+    explicit HdFLuxRenderer(HdFLuxRenderParam &param);
 
     /// \brief Sets the samples to reach and the samples per launch.
     ///
     /// The image is not restarted.
-    void SetSchedule(HdFluxSampleSchedule const &schedule) noexcept { schedule_ = schedule; }
+    void SetSchedule(HdFLuxSampleSchedule const &schedule) noexcept { schedule_ = schedule; }
 
     /// \brief Adds samples to the image of \p spec and writes the image into \p outputs.
     ///
@@ -45,7 +45,7 @@ public:
     /// \pre Every output with a channel has the resolution of \p spec, and \p spec has its channel.
     /// \throw std::length_error If the image of \p spec has more than 2^32 - 1 pixels.
     /// \throw kira::Anyhow If CUDA or OptiX fails.
-    void Render(HdFluxRenderSpec const &spec, std::span<Output const> outputs);
+    void Render(HdFLuxRenderSpec const &spec, std::span<Output const> outputs);
 
     /// \brief Returns whether the image has its samples, nothing is rendered, or the param failed.
     [[nodiscard]] bool IsConverged() const;
@@ -61,11 +61,11 @@ private:
 
     void setConverged(std::span<Output const> outputs) const;
 
-    HdFluxRenderParam &param_;
-    HdFluxSampleSchedule schedule_;
+    HdFLuxRenderParam &param_;
+    HdFLuxSampleSchedule schedule_;
 
     /// The spec of the last render.
-    HdFluxRenderSpec spec_;
+    HdFLuxRenderSpec spec_;
     std::uint64_t contextVersion_;
 
     /// The image of \c spec_, or null if \c spec_ renders nothing.

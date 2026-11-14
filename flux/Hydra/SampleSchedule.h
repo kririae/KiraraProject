@@ -3,7 +3,7 @@
 #include <cstdint>
 
 /// \brief Splits a render of a target number of samples per pixel into launches.
-class HdFluxSampleSchedule {
+class HdFLuxSampleSchedule {
 public:
     /// \brief How the samples of a render are split into launches.
     enum class Mode {
@@ -16,7 +16,7 @@ public:
     /// \brief Creates a schedule that completes at \p target samples per pixel.
     ///
     /// An interactive launch adds at most \p interactivePerLaunch samples per pixel.
-    HdFluxSampleSchedule(int target, int interactivePerLaunch, Mode mode = Mode::Interactive);
+    HdFLuxSampleSchedule(int target, int interactivePerLaunch, Mode mode = Mode::Interactive);
 
     /// \brief Returns the samples per pixel at which the render is complete.
     [[nodiscard]] std::uint64_t GetTarget() const noexcept { return target_; }

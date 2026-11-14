@@ -23,7 +23,7 @@ namespace {
 }
 } // namespace
 
-flux::Spectrum HdFluxComputeLightEmission(HdSceneDelegate &sceneDelegate, SdfPath const &id) {
+flux::Spectrum HdFLuxComputeLightEmission(HdSceneDelegate &sceneDelegate, SdfPath const &id) {
     auto const get = [&]<typename T>(TfToken const &token, T const &fallback) {
         return sceneDelegate.GetLightParamValue(id, token).GetWithDefault(fallback);
     };

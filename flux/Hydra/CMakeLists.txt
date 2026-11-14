@@ -5,7 +5,7 @@ endif()
 
 set(KRR_HFS
     ""
-    CACHE PATH "The Houdini installation whose USD hdFlux builds against")
+    CACHE PATH "The Houdini installation whose USD hdFLux builds against")
 if(NOT KRR_HFS)
     message(FATAL_ERROR "KRR_BUILD_FLUX_HYDRA needs KRR_HFS")
 endif()
@@ -88,22 +88,22 @@ endif()
 set_target_properties(flux_hydra PROPERTIES POSITION_INDEPENDENT_CODE ON CXX_VISIBILITY_PRESET hidden
                                             VISIBILITY_INLINES_HIDDEN ON)
 
-add_library(hdFlux SHARED RendererPlugin.cpp)
-target_link_libraries(hdFlux PRIVATE flux_hydra)
+add_library(hdFLux SHARED RendererPlugin.cpp)
+target_link_libraries(hdFLux PRIVATE flux_hydra)
 
 # TF_REGISTRY_FUNCTION registers under the package name.
-target_compile_definitions(hdFlux PRIVATE MFB_PACKAGE_NAME=hdFlux MFB_ALT_PACKAGE_NAME=hdFlux)
+target_compile_definitions(hdFLux PRIVATE MFB_PACKAGE_NAME=hdFLux MFB_ALT_PACKAGE_NAME=hdFLux)
 
 # The plugin exports no symbol. Plug registers it through static initializers and looks nothing up,
 # and an exported symbol could interpose on a library of the host or be preempted by one. Hidden
 # visibility also lets the compiler bind the plugin's calls to its own functions directly.
-set_target_properties(hdFlux PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
+set_target_properties(hdFLux PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(exportMap "${CMAKE_CURRENT_SOURCE_DIR}/exports.map")
-    target_link_options(hdFlux PRIVATE "LINKER:--version-script=${exportMap}")
-    set_property(TARGET hdFlux APPEND PROPERTY LINK_DEPENDS "${exportMap}")
-    target_link_options(hdFlux PRIVATE "LINKER:--no-undefined")
+    target_link_options(hdFLux PRIVATE "LINKER:--version-script=${exportMap}")
+    set_property(TARGET hdFLux APPEND PROPERTY LINK_DEPENDS "${exportMap}")
+    target_link_options(hdFLux PRIVATE "LINKER:--no-undefined")
 endif()
 
 # A Houdini package: Houdini loads the plugin from dso/usd and finds its Plug resources under
@@ -111,26 +111,26 @@ endif()
 # per-configuration directory, which plugInfo.json does not name.
 set(packageDir "${CMAKE_CURRENT_BINARY_DIR}/houdini")
 set_target_properties(
-    hdFlux
+    hdFLux
     PROPERTIES PREFIX ""
                LIBRARY_OUTPUT_DIRECTORY "$<1:${packageDir}/dso/usd>"
                RUNTIME_OUTPUT_DIRECTORY "$<1:${packageDir}/dso/usd>")
 
-file(GENERATE OUTPUT "${packageDir}/dso/usd_plugins/hdFlux/resources/plugInfo.json"
+file(GENERATE OUTPUT "${packageDir}/dso/usd_plugins/hdFLux/resources/plugInfo.json"
      INPUT plugInfo.json.in)
 file(WRITE "${packageDir}/dso/usd_plugins/plugInfo.json" "{ \"Includes\": [ \"*/resources/\" ] }\n")
 configure_file(UsdRenderers.json "${packageDir}/UsdRenderers.json" COPYONLY)
-configure_file(HdFluxRendererPlugin_Viewport.ds
-               "${packageDir}/soho/parameters/HdFluxRendererPlugin_Viewport.ds" COPYONLY)
+configure_file(HdFLuxRendererPlugin_Viewport.ds
+               "${packageDir}/soho/parameters/HdFLuxRendererPlugin_Viewport.ds" COPYONLY)
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/packages/flux.json" "{ \"hpath\": \"${packageDir}\" }\n")
 
-set(resourceDir "${packageDir}/dso/usd_plugins/hdFlux/resources")
+set(resourceDir "${packageDir}/dso/usd_plugins/hdFLux/resources")
 add_custom_target(
-    hdFlux_materialx_libraries
+    hdFLux_materialx_libraries
     COMMAND "${CMAKE_COMMAND}" -E copy_directory_if_different "${MATERIALX_STDLIB_DIR}"
             "${resourceDir}/libraries"
     VERBATIM)
-add_dependencies(hdFlux hdFlux_materialx_libraries)
+add_dependencies(hdFLux hdFLux_materialx_libraries)
 
 set(moduleName OptixMegaKernel.optixir)
 add_custom_command(
@@ -140,8 +140,8 @@ add_custom_command(
     DEPENDS flux_megakernel_ir "$<TARGET_OBJECTS:flux_megakernel_ir>"
     VERBATIM)
 
-target_sources(hdFlux PRIVATE "${packageDir}/dso/usd/${moduleName}")
-target_compile_definitions(hdFlux PRIVATE FLUX_OPTIX_IR_NAME="${moduleName}")
+target_sources(hdFLux PRIVATE "${packageDir}/dso/usd/${moduleName}")
+target_compile_definitions(hdFLux PRIVATE FLUX_OPTIX_IR_NAME="${moduleName}")
 
 if(KRR_BUILD_TESTS)
     add_subdirectory(Tests)

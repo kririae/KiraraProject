@@ -13,7 +13,7 @@
 #include "kira/detail/Logger.h"
 
 namespace {
-[[nodiscard]] flux::FluxCLIOptions parse(std::initializer_list<char const *> arguments) {
+[[nodiscard]] flux::FLuxCLIOptions parse(std::initializer_list<char const *> arguments) {
     std::vector<std::string> storage;
     storage.reserve(arguments.size());
     for (auto const *argument : arguments)
@@ -23,7 +23,7 @@ namespace {
     argv.reserve(storage.size());
     for (auto &argument : storage)
         argv.push_back(argument.data());
-    return flux::parseFluxCLI(static_cast<int>(argv.size()), argv.data());
+    return flux::parseFLuxCLI(static_cast<int>(argv.size()), argv.data());
 }
 } // namespace
 
@@ -83,7 +83,7 @@ TEST(FLuxCLITests, ConfiguresLevelAndFile) {
         output << "existing log\n";
     }
 
-    flux::FluxCLIOptions options;
+    flux::FLuxCLIOptions options;
     options.logFilePath = path;
     options.logLevel = spdlog::level::info;
 #if !defined(_WIN32)

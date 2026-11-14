@@ -11,9 +11,9 @@
 #include "flux/Core/Math.h"
 
 /// \brief A render buffer in host memory.
-class HdFluxRenderBuffer final : public pxr::HdRenderBuffer {
+class HdFLuxRenderBuffer final : public pxr::HdRenderBuffer {
 public:
-    explicit HdFluxRenderBuffer(pxr::SdfPath const &id);
+    explicit HdFLuxRenderBuffer(pxr::SdfPath const &id);
 
     /// \brief Allocates \p dimensions pixels of \p format.
     ///

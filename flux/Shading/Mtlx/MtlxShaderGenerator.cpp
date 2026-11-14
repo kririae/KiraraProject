@@ -35,9 +35,9 @@
 #include <vector>
 
 #include "flux/Core/ResolvedPath.h"
-#include "flux/Shading/Mtlx/FluxShaderGenerator.h"
-#include "flux/Shading/Mtlx/FluxShaderGraphRefactor.h"
-#include "flux/Shading/Mtlx/FluxSourceCodeNode.h"
+#include "flux/Shading/Mtlx/FLuxShaderGenerator.h"
+#include "flux/Shading/Mtlx/FLuxShaderGraphRefactor.h"
+#include "flux/Shading/Mtlx/FLuxSourceCodeNode.h"
 #include "flux/Shading/Mtlx/MtlxEmission.h"
 #include "kira/Anyhow.h"
 
@@ -121,7 +121,7 @@ void requireLiteralGeomProp(MaterialX::ShaderGraph const &graph) {
 /// \brief Whether the emission reads \p input.
 [[nodiscard]] bool isRead(MaterialX::ShaderInput const &input) {
     auto const *impl =
-        dynamic_cast<FluxSourceCodeNode const *>(&input.getNode()->getImplementation());
+        dynamic_cast<FLuxSourceCodeNode const *>(&input.getNode()->getImplementation());
     return !impl || impl->readsInput(input.getName());
 }
 
@@ -578,7 +578,7 @@ struct MtlxShaderGenerator::pImpl final {
 
     MaterialX::FilePath mtlxRoot;
     MaterialX::DocumentPtr libraries;
-    std::shared_ptr<FluxShaderGenerator> generator;
+    std::shared_ptr<FLuxShaderGenerator> generator;
 };
 
 static_assert(
@@ -603,7 +603,7 @@ MtlxShaderGenerator::pImpl::pImpl(std::filesystem::path const &root)
         MaterialX::readFromXmlString(libraries, source, searchPath);
     appendBlackAddressMode(*libraries);
 
-    generator = std::make_shared<FluxShaderGenerator>(MaterialX::TypeSystem::create());
+    generator = std::make_shared<FLuxShaderGenerator>(MaterialX::TypeSystem::create());
 }
 
 MtlxShaderGenerator::MtlxShaderGenerator(std::filesystem::path const &mtlxRoot)

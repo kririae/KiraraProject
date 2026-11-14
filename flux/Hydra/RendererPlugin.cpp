@@ -16,7 +16,7 @@
 #endif
 
 /// \brief Creates FLux render delegates.
-class HdFluxRendererPlugin final : public pxr::HdRendererPlugin {
+class HdFLuxRendererPlugin final : public pxr::HdRendererPlugin {
 public:
     pxr::HdRenderDelegate *CreateRenderDelegate() override { return createDelegate({}); }
 
@@ -42,16 +42,16 @@ private:
     static pxr::HdRenderDelegate *createDelegate(pxr::HdRenderSettingsMap const &settingsMap) {
         try {
             auto const plugin = pxr::PlugRegistry::GetInstance().GetPluginForType(
-                pxr::TfType::Find<HdFluxRendererPlugin>()
+                pxr::TfType::Find<HdFLuxRendererPlugin>()
             );
             auto const mtlxRoot = std::filesystem::path{plugin->GetResourcePath()};
-            return new HdFluxRenderDelegate(
+            return new HdFLuxRenderDelegate(
                 std::filesystem::path{plugin->GetPath()}.parent_path() / FLUX_OPTIX_IR_NAME,
                 mtlxRoot, settingsMap
             );
         } catch (std::exception const &error) {
             flux::LogError(
-                "HdFluxRendererPlugin: cannot create a render delegate: {}", error.what()
+                "HdFLuxRendererPlugin: cannot create a render delegate: {}", error.what()
             );
             return nullptr;
         }
@@ -60,4 +60,4 @@ private:
 
 PXR_NAMESPACE_USING_DIRECTIVE
 
-TF_REGISTRY_FUNCTION(TfType) { HdRendererPluginRegistry::Define<HdFluxRendererPlugin>(); }
+TF_REGISTRY_FUNCTION(TfType) { HdRendererPluginRegistry::Define<HdFLuxRendererPlugin>(); }

@@ -3,7 +3,7 @@
         {
             "Info": {
                 "Types": {
-                    "HdFluxRendererPlugin": {
+                    "HdFLuxRendererPlugin": {
                         "bases": [
                             "HdRendererPlugin"
                         ],
@@ -12,8 +12,8 @@
                     }
                 }
             },
-            "LibraryPath": "../../usd/$<TARGET_FILE_NAME:hdFlux>",
-            "Name": "hdFlux",
+            "LibraryPath": "../../usd/$<TARGET_FILE_NAME:hdFLux>",
+            "Name": "hdFLux",
             "ResourcePath": "resources",
             "Root": "..",
             "Type": "library"

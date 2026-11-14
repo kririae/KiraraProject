@@ -6,7 +6,7 @@
 #include "flux/Core/FileSystem.h"
 #include "flux/Core/ResolvedPath.h"
 
-class HdFluxArFileSystem final : public flux::FileSystem {
+class HdFLuxArFileSystem final : public flux::FileSystem {
 public:
     [[nodiscard]] std::unique_ptr<flux::RandomAccessFile>
     open(flux::ResolvedPath const &resolvedPath) const override;

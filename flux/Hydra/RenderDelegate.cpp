@@ -29,7 +29,7 @@
 
 PXR_NAMESPACE_OPEN_SCOPE
 
-TF_DEFINE_PUBLIC_TOKENS(HdFluxRenderSettingsTokens, HDFLUX_RENDER_SETTINGS_TOKENS);
+TF_DEFINE_PUBLIC_TOKENS(HdFLuxRenderSettingsTokens, HDFLUX_RENDER_SETTINGS_TOKENS);
 
 PXR_NAMESPACE_CLOSE_SCOPE
 
@@ -66,7 +66,7 @@ std::uint32_t getDepthSetting(
 
 pxr::TfToken
 getSamplerSetting(pxr::HdRenderDelegate const &delegate, pxr::TfToken const &defaultValue) {
-    auto const value = delegate.GetRenderSetting(HdFluxRenderSettingsTokens->sampler);
+    auto const value = delegate.GetRenderSetting(HdFLuxRenderSettingsTokens->sampler);
     auto const name =
         value.IsHolding<pxr::TfToken>()
             ? value.UncheckedGet<pxr::TfToken>()
@@ -75,34 +75,34 @@ getSamplerSetting(pxr::HdRenderDelegate const &delegate, pxr::TfToken const &def
         return name;
 
     TF_WARN(
-        "%s is '%s', using '%s'", HdFluxRenderSettingsTokens->sampler.GetText(), name.GetText(),
+        "%s is '%s', using '%s'", HdFLuxRenderSettingsTokens->sampler.GetText(), name.GetText(),
         defaultValue.GetText()
     );
     return defaultValue;
 }
 } // namespace
 
-HdFluxRenderDelegate::HdFluxRenderDelegate(
+HdFLuxRenderDelegate::HdFLuxRenderDelegate(
     std::filesystem::path const &modulePath, std::filesystem::path const &mtlxRoot,
     pxr::HdRenderSettingsMap const &settingsMap
 )
     : pxr::HdRenderDelegate(settingsMap),
       resourceRegistry_(std::make_shared<pxr::HdResourceRegistry>()),
-      renderParam_(std::make_unique<HdFluxRenderParam>(modulePath, mtlxRoot)),
+      renderParam_(std::make_unique<HdFLuxRenderParam>(modulePath, mtlxRoot)),
       defaultIntegrator_(renderParam_->GetContext()->getActiveIntegrator()->getImpl()),
       defaultShaderReorder_(renderParam_->GetContext()->getActiveIntegrator()->usesShaderReorder()),
       defaultSampler_(renderParam_->GetContext()->getActiveSampler()->getType()) {
     _PopulateDefaultSettings(GetRenderSettingDescriptors());
 }
 
-HdFluxRenderDelegate::~HdFluxRenderDelegate() = default;
+HdFLuxRenderDelegate::~HdFLuxRenderDelegate() = default;
 
-pxr::TfTokenVector const &HdFluxRenderDelegate::GetSupportedRprimTypes() const {
+pxr::TfTokenVector const &HdFLuxRenderDelegate::GetSupportedRprimTypes() const {
     static auto const Types = pxr::TfTokenVector{pxr::HdPrimTypeTokens->mesh};
     return Types;
 }
 
-pxr::TfTokenVector const &HdFluxRenderDelegate::GetSupportedSprimTypes() const {
+pxr::TfTokenVector const &HdFLuxRenderDelegate::GetSupportedSprimTypes() const {
     static auto const Types = pxr::TfTokenVector{
         pxr::HdPrimTypeTokens->camera,      pxr::HdPrimTypeTokens->domeLight,
         pxr::HdPrimTypeTokens->rectLight,   pxr::HdPrimTypeTokens->diskLight,
@@ -112,81 +112,81 @@ pxr::TfTokenVector const &HdFluxRenderDelegate::GetSupportedSprimTypes() const {
     return Types;
 }
 
-pxr::TfTokenVector const &HdFluxRenderDelegate::GetSupportedBprimTypes() const {
+pxr::TfTokenVector const &HdFLuxRenderDelegate::GetSupportedBprimTypes() const {
     static auto const Types = pxr::TfTokenVector{pxr::HdPrimTypeTokens->renderBuffer};
     return Types;
 }
 
-pxr::TfToken HdFluxRenderDelegate::GetMaterialBindingPurpose() const { return pxr::HdTokens->full; }
+pxr::TfToken HdFLuxRenderDelegate::GetMaterialBindingPurpose() const { return pxr::HdTokens->full; }
 
-pxr::TfTokenVector HdFluxRenderDelegate::GetMaterialRenderContexts() const {
+pxr::TfTokenVector HdFLuxRenderDelegate::GetMaterialRenderContexts() const {
     return {Tokens->mtlx};
 }
 
-pxr::HdResourceRegistrySharedPtr HdFluxRenderDelegate::GetResourceRegistry() const {
+pxr::HdResourceRegistrySharedPtr HdFLuxRenderDelegate::GetResourceRegistry() const {
     return resourceRegistry_;
 }
 
-pxr::HdRenderParam *HdFluxRenderDelegate::GetRenderParam() const { return renderParam_.get(); }
+pxr::HdRenderParam *HdFLuxRenderDelegate::GetRenderParam() const { return renderParam_.get(); }
 
-pxr::HdRenderPassSharedPtr HdFluxRenderDelegate::CreateRenderPass(
+pxr::HdRenderPassSharedPtr HdFLuxRenderDelegate::CreateRenderPass(
     pxr::HdRenderIndex *index, pxr::HdRprimCollection const &collection
 ) {
-    return std::make_shared<HdFluxRenderPass>(index, collection, *renderParam_);
+    return std::make_shared<HdFLuxRenderPass>(index, collection, *renderParam_);
 }
 
 pxr::HdInstancer *
-HdFluxRenderDelegate::CreateInstancer(pxr::HdSceneDelegate *delegate, pxr::SdfPath const &id) {
-    return new HdFluxInstancer(delegate, id);
+HdFLuxRenderDelegate::CreateInstancer(pxr::HdSceneDelegate *delegate, pxr::SdfPath const &id) {
+    return new HdFLuxInstancer(delegate, id);
 }
 
-void HdFluxRenderDelegate::DestroyInstancer(pxr::HdInstancer *instancer) { delete instancer; }
+void HdFLuxRenderDelegate::DestroyInstancer(pxr::HdInstancer *instancer) { delete instancer; }
 
 pxr::HdRprim *
-HdFluxRenderDelegate::CreateRprim(pxr::TfToken const &typeId, pxr::SdfPath const &rprimId) {
+HdFLuxRenderDelegate::CreateRprim(pxr::TfToken const &typeId, pxr::SdfPath const &rprimId) {
     if (typeId == pxr::HdPrimTypeTokens->mesh)
-        return new HdFluxMesh(rprimId);
+        return new HdFLuxMesh(rprimId);
     return nullptr;
 }
 
-void HdFluxRenderDelegate::DestroyRprim(pxr::HdRprim *rprim) { delete rprim; }
+void HdFLuxRenderDelegate::DestroyRprim(pxr::HdRprim *rprim) { delete rprim; }
 
 pxr::HdSprim *
-HdFluxRenderDelegate::CreateSprim(pxr::TfToken const &typeId, pxr::SdfPath const &sprimId) {
+HdFLuxRenderDelegate::CreateSprim(pxr::TfToken const &typeId, pxr::SdfPath const &sprimId) {
     if (typeId == pxr::HdPrimTypeTokens->camera)
         return new pxr::HdCamera(sprimId);
     if (typeId == pxr::HdPrimTypeTokens->domeLight)
-        return new HdFluxDomeLight(sprimId);
+        return new HdFLuxDomeLight(sprimId);
     if (typeId == pxr::HdPrimTypeTokens->rectLight || typeId == pxr::HdPrimTypeTokens->diskLight ||
         typeId == pxr::HdPrimTypeTokens->sphereLight ||
         typeId == pxr::HdPrimTypeTokens->cylinderLight)
-        return new HdFluxAreaLight(sprimId, typeId);
+        return new HdFLuxAreaLight(sprimId, typeId);
     if (typeId == pxr::HdPrimTypeTokens->material)
-        return new HdFluxMaterial(sprimId);
+        return new HdFLuxMaterial(sprimId);
     return nullptr;
 }
 
-pxr::HdSprim *HdFluxRenderDelegate::CreateFallbackSprim(pxr::TfToken const &typeId) {
+pxr::HdSprim *HdFLuxRenderDelegate::CreateFallbackSprim(pxr::TfToken const &typeId) {
     return CreateSprim(typeId, pxr::SdfPath::EmptyPath());
 }
 
-void HdFluxRenderDelegate::DestroySprim(pxr::HdSprim *sprim) { delete sprim; }
+void HdFLuxRenderDelegate::DestroySprim(pxr::HdSprim *sprim) { delete sprim; }
 
 pxr::HdBprim *
-HdFluxRenderDelegate::CreateBprim(pxr::TfToken const &typeId, pxr::SdfPath const &bprimId) {
+HdFLuxRenderDelegate::CreateBprim(pxr::TfToken const &typeId, pxr::SdfPath const &bprimId) {
     if (typeId == pxr::HdPrimTypeTokens->renderBuffer)
-        return new HdFluxRenderBuffer(bprimId);
+        return new HdFLuxRenderBuffer(bprimId);
     return nullptr;
 }
 
-pxr::HdBprim *HdFluxRenderDelegate::CreateFallbackBprim(pxr::TfToken const &typeId) {
+pxr::HdBprim *HdFLuxRenderDelegate::CreateFallbackBprim(pxr::TfToken const &typeId) {
     return CreateBprim(typeId, pxr::SdfPath::EmptyPath());
 }
 
-void HdFluxRenderDelegate::DestroyBprim(pxr::HdBprim *bprim) { delete bprim; }
+void HdFLuxRenderDelegate::DestroyBprim(pxr::HdBprim *bprim) { delete bprim; }
 
-void HdFluxRenderDelegate::CommitResources(pxr::HdChangeTracker *) try {
-    HdFluxCommitMaterials(*renderParam_);
+void HdFLuxRenderDelegate::CommitResources(pxr::HdChangeTracker *) try {
+    HdFLuxCommitMaterials(*renderParam_);
     if (renderParam_->HasFailed())
         return;
 
@@ -204,15 +204,15 @@ void HdFluxRenderDelegate::CommitResources(pxr::HdChangeTracker *) try {
     context->clearDirty();
 } catch (...) { renderParam_->ReportFailure(); }
 
-void HdFluxRenderDelegate::syncIntegrator(flux::Context &context) const {
+void HdFLuxRenderDelegate::syncIntegrator(flux::Context &context) const {
     auto const maxDepth =
-        getDepthSetting(*this, HdFluxRenderSettingsTokens->maxDepth, defaultIntegrator_.maxDepth);
+        getDepthSetting(*this, HdFLuxRenderSettingsTokens->maxDepth, defaultIntegrator_.maxDepth);
     auto const rrDepth =
-        getDepthSetting(*this, HdFluxRenderSettingsTokens->rrDepth, defaultIntegrator_.rrDepth);
+        getDepthSetting(*this, HdFLuxRenderSettingsTokens->rrDepth, defaultIntegrator_.rrDepth);
     auto const rrProb =
-        GetRenderSetting<float>(HdFluxRenderSettingsTokens->rrProb, defaultIntegrator_.rrProb);
+        GetRenderSetting<float>(HdFLuxRenderSettingsTokens->rrProb, defaultIntegrator_.rrProb);
     auto const shaderReorder =
-        GetRenderSetting<bool>(HdFluxRenderSettingsTokens->shaderReorder, defaultShaderReorder_);
+        GetRenderSetting<bool>(HdFLuxRenderSettingsTokens->shaderReorder, defaultShaderReorder_);
 
     auto const integrator = context.getActiveIntegrator();
     if (auto const active = integrator->getImpl();
@@ -228,7 +228,7 @@ void HdFluxRenderDelegate::syncIntegrator(flux::Context &context) const {
     }
 }
 
-void HdFluxRenderDelegate::syncSampler(flux::Context &context) const {
+void HdFLuxRenderDelegate::syncSampler(flux::Context &context) const {
     auto const sampler = context.getActiveSampler();
     if (auto const name = getSamplerSetting(*this, toToken(defaultSampler_));
         toToken(sampler->getType()) != name) {
@@ -239,34 +239,34 @@ void HdFluxRenderDelegate::syncSampler(flux::Context &context) const {
     }
 }
 
-pxr::HdAovDescriptor HdFluxRenderDelegate::GetDefaultAovDescriptor(pxr::TfToken const &name) const {
-    return HdFluxGetAovDescriptor(name);
+pxr::HdAovDescriptor HdFLuxRenderDelegate::GetDefaultAovDescriptor(pxr::TfToken const &name) const {
+    return HdFLuxGetAovDescriptor(name);
 }
 
-pxr::HdRenderSettingDescriptorList HdFluxRenderDelegate::GetRenderSettingDescriptors() const {
+pxr::HdRenderSettingDescriptorList HdFLuxRenderDelegate::GetRenderSettingDescriptors() const {
     return {
         {.name = "Converged Samples Per Pixel",
          .key = pxr::HdRenderSettingsTokens->convergedSamplesPerPixel,
-         .defaultValue = pxr::VtValue(HdFluxDefaultConvergedSamplesPerPixel)},
+         .defaultValue = pxr::VtValue(HdFLuxDefaultConvergedSamplesPerPixel)},
         {.name = "Max Depth",
-         .key = HdFluxRenderSettingsTokens->maxDepth,
+         .key = HdFLuxRenderSettingsTokens->maxDepth,
          .defaultValue = pxr::VtValue(static_cast<int>(defaultIntegrator_.maxDepth))},
         {.name = "Russian Roulette Depth",
-         .key = HdFluxRenderSettingsTokens->rrDepth,
+         .key = HdFLuxRenderSettingsTokens->rrDepth,
          .defaultValue = pxr::VtValue(static_cast<int>(defaultIntegrator_.rrDepth))},
         {.name = "Russian Roulette Probability",
-         .key = HdFluxRenderSettingsTokens->rrProb,
+         .key = HdFLuxRenderSettingsTokens->rrProb,
          .defaultValue = pxr::VtValue(defaultIntegrator_.rrProb)},
         {.name = "Sampler",
-         .key = HdFluxRenderSettingsTokens->sampler,
+         .key = HdFLuxRenderSettingsTokens->sampler,
          .defaultValue = pxr::VtValue(toToken(defaultSampler_))},
         {.name = "Shader Execution Reordering",
-         .key = HdFluxRenderSettingsTokens->shaderReorder,
+         .key = HdFLuxRenderSettingsTokens->shaderReorder,
          .defaultValue = pxr::VtValue(defaultShaderReorder_)},
     };
 }
 
-pxr::VtDictionary HdFluxRenderDelegate::GetRenderStats() const {
+pxr::VtDictionary HdFLuxRenderDelegate::GetRenderStats() const {
     pxr::VtDictionary stats;
     if (renderParam_->HasFailed())
         stats["huskErrorStatus"] = 1;

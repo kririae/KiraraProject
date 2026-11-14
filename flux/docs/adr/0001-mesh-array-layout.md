@@ -28,9 +28,9 @@ The window is the time between an edit that replaces the points and the collecti
 | Loader | OptiX | 2 (reader's copy, `F`) | 1 (`F`) | none, a loaded mesh is not edited |
 | Loader | Embree | 2 | 1 (`F`, shared) | none |
 | Loader | Both | 2 | 1 | none |
-| hdFlux | OptiX | 2 | 2 (`U`, `F`) | 3 (`U`, old `F`, new `F`) |
-| hdFlux | Embree | 2 | 2 (`U`, `F` shared) | 3 |
-| hdFlux | Both | 2 | 2 | 3 |
+| hdFLux | OptiX | 2 | 2 (`U`, `F`) | 3 (`U`, old `F`, new `F`) |
+| hdFLux | Embree | 2 | 2 (`U`, `F` shared) | 3 |
+| hdFLux | Both | 2 | 2 | 3 |
 | Producer that shares `U` as `F` | OptiX | 1 | 1 | 2 (old `F`, new `F`) |
 | Producer that shares `U` as `F` | Embree | 2 | 2 (`F`, `E`) | 3 (old `F`, new `F`, old `E`) |
 | Producer that shares `U` as `F` | Both | 2 | 2 | 3 |
@@ -38,11 +38,11 @@ The window is the time between an edit that replaces the points and the collecti
 The counts come from these facts:
 
 - A loader allocates the vertices with one spare element, so Embree shares them. `loadObj` holds the parsed positions and `F` at once, 2 copies, until it releases the positions. `loadPly` holds the vertex element that miniply read into the buffer of its reader, and `F`, at least 2 copies, until the reader is destroyed when `loadPly` returns. That buffer holds every property of the vertex rows, so it is larger than one copy of the points when the rows hold normals or texture coordinates.
-- hdFlux copies the points of USD into a buffer with one spare element, in `copyPoints`. `HdFluxMesh::points_` and the `TriangleMesh` share that buffer, so they count once.
-- An edit of the points in hdFlux builds a new `F`, and `setGeometry` drops the old mesh. The old mesh stays in the `Context` until `Context::collectGarbage`, which `HdFluxRenderDelegate::CommitResources` calls before the sync.
+- hdFLux copies the points of USD into a buffer with one spare element, in `copyPoints`. `HdFLuxMesh::points_` and the `TriangleMesh` share that buffer, so they count once.
+- An edit of the points in hdFLux builds a new `F`, and `setGeometry` drops the old mesh. The old mesh stays in the `Context` until `Context::collectGarbage`, which `HdFLuxRenderDelegate::CommitResources` calls before the sync.
 - OptiX keeps no host handle to the points once its upload finishes. `OptixGeometryPool::add` hands the buffer to the deletion queue, which releases it at the first `deleteFinished` after the upload completes, in `OptixHandler::sync` or `render`. The old `F` therefore leaves the window at the later of that call and the collection.
 - Embree keeps the `TriangleMesh::Data` in each `GeometryEntry` until `EmbreeContext::reset`, which `sync` calls first. The old `F` leaves the window at that call, after the collection. `reset` also releases the old `E` before `sync` allocates a new one, so the new `E` never lives beside the old one.
-- hdFlux drives an OptiX handler only. Its Embree and Both rows follow from `EmbreeContext` alone.
+- hdFLux drives an OptiX handler only. Its Embree and Both rows follow from `EmbreeContext` alone.
 - A `Context` that both handlers sync holds one `F`. Only Embree adds a host copy, `E`.
 
 The cost of the decision is one copy of the vertices for each mesh that a producer shares without spare capacity, and only with Embree.

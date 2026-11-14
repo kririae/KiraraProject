@@ -23,10 +23,10 @@ class TriangleMesh;
 /// \c instanceTransforms_ when \c geometry_ is non-null, and none otherwise. Primitive \c i has
 /// the geometry \c geometry_, the transform <tt>transform_ * instanceTransforms_[i]</tt>, and the
 /// visibility and material of the mesh.
-class HdFluxMesh final : public pxr::HdMesh {
+class HdFLuxMesh final : public pxr::HdMesh {
 public:
-    explicit HdFluxMesh(pxr::SdfPath const &id);
-    ~HdFluxMesh() override;
+    explicit HdFLuxMesh(pxr::SdfPath const &id);
+    ~HdFLuxMesh() override;
 
     pxr::HdDirtyBits GetInitialDirtyBitsMask() const override;
 

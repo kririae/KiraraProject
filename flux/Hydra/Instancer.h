@@ -17,11 +17,11 @@ class Primitive;
 /// \brief A Hydra instancer that gives each of its prototypes the transforms of its instances.
 ///
 /// Each member array holds its builtin instance primvar as of the last sync, or is empty when
-/// that primvar is absent or of a type that hdFlux does not read. The instancer owns no FLux
+/// that primvar is absent or of a type that hdFLux does not read. The instancer owns no FLux
 /// object.
-class HdFluxInstancer final : public pxr::HdInstancer {
+class HdFLuxInstancer final : public pxr::HdInstancer {
 public:
-    HdFluxInstancer(pxr::HdSceneDelegate *sceneDelegate, pxr::SdfPath const &id);
+    HdFLuxInstancer(pxr::HdSceneDelegate *sceneDelegate, pxr::SdfPath const &id);
 
     void Sync(
         pxr::HdSceneDelegate *sceneDelegate, pxr::HdRenderParam *renderParam,
@@ -46,12 +46,12 @@ private:
 /// or one identity when \p instancerId is empty.
 ///
 /// It syncs the instancer and its parents first.
-[[nodiscard]] pxr::VtMatrix4dArray HdFluxComputeInstanceTransforms(
+[[nodiscard]] pxr::VtMatrix4dArray HdFLuxComputeInstanceTransforms(
     pxr::HdRenderIndex &renderIndex, pxr::SdfPath const &instancerId,
     pxr::SdfPath const &prototypeId
 );
 
 /// \brief Removes from \p context the primitives of \p primitives past the first \p count.
-void HdFluxTruncatePrimitives(
+void HdFLuxTruncatePrimitives(
     flux::Context &context, std::vector<flux::Ref<flux::Primitive>> &primitives, std::size_t count
 );

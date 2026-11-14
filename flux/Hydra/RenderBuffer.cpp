@@ -54,7 +54,7 @@ void writePixels(
     pxr::HdFormat format
 ) {
     if (pixels.size() != width * height)
-        throw std::invalid_argument("HdFluxRenderBuffer::Write: pixels do not match the buffer");
+        throw std::invalid_argument("HdFLuxRenderBuffer::Write: pixels do not match the buffer");
 
     visitComponentCount(format, [&]<std::size_t Components>() {
         writeRows<Components>(pixels, data.data(), width, height);
@@ -76,13 +76,13 @@ void clearPixels(std::span<float> data, std::array<float, 4> const &components) 
 }
 } // namespace
 
-HdFluxRenderBuffer::HdFluxRenderBuffer(pxr::SdfPath const &id) : pxr::HdRenderBuffer(id) {}
+HdFLuxRenderBuffer::HdFLuxRenderBuffer(pxr::SdfPath const &id) : pxr::HdRenderBuffer(id) {}
 
-bool HdFluxRenderBuffer::Allocate(pxr::GfVec3i const &dimensions, pxr::HdFormat format, bool) {
+bool HdFLuxRenderBuffer::Allocate(pxr::GfVec3i const &dimensions, pxr::HdFormat format, bool) {
     if (dimensions[2] != 1 || pxr::HdGetComponentFormat(format) != pxr::HdFormatFloat32) {
         _Deallocate();
         TF_WARN(
-            "HdFluxRenderBuffer: cannot allocate %dx%dx%d pixels of HdFormat %d", dimensions[0],
+            "HdFLuxRenderBuffer: cannot allocate %dx%dx%d pixels of HdFormat %d", dimensions[0],
             dimensions[1], dimensions[2], static_cast<int>(format)
         );
         return false;
@@ -104,16 +104,16 @@ bool HdFluxRenderBuffer::Allocate(pxr::GfVec3i const &dimensions, pxr::HdFormat 
     return true;
 }
 
-void *HdFluxRenderBuffer::Map() {
+void *HdFLuxRenderBuffer::Map() {
     ++mappers_;
     return pixels_.data();
 }
 
-void HdFluxRenderBuffer::Unmap() { --mappers_; }
+void HdFLuxRenderBuffer::Unmap() { --mappers_; }
 
-bool HdFluxRenderBuffer::IsMapped() const { return mappers_.load() != 0; }
+bool HdFLuxRenderBuffer::IsMapped() const { return mappers_.load() != 0; }
 
-void HdFluxRenderBuffer::Clear(pxr::VtValue const &value) {
+void HdFLuxRenderBuffer::Clear(pxr::VtValue const &value) {
     std::array<float, 4> components{0.0F, 0.0F, 0.0F, 0.0F};
 
     // A value of a known type is opaque unless it has a fourth component.
@@ -148,15 +148,15 @@ void HdFluxRenderBuffer::Clear(pxr::VtValue const &value) {
     });
 }
 
-void HdFluxRenderBuffer::Write(std::span<flux::Vec3f const> pixels) {
+void HdFLuxRenderBuffer::Write(std::span<flux::Vec3f const> pixels) {
     writePixels(pixels, std::span{pixels_}, width_, height_, format_);
 }
 
-void HdFluxRenderBuffer::Write(std::span<float const> pixels) {
+void HdFLuxRenderBuffer::Write(std::span<float const> pixels) {
     writePixels(pixels, std::span{pixels_}, width_, height_, format_);
 }
 
-void HdFluxRenderBuffer::_Deallocate() {
+void HdFLuxRenderBuffer::_Deallocate() {
     TF_VERIFY(!IsMapped());
     width_ = 0;
     height_ = 0;

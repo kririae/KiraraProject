@@ -9,27 +9,27 @@
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Sampling/Sampler.h"
 
-class HdFluxRenderParam;
+class HdFLuxRenderParam;
 
 namespace flux {
 class Context;
 } // namespace flux
 
 /// \brief The interface to configure the FLux's context from Hydra.
-class HdFluxRenderDelegate final : public pxr::HdRenderDelegate {
+class HdFLuxRenderDelegate final : public pxr::HdRenderDelegate {
 public:
     /// \brief Creates a delegate that renders with the OptiX IR module at \p modulePath.
     ///
     /// \param mtlxRoot The folder that holds the MaterialX \c libraries folder.
     /// \throw std::exception If the OptiX backend or the shader generator cannot start.
-    HdFluxRenderDelegate(
+    HdFLuxRenderDelegate(
         std::filesystem::path const &modulePath, std::filesystem::path const &mtlxRoot,
         pxr::HdRenderSettingsMap const &settingsMap
     );
-    ~HdFluxRenderDelegate() override;
+    ~HdFLuxRenderDelegate() override;
 
-    HdFluxRenderDelegate(HdFluxRenderDelegate const &) = delete;
-    HdFluxRenderDelegate &operator=(HdFluxRenderDelegate const &) = delete;
+    HdFLuxRenderDelegate(HdFLuxRenderDelegate const &) = delete;
+    HdFLuxRenderDelegate &operator=(HdFLuxRenderDelegate const &) = delete;
 
     pxr::TfTokenVector const &GetSupportedRprimTypes() const override;
     pxr::TfTokenVector const &GetSupportedSprimTypes() const override;
@@ -79,7 +79,7 @@ private:
     void syncSampler(flux::Context &context) const;
 
     pxr::HdResourceRegistrySharedPtr resourceRegistry_;
-    std::unique_ptr<HdFluxRenderParam> renderParam_;
+    std::unique_ptr<HdFLuxRenderParam> renderParam_;
     flux::PathIntegrator::Impl defaultIntegrator_;
     bool defaultShaderReorder_;
     flux::SamplerType defaultSampler_;

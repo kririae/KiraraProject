@@ -19,7 +19,7 @@ PXR_NAMESPACE_USING_DIRECTIVE
 
 namespace {
 flux::Ref<flux::Context> makeContext() {
-    auto context = flux::Context::create(std::make_unique<HdFluxArFileSystem>());
+    auto context = flux::Context::create(std::make_unique<HdFLuxArFileSystem>());
     context->setActiveIntegrator(context->create<flux::PathIntegrator>(kira::Properties{}));
     context->setActiveSampler(context->create<flux::IndependentSampler>(kira::Properties{}));
     return context;
@@ -52,32 +52,32 @@ createFallbackBSDF(flux::Context &context, flux::ShaderInstance instance) {
 }
 } // namespace
 
-HdFluxRenderParam::HdFluxRenderParam(
+HdFLuxRenderParam::HdFLuxRenderParam(
     std::filesystem::path const &modulePath, std::filesystem::path const &mtlxRoot
 )
     : handler_{makeContext(), modulePath}, shaderGenerator_{mtlxRoot},
       fallbackShaderInstance_{generateFallbackShader(shaderGenerator_)},
       fallbackBSDF_{createFallbackBSDF(*handler_.getContext(), fallbackShaderInstance_)} {}
 
-HdFluxRenderParam::~HdFluxRenderParam() = default;
+HdFLuxRenderParam::~HdFLuxRenderParam() = default;
 
-flux::Ref<flux::Context> HdFluxRenderParam::GetContext() const { return handler_.getContext(); }
+flux::Ref<flux::Context> HdFLuxRenderParam::GetContext() const { return handler_.getContext(); }
 
-flux::Ref<flux::BSDF const> HdFluxRenderParam::GetFallbackBSDF() const { return fallbackBSDF_; }
+flux::Ref<flux::BSDF const> HdFLuxRenderParam::GetFallbackBSDF() const { return fallbackBSDF_; }
 
-flux::ShaderInstance const &HdFluxRenderParam::GetFallbackShaderInstance() const noexcept {
+flux::ShaderInstance const &HdFLuxRenderParam::GetFallbackShaderInstance() const noexcept {
     return fallbackShaderInstance_;
 }
 
-void HdFluxRenderParam::AddPendingMaterial(HdFluxPendingMaterial material) {
+void HdFLuxRenderParam::AddPendingMaterial(HdFLuxPendingMaterial material) {
     pendingMaterials_.push_back(std::move(material));
 }
 
-std::vector<HdFluxPendingMaterial> HdFluxRenderParam::ExtractPendingMaterials() noexcept {
+std::vector<HdFLuxPendingMaterial> HdFLuxRenderParam::ExtractPendingMaterials() noexcept {
     return std::exchange(pendingMaterials_, {});
 }
 
-void HdFluxRenderParam::ReportFailure() noexcept {
+void HdFLuxRenderParam::ReportFailure() noexcept {
     failed_ = true;
 
     try {

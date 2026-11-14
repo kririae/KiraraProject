@@ -61,7 +61,7 @@ toClipDepths(std::span<flux::Vec2f const> depths, pxr::GfMatrix4d const &project
 }
 
 void writeChannel(
-    HdFluxRenderBuffer &buffer, flux::Film const &film, flux::FilmChannels channel,
+    HdFLuxRenderBuffer &buffer, flux::Film const &film, flux::FilmChannels channel,
     pxr::GfMatrix4d const &projection
 ) {
     switch (channel) {
@@ -75,27 +75,27 @@ void writeChannel(
     }
 }
 
-[[nodiscard]] std::optional<flux::FilmSpec> toFilmSpec(HdFluxRenderSpec const &spec) {
+[[nodiscard]] std::optional<flux::FilmSpec> toFilmSpec(HdFLuxRenderSpec const &spec) {
     if (spec.channels == flux::FilmChannels::None || !spec.view)
         return std::nullopt;
     return flux::FilmSpec{.resolution = spec.resolution, .channels = spec.channels};
 }
 } // namespace
 
-HdFluxRenderer::Image::Image(flux::OptixHandler &handler, flux::FilmSpec const &spec)
+HdFLuxRenderer::Image::Image(flux::OptixHandler &handler, flux::FilmSpec const &spec)
     : film{spec}, accumulation{handler, spec} {}
 
-HdFluxRenderer::HdFluxRenderer(HdFluxRenderParam &param)
+HdFLuxRenderer::HdFLuxRenderer(HdFLuxRenderParam &param)
     : param_{param},
-      schedule_{HdFluxDefaultConvergedSamplesPerPixel, HdFluxDefaultInteractiveSamplesPerLaunch},
+      schedule_{HdFLuxDefaultConvergedSamplesPerPixel, HdFLuxDefaultInteractiveSamplesPerLaunch},
       contextVersion_{param.GetContext()->getVersion()}, camera_{flux::Camera::create()} {}
 
-bool HdFluxRenderer::IsConverged() const {
+bool HdFLuxRenderer::IsConverged() const {
     return param_.HasFailed() || !image_ ||
            image_->accumulation.getSampleCount() >= schedule_.GetTarget();
 }
 
-void HdFluxRenderer::Render(HdFluxRenderSpec const &spec, std::span<Output const> outputs) {
+void HdFLuxRenderer::Render(HdFLuxRenderSpec const &spec, std::span<Output const> outputs) {
     if (param_.HasFailed()) {
         setConverged(outputs);
         return;
@@ -114,7 +114,7 @@ void HdFluxRenderer::Render(HdFluxRenderSpec const &spec, std::span<Output const
             image_ = std::make_unique<Image>(param_.GetHandler(), *film);
 
         if (image_)
-            HdFluxSetCamera(
+            HdFLuxSetCamera(
                 *camera_, spec.view->worldToView, spec.view->projection,
                 static_cast<double>(spec.resolution.x()) / spec.resolution.y()
             );
@@ -165,7 +165,7 @@ void HdFluxRenderer::Render(HdFluxRenderSpec const &spec, std::span<Output const
     setConverged(outputs);
 }
 
-void HdFluxRenderer::setConverged(std::span<Output const> outputs) const {
+void HdFLuxRenderer::setConverged(std::span<Output const> outputs) const {
     auto const converged = IsConverged();
     for (auto const &output : outputs)
         output.buffer->SetConverged(converged);

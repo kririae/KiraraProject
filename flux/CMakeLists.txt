@@ -194,7 +194,7 @@ flux_embed(flux/Shading/Mtlx/MtlxSlangLibraries.inc Shading/Mtlx/libraries/mx-pr
 
 add_library(
     flux_mtlx STATIC
-    Shading/Mtlx/FluxShaderGenerator.cpp Shading/Mtlx/FluxShaderGraphRefactor.cpp Shading/Mtlx/FluxSourceCodeNode.cpp
+    Shading/Mtlx/FLuxShaderGenerator.cpp Shading/Mtlx/FLuxShaderGraphRefactor.cpp Shading/Mtlx/FLuxSourceCodeNode.cpp
     Shading/Mtlx/MtlxShaderGenerator.cpp Shading/Mtlx/MtlxEmission.cpp)
 target_include_directories(flux_mtlx PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated
                                              ${CMAKE_CURRENT_SOURCE_DIR}/..)

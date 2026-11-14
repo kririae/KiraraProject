@@ -51,15 +51,15 @@ namespace {
 }
 } // namespace
 
-HdFluxDomeLight::HdFluxDomeLight(SdfPath const &id) : HdLight(id) {}
+HdFLuxDomeLight::HdFLuxDomeLight(SdfPath const &id) : HdLight(id) {}
 
-HdFluxDomeLight::~HdFluxDomeLight() = default;
+HdFLuxDomeLight::~HdFLuxDomeLight() = default;
 
-void HdFluxDomeLight::Sync(
+void HdFLuxDomeLight::Sync(
     HdSceneDelegate *sceneDelegate, HdRenderParam *renderParam, HdDirtyBits *dirtyBits
 ) {
     auto const &id = GetId();
-    auto &param = *static_cast<HdFluxRenderParam *>(renderParam);
+    auto &param = *static_cast<HdFLuxRenderParam *>(renderParam);
 
     try {
         auto const context = param.GetContext();
@@ -69,9 +69,9 @@ void HdFluxDomeLight::Sync(
         }
 
         syncTexture(*context, *sceneDelegate);
-        envMap_->setScale(HdFluxComputeLightEmission(*sceneDelegate, id));
+        envMap_->setScale(HdFLuxComputeLightEmission(*sceneDelegate, id));
         envMap_->setRotation(
-            computeEnvMapRotation(HdFluxToTransform(sceneDelegate->GetTransform(id)))
+            computeEnvMapRotation(HdFLuxToTransform(sceneDelegate->GetTransform(id)))
         );
         syncActiveEnvMap(*context, sceneDelegate->GetVisible(id));
     } catch (std::exception const &error) { TF_WARN("%s: %s", id.GetText(), error.what()); }
@@ -79,17 +79,17 @@ void HdFluxDomeLight::Sync(
     *dirtyBits &= ~AllDirty;
 }
 
-HdDirtyBits HdFluxDomeLight::GetInitialDirtyBitsMask() const { return AllDirty; }
+HdDirtyBits HdFLuxDomeLight::GetInitialDirtyBitsMask() const { return AllDirty; }
 
-void HdFluxDomeLight::Finalize(HdRenderParam *renderParam) {
+void HdFLuxDomeLight::Finalize(HdRenderParam *renderParam) {
     if (!envMap_)
         return;
 
-    auto const context = static_cast<HdFluxRenderParam *>(renderParam)->GetContext();
+    auto const context = static_cast<HdFLuxRenderParam *>(renderParam)->GetContext();
     context->remove(envMap_->getContextId());
 }
 
-void HdFluxDomeLight::syncTexture(flux::Context &context, HdSceneDelegate &sceneDelegate) {
+void HdFLuxDomeLight::syncTexture(flux::Context &context, HdSceneDelegate &sceneDelegate) {
     auto const asset = sceneDelegate.GetLightParamValue(GetId(), HdLightTokens->textureFile)
                            .GetWithDefault(SdfAssetPath{});
     if (asset == textureAsset_)
@@ -100,13 +100,13 @@ void HdFluxDomeLight::syncTexture(flux::Context &context, HdSceneDelegate &scene
     } else {
         kira::Properties props;
         props.set("type", "image");
-        props.set("path", HdFluxGetResolvedPath(asset, GetId()));
+        props.set("path", HdFLuxGetResolvedPath(asset, GetId()));
         envMap_->setTexture(context.create<flux::Texture>(props));
     }
     textureAsset_ = asset;
 }
 
-void HdFluxDomeLight::syncActiveEnvMap(flux::Context &context, bool visible) {
+void HdFLuxDomeLight::syncActiveEnvMap(flux::Context &context, bool visible) {
     auto const active = context.getActiveEnvMap();
     if (!visible) {
         if (active == envMap_)

@@ -89,7 +89,7 @@ TEST(LightTests, MapsEnvironmentFootprintsToImageGradients) {
     EXPECT_FLOAT_EQ(pole.x(), 1.0F);
 }
 
-TEST(LightTests, UsesFluxWorldAxesForEnvironmentMaps) {
+TEST(LightTests, UsesFLuxWorldAxesForEnvironmentMaps) {
     auto context = flux::Context::create();
     auto light = context->create<flux::EnvMapLight>(kira::Properties{})->getImpl({});
     auto const ctx = flux::LightSamplingContext{};

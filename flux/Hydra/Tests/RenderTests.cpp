@@ -298,7 +298,7 @@ HdContainerDataSourceHandle makeMaterial(std::variant<GfVec3f, SdfAssetPath> con
     );
 }
 
-/// Returns a material whose \c mtlx surface is a node that no MaterialX definition names. hdFlux
+/// Returns a material whose \c mtlx surface is a node that no MaterialX definition names. hdFLux
 /// cannot generate its shader.
 HdContainerDataSourceHandle makeUnsupportedMaterial() {
     static TfToken const surfaceName{"surface"};
@@ -388,10 +388,10 @@ protected:
 
         HdRenderSettingsMap settings;
         settings[HdRenderSettingsTokens->convergedSamplesPerPixel] = VtValue{8};
-        settings[HdFluxRenderSettingsTokens->interactiveSamplesPerLaunch] = VtValue{4};
+        settings[HdFLuxRenderSettingsTokens->interactiveSamplesPerLaunch] = VtValue{4};
 
         delegate_ = HdRendererPluginRegistry::GetInstance().CreateRenderDelegate(
-            TfToken{"HdFluxRendererPlugin"}, settings
+            TfToken{"HdFLuxRendererPlugin"}, settings
         );
         ASSERT_TRUE(delegate_);
 
@@ -448,8 +448,8 @@ protected:
         }
     }
 
-    HdFluxRenderParam &param() {
-        return *static_cast<HdFluxRenderParam *>(delegate_->GetRenderParam());
+    HdFLuxRenderParam &param() {
+        return *static_cast<HdFLuxRenderParam *>(delegate_->GetRenderParam());
     }
 
     void execute() { engine_.Execute(index_.get(), &tasks_); }
@@ -1078,7 +1078,7 @@ TEST_F(RenderTests, RendersTheNextFrameWithAMaxDepthChangedAfterTheImageWasRende
     executeToConvergence();
     EXPECT_EQ(centerChannel(buffer_, 0), 1.0F);
 
-    delegate_->SetRenderSetting(HdFluxRenderSettingsTokens->maxDepth, VtValue{0});
+    delegate_->SetRenderSetting(HdFLuxRenderSettingsTokens->maxDepth, VtValue{0});
     execute();
 
     EXPECT_EQ(centerChannel(buffer_, 0), 0.0F);

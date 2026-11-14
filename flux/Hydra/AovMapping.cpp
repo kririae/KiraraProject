@@ -43,7 +43,7 @@ std::array<Aov, 4> const &aovs() {
 }
 } // namespace
 
-flux::FilmChannels HdFluxGetAovChannel(pxr::HdRenderPassAovBinding const &binding) {
+flux::FilmChannels HdFLuxGetAovChannel(pxr::HdRenderPassAovBinding const &binding) {
     static pxr::TfToken const sourceNameKey{"sourceName"};
     static pxr::TfToken const sourceTypeKey{"sourceType"};
     static pxr::TfToken const raw{"raw"};
@@ -63,7 +63,7 @@ flux::FilmChannels HdFluxGetAovChannel(pxr::HdRenderPassAovBinding const &bindin
     return aov ? aov->channel : flux::FilmChannels::None;
 }
 
-pxr::HdAovDescriptor HdFluxGetAovDescriptor(pxr::TfToken const &name) {
+pxr::HdAovDescriptor HdFLuxGetAovDescriptor(pxr::TfToken const &name) {
     auto const *const aov = findAov(name);
     return aov ? aov->descriptor : pxr::HdAovDescriptor{};
 }

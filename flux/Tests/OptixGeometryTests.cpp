@@ -21,7 +21,7 @@
 #include "flux/Shading/BSDF.h"
 
 #ifndef FLUX_TEST_FIXTURES_DIR
-#error "FLUX_TEST_FIXTURES_DIR must name the Flux test fixtures directory"
+#error "FLUX_TEST_FIXTURES_DIR must name the FLux test fixtures directory"
 #endif
 
 #ifndef FLUX_TEST_OPTIX_IR
@@ -29,7 +29,7 @@
 #endif
 
 #ifndef FLUX_TEST_OUTPUT_DIR
-#error "FLUX_TEST_OUTPUT_DIR must name the Flux test output directory"
+#error "FLUX_TEST_OUTPUT_DIR must name the FLux test output directory"
 #endif
 
 namespace {

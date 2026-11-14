@@ -17,7 +17,7 @@ class Camera;
 /// \pre \p worldToView is invertible.
 /// \pre \p projection is a perspective projection.
 /// \pre \p filmAspect is positive.
-void HdFluxSetCamera(
+void HdFLuxSetCamera(
     flux::Camera &camera, pxr::GfMatrix4d const &worldToView, pxr::GfMatrix4d const &projection,
     double filmAspect
 );

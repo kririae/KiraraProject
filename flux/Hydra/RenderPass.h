@@ -10,15 +10,15 @@
 
 #include "flux/Hydra/Renderer.h"
 
-class HdFluxRenderParam;
+class HdFLuxRenderParam;
 
 /// \brief The interface to execute the rendering pipeline of FLux from Hydra.
-class HdFluxRenderPass final : public pxr::HdRenderPass {
+class HdFLuxRenderPass final : public pxr::HdRenderPass {
 public:
     /// \pre \p param outlives the pass.
-    HdFluxRenderPass(
+    HdFLuxRenderPass(
         pxr::HdRenderIndex *index, pxr::HdRprimCollection const &collection,
-        HdFluxRenderParam &param
+        HdFLuxRenderParam &param
     );
 
     /// \brief Returns whether the image has all the requested samples, the pass renders nothing, or
@@ -30,8 +30,8 @@ private:
         pxr::HdRenderPassStateSharedPtr const &renderPassState, pxr::TfTokenVector const &renderTags
     ) override;
 
-    HdFluxRenderParam &param_;
-    HdFluxRenderer renderer_;
+    HdFLuxRenderParam &param_;
+    HdFLuxRenderer renderer_;
     std::optional<unsigned int> settingsVersion_;
     std::vector<std::string> warnings_;
 };

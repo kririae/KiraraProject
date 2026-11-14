@@ -35,18 +35,18 @@ target_compile_definitions(
 
 add_test(NAME flux.CLI.CboxSmoke
          COMMAND $<TARGET_FILE:flux_cli> ${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/Cbox/Cbox.toml --backend embree --spp 1
-                 --output ${CMAKE_CURRENT_BINARY_DIR}/FluxCLISmoke/cbox.exr)
+                 --output ${CMAKE_CURRENT_BINARY_DIR}/FLuxCLISmoke/cbox.exr)
 
 add_test(NAME flux.CLI.WritesTheFilmForZeroSamples
          COMMAND ${CMAKE_COMMAND} -DFLUX=$<TARGET_FILE:flux_cli>
                  -DSCENE=${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/Cbox/Cbox.toml -DSPP=0
-                 -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/FluxCLIZeroSamples/cbox.exr -DEXPECT=exists
+                 -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/FLuxCLIZeroSamples/cbox.exr -DEXPECT=exists
                  -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckCLIOutput.cmake)
 
 add_test(NAME flux.CLI.WritesNothingForZeroResolution
          COMMAND ${CMAKE_COMMAND} -DFLUX=$<TARGET_FILE:flux_cli>
                  -DSCENE=${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/Cli/ZeroResolution.toml
-                 -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/FluxCLIZeroResolution/empty.exr -DEXPECT=absent
+                 -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/FLuxCLIZeroResolution/empty.exr -DEXPECT=absent
                  -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckCLIOutput.cmake)
 
 option(KRR_FLUX_TEST_REFERENCES "Run image comparisons against generated Mitsuba references" OFF)

@@ -24,11 +24,11 @@ class TriangleMesh;
 /// \c primitives_ holds one primitive per element of \c instanceTransforms_. Primitive \c i has the
 /// geometry \c geometry_, the transform of the light followed by \c instanceTransforms_[i], and an
 /// EDF whose radiance \c normalize divides by the world area of that primitive.
-class HdFluxAreaLight final : public pxr::HdLight {
+class HdFLuxAreaLight final : public pxr::HdLight {
 public:
     /// \pre \p type is \c rectLight, \c diskLight, \c sphereLight, or \c cylinderLight.
-    HdFluxAreaLight(pxr::SdfPath const &id, pxr::TfToken const &type);
-    ~HdFluxAreaLight() override;
+    HdFLuxAreaLight(pxr::SdfPath const &id, pxr::TfToken const &type);
+    ~HdFLuxAreaLight() override;
 
     void Sync(
         pxr::HdSceneDelegate *sceneDelegate, pxr::HdRenderParam *renderParam,

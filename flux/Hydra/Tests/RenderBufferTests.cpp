@@ -7,7 +7,7 @@
 #include "flux/Hydra/RenderBuffer.h"
 
 namespace {
-std::vector<float> read(HdFluxRenderBuffer &buffer, std::size_t floatCount) {
+std::vector<float> read(HdFLuxRenderBuffer &buffer, std::size_t floatCount) {
     auto const *const data = static_cast<float const *>(buffer.Map());
     std::vector<float> values(data, data + floatCount);
     buffer.Unmap();
@@ -21,7 +21,7 @@ std::vector<flux::Vec3f> const image{
 } // namespace
 
 TEST(RenderBufferTests, WritesTheBottomRowFirstAndAnOpaqueFourthComponent) {
-    HdFluxRenderBuffer buffer{pxr::SdfPath("/aov")};
+    HdFLuxRenderBuffer buffer{pxr::SdfPath("/aov")};
     ASSERT_TRUE(buffer.Allocate({2, 2, 1}, pxr::HdFormatFloat32Vec4, false));
 
     buffer.Write(image);
@@ -32,7 +32,7 @@ TEST(RenderBufferTests, WritesTheBottomRowFirstAndAnOpaqueFourthComponent) {
 }
 
 TEST(RenderBufferTests, WritesOnlyTheComponentsOfTheFormat) {
-    HdFluxRenderBuffer buffer{pxr::SdfPath("/aov")};
+    HdFLuxRenderBuffer buffer{pxr::SdfPath("/aov")};
     ASSERT_TRUE(buffer.Allocate({2, 2, 1}, pxr::HdFormatFloat32Vec2, false));
 
     buffer.Write(image);
@@ -41,7 +41,7 @@ TEST(RenderBufferTests, WritesOnlyTheComponentsOfTheFormat) {
 }
 
 TEST(RenderBufferTests, FillsAFloatBufferWithAScalarClearValue) {
-    HdFluxRenderBuffer buffer{pxr::SdfPath("/aov")};
+    HdFLuxRenderBuffer buffer{pxr::SdfPath("/aov")};
     ASSERT_TRUE(buffer.Allocate({2, 2, 1}, pxr::HdFormatFloat32, false));
 
     buffer.Clear(pxr::VtValue{1.0F});
@@ -50,7 +50,7 @@ TEST(RenderBufferTests, FillsAFloatBufferWithAScalarClearValue) {
 }
 
 TEST(RenderBufferTests, KeepsThePixelsAndTheStateWhenAllocatedAgainAtTheSameSize) {
-    HdFluxRenderBuffer buffer{pxr::SdfPath("/aov")};
+    HdFLuxRenderBuffer buffer{pxr::SdfPath("/aov")};
     ASSERT_TRUE(buffer.Allocate({2, 2, 1}, pxr::HdFormatFloat32Vec4, false));
     buffer.Write(image);
     buffer.SetConverged(true);
@@ -64,7 +64,7 @@ TEST(RenderBufferTests, KeepsThePixelsAndTheStateWhenAllocatedAgainAtTheSameSize
 }
 
 TEST(RenderBufferTests, ClearsTheConvergedStateWhenAllocatedAgainWithAnotherFormat) {
-    HdFluxRenderBuffer buffer{pxr::SdfPath("/aov")};
+    HdFLuxRenderBuffer buffer{pxr::SdfPath("/aov")};
     ASSERT_TRUE(buffer.Allocate({2, 2, 1}, pxr::HdFormatFloat32Vec4, false));
     buffer.Write(image);
     buffer.SetConverged(true);

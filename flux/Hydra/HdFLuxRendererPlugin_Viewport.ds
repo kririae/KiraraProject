@@ -1,9 +1,9 @@
-/// Display Options controls for the hdFlux render delegate.
+/// Display Options controls for the hdFLux render delegate.
 
 #include "$HFS/houdini/soho/parameters/CommonMacros.ds"
 
 {
-    name    "HdFluxRendererPlugin"
+    name    "HdFLuxRendererPlugin"
     label   "FLux"
     parmtag { spare_opfilter "!!SHOP/PROPERTIES!!" }
     parmtag { spare_classtags "render" }

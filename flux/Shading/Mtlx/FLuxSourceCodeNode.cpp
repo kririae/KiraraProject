@@ -1,4 +1,4 @@
-#include "flux/Shading/Mtlx/FluxSourceCodeNode.h"
+#include "flux/Shading/Mtlx/FLuxSourceCodeNode.h"
 
 #include <MaterialXGenShader/Exception.h>
 #include <MaterialXGenShader/GenContext.h>
@@ -68,11 +68,11 @@ void emitSlangLibrary(
 }
 } // namespace
 
-MaterialX::ShaderNodeImplPtr FluxSourceCodeNode::create() {
-    return std::make_shared<FluxSourceCodeNode>();
+MaterialX::ShaderNodeImplPtr FLuxSourceCodeNode::create() {
+    return std::make_shared<FLuxSourceCodeNode>();
 }
 
-void FluxSourceCodeNode::initialize(
+void FLuxSourceCodeNode::initialize(
     MaterialX::InterfaceElement const &element, MaterialX::GenContext &context
 ) {
     SourceCodeNode::initialize(element, context);
@@ -99,7 +99,7 @@ void FluxSourceCodeNode::initialize(
     }
 }
 
-void FluxSourceCodeNode::emitFunctionDefinition(
+void FLuxSourceCodeNode::emitFunctionDefinition(
     MaterialX::ShaderNode const &node, MaterialX::GenContext &context, MaterialX::ShaderStage &stage
 ) const {
     if (slangLibrary_.empty()) {
@@ -112,11 +112,11 @@ void FluxSourceCodeNode::emitFunctionDefinition(
     }
 }
 
-bool FluxSourceCodeNode::readsInput(std::string const &name) const {
+bool FLuxSourceCodeNode::readsInput(std::string const &name) const {
     return !_inlined || namedInputs_.contains(name);
 }
 
-void FluxSourceCodeNode::emitFunctionCall(
+void FLuxSourceCodeNode::emitFunctionCall(
     MaterialX::ShaderNode const &node, MaterialX::GenContext &context, MaterialX::ShaderStage &stage
 ) const {
     using namespace MaterialX;

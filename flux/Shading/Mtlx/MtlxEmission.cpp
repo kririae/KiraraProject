@@ -9,7 +9,7 @@
 #include <string>
 #include <utility>
 
-#include "flux/Shading/Mtlx/FluxShaderGraphRefactor.h"
+#include "flux/Shading/Mtlx/FLuxShaderGraphRefactor.h"
 
 namespace flux {
 namespace {

@@ -178,7 +178,7 @@ template <typename T>
 }
 } // namespace
 
-HdFluxAreaLight::HdFluxAreaLight(SdfPath const &id, TfToken const &type) : HdLight(id) {
+HdFLuxAreaLight::HdFLuxAreaLight(SdfPath const &id, TfToken const &type) : HdLight(id) {
     if (type == HdPrimTypeTokens->diskLight)
         shapeSpec_ = DiskSpec{};
     else if (type == HdPrimTypeTokens->sphereLight)
@@ -187,18 +187,18 @@ HdFluxAreaLight::HdFluxAreaLight(SdfPath const &id, TfToken const &type) : HdLig
         shapeSpec_ = CylinderSpec{};
 }
 
-HdFluxAreaLight::~HdFluxAreaLight() = default;
+HdFLuxAreaLight::~HdFLuxAreaLight() = default;
 
-void HdFluxAreaLight::Sync(
+void HdFLuxAreaLight::Sync(
     HdSceneDelegate *sceneDelegate, HdRenderParam *renderParam, HdDirtyBits *dirtyBits
 ) {
     auto const &id = GetId();
-    auto &param = *static_cast<HdFluxRenderParam *>(renderParam);
+    auto &param = *static_cast<HdFLuxRenderParam *>(renderParam);
 
     _UpdateInstancer(sceneDelegate, dirtyBits);
     if ((*dirtyBits & DirtyInstancer) != 0)
         instanceTransforms_ =
-            HdFluxComputeInstanceTransforms(sceneDelegate->GetRenderIndex(), GetInstancerId(), id);
+            HdFLuxComputeInstanceTransforms(sceneDelegate->GetRenderIndex(), GetInstancerId(), id);
 
     try {
         auto const context = param.GetContext();
@@ -210,10 +210,10 @@ void HdFluxAreaLight::Sync(
 
         auto const visible = sceneDelegate->GetVisible(id);
         auto const transform = sceneDelegate->GetTransform(id);
-        auto const radiance = HdFluxComputeLightEmission(*sceneDelegate, id);
+        auto const radiance = HdFLuxComputeLightEmission(*sceneDelegate, id);
         auto const normalize = getLightParam(*sceneDelegate, id, HdLightTokens->normalize, false);
 
-        HdFluxTruncatePrimitives(*context, primitives_, instanceTransforms_.size());
+        HdFLuxTruncatePrimitives(*context, primitives_, instanceTransforms_.size());
         edfs_.resize(primitives_.size());
         primitives_.reserve(instanceTransforms_.size());
         edfs_.reserve(instanceTransforms_.size());
@@ -228,7 +228,7 @@ void HdFluxAreaLight::Sync(
             primitive.setGeometry(geometry_);
             primitive.setEDF(edfs_[i]);
             primitive.setVisible(visible);
-            primitive.setTransform(HdFluxToTransform(transform * instanceTransforms_[i]));
+            primitive.setTransform(HdFLuxToTransform(transform * instanceTransforms_[i]));
 
             auto const area = worldArea(*geometry_, primitive.getTransform());
             edfs_[i]->setRadiance(normalize && area > 0.0F ? radiance / area : radiance);
@@ -238,15 +238,15 @@ void HdFluxAreaLight::Sync(
     *dirtyBits = Clean;
 }
 
-HdDirtyBits HdFluxAreaLight::GetInitialDirtyBitsMask() const { return AllDirty; }
+HdDirtyBits HdFLuxAreaLight::GetInitialDirtyBitsMask() const { return AllDirty; }
 
-void HdFluxAreaLight::Finalize(HdRenderParam *renderParam) {
-    HdFluxTruncatePrimitives(
-        *static_cast<HdFluxRenderParam *>(renderParam)->GetContext(), primitives_, 0
+void HdFLuxAreaLight::Finalize(HdRenderParam *renderParam) {
+    HdFLuxTruncatePrimitives(
+        *static_cast<HdFLuxRenderParam *>(renderParam)->GetContext(), primitives_, 0
     );
 }
 
-HdFluxAreaLight::ShapeSpec HdFluxAreaLight::getShapeSpec(HdSceneDelegate &sceneDelegate) const {
+HdFLuxAreaLight::ShapeSpec HdFLuxAreaLight::getShapeSpec(HdSceneDelegate &sceneDelegate) const {
     auto const get = [&](TfToken const &token, float fallback) {
         return std::abs(getLightParam(sceneDelegate, GetId(), token, fallback));
     };
@@ -270,7 +270,7 @@ HdFluxAreaLight::ShapeSpec HdFluxAreaLight::getShapeSpec(HdSceneDelegate &sceneD
 }
 
 flux::Ref<flux::TriangleMesh>
-HdFluxAreaLight::createShapeMesh(flux::Context &context, ShapeSpec const &shapeSpec) {
+HdFLuxAreaLight::createShapeMesh(flux::Context &context, ShapeSpec const &shapeSpec) {
     auto const create = kira::Overload{
         [&](RectSpec const &spec) { return createRectangle(context, spec.width, spec.height); },
         [&](DiskSpec const &spec) { return createDisk(context, spec.radius); },

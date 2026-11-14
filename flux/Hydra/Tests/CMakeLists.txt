@@ -20,7 +20,7 @@ add_hydra_test(RenderTests)
 add_hydra_test(SampleScheduleTests)
 
 # RenderTests loads the plugin through Plug, so the plugin must be built first.
-add_dependencies(flux.Hydra.RenderTests hdFlux)
+add_dependencies(flux.Hydra.RenderTests hdFLux)
 
 target_link_libraries(flux.Hydra.RenderTests PRIVATE Houdini::Dep::pxr_cameraUtil)
 

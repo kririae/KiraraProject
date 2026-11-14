@@ -9,7 +9,7 @@
 #include "kira/Logger.h"
 
 namespace flux {
-FluxCLIOptions parseFluxCLI(int argc, char **argv) {
+FLuxCLIOptions parseFLuxCLI(int argc, char **argv) {
     argparse::ArgumentParser program{"flux", std::string{}, argparse::default_arguments::help};
     program.add_argument("scene").help("TOML scene file").required();
     program.add_argument("-o", "--output").help("write the color image to this EXR file");
@@ -33,7 +33,7 @@ FluxCLIOptions parseFluxCLI(int argc, char **argv) {
     program.add_argument("--log-file").help("also append logs to this file");
     program.parse_args(argc, argv);
 
-    FluxCLIOptions options;
+    FLuxCLIOptions options;
     options.scenePath = program.get<std::string>("scene");
     if (auto output = program.present<std::string>("--output"))
         options.outputPath = std::filesystem::path{std::move(*output)};
@@ -79,7 +79,7 @@ FluxCLIOptions parseFluxCLI(int argc, char **argv) {
     return options;
 }
 
-void configureLogging(FluxCLIOptions const &options) {
+void configureLogging(FLuxCLIOptions const &options) {
     if (options.logFilePath) {
         auto const &path = *options.logFilePath;
         if (auto const &parent = path.parent_path(); !parent.empty()) {

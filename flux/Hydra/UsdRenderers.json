@@ -1,5 +1,5 @@
 {
-    "HdFluxRendererPlugin": {
+    "HdFLuxRendererPlugin": {
         "menulabel": "FLux",
         "aovsupport": true,
         "depthstyle": "opengl",

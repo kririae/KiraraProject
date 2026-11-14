@@ -99,7 +99,7 @@ Vec4f EmbreeImageTexturePool::Impl::eval4f(
 ) const noexcept {
     auto const &texture = textures[index];
 
-    // Map oriented Flux UVs to the file coordinates used by OIIO.
+    // Map oriented FLux UVs to the file coordinates used by OIIO.
     auto const orientGradient = [&](Vec2f &gradient) {
         switch (texture.orientation) {
         case 1: break;

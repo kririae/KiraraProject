@@ -20,7 +20,7 @@ HdMaterialNetwork2 resolveAssetPaths(HdMaterialNetwork2 network, SdfPath const &
                 continue;
 
             value = SdfAssetPath{
-                HdFluxGetResolvedPath(value.UncheckedGet<SdfAssetPath>(), materialPath)
+                HdFLuxGetResolvedPath(value.UncheckedGet<SdfAssetPath>(), materialPath)
             };
         }
     }
@@ -28,8 +28,8 @@ HdMaterialNetwork2 resolveAssetPaths(HdMaterialNetwork2 network, SdfPath const &
 }
 } // namespace
 
-std::optional<HdFluxMaterialXXml>
-HdFluxToMaterialXXml(HdMaterialNetwork2 const &network, SdfPath const &materialPath) {
+std::optional<HdFLuxMaterialXXml>
+HdFLuxToMaterialXXml(HdMaterialNetwork2 const &network, SdfPath const &materialPath) {
     auto const terminal = network.terminals.find(HdMaterialTerminalTokens->surface);
     if (terminal == network.terminals.end())
         return std::nullopt;
@@ -51,7 +51,7 @@ HdFluxToMaterialXXml(HdMaterialNetwork2 const &network, SdfPath const &materialP
     options.elementPredicate = [](mx::ConstElementPtr const &element) {
         return !element->hasSourceUri();
     };
-    return HdFluxMaterialXXml{
+    return HdFLuxMaterialXXml{
         mx::writeToXmlString(document, &options), surfaceMaterials.front()->getName()
     };
 }

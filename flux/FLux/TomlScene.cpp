@@ -78,7 +78,7 @@ struct Material {
 }
 } // namespace
 
-LoadedScene loadTomlScene(FluxCLIOptions const &options) {
+LoadedScene loadTomlScene(FLuxCLIOptions const &options) {
     auto const extension = options.scenePath.extension().string();
     if (extension != ".toml")
         throw kira::Anyhow("unsupported scene extension '{}'", extension);

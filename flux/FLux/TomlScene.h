@@ -8,7 +8,7 @@
 #include "flux/Scene/Film.h"
 
 namespace flux {
-struct FluxCLIOptions;
+struct FLuxCLIOptions;
 
 /// \brief A scene and the image to render from it.
 struct LoadedScene {
@@ -43,5 +43,5 @@ struct LoadedScene {
 /// \par Film properties
 /// - \c resolution: required uint32 image resolution.
 /// - \c num_samples: optional uint32 target sample count, defaults to 1.
-[[nodiscard]] LoadedScene loadTomlScene(FluxCLIOptions const &options);
+[[nodiscard]] LoadedScene loadTomlScene(FLuxCLIOptions const &options);
 } // namespace flux

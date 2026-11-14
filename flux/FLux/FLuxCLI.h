@@ -13,8 +13,8 @@ enum class RenderBackend { // NOLINT
     Embree,
 };
 
-/// \brief Options accepted by the Flux executable.
-struct FluxCLIOptions {
+/// \brief Options accepted by the FLux executable.
+struct FLuxCLIOptions {
     std::filesystem::path scenePath;
     std::optional<std::filesystem::path> outputPath;
     std::optional<std::filesystem::path> logFilePath;
@@ -25,11 +25,11 @@ struct FluxCLIOptions {
     spdlog::level::level_enum logLevel{spdlog::level::warn};
 };
 
-/// \brief Parses the Flux command line.
+/// \brief Parses the FLux command line.
 ///
 /// Invalid arguments throw.
-[[nodiscard]] FluxCLIOptions parseFluxCLI(int argc, char **argv);
+[[nodiscard]] FLuxCLIOptions parseFLuxCLI(int argc, char **argv);
 
 /// \brief Configures CLI logging before renderer work starts.
-void configureLogging(FluxCLIOptions const &options);
+void configureLogging(FLuxCLIOptions const &options);
 } // namespace flux

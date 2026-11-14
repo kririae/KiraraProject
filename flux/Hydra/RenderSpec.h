@@ -9,7 +9,7 @@
 
 /// \brief What a renderer renders apart from the scene: the resolution and the
 /// channels of the image, and the view to see from.
-struct HdFluxRenderSpec {
+struct HdFLuxRenderSpec {
     /// \brief The camera that sees the scene.
     struct View {
         pxr::GfMatrix4d worldToView;
@@ -22,5 +22,5 @@ struct HdFluxRenderSpec {
     flux::FilmChannels channels{flux::FilmChannels::None};
     std::optional<View> view;
 
-    bool operator==(HdFluxRenderSpec const &) const = default;
+    bool operator==(HdFLuxRenderSpec const &) const = default;
 };

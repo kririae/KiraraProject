@@ -24,7 +24,7 @@
 #include "flux/Shading/Texture.h"
 
 #ifndef FLUX_TEST_FIXTURES_DIR
-#error "FLUX_TEST_FIXTURES_DIR must name the Flux test fixtures directory"
+#error "FLUX_TEST_FIXTURES_DIR must name the FLux test fixtures directory"
 #endif
 
 namespace {

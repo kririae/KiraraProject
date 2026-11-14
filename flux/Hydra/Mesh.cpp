@@ -210,19 +210,19 @@ template <typename Element, typename Array>
     return data;
 }
 
-[[nodiscard]] HdFluxMaterial const *
+[[nodiscard]] HdFLuxMaterial const *
 findMaterial(HdSceneDelegate &sceneDelegate, SdfPath const &materialId) {
-    return static_cast<HdFluxMaterial const *>(
+    return static_cast<HdFLuxMaterial const *>(
         sceneDelegate.GetRenderIndex().GetSprim(HdPrimTypeTokens->material, materialId)
     );
 }
 } // namespace
 
-HdFluxMesh::HdFluxMesh(SdfPath const &id) : HdMesh(id) {}
+HdFLuxMesh::HdFLuxMesh(SdfPath const &id) : HdMesh(id) {}
 
-HdFluxMesh::~HdFluxMesh() = default;
+HdFLuxMesh::~HdFLuxMesh() = default;
 
-HdDirtyBits HdFluxMesh::GetInitialDirtyBitsMask() const {
+HdDirtyBits HdFLuxMesh::GetInitialDirtyBitsMask() const {
     return HdChangeTracker::Clean | HdChangeTracker::InitRepr | HdChangeTracker::DirtyPoints |
            HdChangeTracker::DirtyNormals | HdChangeTracker::DirtyPrimvar |
            HdChangeTracker::DirtyTopology | HdChangeTracker::DirtyTransform |
@@ -230,12 +230,12 @@ HdDirtyBits HdFluxMesh::GetInitialDirtyBitsMask() const {
            HdChangeTracker::DirtyInstancer | HdChangeTracker::DirtyInstanceIndex;
 }
 
-void HdFluxMesh::Sync(
+void HdFLuxMesh::Sync(
     HdSceneDelegate *sceneDelegate, HdRenderParam *renderParam, HdDirtyBits *dirtyBits,
     TfToken const &
 ) {
     auto const &id = GetId();
-    auto &param = *static_cast<HdFluxRenderParam *>(renderParam);
+    auto &param = *static_cast<HdFLuxRenderParam *>(renderParam);
 
     _UpdateInstancer(sceneDelegate, dirtyBits);
 
@@ -250,7 +250,7 @@ void HdFluxMesh::Sync(
     if (HdChangeTracker::IsInstancerDirty(*dirtyBits, id) ||
         HdChangeTracker::IsInstanceIndexDirty(*dirtyBits, id))
         instanceTransforms_ =
-            HdFluxComputeInstanceTransforms(sceneDelegate->GetRenderIndex(), GetInstancerId(), id);
+            HdFLuxComputeInstanceTransforms(sceneDelegate->GetRenderIndex(), GetInstancerId(), id);
 
     try {
         auto const context = param.GetContext();
@@ -283,7 +283,7 @@ void HdFluxMesh::Sync(
         }
 
         auto const count = geometry_ ? instanceTransforms_.size() : 0;
-        HdFluxTruncatePrimitives(*context, primitives_, count);
+        HdFLuxTruncatePrimitives(*context, primitives_, count);
         primitives_.reserve(count);
 
         auto const *const material = findMaterial(*sceneDelegate, GetMaterialId());
@@ -296,7 +296,7 @@ void HdFluxMesh::Sync(
 
             auto &primitive = *primitives_[i];
             primitive.setGeometry(geometry_);
-            primitive.setTransform(HdFluxToTransform(transform_ * instanceTransforms_[i]));
+            primitive.setTransform(HdFLuxToTransform(transform_ * instanceTransforms_[i]));
             primitive.setVisible(IsVisible());
             primitive.setBSDF(bsdf);
             primitive.setEDF(edf);
@@ -306,16 +306,16 @@ void HdFluxMesh::Sync(
     *dirtyBits &= ~HdChangeTracker::AllSceneDirtyBits;
 }
 
-void HdFluxMesh::Finalize(HdRenderParam *renderParam) {
-    HdFluxTruncatePrimitives(
-        *static_cast<HdFluxRenderParam *>(renderParam)->GetContext(), primitives_, 0
+void HdFLuxMesh::Finalize(HdRenderParam *renderParam) {
+    HdFLuxTruncatePrimitives(
+        *static_cast<HdFLuxRenderParam *>(renderParam)->GetContext(), primitives_, 0
     );
 }
 
-void HdFluxMesh::_InitRepr(TfToken const &reprToken, HdDirtyBits *) {
+void HdFLuxMesh::_InitRepr(TfToken const &reprToken, HdDirtyBits *) {
     auto const found = std::ranges::find_if(_reprs, _ReprComparator(reprToken));
     if (found == _reprs.end())
         _reprs.emplace_back(reprToken, HdReprSharedPtr());
 }
 
-HdDirtyBits HdFluxMesh::_PropagateDirtyBits(HdDirtyBits bits) const { return bits; }
+HdDirtyBits HdFLuxMesh::_PropagateDirtyBits(HdDirtyBits bits) const { return bits; }

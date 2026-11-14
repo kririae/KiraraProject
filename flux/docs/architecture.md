@@ -4,9 +4,9 @@ How FLux applies the [design skill](../../.agents/skills/design/SKILL.md) to its
 
 ## Layers
 
-- FLux core never depends on Hydra. Its API ends at core types, such as `Film`, and hdFlux adapts them to Hydra.
-- hdFlux is a general Hydra delegate. Houdini is its first host application. hdFlux adapts to the convention of a host in one place, and names the host there.
-- hdFlux follows the structure of hdEmbree, the example delegate of USD.
+- FLux core never depends on Hydra. Its API ends at core types, such as `Film`, and hdFLux adapts them to Hydra.
+- hdFLux is a general Hydra delegate. Houdini is its first host application. hdFLux adapts to the convention of a host in one place, and names the host there.
+- hdFLux follows the structure of hdEmbree, the example delegate of USD.
 
 ## References
 
