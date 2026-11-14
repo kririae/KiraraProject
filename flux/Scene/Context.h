@@ -6,6 +6,7 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <mutex>
 #include <optional>
 #include <stdexcept>
@@ -18,7 +19,6 @@
 #include "flux/Scene/ImageAsset.h"
 #include "flux/Scene/ShaderAsset.h"
 #include "flux/Scene/TXContext.h"
-#include "kira/FileResolver.h"
 #include "kira/SmallVector.h"
 
 namespace flux {
@@ -75,7 +75,9 @@ public:
     }
 
     /// \pre The context outlives every use of the transaction.
-    [[nodiscard]] TXContext transaction() { return TXContext{*this}; }
+    [[nodiscard]] TXContext transaction(ResolvedPath anchor = {}) {
+        return TXContext{*this, std::move(anchor)};
+    }
 
     /// \brief Adds every object of the transaction to the scene, or none of them if it throws.
     ///
@@ -258,12 +260,6 @@ public:
 public:
     // Resources.
 
-    /// \brief Returns the resolver used by later object construction.
-    [[nodiscard]] kira::FileResolver &getFileResolver() noexcept { return fileResolver_; }
-    [[nodiscard]] kira::FileResolver const &getFileResolver() const noexcept {
-        return fileResolver_;
-    }
-
     [[nodiscard]] ImageAssetPool &getImageAssetPool() noexcept { return imageAssetPool_; }
     [[nodiscard]] ShaderAssetPool &getShaderAssetPool() noexcept { return shaderAssetPool_; }
 
@@ -316,7 +312,6 @@ private:
     Ref<EnvMapLight const> activeEnvMap_;
     ImageAssetPool imageAssetPool_;
     ShaderAssetPool shaderAssetPool_;
-    kira::FileResolver fileResolver_;
     /// Next context ID. Transactions on different threads allocate IDs concurrently.
     std::atomic_size_t nextId_{0};
 

@@ -3,7 +3,8 @@
 #include "flux/Scene/Context.h"
 
 namespace flux {
-TXContext::TXContext(Context &context) : context_(context) {}
+TXContext::TXContext(Context &context, ResolvedPath anchor)
+    : context_(context), anchor_(std::move(anchor)) {}
 
 std::size_t TXContext::allocateId() { return context_.allocateId(); }
 
@@ -18,10 +19,6 @@ bool TXContext::contains(ContextObject const &object) const {
         return true;
     auto const iterator = objects_.find(object.getContextId());
     return iterator != objects_.end() && iterator->second.get() == &object;
-}
-
-kira::FileResolver const &TXContext::getFileResolver() const noexcept {
-    return context_.getFileResolver();
 }
 
 ImageAssetPool &TXContext::getImageAssetPool() const noexcept {

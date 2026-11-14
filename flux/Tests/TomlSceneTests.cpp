@@ -1,16 +1,20 @@
 #include <gtest/gtest.h>
 
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <string>
 #include <vector>
 
+#include "TestUtils.h"
 #include "flux/FLux/FLuxCLI.h"
 #include "flux/FLux/TomlScene.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/Primitive.h"
+#include "flux/Scene/TriangleMesh.h"
 #include "flux/Shading/BSDF.h"
 #include "flux/Shading/EDF.h"
+#include "flux/Shading/Texture.h"
 #include "kira/Anyhow.h"
 
 #ifndef FLUX_TEST_FIXTURES_DIR

@@ -453,7 +453,10 @@ constexpr auto twoTexelEmissionDocument = R"mtlx(<?xml version="1.0"?>
 makeShaderEDF(flux::Context &context, std::string const &document) {
     auto const generator = flux::MtlxShaderGenerator{FLUX_MATERIALX_DIR};
     auto generated = generator.generate(
-        document, "M", std::array{std::filesystem::path{FLUX_TEST_FIXTURES_DIR}}
+        document, "M",
+        flux::ResolvedPath{
+            flux::u8string(std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "Document.mtlx")
+        }
     );
     if (!generated.instance)
         throw kira::Anyhow{"the generator produced no shader"};

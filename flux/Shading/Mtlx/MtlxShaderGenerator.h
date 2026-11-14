@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "flux/Core/ResolvedPath.h"
 #include "flux/Scene/ShaderAsset.h"
 
 namespace flux {
@@ -37,11 +38,8 @@ public:
 
     ~MtlxShaderGenerator();
 
-    /// \brief Generates the shader of the material \p materialName of the MaterialX document
-    /// \p document, in XML.
     [[nodiscard]] GenerationResult generate(
-        std::string const &document, std::string const &materialName,
-        std::span<std::filesystem::path const> searchPath
+        std::string const &document, std::string const &materialName, ResolvedPath const &anchor
     ) const;
 
 private:

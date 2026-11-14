@@ -21,6 +21,7 @@
 
 #include "flux/Core/Logging.h"
 #include "flux/Core/MathUtils.h"
+#include "flux/Core/ResolvedPath.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/TriangleMeshImpl.h"
 #include "kira/Anyhow.h"
@@ -55,12 +56,11 @@ template <typename T>
 [[nodiscard]] TriangleMesh::Data loadPly(std::filesystem::path const &path);
 
 /// \brief Loads the mesh file named by the \c path property of \p props.
-[[nodiscard]] TriangleMesh::Data
-loadMeshFile(kira::FileResolver const &resolver, kira::Properties const &props) {
-    auto const authoredPath = props.use<std::filesystem::path>("path");
-    auto const path = resolver.resolve(authoredPath);
+[[nodiscard]] TriangleMesh::Data loadMeshFile(TXContext const &tx, kira::Properties const &props) {
+    auto const identifier = createIdentifier(props.use<std::string>("path"), tx.getAnchor());
+    auto const path = u8path(identifier);
     if (!std::filesystem::exists(path))
-        throw kira::Anyhow("TriangleMesh: failed to resolve '{}'", authoredPath.string());
+        throw kira::Anyhow("TriangleMesh: '{}' does not exist", identifier);
 
     auto extension = path.extension().string();
     std::ranges::transform(extension, extension.begin(), [](unsigned char character) {
@@ -74,7 +74,7 @@ loadMeshFile(kira::FileResolver const &resolver, kira::Properties const &props) 
         data = loadPly(path);
     else
         throw kira::Anyhow(
-            "TriangleMesh: unsupported file extension '{}' for '{}'", extension, path.string()
+            "TriangleMesh: unsupported file extension '{}' for '{}'", extension, identifier
         );
 
     if (!data.normals)
@@ -85,7 +85,7 @@ loadMeshFile(kira::FileResolver const &resolver, kira::Properties const &props) 
 } // namespace
 
 TriangleMesh::TriangleMesh(TXContext &tx, kira::Properties const &props)
-    : TriangleMesh(tx, loadMeshFile(tx.getFileResolver(), props)) {}
+    : TriangleMesh(tx, loadMeshFile(tx, props)) {}
 
 TriangleMesh::TriangleMesh(TXContext &tx, Data &&data)
     : Geometry(tx, GeometryType::TriangleMesh), data_(std::move(data)) {

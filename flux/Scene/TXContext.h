@@ -3,16 +3,14 @@
 #include <array>
 #include <concepts>
 #include <cstddef>
+#include <filesystem>
 #include <unordered_map>
 #include <utility>
 
 #include "flux/Core/Object.h"
+#include "flux/Core/ResolvedPath.h"
 #include "flux/Scene/ContextIndexMap.h"
 #include "kira/Anyhow.h"
-
-namespace kira {
-class FileResolver;
-}
 
 namespace flux {
 class Context;
@@ -62,8 +60,7 @@ public:
     /// \brief Returns whether \p object is an object of this transaction or of its owning context.
     [[nodiscard]] bool contains(ContextObject const &object) const;
 
-    /// \brief Returns the resolver for the files a constructor loads.
-    [[nodiscard]] kira::FileResolver const &getFileResolver() const noexcept;
+    [[nodiscard]] ResolvedPath const &getAnchor() const noexcept { return anchor_; }
 
     /// \brief Returns the pool that shares loaded images.
     [[nodiscard]] ImageAssetPool &getImageAssetPool() const noexcept;
@@ -72,13 +69,14 @@ public:
     [[nodiscard]] ShaderAssetPool &getShaderAssetPool() const noexcept;
 
 private:
-    explicit TXContext(Context &context);
+    TXContext(Context &context, ResolvedPath anchor);
 
     [[nodiscard]] Ref<ContextObject> getObject(std::size_t contextId) const;
     [[nodiscard]] std::size_t allocateId();
     void registerObject(Ref<ContextObject> object);
 
     Context &context_;
+    ResolvedPath anchor_;
     std::unordered_map<std::size_t, Ref<ContextObject>> objects_;
 
     /// IDs of the objects of each indexed kind, which the context merges into its index maps.

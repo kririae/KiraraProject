@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "flux/Core/Logging.h"
+#include "flux/Core/ResolvedPath.h"
 #include "flux/FLux/FLuxCLI.h"
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Sampling/Sampler.h"
@@ -44,27 +45,27 @@ struct Material {
     if (type != "materialx")
         throw kira::Anyhow("unsupported material type '{}'", type);
 
-    auto const authoredPath = props.use<std::filesystem::path>("file");
+    auto const identifier = createIdentifier(props.use<std::string>("file"), tx.getAnchor());
+    auto const path = u8path(identifier);
     auto const materialName = props.use<std::string>("material");
-    auto const path = tx.getFileResolver().resolve(authoredPath);
     if (!std::filesystem::exists(path))
-        throw kira::Anyhow("failed to resolve MaterialX file '{}'", authoredPath.string());
+        throw kira::Anyhow("MaterialX file '{}' does not exist", identifier);
 
     if (!generator)
         generator.emplace(FLUX_MATERIALX_DIR);
     auto stream = std::ifstream{path};
     if (!stream)
-        throw kira::Anyhow("failed to read MaterialX file '{}'", path.string());
+        throw kira::Anyhow("failed to read MaterialX file '{}'", identifier);
     auto const document =
         std::string{std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}};
 
-    auto generation = generator->generate(document, materialName, std::array{path.parent_path()});
+    auto generation = generator->generate(document, materialName, ResolvedPath{identifier});
     for (auto const &diagnostic : generation.diagnostics)
         LogWarn("{}", diagnostic);
     auto const &instance = generation.instance;
     if (!instance)
         throw kira::Anyhow(
-            "MaterialX file '{}' generated no shader for material '{}'", path.string(), materialName
+            "MaterialX file '{}' generated no shader for material '{}'", identifier, materialName
         );
     auto textures = std::vector<Ref<ImageTexture const>>{};
     for (auto const &spec : instance->textures)
@@ -94,8 +95,9 @@ LoadedScene loadTomlScene(FluxCLIOptions const &options) {
 
     auto scene = kira::Properties::parse(source, options.scenePath);
     auto context = Context::create();
-    context->getFileResolver().prepend(std::filesystem::absolute(options.scenePath).parent_path());
-    auto tx = context->transaction();
+    auto tx = context->transaction(
+        ResolvedPath{flux::u8string(std::filesystem::absolute(options.scenePath))}
+    );
     auto integratorProps = scene.use_view("integrator");
     if (options.chunkSize)
         integratorProps.set("chunk_size", *options.chunkSize);

@@ -5,6 +5,7 @@
 #include <string_view>
 #include <utility>
 
+#include "flux/Core/ResolvedPath.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/ImageAsset.h"
 #include "flux/Scene/TXContext.h"
@@ -37,8 +38,8 @@ parseAddressMode(kira::Properties const &props, std::string_view property) {
     throw kira::Anyhow("ImageTexture: unsupported filter mode '{}'", value);
 }
 
-[[nodiscard]] ImageTextureSpec parseSpec(kira::Properties const &props) {
-    auto const path = props.use<std::filesystem::path>("path");
+[[nodiscard]] ImageTextureSpec parseSpec(TXContext const &tx, kira::Properties const &props) {
+    auto const path = u8path(joinName(tx.getBaseDirectory(), props.use<std::string>("path")));
     auto const colorSpace = props.use_or<std::string>("color_space", "linear");
     auto imageColorSpace = std::string{linearRec709};
     if (colorSpace == "auto")
@@ -118,14 +119,14 @@ Texture::Impl ConstantTexture::getImpl() const {
 
 ImageTexture::ImageTexture(TXContext &tx, ImageTextureSpec const &spec)
     : Texture(tx), imageAsset_(tx.getImageAssetPool().getOrCreate({
-                       .path = tx.getFileResolver().resolve(spec.image.path),
+                       .path = spec.image.path,
                        .colorSpace = spec.image.colorSpace,
                    })),
       addressModes_(spec.addressModes), filterMode_(spec.filterMode),
       componentMapping_(imageAsset_->getDefaultComponentMapping()) {}
 
 ImageTexture::ImageTexture(TXContext &tx, kira::Properties const &props)
-    : ImageTexture(tx, parseSpec(props)) {
+    : ImageTexture(tx, parseSpec(tx, props)) {
     if (props.contains("component_mapping")) {
         auto const value = props.use<std::string>("component_mapping");
         auto const parseSource = [](char source) {

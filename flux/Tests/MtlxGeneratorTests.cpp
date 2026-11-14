@@ -754,6 +754,27 @@ TEST(MtlxGeneratorTests, AnImageNodeSetsTheSpecOfItsTexture) {
     );
 }
 
+TEST(MtlxGeneratorTests, AFileNameIsRelativeToTheDirectoryOfTheDocumentWhetherOrNotItExists) {
+    auto const generator = flux::MtlxShaderGenerator{FLUX_MATERIALX_DIR};
+    auto const result = generator.generate(
+        imageSettingsDocument, "M", flux::ResolvedPath{"/documents/scene/scene.mtlx"}
+    );
+
+    ASSERT_TRUE(result.instance);
+    ASSERT_EQ(result.instance->textures.size(), 1U);
+    EXPECT_EQ(result.instance->textures[0].image.path, "/documents/scene/a.png");
+}
+
+TEST(MtlxGeneratorTests, AFileNameWithoutABaseDirectoryPassesUnchanged) {
+    auto document = std::string{imageSettingsDocument};
+    document.replace(document.find("a.png"), std::string_view{"a.png"}.size(), "s3://b/a.png");
+
+    auto const instance = generate(document);
+
+    ASSERT_EQ(instance.textures.size(), 1U);
+    EXPECT_EQ(instance.textures[0].image.path.u8string(), u8"s3://b/a.png");
+}
+
 TEST(MtlxGeneratorTests, AnImageKeepsTheColorSpaceOfItsFile) {
     auto document = std::string{imageSettingsDocument};
     document.replace(

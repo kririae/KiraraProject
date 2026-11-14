@@ -34,6 +34,7 @@
 #include <utility>
 #include <vector>
 
+#include "flux/Core/ResolvedPath.h"
 #include "flux/Shading/Mtlx/FluxShaderGenerator.h"
 #include "flux/Shading/Mtlx/FluxShaderGraphRefactor.h"
 #include "flux/Shading/Mtlx/FluxSourceCodeNode.h"
@@ -318,7 +319,7 @@ void markAuthoredInputs(MaterialX::Document &document) {
     };
 
     auto spec = ImageTextureSpec{};
-    spec.image.path = file;
+    spec.image.path = u8path(file);
 
     // MaterialX transforms only a color output, so the other outputs are linear.
     auto const isColor = node.getType() == "color3" || node.getType() == "color4";
@@ -501,13 +502,20 @@ void emitEntryFunction(
     stage.endScope();
 }
 
-[[nodiscard]] MaterialX::FileSearchPath
-makeSearchPath(std::span<std::filesystem::path const> folders) {
-    auto searchPath = MaterialX::FileSearchPath{};
-    for (auto const &folder : folders)
-        searchPath.append(MaterialX::FilePath{folder.string()});
-    return searchPath;
-}
+class IdentifierResolver final : public MaterialX::StringResolver {
+public:
+    explicit IdentifierResolver(ResolvedPath anchor) : anchor_{std::move(anchor)} {}
+
+    [[nodiscard]] std::string
+    resolve(std::string const &value, std::string const &type) const override {
+        if (type != MaterialX::FILENAME_TYPE_STRING)
+            return value;
+        return createIdentifier(value, anchor_);
+    }
+
+private:
+    ResolvedPath anchor_;
+};
 
 /// \brief The first node of \p graph that a nodegraph defines for \p target, or null.
 ///
@@ -565,7 +573,7 @@ struct MtlxShaderGenerator::pImpl final {
     /// \throw MaterialX::Exception If the content cannot be generated.
     [[nodiscard]] ShaderInstance makeInstance(
         MaterialX::DocumentPtr const &document, std::string const &materialName,
-        MaterialX::FileSearchPath const &searchPath, std::vector<std::string> &diagnostics
+        ResolvedPath const &anchor, std::vector<std::string> &diagnostics
     ) const;
 
     MaterialX::FilePath mtlxRoot;
@@ -604,19 +612,22 @@ MtlxShaderGenerator::MtlxShaderGenerator(std::filesystem::path const &mtlxRoot)
 MtlxShaderGenerator::~MtlxShaderGenerator() = default;
 
 MtlxShaderGenerator::GenerationResult MtlxShaderGenerator::generate(
-    std::string const &document, std::string const &materialName,
-    std::span<std::filesystem::path const> searchPath
+    std::string const &document, std::string const &materialName, ResolvedPath const &anchor
 ) const {
     auto result = GenerationResult{};
     try {
-        auto const folders = makeSearchPath(searchPath);
+        auto folders = MaterialX::FileSearchPath{};
+        if (!anchor.isEmpty())
+            folders.append(
+                MaterialX::FilePath{u8path(anchor.getPathString()).parent_path().string()}
+            );
         auto const parsed = MaterialX::createDocument();
         MaterialX::readFromXmlString(parsed, document, folders);
         auto const element = parsed->getChild(materialName);
         if (!element || element->getCategory() != "surfacematerial")
             return {};
 
-        result.instance = pImpl_->makeInstance(parsed, materialName, folders, result.diagnostics);
+        result.instance = pImpl_->makeInstance(parsed, materialName, anchor, result.diagnostics);
     } catch (MaterialX::Exception const &error) {
         result.diagnostics.push_back(
             fmt::format("MaterialX material '{}': {}", materialName, error.what())
@@ -627,9 +638,11 @@ MtlxShaderGenerator::GenerationResult MtlxShaderGenerator::generate(
 
 ShaderInstance MtlxShaderGenerator::pImpl::makeInstance(
     MaterialX::DocumentPtr const &document, std::string const &materialName,
-    MaterialX::FileSearchPath const &searchPath, std::vector<std::string> &diagnostics
+    ResolvedPath const &anchor, std::vector<std::string> &diagnostics
 ) const {
-    MaterialX::flattenFilenames(document, searchPath);
+    MaterialX::flattenFilenames(
+        document, MaterialX::FileSearchPath{}, std::make_shared<IdentifierResolver>(anchor)
+    );
     markAuthoredInputs(*document);
     document->setDataLibrary(libraries);
 
