@@ -19,12 +19,15 @@ template <typename Scene>
 [[nodiscard]] KIRA_HOST_DEVICE KIRA_FORCEINLINE SurfaceInteraction makeSurfaceInteraction(
     Scene const &scene, std::uint32_t primitiveIndex, GeometryInteraction const &interaction
 ) noexcept {
+    auto const geometricNormal =
+        scene.transformNormalToWorld(primitiveIndex, interaction.geometricNormal).normalize();
     return {
         .position = scene.transformPointToWorld(primitiveIndex, interaction.position),
-        .geometricNormal =
-            scene.transformNormalToWorld(primitiveIndex, interaction.geometricNormal).normalize(),
-        .shadingNormal =
+        .geometricNormal = geometricNormal,
+        .shadingNormal = faceForward(
             scene.transformNormalToWorld(primitiveIndex, interaction.shadingNormal).normalize(),
+            geometricNormal
+        ),
         .uv = interaction.uv,
         .uvGradU = scene.transformNormalToWorld(primitiveIndex, interaction.uvGradU),
         .uvGradV = scene.transformNormalToWorld(primitiveIndex, interaction.uvGradV),

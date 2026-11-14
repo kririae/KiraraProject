@@ -332,10 +332,14 @@ EmbreeContext::Impl::makeSurfaceInteraction(Ray const &ray, Hit const &hit) cons
     // and transforms by the inverse transpose, exactly like a normal.
     auto const uvGradU = transformVec(normalTransform.data(), geometryInteraction.uvGradU);
     auto const uvGradV = transformVec(normalTransform.data(), geometryInteraction.uvGradV);
+    auto const geometricNormal =
+        transformVec(normalTransform.data(), hit.geometricNormal).normalize();
     return {
         .position = ray.origin + ray.direction * hit.preliminary.distance,
-        .geometricNormal = transformVec(normalTransform.data(), hit.geometricNormal).normalize(),
-        .shadingNormal = transformVec(normalTransform.data(), shadingNormal).normalize(),
+        .geometricNormal = geometricNormal,
+        .shadingNormal = faceForward(
+            transformVec(normalTransform.data(), shadingNormal).normalize(), geometricNormal
+        ),
         .uv = geometryInteraction.uv,
         .uvGradU = uvGradU,
         .uvGradV = uvGradV,

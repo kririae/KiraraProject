@@ -13,6 +13,12 @@
 #include "kira/Compiler.h"
 
 namespace flux {
+/// \brief Returns \p n, negated if it points away from the hemisphere of \p reference.
+[[nodiscard]] KIRA_HOST_DEVICE inline Vec3f
+faceForward(Vec3f const &n, Vec3f const &reference) noexcept {
+    return n.dot(reference) < 0.0F ? -n : n;
+}
+
 /// \brief Geometric information at a ray-surface intersection.
 ///
 /// Positions and normals use world space.
@@ -23,7 +29,7 @@ struct SurfaceInteraction {
     /// World-space normal defined by Geometry.
     Vec3f geometricNormal{};
 
-    /// World-space normal used for shading.
+    /// World-space normal used for shading, in the hemisphere of \c geometricNormal.
     Vec3f shadingNormal{};
 
     /// Surface parameterization; zero is the fallback value.

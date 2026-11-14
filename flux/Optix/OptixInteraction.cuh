@@ -38,13 +38,15 @@ template <typename GeometryImpl>
         geometryInteraction.shadingNormal.z()
     ));
 
+    auto const geometricNormal =
+        Vec3f{geometricNormalValue.x, geometricNormalValue.y, geometricNormalValue.z}.normalize();
+    auto const shadingNormal =
+        Vec3f{shadingNormalValue.x, shadingNormalValue.y, shadingNormalValue.z}.normalize();
+
     return {
         .position = ray.origin + ray.direction * preliminary.distance,
-        .geometricNormal =
-            Vec3f{geometricNormalValue.x, geometricNormalValue.y, geometricNormalValue.z}
-                .normalize(),
-        .shadingNormal =
-            Vec3f{shadingNormalValue.x, shadingNormalValue.y, shadingNormalValue.z}.normalize(),
+        .geometricNormal = geometricNormal,
+        .shadingNormal = faceForward(shadingNormal, geometricNormal),
         .uv = geometryInteraction.uv,
         .uvGradU = {uvGradU.x, uvGradU.y, uvGradU.z},
         .uvGradV = {uvGradV.x, uvGradV.y, uvGradV.z},
