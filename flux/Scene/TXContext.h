@@ -27,11 +27,6 @@ public:
     TXContext &operator=(TXContext const &) = delete;
 
     /// \brief Creates and registers a configurable object in this transaction.
-    ///
-    /// \p args reach a \c T::create that returns a \c Ref<T>, and otherwise a
-    /// \c T constructor. Base context object types provide such a \c create to
-    /// select a concrete type inside this transaction. Concrete types grant
-    /// \c TXContext access to their constructors.
     template <IsConfigurableObject T, typename... Args>
     [[nodiscard]] Ref<T> create(Args &&...args) {
         if constexpr (requires {
@@ -48,8 +43,6 @@ public:
     }
 
     /// \brief Gets an object from this transaction or its owning context.
-    ///
-    /// The object is const, so a constructor binds it but does not edit it.
     template <IsContextObject T> [[nodiscard]] Ref<T const> get(std::size_t contextId) const {
         auto object = getObject(contextId).template dynamicCast<T const>();
         if (!object)
@@ -62,10 +55,7 @@ public:
 
     [[nodiscard]] ResolvedPath const &getAnchor() const noexcept { return anchor_; }
 
-    /// \brief Returns the pool that shares loaded images.
     [[nodiscard]] ImageAssetPool &getImageAssetPool() const noexcept;
-
-    /// \brief Returns the pool that shares generated shaders.
     [[nodiscard]] ShaderAssetPool &getShaderAssetPool() const noexcept;
 
 private:

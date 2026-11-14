@@ -40,12 +40,9 @@ public:
     ~OptixImagePool();
 
     /// \brief Reads \p assets and uploads their mip chains.
-    /// \pre No asset of \p assets is present, and their IDs are distinct.
     void add(std::span<Ref<ImageAsset const> const> assets);
 
     /// \brief Deletes images once the stream finishes its current work.
-    /// \param ids The IDs of the images. An absent ID is ignored.
-    /// \pre No texture object reads the images.
     void remove(std::span<std::size_t const> ids);
 
     /// \brief Returns whether the image \p id is present.

@@ -74,13 +74,6 @@ public:
 public:
     /// \brief Sets how many threads later launches use.
     ///
-    /// The thread count is \p waves times the estimated number of resident threads.
-    /// It changes how many threads share a render.
-    /// It does not change how much work the render does.
-    ///
-    /// Use a value above 1 if the estimate leaves part of the device idle.
-    /// A value below 1 can help on a device with a small L2 cache.
-    ///
     /// \pre \p waves is positive.
     void setLaunchWaves(double waves);
 
