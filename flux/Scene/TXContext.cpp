@@ -3,7 +3,7 @@
 #include "flux/Scene/Context.h"
 
 namespace flux {
-TXContext::TXContext(Context &context) noexcept : context_(context) {}
+TXContext::TXContext(Context &context) : context_(context) {}
 
 std::size_t TXContext::allocateId() { return context_.allocateId(); }
 

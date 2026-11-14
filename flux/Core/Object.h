@@ -180,15 +180,10 @@ class ContextObject : public Object {
 
 protected:
     /// \brief Assigns a stable ID from \p tx.
-    ///
-    /// The object has no owner until its context absorbs \p tx.
     explicit ContextObject(TXContext &tx);
 
 public:
-    /// \brief Returns the owning context, or null.
-    ///
-    /// An object has no owner before its context absorbs it, after it leaves the scene, and
-    /// after its context is destroyed. An object without an owner records no changes.
+    /// An object without an owner records no changes.
     [[nodiscard]] Context *getContext() noexcept { return context_; }
 
     /// \copydoc getContext

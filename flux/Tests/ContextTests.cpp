@@ -84,7 +84,7 @@ TEST(ContextTests, ClearsOwnerWhenContextIsDestroyed) {
     EXPECT_EQ(object->getContext(), nullptr);
 }
 
-TEST(ContextTests, GivesAnOwnerOnlyWhenAbsorbing) {
+TEST(ContextTests, GivesAnOwnerOnlyWhenCommitting) {
     auto context = flux::Context::create();
     auto probe = context->create<OwnerProbe>(kira::Properties{});
 
@@ -100,6 +100,36 @@ TEST(ContextTests, RollsBackConstructionFailures) {
     );
     EXPECT_EQ(context->getNumContextObjects(), 0);
     EXPECT_EQ(TrackedRenderObject::liveCount, 0);
+}
+
+TEST(ContextTests, DropsTheObjectsOfATransactionThatIsNotCommitted) {
+    auto context = flux::Context::create();
+    auto const version = context->getVersion();
+    {
+        auto tx = context->transaction();
+        (void)tx.create<TrackedRenderObject>(kira::Properties{});
+    }
+
+    EXPECT_EQ(context->getNumContextObjects(), 0);
+    EXPECT_EQ(context->getVersion(), version);
+    EXPECT_EQ(TrackedRenderObject::liveCount, 0);
+}
+
+TEST(ContextTests, RejectsATransactionOfAnotherContext) {
+    auto context = flux::Context::create();
+    auto other = flux::Context::create();
+    auto tx = other->transaction();
+    auto const object = tx.create<TestRenderObject>(kira::Properties{});
+    auto const version = context->getVersion();
+    auto const otherVersion = other->getVersion();
+
+    EXPECT_THROW(context->commit(std::move(tx)), std::invalid_argument);
+
+    EXPECT_EQ(context->getNumContextObjects(), 0);
+    EXPECT_EQ(other->getNumContextObjects(), 0);
+    EXPECT_EQ(context->getVersion(), version);
+    EXPECT_EQ(other->getVersion(), otherVersion);
+    EXPECT_EQ(object->getContext(), nullptr);
 }
 
 TEST(ContextTests, RejectsUnknownIds) {

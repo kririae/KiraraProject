@@ -39,10 +39,6 @@ class EnvMapLight;
 /// to do while the version stays the same. The context also tracks the changes since the last
 /// \c clearDirty: the IDs of objects added, dirtied, and removed, and the dirty bits. They serve
 /// an incremental consumer, which must follow \c getClearedVersion.
-///
-/// Edits may run concurrently: \c create, \c get, \c remove, the \c setActive functions, and
-/// the setters of the objects. \c collectGarbage, \c clearDirty, and every query and runtime
-/// sync run at a quiet point, with no edit in progress.
 class Context final : public Object {
     friend class TXContext;
     friend class ContextObject;
@@ -70,20 +66,22 @@ public:
 public:
     // Edits, callable at any time.
 
-    /// \brief Creates \c T and atomically absorbs its construction transaction.
-    ///
-    /// \p args reach \c TXContext::create. Nested calls through the supplied
-    /// \c TXContext join the same transaction. If construction or registration
-    /// throws, the context keeps none of the transaction's objects.
-    ///
-    /// \throw std::length_error If a kind of object has used every index.
     template <IsConfigurableObject T, typename... Args>
     [[nodiscard]] Ref<T> create(Args &&...args) {
-        TXContext tx(*this);
+        auto tx = transaction();
         auto object = tx.create<T>(std::forward<Args>(args)...);
-        absorb(std::move(tx));
+        commit(std::move(tx));
         return object;
     }
+
+    /// \pre The context outlives every use of the transaction.
+    [[nodiscard]] TXContext transaction() { return TXContext{*this}; }
+
+    /// \brief Adds every object of the transaction to the scene, or none of them if it throws.
+    ///
+    /// \throw std::invalid_argument If another context opened the transaction.
+    /// \throw std::length_error If a kind of object has used every index.
+    void commit(TXContext &&tx);
 
     /// \brief Gets object \p contextId as \c T.
     ///
@@ -275,7 +273,6 @@ private:
     [[nodiscard]] std::size_t allocateId() noexcept {
         return nextId_.fetch_add(1, std::memory_order_relaxed);
     }
-    void absorb(TXContext &&tx);
 
     /// \brief Records that the scene changed.
     void bumpVersion() noexcept { version_.fetch_add(1, std::memory_order_relaxed); }
@@ -310,8 +307,6 @@ private:
         return result;
     }
 
-    /// Guards the edits that may run concurrently: absorbing a transaction, \c remove, the
-    /// \c setActive functions, \c get, and the first change of an object.
     mutable std::mutex mutex_;
 
     std::unordered_map<std::size_t, Ref<ContextObject>> objects_;

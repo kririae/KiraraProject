@@ -47,8 +47,6 @@ public:
     explicit EmbreeContext(Context &context);
     ~EmbreeContext();
 
-    /// \brief Commits the host \c Context and rebuilds the Embree scene.
-    ///
     /// Rebuilding clears the current scene first, so a failed sync leaves this context unusable.
     /// A scene with a visible \c ShaderBSDF or \c ShaderEDF, which this backend does not run yet,
     /// throws before the scene is cleared.

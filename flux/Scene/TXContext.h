@@ -19,16 +19,15 @@ class Context;
 class ImageAssetPool;
 class ShaderAssetPool;
 
-/// \brief Holds the objects of one \c Context::create call before they join the scene.
-///
-/// A transaction lives only inside that call; a constructor receives it by reference and does
-/// not keep it. Its objects have IDs but no owner, so they appear in no scene query or record.
-/// The context absorbs the whole transaction at once, or none of it.
+/// \brief Holds the objects that a caller creates before they are added to the scene.
 class TXContext {
     friend class Context;
     friend class ContextObject;
 
 public:
+    TXContext(TXContext const &) = delete;
+    TXContext &operator=(TXContext const &) = delete;
+
     /// \brief Creates and registers a configurable object in this transaction.
     ///
     /// \p args reach a \c T::create that returns a \c Ref<T>, and otherwise a
@@ -73,7 +72,7 @@ public:
     [[nodiscard]] ShaderAssetPool &getShaderAssetPool() const noexcept;
 
 private:
-    explicit TXContext(Context &context) noexcept;
+    explicit TXContext(Context &context);
 
     [[nodiscard]] Ref<ContextObject> getObject(std::size_t contextId) const;
     [[nodiscard]] std::size_t allocateId();

@@ -38,7 +38,7 @@ struct Material {
 
 /// \brief Creates the \c Material of the \c file and \c material properties of \p props.
 [[nodiscard]] Material createMaterial(
-    Context &context, std::optional<MtlxShaderGenerator> &generator, kira::Properties &props
+    TXContext &tx, std::optional<MtlxShaderGenerator> &generator, kira::Properties &props
 ) {
     auto const type = props.use<std::string>("type");
     if (type != "materialx")
@@ -46,7 +46,7 @@ struct Material {
 
     auto const authoredPath = props.use<std::filesystem::path>("file");
     auto const materialName = props.use<std::string>("material");
-    auto const path = context.getFileResolver().resolve(authoredPath);
+    auto const path = tx.getFileResolver().resolve(authoredPath);
     if (!std::filesystem::exists(path))
         throw kira::Anyhow("failed to resolve MaterialX file '{}'", authoredPath.string());
 
@@ -68,11 +68,11 @@ struct Material {
         );
     auto textures = std::vector<Ref<ImageTexture const>>{};
     for (auto const &spec : instance->textures)
-        textures.push_back(context.create<ImageTexture>(spec));
+        textures.push_back(tx.create<ImageTexture>(spec));
 
     return {
-        .bsdf = context.create<ShaderBSDF>(instance->spec, instance->words, textures),
-        .edf = context.create<ShaderEDF>(instance->spec, instance->words, textures),
+        .bsdf = tx.create<ShaderBSDF>(instance->spec, instance->words, textures),
+        .edf = tx.create<ShaderEDF>(instance->spec, instance->words, textures),
     };
 }
 } // namespace
@@ -95,15 +95,17 @@ LoadedScene loadTomlScene(FluxCLIOptions const &options) {
     auto scene = kira::Properties::parse(source, options.scenePath);
     auto context = Context::create();
     context->getFileResolver().prepend(std::filesystem::absolute(options.scenePath).parent_path());
+    auto tx = context->transaction();
     auto integratorProps = scene.use_view("integrator");
     if (options.chunkSize)
         integratorProps.set("chunk_size", *options.chunkSize);
-    context->setActiveIntegrator(context->create<PathIntegrator>(integratorProps));
-    context->setActiveSampler(context->create<Sampler>(
+    auto const integrator = tx.create<PathIntegrator>(integratorProps);
+    auto const sampler = tx.create<Sampler>(
         scene.contains("sampler") ? scene.use_view("sampler") : kira::Properties{}
-    ));
+    );
+    auto envMap = Ref<EnvMapLight>{};
     if (scene.contains("envmap"))
-        context->setActiveEnvMap(context->create<EnvMapLight>(scene.use_view("envmap")));
+        envMap = tx.create<EnvMapLight>(scene.use_view("envmap"));
 
     auto camera = Camera::create(scene.use_view("camera"));
     auto filmProps = scene.use_view("film");
@@ -120,7 +122,7 @@ LoadedScene loadTomlScene(FluxCLIOptions const &options) {
             auto name = props.use<std::string>("name");
             if (bsdfs.contains(name))
                 throw kira::Anyhow("duplicate BSDF name '{}'", name);
-            bsdfs.emplace(std::move(name), context->create<BSDF>(props));
+            bsdfs.emplace(std::move(name), tx.create<BSDF>(props));
         }
     }
 
@@ -134,7 +136,7 @@ LoadedScene loadTomlScene(FluxCLIOptions const &options) {
             auto name = props.use<std::string>("name");
             if (materials.contains(name))
                 throw kira::Anyhow("duplicate material name '{}'", name);
-            materials.emplace(std::move(name), createMaterial(*context, mtlxGenerator, props));
+            materials.emplace(std::move(name), createMaterial(tx, mtlxGenerator, props));
         }
     }
 
@@ -178,9 +180,14 @@ LoadedScene loadTomlScene(FluxCLIOptions const &options) {
                 props.set("edf", edfProps);
             }
 
-            (void)context->create<Primitive>(props);
+            (void)tx.create<Primitive>(props);
         }
     }
+
+    context->commit(std::move(tx));
+    context->setActiveIntegrator(integrator);
+    context->setActiveSampler(sampler);
+    context->setActiveEnvMap(envMap);
 
     return {
         .context = std::move(context),

@@ -12,7 +12,9 @@ Context::~Context() {
         entry.second->context_ = nullptr;
 }
 
-void Context::absorb(TXContext &&tx) {
+void Context::commit(TXContext &&tx) {
+    if (&tx.context_ != this)
+        throw std::invalid_argument("Context: the transaction is not of this context");
     std::scoped_lock const lock(mutex_);
 
     // Validate every map before merging any, so a failure leaves them unchanged.
@@ -26,7 +28,6 @@ void Context::absorb(TXContext &&tx) {
         added.insert(entry.first);
     addedIds_.reserve(addedIds_.size() + added.size());
 
-    // Merge the validated maps, objects, and IDs. The objects join the scene here.
     for (std::size_t kind = 0; kind < numIndexedKinds; ++kind)
         indices_[kind].mergeValidated(std::move(tx.indices_[kind]));
     for (auto const &entry : tx.objects_)
