@@ -10,11 +10,11 @@
 #include <Eigen/SVD>
 #include <array>
 #include <exception>
-#include <filesystem>
 #include <utility>
 
 #include "flux/Hydra/LightEmission.h"
 #include "flux/Hydra/RenderParam.h"
+#include "flux/Hydra/ResolvedPath.h"
 #include "flux/Hydra/Transform.h"
 #include "flux/Scene/Context.h"
 #include "flux/Scene/EnvMapLight.h"
@@ -92,21 +92,18 @@ void HdFluxDomeLight::Finalize(HdRenderParam *renderParam) {
 void HdFluxDomeLight::syncTexture(flux::Context &context, HdSceneDelegate &sceneDelegate) {
     auto const asset = sceneDelegate.GetLightParamValue(GetId(), HdLightTokens->textureFile)
                            .GetWithDefault(SdfAssetPath{});
-    auto path = asset.GetResolvedPath();
-    if (path.empty())
-        path = asset.GetAssetPath();
-    if (path == texturePath_)
+    if (asset == textureAsset_)
         return;
 
-    if (path.empty()) {
+    if (asset.GetAssetPath().empty()) {
         envMap_->setTexture(defaultTexture_);
     } else {
         kira::Properties props;
         props.set("type", "image");
-        props.set("path", std::filesystem::path{path});
+        props.set("path", HdFluxGetResolvedPath(asset, GetId()));
         envMap_->setTexture(context.create<flux::Texture>(props));
     }
-    texturePath_ = std::move(path);
+    textureAsset_ = asset;
 }
 
 void HdFluxDomeLight::syncActiveEnvMap(flux::Context &context, bool visible) {

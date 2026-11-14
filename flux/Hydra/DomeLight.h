@@ -1,6 +1,7 @@
 #pragma once
 
 #include <pxr/imaging/hd/light.h>
+#include <pxr/usd/sdf/assetPath.h>
 
 #include <string>
 
@@ -36,6 +37,6 @@ private:
 
     flux::Ref<flux::Texture const> defaultTexture_;
 
-    /// The file of the texture of \c envMap_, empty for \c defaultTexture_.
-    std::string texturePath_;
+    /// The asset path of the texture of \c envMap_, empty for \c defaultTexture_.
+    PXR_NS::SdfAssetPath textureAsset_;
 };

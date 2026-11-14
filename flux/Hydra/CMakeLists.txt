@@ -25,6 +25,7 @@ endforeach()
 add_library(
     flux_hydra STATIC
     AovMapping.cpp
+    AssetName.cpp
     AreaLight.cpp
     Camera.cpp
     DomeLight.cpp

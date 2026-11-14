@@ -5,20 +5,22 @@
 #include <pxr/imaging/hdMtlx/hdMtlx.h>
 #include <pxr/usd/sdf/assetPath.h>
 
+#include "flux/Hydra/ResolvedPath.h"
+
 PXR_NAMESPACE_USING_DIRECTIVE
 
 namespace mx = MaterialX;
 
 namespace {
-HdMaterialNetwork2 resolveAssetPaths(HdMaterialNetwork2 network) {
+HdMaterialNetwork2 resolveAssetPaths(HdMaterialNetwork2 network, SdfPath const &materialPath) {
     for (auto &[path, node] : network.nodes) {
         for (auto &[name, value] : node.parameters) {
             if (!value.IsHolding<SdfAssetPath>())
                 continue;
 
-            auto const &resolved = value.UncheckedGet<SdfAssetPath>().GetResolvedPath();
-            if (!resolved.empty())
-                value = SdfAssetPath{resolved};
+            value = SdfAssetPath{
+                HdFluxGetResolvedPath(value.UncheckedGet<SdfAssetPath>(), materialPath)
+            };
         }
     }
     return network;
@@ -28,7 +30,7 @@ HdMaterialNetwork2 resolveAssetPaths(HdMaterialNetwork2 network) {
 std::optional<HdFluxMaterialXXml> HdFluxToMaterialXXml(
     HdMaterialNetwork2 const &network, SdfPath const &terminalPath, SdfPath const &materialPath
 ) {
-    auto const resolved = resolveAssetPaths(network);
+    auto const resolved = resolveAssetPaths(network, materialPath);
     auto const document = HdMtlxCreateMtlxDocumentFromHdNetwork(
         resolved, resolved.nodes.at(terminalPath), terminalPath, materialPath, HdMtlxStdLibraries()
     );

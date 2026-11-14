@@ -834,6 +834,25 @@ TEST_F(RenderTests, RendersTheImageAtTheResolvedPathOfAnAssetPath) {
     EXPECT_EQ(vectorAt(albedo, width / 2), GfVec3f(pixel[0], pixel[1], pixel[2]));
 }
 
+TEST_F(RenderTests, DoesNotReadTheAuthoredPathOfAnAssetThatDoesNotResolve) {
+    auto const imagePath = std::filesystem::path{HDFLUX_TEST_OUTPUT_DIR} / "unresolved.exr";
+    auto const pixel = std::array{0.5F, 0.25F, 0.75F};
+    flux::test::writeFloatImage(
+        imagePath, pixel, {1, 1}, std::array<std::string_view, 3>{"R", "G", "B"}
+    );
+
+    auto *const albedo = bindAlbedo();
+    scene_->AddPrims(
+        {{materialPath, HdPrimTypeTokens->material,
+          makeMaterial(SdfAssetPath{imagePath.string(), ""})},
+         {meshPath, HdPrimTypeTokens->mesh, bindMaterial(makeMesh(makeQuad(0.0F)))}}
+    );
+
+    executeToConvergence();
+
+    EXPECT_EQ(vectorAt(albedo, width / 2), GfVec3f{0.0F});
+}
+
 TEST_F(RenderTests, RendersTheFallbackOnlyWhileTheShaderOfTheMaterialCannotBeGenerated) {
     auto *const albedo = bindAlbedo();
     scene_->AddPrims(
