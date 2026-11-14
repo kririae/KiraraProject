@@ -186,6 +186,7 @@ pxr::HdBprim *HdFluxRenderDelegate::CreateFallbackBprim(pxr::TfToken const &type
 void HdFluxRenderDelegate::DestroyBprim(pxr::HdBprim *bprim) { delete bprim; }
 
 void HdFluxRenderDelegate::CommitResources(pxr::HdChangeTracker *) try {
+    HdFluxCommitMaterials(*renderParam_);
     if (renderParam_->HasFailed())
         return;
 

@@ -7,10 +7,12 @@
 #include <utility>
 
 #include "flux/Hydra/ArFileSystem.h"
+#include "flux/Hydra/Material.h"
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Context.h"
 #include "flux/Shading/BSDF.h"
+#include "flux/Shading/EDF.h"
 #include "kira/Properties.h"
 
 PXR_NAMESPACE_USING_DIRECTIVE
@@ -65,6 +67,14 @@ flux::Ref<flux::BSDF const> HdFluxRenderParam::GetFallbackBSDF() const { return 
 
 flux::ShaderInstance const &HdFluxRenderParam::GetFallbackShaderInstance() const noexcept {
     return fallbackShaderInstance_;
+}
+
+void HdFluxRenderParam::AddPendingMaterial(HdFluxPendingMaterial material) {
+    pendingMaterials_.push_back(std::move(material));
+}
+
+std::vector<HdFluxPendingMaterial> HdFluxRenderParam::ExtractPendingMaterials() noexcept {
+    return std::exchange(pendingMaterials_, {});
 }
 
 void HdFluxRenderParam::ReportFailure() noexcept {

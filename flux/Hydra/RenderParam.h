@@ -3,6 +3,7 @@
 #include <pxr/imaging/hd/renderDelegate.h>
 
 #include <filesystem>
+#include <vector>
 
 #include "flux/Core/Object.h"
 #include "flux/Optix/OptixHandler.h"
@@ -13,6 +14,8 @@ class BSDF;
 class Context;
 class ShaderBSDF;
 } // namespace flux
+
+struct HdFluxPendingMaterial;
 
 /// \brief The state that the delegate shares with its passes and prims.
 class HdFluxRenderParam final : public pxr::HdRenderParam {
@@ -36,6 +39,11 @@ public:
         return shaderGenerator_;
     }
 
+    void AddPendingMaterial(HdFluxPendingMaterial material);
+
+    /// \brief Returns the pending materials, and leaves none pending.
+    [[nodiscard]] std::vector<HdFluxPendingMaterial> ExtractPendingMaterials() noexcept;
+
     /// \brief Returns the backend that renders the scene.
     [[nodiscard]] flux::OptixHandler &GetHandler() noexcept { return handler_; }
 
@@ -54,5 +62,6 @@ private:
     flux::MtlxShaderGenerator shaderGenerator_;
     flux::ShaderInstance fallbackShaderInstance_;
     flux::Ref<flux::ShaderBSDF> fallbackBSDF_;
+    std::vector<HdFluxPendingMaterial> pendingMaterials_;
     bool failed_{false};
 };

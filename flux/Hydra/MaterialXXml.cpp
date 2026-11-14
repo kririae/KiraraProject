@@ -2,6 +2,7 @@
 
 #include <MaterialXFormat/XmlIo.h>
 #include <pxr/imaging/hd/material.h>
+#include <pxr/imaging/hd/tokens.h>
 #include <pxr/imaging/hdMtlx/hdMtlx.h>
 #include <pxr/usd/sdf/assetPath.h>
 
@@ -27,9 +28,13 @@ HdMaterialNetwork2 resolveAssetPaths(HdMaterialNetwork2 network, SdfPath const &
 }
 } // namespace
 
-std::optional<HdFluxMaterialXXml> HdFluxToMaterialXXml(
-    HdMaterialNetwork2 const &network, SdfPath const &terminalPath, SdfPath const &materialPath
-) {
+std::optional<HdFluxMaterialXXml>
+HdFluxToMaterialXXml(HdMaterialNetwork2 const &network, SdfPath const &materialPath) {
+    auto const terminal = network.terminals.find(HdMaterialTerminalTokens->surface);
+    if (terminal == network.terminals.end())
+        return std::nullopt;
+
+    auto const &terminalPath = terminal->second.upstreamNode;
     auto const resolved = resolveAssetPaths(network, materialPath);
     auto const document = HdMtlxCreateMtlxDocumentFromHdNetwork(
         resolved, resolved.nodes.at(terminalPath), terminalPath, materialPath, HdMtlxStdLibraries()
