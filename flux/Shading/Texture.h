@@ -163,9 +163,9 @@ struct ImageTextureSpec {
 /// Alpha keeps its stored value.
 ///
 /// \par Properties
-/// - \c path: required path of the image file. An empty path means no image.
+/// - \c path: required name of the image. An empty name means no image.
 /// - \c color_space: optional \c linear, \c srgb, or \c auto, defaults to \c linear. \c auto
-///   is the color space that \c ImageAssetPool::chooseColorSpace returns for the file.
+///   is the color space that \c ImageAssetPool::chooseColorSpace returns for the image.
 /// - \c address_mode: optional \c wrap, \c clamp, \c mirror, or \c border, defaults to \c wrap.
 /// - \c address_mode_u and \c address_mode_v: optional address mode of one axis, defaults to
 ///   \c address_mode.

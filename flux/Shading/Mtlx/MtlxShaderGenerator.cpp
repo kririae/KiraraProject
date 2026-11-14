@@ -319,7 +319,7 @@ void markAuthoredInputs(MaterialX::Document &document) {
     };
 
     auto spec = ImageTextureSpec{};
-    spec.image.path = u8path(file);
+    spec.image.resolvedPath = ResolvedPath{file};
 
     // MaterialX transforms only a color output, so the other outputs are linear.
     auto const isColor = node.getType() == "color3" || node.getType() == "color4";

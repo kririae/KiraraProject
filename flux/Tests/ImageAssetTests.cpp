@@ -6,6 +6,7 @@
 #include <string_view>
 
 #include "TestUtils.h"
+#include "flux/Core/ResolvedPath.h"
 #include "flux/Scene/ImageAsset.h"
 
 namespace {
@@ -19,7 +20,7 @@ protected:
 };
 } // namespace
 
-TEST_F(ImageAssetTests, LoadsMetadataAndSharesTheSamePath) {
+TEST_F(ImageAssetTests, LoadsMetadataAndSharesTheSameName) {
     auto const imagePath = path("image-asset.exr");
     auto const componentNames = std::array<std::string_view, 3>{"R", "G", "B"};
     auto const pixels = std::array{
@@ -27,8 +28,10 @@ TEST_F(ImageAssetTests, LoadsMetadataAndSharesTheSamePath) {
     };
     flux::test::writeFloatImage(imagePath, pixels, {2, 2}, componentNames);
 
-    auto const asset = pool.getOrCreate({.path = imagePath});
-    auto const cached = pool.getOrCreate({.path = imagePath});
+    auto const asset =
+        pool.getOrCreate({.resolvedPath = flux::ResolvedPath{flux::u8string(imagePath)}});
+    auto const cached =
+        pool.getOrCreate({.resolvedPath = flux::ResolvedPath{flux::u8string(imagePath)}});
 
     EXPECT_EQ(asset, cached);
     EXPECT_EQ(asset->getExtent(), (flux::Vec2u{2, 2}));
@@ -38,16 +41,21 @@ TEST_F(ImageAssetTests, LoadsMetadataAndSharesTheSamePath) {
 
 TEST_F(ImageAssetTests, UsesColorSpaceInPoolKey) {
     auto const imagePath = std::filesystem::path{FLUX_TEST_FIXTURES_DIR} / "SRGB.ppm";
-    auto const linear = pool.getOrCreate({.path = imagePath});
+    auto const linear =
+        pool.getOrCreate({.resolvedPath = flux::ResolvedPath{flux::u8string(imagePath)}});
     auto const srgb = pool.getOrCreate({
-        .path = imagePath,
+        .resolvedPath = flux::ResolvedPath{flux::u8string(imagePath)},
         .colorSpace = std::string{flux::srgbTexture},
     });
 
     EXPECT_NE(linear, srgb);
     EXPECT_NE(linear->getId(), srgb->getId());
     EXPECT_EQ(
-        pool.getOrCreate({.path = imagePath, .colorSpace = std::string{flux::autoColorSpace}}), srgb
+        pool.getOrCreate(
+            {.resolvedPath = flux::ResolvedPath{flux::u8string(imagePath)},
+             .colorSpace = std::string{flux::autoColorSpace}}
+        ),
+        srgb
     );
 }
 
@@ -56,10 +64,16 @@ TEST_F(ImageAssetTests, SharesOneAssetAmongTheNamesOfLinearRec709) {
     auto const pixels = std::array{0.5F, 0.25F, 0.125F};
     flux::test::writeFloatImage(imagePath, pixels, {1, 1});
 
-    auto const unnamed = pool.getOrCreate({.path = imagePath});
-    auto const unknown = pool.getOrCreate({.path = imagePath, .colorSpace = "no-such-color-space"});
-    auto const named =
-        pool.getOrCreate({.path = imagePath, .colorSpace = std::string{flux::linearRec709}});
+    auto const unnamed =
+        pool.getOrCreate({.resolvedPath = flux::ResolvedPath{flux::u8string(imagePath)}});
+    auto const unknown = pool.getOrCreate(
+        {.resolvedPath = flux::ResolvedPath{flux::u8string(imagePath)},
+         .colorSpace = "no-such-color-space"}
+    );
+    auto const named = pool.getOrCreate(
+        {.resolvedPath = flux::ResolvedPath{flux::u8string(imagePath)},
+         .colorSpace = std::string{flux::linearRec709}}
+    );
 
     EXPECT_EQ(unnamed, named);
     EXPECT_EQ(unknown, named);
@@ -95,7 +109,7 @@ TEST_F(ImageAssetTests, ChoosesSRGBTextureForUNorm8WithAtLeastThreeChannels) {
             imagePath, {pixels.data(), channels}, {1, 1}, {componentNames.data(), channels}, type
         );
 
-        EXPECT_EQ(pool.chooseColorSpace(imagePath), expected);
+        EXPECT_EQ(pool.chooseColorSpace(flux::ResolvedPath{flux::u8string(imagePath)}), expected);
     }
 }
 
@@ -119,7 +133,8 @@ TEST_F(ImageAssetTests, DefaultMappingFollowsChannelPosition) {
             imagePath, {pixels.data(), count}, {1, 1}, {componentNames.data(), count}
         );
 
-        auto const asset = pool.getOrCreate({.path = imagePath});
+        auto const asset =
+            pool.getOrCreate({.resolvedPath = flux::ResolvedPath{flux::u8string(imagePath)}});
         EXPECT_EQ(asset->getComponentCount(), count == 3 ? 4 : count);
         EXPECT_EQ(asset->getDefaultComponentMapping(), expected[count - 1]);
     }
@@ -131,7 +146,7 @@ TEST_F(ImageAssetTests, CollectsAssetsThatOnlyThePoolHolds) {
     auto const pixels = std::array{0.5F};
     flux::test::writeFloatImage(imagePath, pixels, {1, 1}, componentNames);
 
-    auto asset = pool.getOrCreate({.path = imagePath});
+    auto asset = pool.getOrCreate({.resolvedPath = flux::ResolvedPath{flux::u8string(imagePath)}});
     pool.collectGarbage();
     EXPECT_EQ(pool.size(), 1U);
 

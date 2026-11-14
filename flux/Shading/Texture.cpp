@@ -1,6 +1,5 @@
 #include "flux/Shading/Texture.h"
 
-#include <filesystem>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -39,7 +38,7 @@ parseAddressMode(kira::Properties const &props, std::string_view property) {
 }
 
 [[nodiscard]] ImageTextureSpec parseSpec(TXContext const &tx, kira::Properties const &props) {
-    auto const path = u8path(joinName(tx.getBaseDirectory(), props.use<std::string>("path")));
+    auto identifier = createIdentifier(props.use<std::string>("path"), tx.getAnchor());
     auto const colorSpace = props.use_or<std::string>("color_space", "linear");
     auto imageColorSpace = std::string{linearRec709};
     if (colorSpace == "auto")
@@ -49,7 +48,9 @@ parseAddressMode(kira::Properties const &props, std::string_view property) {
     else if (colorSpace != "linear")
         throw kira::Anyhow("ImageTexture: unsupported color space '{}'", colorSpace);
     return {
-        .image = {.path = path, .colorSpace = std::move(imageColorSpace)},
+        .image =
+            {.resolvedPath = ResolvedPath{std::move(identifier)},
+             .colorSpace = std::move(imageColorSpace)},
         .addressModes =
             {parseAddressMode(props, "address_mode_u"), parseAddressMode(props, "address_mode_v")},
         .filterMode = parseFilterMode(props),
@@ -119,7 +120,7 @@ Texture::Impl ConstantTexture::getImpl() const {
 
 ImageTexture::ImageTexture(TXContext &tx, ImageTextureSpec const &spec)
     : Texture(tx), imageAsset_(tx.getImageAssetPool().getOrCreate({
-                       .path = spec.image.path,
+                       .resolvedPath = spec.image.resolvedPath,
                        .colorSpace = spec.image.colorSpace,
                    })),
       addressModes_(spec.addressModes), filterMode_(spec.filterMode),

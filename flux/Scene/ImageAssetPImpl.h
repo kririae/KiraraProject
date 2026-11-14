@@ -40,7 +40,7 @@ struct ImageAsset::pImpl {
     pImpl();
 
     pImpl(
-        std::shared_ptr<OIIO::TextureSystem> textureSystem, std::filesystem::path const &path,
+        std::shared_ptr<OIIO::TextureSystem> textureSystem, std::string const &name,
         std::string_view colorSpace
     );
 

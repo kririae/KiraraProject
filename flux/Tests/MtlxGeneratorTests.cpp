@@ -6,6 +6,7 @@
 #include <bit>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <regex>
 #include <string>
@@ -667,7 +668,7 @@ TEST(MtlxGeneratorTests, ANodegraphThatDefinesANodeReadsTheContextAndTheTextures
     auto const instance = generate(graphDefinedImageDocument);
 
     ASSERT_EQ(instance.textures.size(), 1U);
-    EXPECT_EQ(instance.textures[0].image.path, "a.png");
+    EXPECT_EQ(instance.textures[0].image.resolvedPath.getPathString(), "a.png");
     expectOneConcreteType(instance);
 }
 
@@ -699,8 +700,8 @@ TEST(MtlxGeneratorTests, AnImageFileChangesTheTexturesAndNotTheSource) {
     EXPECT_EQ(first.spec.source, second.spec.source);
     ASSERT_EQ(first.textures.size(), 1U);
     ASSERT_EQ(second.textures.size(), 1U);
-    EXPECT_EQ(first.textures[0].image.path, "a.png");
-    EXPECT_EQ(second.textures[0].image.path, "b.png");
+    EXPECT_EQ(first.textures[0].image.resolvedPath.getPathString(), "a.png");
+    EXPECT_EQ(second.textures[0].image.resolvedPath.getPathString(), "b.png");
     expectOneConcreteType(first);
 }
 
@@ -746,7 +747,9 @@ TEST(MtlxGeneratorTests, AnImageNodeSetsTheSpecOfItsTexture) {
     EXPECT_EQ(
         instance.textures[0],
         (flux::ImageTextureSpec{
-            .image = {.path = "a.png", .colorSpace = std::string{flux::srgbTexture}},
+            .image =
+                {.resolvedPath = flux::ResolvedPath{"a.png"},
+                 .colorSpace = std::string{flux::srgbTexture}},
             .addressModes =
                 {flux::ImageTextureAddressMode::Clamp, flux::ImageTextureAddressMode::Mirror},
             .filterMode = flux::ImageTextureFilterMode::Point,
@@ -762,7 +765,11 @@ TEST(MtlxGeneratorTests, AFileNameIsRelativeToTheDirectoryOfTheDocumentWhetherOr
 
     ASSERT_TRUE(result.instance);
     ASSERT_EQ(result.instance->textures.size(), 1U);
-    EXPECT_EQ(result.instance->textures[0].image.path, "/documents/scene/a.png");
+    auto const separator = static_cast<char>(std::filesystem::path::preferred_separator);
+    EXPECT_EQ(
+        result.instance->textures[0].image.resolvedPath.getPathString(),
+        "/documents/scene" + (separator + std::string{"a.png"})
+    );
 }
 
 TEST(MtlxGeneratorTests, AFileNameWithoutABaseDirectoryPassesUnchanged) {
@@ -772,7 +779,7 @@ TEST(MtlxGeneratorTests, AFileNameWithoutABaseDirectoryPassesUnchanged) {
     auto const instance = generate(document);
 
     ASSERT_EQ(instance.textures.size(), 1U);
-    EXPECT_EQ(instance.textures[0].image.path.u8string(), u8"s3://b/a.png");
+    EXPECT_EQ(instance.textures[0].image.resolvedPath.getPathString(), "s3://b/a.png");
 }
 
 TEST(MtlxGeneratorTests, AnImageKeepsTheColorSpaceOfItsFile) {
@@ -791,7 +798,7 @@ TEST(MtlxGeneratorTests, AConstantFeedsTheFileOfAnImage) {
     auto const instance = generate(constantFileDocument);
 
     ASSERT_EQ(instance.textures.size(), 1U);
-    EXPECT_EQ(instance.textures[0].image.path, "a.png");
+    EXPECT_EQ(instance.textures[0].image.resolvedPath.getPathString(), "a.png");
     expectOneConcreteType(instance);
 }
 
@@ -959,7 +966,7 @@ TEST(MtlxGeneratorTests, APreviewTextureKeepsItsColorSpaceAndTakesBlackAsABorder
     EXPECT_EQ(
         result.instance->textures[0],
         (flux::ImageTextureSpec{
-            .image = {.path = "a.png", .colorSpace = "auto"},
+            .image = {.resolvedPath = flux::ResolvedPath{"a.png"}, .colorSpace = "auto"},
             .addressModes = {
                 flux::ImageTextureAddressMode::Border, flux::ImageTextureAddressMode::Border
             },

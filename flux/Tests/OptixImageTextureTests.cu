@@ -12,6 +12,7 @@
 #include "ImageWithUnreadableMipLevel.h"
 #include "TestUtils.h"
 #include "WhiteImageWithBlackMipLevel.h"
+#include "flux/Core/ResolvedPath.h"
 #include "flux/IO/ImageIO.h"
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Optix/KernelUtils.cuh"
@@ -437,7 +438,14 @@ TEST_F(OptixImageTextureTests, ConvertsTheColorSpaceOfTheFileToLinearRec709) {
     auto const imagePath = path("optix-acescg.exr");
     auto const pixels = std::array{0.5F, 0.25F, 0.125F};
     flux::test::writeFloatImage(imagePath, pixels, {1, 1});
-    build(flux::ImageTextureSpec{.image = {.path = imagePath, .colorSpace = "acescg"}});
+    build(
+        flux::ImageTextureSpec{
+            .image = {
+                .resolvedPath = flux::ResolvedPath{flux::u8string(imagePath)},
+                .colorSpace = "acescg"
+            }
+        }
+    );
 
     // The ACEScg to Rec.709 matrix applied to the texel.
     auto const value = sample({0.5F, 0.5F}, true);
@@ -461,7 +469,14 @@ TEST_F(OptixImageTextureTests, KeepsTheRangeOfAnUNorm8ImageThatItConverts) {
     auto const imagePath = path("optix-acescg-unorm8.tif");
     auto const pixels = std::array{1.0F, 0.0F, 0.0F};
     flux::test::writeFloatImage(imagePath, pixels, {1, 1}, {}, flux::ImageComponentType::UNorm8);
-    build(flux::ImageTextureSpec{.image = {.path = imagePath, .colorSpace = "acescg"}});
+    build(
+        flux::ImageTextureSpec{
+            .image = {
+                .resolvedPath = flux::ResolvedPath{flux::u8string(imagePath)},
+                .colorSpace = "acescg"
+            }
+        }
+    );
 
     // The first column of the ACEScg to Rec.709 matrix leaves [0, 1].
     auto const value = sample({0.5F, 0.5F}, true);
@@ -557,11 +572,12 @@ TEST_F(OptixImageTextureTests, AnImageWithAnUnreadableMipLevelSamplesAsZero) {
     auto const goodPath = path("optix-good-image.exr");
     auto const pixels = std::array{0.25F, 0.5F, 0.75F};
     flux::test::writeFloatImage(goodPath, pixels, {1, 1});
-    auto const unreadable = context->create<flux::ImageTexture>(
-        flux::ImageTextureSpec{.image = {.path = unreadablePath}}
-    );
-    auto const good =
-        context->create<flux::ImageTexture>(flux::ImageTextureSpec{.image = {.path = goodPath}});
+    auto const unreadable = context->create<flux::ImageTexture>(flux::ImageTextureSpec{
+        .image = {.resolvedPath = flux::ResolvedPath{flux::u8string(unreadablePath)}}
+    });
+    auto const good = context->create<flux::ImageTexture>(flux::ImageTextureSpec{
+        .image = {.resolvedPath = flux::ResolvedPath{flux::u8string(goodPath)}}
+    });
 
     auto const assets = std::array{unreadable->getImageAsset(), good->getImageAsset()};
     EXPECT_NO_THROW(pool.add(assets));

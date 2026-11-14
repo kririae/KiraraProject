@@ -9,6 +9,7 @@
 
 #include "ImageWithUnreadableMipLevel.h"
 #include "TestUtils.h"
+#include "flux/Core/ResolvedPath.h"
 #include "flux/Embree/EmbreeImageTexturePool.h"
 #include "flux/Scene/Context.h"
 #include "flux/Shading/Texture.h"
@@ -265,9 +266,12 @@ TEST_F(EmbreeImageTextureTests, KeepsAFileOfAnUnknownColorSpaceLinear) {
     auto const imagePath = path("unknown-color-space.exr");
     auto const pixels = std::array{0.5F, 0.25F, 0.125F};
     flux::test::writeFloatImage(imagePath, pixels, {1, 1});
-    (void)context->create<flux::ImageTexture>(
-        flux::ImageTextureSpec{.image = {.path = imagePath, .colorSpace = "no-such-color-space"}}
-    );
+    (void)context->create<flux::ImageTexture>(flux::ImageTextureSpec{
+        .image = {
+            .resolvedPath = flux::ResolvedPath{flux::u8string(imagePath)},
+            .colorSpace = "no-such-color-space"
+        }
+    });
     pool.build(*context);
 
     expectNear(sample({0.5F, 0.5F}), {0.5F, 0.25F, 0.125F, 1.0F});
@@ -277,9 +281,11 @@ TEST_F(EmbreeImageTextureTests, ConvertsTheColorSpaceOfTheFileToLinearRec709) {
     auto const imagePath = path("acescg.exr");
     auto const pixels = std::array{0.5F, 0.25F, 0.125F};
     flux::test::writeFloatImage(imagePath, pixels, {1, 1});
-    (void)context->create<flux::ImageTexture>(
-        flux::ImageTextureSpec{.image = {.path = imagePath, .colorSpace = "acescg"}}
-    );
+    (void)context->create<flux::ImageTexture>(flux::ImageTextureSpec{
+        .image = {
+            .resolvedPath = flux::ResolvedPath{flux::u8string(imagePath)}, .colorSpace = "acescg"
+        }
+    });
     pool.build(*context);
 
     // The ACEScg to Rec.709 matrix applied to the texel.
@@ -291,7 +297,9 @@ TEST_F(EmbreeImageTextureTests, TakesTheColorSpaceOfAnUnnamedFileFromTheFileRule
     auto const imagePath = path("file-rules.ACEScg.exr");
     auto const pixels = std::array{0.5F, 0.25F, 0.125F};
     flux::test::writeFloatImage(imagePath, pixels, {1, 1});
-    (void)context->create<flux::ImageTexture>(flux::ImageTextureSpec{.image = {.path = imagePath}});
+    (void)context->create<flux::ImageTexture>(flux::ImageTextureSpec{
+        .image = {.resolvedPath = flux::ResolvedPath{flux::u8string(imagePath)}}
+    });
     pool.build(*context);
 
     expectNear(sample({0.5F, 0.5F}), {0.68667F, 0.21875F, 0.09988F, 1.0F});
@@ -301,7 +309,9 @@ TEST_F(EmbreeImageTextureTests, KeepsAnUnnamedFileThatOnlyTheDefaultRuleMatchesL
     auto const imagePath = path("default-rule.tif");
     auto const pixels = std::array{0.5F, 0.5F, 0.5F};
     flux::test::writeFloatImage(imagePath, pixels, {1, 1}, {}, flux::ImageComponentType::UNorm8);
-    (void)context->create<flux::ImageTexture>(flux::ImageTextureSpec{.image = {.path = imagePath}});
+    (void)context->create<flux::ImageTexture>(flux::ImageTextureSpec{
+        .image = {.resolvedPath = flux::ResolvedPath{flux::u8string(imagePath)}}
+    });
     pool.build(*context);
 
     constexpr auto expected = 128.0F / 255.0F;

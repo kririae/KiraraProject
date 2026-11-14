@@ -2,7 +2,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <filesystem>
 #include <functional>
 #include <memory>
 #include <string>
@@ -12,6 +11,7 @@
 #include "flux/Core/ConcurrentPool.h"
 #include "flux/Core/Math.h"
 #include "flux/Core/Object.h"
+#include "flux/Core/ResolvedPath.h"
 #include "flux/IO/Image.h"
 #include "flux/Scene/ImageComponentMapping.h"
 
@@ -37,14 +37,8 @@ inline constexpr std::string_view srgbTexture{"srgb_texture"};
 /// returns.
 inline constexpr std::string_view autoColorSpace{"auto"};
 
-/// \brief Image file and the OCIO name of the color space of its color components.
-///
-/// An empty name is the color space that the OCIO file rules of the active config give the path,
-/// or \c linearRec709 if only their default rule matches. \c autoColorSpace is the color space of
-/// \c ImageAssetPool::chooseColorSpace for the path. A name that the config does not know becomes
-/// \c linearRec709, and the pool warns.
 struct ImageAssetSpec {
-    std::filesystem::path path;
+    ResolvedPath resolvedPath;
     std::string colorSpace;
 
     [[nodiscard]] friend bool operator==(ImageAssetSpec const &, ImageAssetSpec const &) = default;
@@ -116,11 +110,7 @@ public:
     /// \brief Returns the shared asset for \p spec.
     [[nodiscard]] Ref<ImageAsset const> getOrCreate(ImageAssetSpec const &spec);
 
-    /// \brief Returns the color space that the header of the file at \p path implies.
-    ///
-    /// An image of 8-bit components with at least three channels is \c srgbTexture. Any other
-    /// image, and a file with no readable header, is \c linearRec709.
-    [[nodiscard]] std::string chooseColorSpace(std::filesystem::path const &path) const;
+    [[nodiscard]] std::string chooseColorSpace(ResolvedPath const &resolvedPath) const;
 
     /// \brief Drops every asset that only this pool references.
     ///
@@ -135,7 +125,7 @@ private:
 
     struct SpecHash {
         [[nodiscard]] std::size_t operator()(ImageAssetSpec const &spec) const noexcept {
-            auto const pathHash = std::filesystem::hash_value(spec.path);
+            auto const pathHash = std::hash<std::string>{}(spec.resolvedPath.getPathString());
             auto const colorSpaceHash = std::hash<std::string>{}(spec.colorSpace);
             return pathHash * 31U + colorSpaceHash;
         }

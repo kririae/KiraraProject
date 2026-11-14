@@ -72,35 +72,31 @@ void validateImageSpec(OIIO::ImageSpec const &spec) {
     return OIIO::ColorConfig::default_colorconfig().equivalent(name, linearRec709);
 }
 
-/// The color space that the OCIO file rules give \p path, or empty if no rule but the default one
-/// matches. The default rule matches every file, so it says nothing about this one.
-[[nodiscard]] OIIO::string_view findColorSpaceByFileRules(std::filesystem::path const &path) {
+[[nodiscard]] OIIO::string_view findColorSpaceByFileRules(std::string const &filePath) {
     auto const &config = OIIO::ColorConfig::default_colorconfig();
-    auto const filename = path.string();
-    if (config.filepathOnlyMatchesDefaultRule(filename))
+    if (config.filepathOnlyMatchesDefaultRule(filePath))
         return {};
-    return config.getColorSpaceFromFilepath(filename);
+    return config.getColorSpaceFromFilepath(filePath);
 }
 
-/// The name that the OCIO config gives the color space of \p spec, so that every alias shares an
-/// asset. An empty name, or a name that the config does not know, is lin_rec709.
+/// Returns the name that the OCIO config gives the color space of \p spec.
 [[nodiscard]] std::string canonicalizeColorSpace(ImageAssetSpec const &spec) {
     auto const &config = OIIO::ColorConfig::default_colorconfig();
-    auto name = OIIO::string_view{spec.colorSpace};
-    if (name.empty() && !spec.path.empty())
-        name = findColorSpaceByFileRules(spec.path);
-    if (name.empty())
-        name = linearRec709;
+    auto colorSpace = OIIO::string_view{spec.colorSpace};
+    if (colorSpace.empty() && !spec.name.empty())
+        colorSpace = findColorSpaceByFileRules(spec.name);
+    if (colorSpace.empty())
+        colorSpace = linearRec709;
 
     // `resolve` returns a name that it does not know unchanged.
-    if (config.getColorSpaceIndex(name) < 0) {
+    if (config.getColorSpaceIndex(colorSpace) < 0) {
         LogWarn(
             "ImageAsset: '{}' has the unknown color space '{}', which becomes {}",
-            spec.path.string(), name, linearRec709
+            spec.resolvedPath.getPathString(), colorSpace, linearRec709
         );
-        name = linearRec709;
+        colorSpace = linearRec709;
     }
-    return std::string{config.resolve(name)};
+    return std::string{config.resolve(colorSpace)};
 }
 
 [[nodiscard]] OIIO::TypeDesc toTypeDesc(ImageComponentType type) noexcept {
@@ -181,10 +177,10 @@ ImageAsset::pImpl::pImpl()
       fileComponentCount{4}, authoredLevelCount{1} {}
 
 ImageAsset::pImpl::pImpl(
-    std::shared_ptr<OIIO::TextureSystem> system, std::filesystem::path const &path,
+    std::shared_ptr<OIIO::TextureSystem> system, std::string const &name,
     std::string_view colorSpace
 )
-    : textureSystem(std::move(system)), filename(path.string()), colorSpace{colorSpace} {
+    : textureSystem(std::move(system)), filename(name), colorSpace{colorSpace} {
     auto const imageCache = textureSystem->imagecache();
     if (!imageCache->add_file(filename))
         throw BadImage(imageCache->geterror());
@@ -246,7 +242,9 @@ ImageAsset::pImpl::pImpl(
     textureHandle =
         textureSystem->get_texture_handle(filename, /* threadInfo = */ nullptr, &options);
     if (!textureHandle || !textureSystem->good(textureHandle))
-        throw kira::Anyhow("ImageAsset: failed to create a texture handle for '{}'", path.string());
+        throw kira::Anyhow(
+            "ImageAsset: failed to create a texture handle for '{}'", resolvedPath.getPathString()
+        );
 }
 
 Vec4f ImageAsset::pImpl::sample(
@@ -448,10 +446,10 @@ Ref<ImageAsset const> ImageAssetPool::getOrCreate(ImageAssetSpec const &spec) {
     auto key = spec;
     auto resolved = spec;
     if (spec.colorSpace == autoColorSpace)
-        resolved.colorSpace = chooseColorSpace(spec.path);
+        resolved.colorSpace = chooseColorSpace(spec.name);
     key.colorSpace = canonicalizeColorSpace(resolved);
     return assets_.acquire(key, [&] {
-        if (key.path.empty())
+        if (key.name.empty())
             return Ref<ImageAsset const>{new ImageAsset(std::make_unique<ImageAsset::pImpl>())};
 
         auto const &textureSystem = isLinearRec709(key.colorSpace)
@@ -459,20 +457,21 @@ Ref<ImageAsset const> ImageAssetPool::getOrCreate(ImageAssetSpec const &spec) {
                                         : pImpl_->convertingTextureSystem;
         try {
             return Ref<ImageAsset const>{new ImageAsset(
-                std::make_unique<ImageAsset::pImpl>(textureSystem, key.path, key.colorSpace)
+                std::make_unique<ImageAsset::pImpl>(textureSystem, key.name, key.colorSpace)
             )};
         } catch (BadImage const &bad) {
             LogWarn(
-                "ImageAsset: '{}' is not a well-formed image ({})", key.path.string(), bad.what()
+                "ImageAsset: '{}' is not a well-formed image ({})",
+                key.resolvedPath.getPathString(), bad.what()
             );
         }
         return Ref<ImageAsset const>{new ImageAsset(std::make_unique<ImageAsset::pImpl>())};
     });
 }
 
-std::string ImageAssetPool::chooseColorSpace(std::filesystem::path const &path) const {
+std::string ImageAssetPool::chooseColorSpace(std::string const &name) const {
     auto const imageCache = pImpl_->linearTextureSystem->imagecache();
-    auto const *spec = imageCache->imagespec(OIIO::ustring{path.string()});
+    auto const *spec = imageCache->imagespec(OIIO::ustring{name});
     if (!spec) {
         (void)imageCache->geterror();
         return std::string{linearRec709};
