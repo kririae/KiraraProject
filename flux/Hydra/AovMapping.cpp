@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <string>
 
 namespace {
@@ -15,8 +16,8 @@ struct Aov {
     pxr::HdAovDescriptor descriptor;
 };
 
-std::array<Aov, 4> const &aovs() {
-    static std::array<Aov, 4> const table{{
+std::array<Aov, 6> const &aovs() {
+    static std::array<Aov, 6> const table{{
         {pxr::HdAovTokens->color,
          flux::FilmChannels::Color,
          {pxr::HdFormatFloat32Vec4, false, pxr::VtValue(pxr::GfVec4f(0.0F))}},
@@ -29,6 +30,12 @@ std::array<Aov, 4> const &aovs() {
         {pxr::HdAovTokens->depth,
          flux::FilmChannels::Depth,
          {pxr::HdFormatFloat32, false, pxr::VtValue(1.0F)}},
+        {pxr::HdAovTokens->primId,
+         flux::FilmChannels::ObjectId,
+         {pxr::HdFormatInt32, false, pxr::VtValue(std::int32_t{-1})}},
+        {pxr::HdAovTokens->instanceId,
+         flux::FilmChannels::InstanceId,
+         {pxr::HdFormatInt32, false, pxr::VtValue(std::int32_t{-1})}},
     }};
     return table;
 }

@@ -26,7 +26,7 @@ struct PassRequest {
     std::vector<std::string> warnings;
 };
 
-[[nodiscard]] PassRequest makeRequest(pxr::HdRenderPassState const &renderPassState) {
+[[nodiscard]] PassRequest makePassRequest(pxr::HdRenderPassState const &renderPassState) {
     PassRequest request;
     bool hasResolution{false};
 
@@ -120,7 +120,7 @@ void HdFLuxRenderPass::_Execute(
         ));
     }
 
-    auto request = makeRequest(*renderPassState);
+    auto request = makePassRequest(*renderPassState);
 
     if (request.warnings != warnings_) {
         for (auto const &warning : request.warnings)

@@ -290,6 +290,7 @@ void HdFLuxMesh::Sync(
         auto const synced = material && material->GetBSDF();
         auto const bsdf = synced ? material->GetBSDF() : param.GetFallbackBSDF();
         auto const edf = synced ? material->GetEDF() : nullptr;
+        auto const instanced = !GetInstancerId().IsEmpty();
         for (std::size_t i = 0; i < count; ++i) {
             if (i == primitives_.size())
                 primitives_.push_back(context->create<flux::Primitive>(geometry_));
@@ -300,6 +301,8 @@ void HdFLuxMesh::Sync(
             primitive.setVisible(IsVisible());
             primitive.setBSDF(bsdf);
             primitive.setEDF(edf);
+            primitive.setObjectId(GetPrimId());
+            primitive.setInstanceId(instanced ? static_cast<std::int32_t>(i) : -1);
         }
     } catch (std::exception const &error) { TF_WARN("%s: %s", id.GetText(), error.what()); }
 

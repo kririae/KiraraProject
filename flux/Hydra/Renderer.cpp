@@ -71,6 +71,12 @@ void writeChannel(
     case flux::FilmChannels::Depth:
         buffer.Write(toClipDepths(film.getChannel<flux::DepthChannel>(), projection));
         return;
+    case flux::FilmChannels::ObjectId:
+        buffer.Write(film.getChannel<flux::ObjectIdChannel>());
+        return;
+    case flux::FilmChannels::InstanceId:
+        buffer.Write(film.getChannel<flux::InstanceIdChannel>());
+        return;
     default: return;
     }
 }

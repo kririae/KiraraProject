@@ -34,6 +34,7 @@
 #include <pxr/imaging/hd/rendererPluginRegistry.h>
 #include <pxr/imaging/hd/retainedDataSource.h>
 #include <pxr/imaging/hd/retainedSceneIndex.h>
+#include <pxr/imaging/hd/rprim.h>
 #include <pxr/imaging/hd/rprimCollection.h>
 #include <pxr/imaging/hd/task.h>
 #include <pxr/imaging/hd/tokens.h>
@@ -42,6 +43,7 @@
 #include <pxr/usd/sdf/assetPath.h>
 
 #include <array>
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <mutex>
@@ -717,6 +719,36 @@ TEST_F(RenderTests, WritesTheClipDepthOfTheHitsAndTheFarPlaneWhereNothingIsHit) 
         ASSERT_NEAR(depths[pixel], quadDepth, 1e-6F) << "pixel " << pixel;
     }
     depth->Unmap();
+}
+
+TEST_F(RenderTests, WritesThePrimIdAndTheInstanceIdOfTheHitsAndMinusOneWhereNothingIsHit) {
+    auto *const primId = bindBuffer(HdAovTokens->primId);
+    auto *const instanceId = bindBuffer(HdAovTokens->instanceId);
+    ASSERT_TRUE(primId->Allocate({width, height, 1}, HdFormatInt32, false));
+    ASSERT_TRUE(instanceId->Allocate({width, height, 1}, HdFormatInt32, false));
+    SdfPath const leftPath{"/left"};
+    scene_->AddPrims(
+        {{leftPath, HdPrimTypeTokens->mesh, makeMesh(makeQuad(-1.5F))},
+         {meshPath, HdPrimTypeTokens->mesh, makeMesh(makeQuad(1.5F))}}
+    );
+
+    execute();
+    execute();
+
+    auto const leftPrimId = index_->GetRprim(leftPath)->GetPrimId();
+    auto const rightPrimId = index_->GetRprim(meshPath)->GetPrimId();
+    ASSERT_NE(leftPrimId, rightPrimId);
+    auto const *const primIds = static_cast<std::int32_t const *>(primId->Map());
+    auto const *const instanceIds = static_cast<std::int32_t const *>(instanceId->Map());
+    auto const row = (height / 2) * width;
+    EXPECT_EQ(primIds[row], leftPrimId);
+    EXPECT_EQ(primIds[row + width - 1], rightPrimId);
+    EXPECT_EQ(primIds[row + width / 2], -1);
+    EXPECT_EQ(instanceIds[row], -1);
+    EXPECT_EQ(instanceIds[row + width - 1], -1);
+    EXPECT_EQ(instanceIds[row + width / 2], -1);
+    primId->Unmap();
+    instanceId->Unmap();
 }
 
 TEST_F(RenderTests, MovesTheHitWhenOnlyThePointsChange) {
