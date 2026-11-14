@@ -1,6 +1,9 @@
 #include "flux/Optix/OptixImagePool.h"
 
+#include <tbb/parallel_for.h>
+
 #include <cstddef>
+#include <vector>
 
 #include "flux/Optix/DeviceBuffer.h"
 #include "flux/Scene/ImageAssetPImpl.h"
@@ -51,8 +54,14 @@ void OptixImagePool::add(std::span<Ref<ImageAsset const> const> assets) {
     std::vector<std::shared_ptr<Entry const>> entries;
     entries.reserve(assets.size());
     try {
-        for (auto const &asset : assets) {
-            auto const levels = asset->readMipChain();
+        std::vector<std::vector<ImageAsset::ImageBuffer>> mipChains(assets.size());
+        tbb::parallel_for(std::size_t{0}, assets.size(), [&](std::size_t index) {
+            mipChains[index] = assets[index]->readMipChain();
+        });
+
+        for (std::size_t index = 0; index < assets.size(); ++index) {
+            auto const &asset = assets[index];
+            auto const &levels = mipChains[index];
             auto const &image = levels.front();
 
             // Keep one- and two-component arrays compact.
