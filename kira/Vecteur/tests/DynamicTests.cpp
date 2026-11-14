@@ -20,9 +20,9 @@ protected:
 protected:
     static constexpr std::size_t rtsize{32};
 
-    template <is_vecteur T> [[nodiscard]] T RandDynamicVecteur(size_t size) const {
-        std::random_device rd;
-        std::mt19937 gen(rd());
+    std::mt19937 gen{std::mt19937::default_seed};
+
+    template <is_vecteur T> [[nodiscard]] T RandDynamicVecteur(size_t size) {
         std::uniform_real_distribution<float> valDis(0.0f, 100.0f);
 
         T result(size);
