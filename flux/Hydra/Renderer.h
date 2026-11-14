@@ -7,6 +7,7 @@
 #include <span>
 
 #include "flux/Core/Object.h"
+#include "flux/Core/RenderStats.h"
 #include "flux/Hydra/RenderSpec.h"
 #include "flux/Hydra/SampleSchedule.h"
 #include "flux/Optix/OptixAccumulationBuffer.h"
@@ -69,6 +70,9 @@ private:
 
     /// The image of \c spec_, or null if \c spec_ renders nothing.
     std::unique_ptr<Image> image_;
+
+    /// The sum over the launches that gave the image its samples.
+    flux::RenderStats renderStats_;
 
     /// The camera of \c spec_, converted when the spec changes.
     flux::Ref<flux::Camera> camera_;

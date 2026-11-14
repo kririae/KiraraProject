@@ -2,7 +2,6 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
-#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <exception>
@@ -37,9 +36,7 @@ template <typename Handler, typename Buffer>
         auto const batchSize = static_cast<std::uint32_t>(
             std::min<std::uint64_t>(target - buffer.getSampleCount(), maxBatchSize)
         );
-        auto const batch = handler.render(camera, buffer, batchSize);
-        result.paths += batch.paths;
-        result.elapsed += batch.elapsed;
+        result += handler.render(camera, buffer, batchSize);
     }
     return result;
 }
@@ -101,17 +98,8 @@ int run(int argc, char **argv) {
         outputPath.replace_extension(".exr");
     flux::writeImage<flux::ColorChannel>(outputPath, film);
 
-    using Milliseconds = std::chrono::duration<double, std::chrono::milliseconds::period>;
-    auto const elapsed = std::chrono::duration_cast<Milliseconds>(stats.elapsed);
-    auto const pathsPerSecond = stats.getPathsPerSecond();
-    flux::LogInfo(
-        "rendered {} camera paths in {:.1f} ms at {:.1f} Mpaths/s; wrote '{}'", stats.paths,
-        elapsed.count(), pathsPerSecond / 1.0e6, outputPath.string()
-    );
-    fmt::print(
-        "rendering: {} camera paths in {:.1f} ms, {:.1f} Mpaths/s\n", stats.paths, elapsed.count(),
-        pathsPerSecond / 1.0e6
-    );
+    flux::LogInfo("wrote '{}'", outputPath.string());
+    stats.log();
     kira::LogFlush<"flux">();
     return 0;
 }

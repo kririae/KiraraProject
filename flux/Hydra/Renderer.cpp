@@ -137,9 +137,15 @@ void HdFluxRenderer::Render(HdFluxRenderSpec const &spec, std::span<Output const
         if (auto const count =
                 schedule_.GetNextSampleCount(accumulation.getSampleCount(), pixelCount);
             count != 0) {
-            param_.GetHandler().render(*camera_, accumulation, count);
+            if (accumulation.getSampleCount() == 0)
+                renderStats_ = {};
+
+            renderStats_ += param_.GetHandler().render(*camera_, accumulation, count);
             accumulation.download(image_->film);
             launched = true;
+
+            if (IsConverged())
+                renderStats_.log();
         }
     }
 

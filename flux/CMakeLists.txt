@@ -98,6 +98,7 @@ target_link_libraries(
 add_library(
     flux STATIC
     Core/Object.cpp
+    Core/RenderStats.cpp
     Embree/EmbreeAccumulationBuffer.cpp
     Embree/EmbreeContext.cpp
     Embree/EmbreeHandler.cpp

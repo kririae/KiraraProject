@@ -4,13 +4,17 @@
 #include <cstdint>
 
 namespace flux {
-/// \brief Timing result for one render call.
 struct RenderStats {
-    /// Number of camera paths that the call ran.
     std::uint64_t paths{};
 
     /// Backend execution time.
     std::chrono::nanoseconds elapsed{};
+
+    RenderStats &operator+=(RenderStats const &other) noexcept {
+        paths += other.paths;
+        elapsed += other.elapsed;
+        return *this;
+    }
 
     [[nodiscard]] double getPathsPerSecond() const noexcept {
         if (elapsed == std::chrono::nanoseconds::zero())
@@ -19,5 +23,7 @@ struct RenderStats {
         auto const seconds = std::chrono::duration_cast<Seconds>(elapsed);
         return static_cast<double>(paths) / seconds.count();
     }
+
+    void log() const;
 };
 } // namespace flux

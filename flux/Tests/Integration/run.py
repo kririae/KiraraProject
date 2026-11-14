@@ -30,7 +30,7 @@ def run(case: dict, backend: str, binary: Path, output: Path) -> None:
     with log_path.open("w") as log:
         result = subprocess.run(
             [str(binary), str(scene), "--backend", backend, "--spp", str(case["spp"]),
-             "--output", str(image_path)],
+             "--output", str(image_path), "--log-level", "info"],
             stdout=log, stderr=subprocess.STDOUT, text=True, timeout=600,
         )
     if result.returncode:
@@ -45,7 +45,10 @@ def run(case: dict, backend: str, binary: Path, output: Path) -> None:
     else:
         expected = reference
     metrics, error = compare(image, expected)
-    match = re.search(r"in ([0-9.]+) ms, ([0-9.]+) Mpaths/s", log_path.read_text())
+    match = re.search(
+        r"render time \(ms\) *: *([0-9.]+)\n\tthroughput \(Mpaths/s\) *: *([0-9.]+)",
+        log_path.read_text(),
+    )
     if match:
         metrics["elapsed_ms"] = float(match[1])
         metrics["mpaths_per_second"] = float(match[2])
