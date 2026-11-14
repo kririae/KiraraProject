@@ -101,6 +101,8 @@ private:
     /// linear space.
     [[nodiscard]] std::vector<ImageBuffer> readMipChain() const;
 
+    [[nodiscard]] std::vector<ImageBuffer> readFileMipChain() const;
+
     std::unique_ptr<pImpl> pImpl_;
     std::size_t id_;
 };

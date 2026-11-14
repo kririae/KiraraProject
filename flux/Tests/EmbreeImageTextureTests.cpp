@@ -7,6 +7,7 @@
 #include <string>
 #include <string_view>
 
+#include "ImageWithUnreadableMipLevel.h"
 #include "TestUtils.h"
 #include "flux/Embree/EmbreeImageTexturePool.h"
 #include "flux/Scene/Context.h"
@@ -411,4 +412,25 @@ TEST_F(EmbreeImageTextureTests, EmptyPathSamplesAsZero) {
     build("", "linear");
 
     EXPECT_EQ(sample({0.5F, 0.5F}), flux::Vec4f{});
+}
+
+TEST_F(EmbreeImageTextureTests, AFileWhoseReadStopsInItsPixelsSamplesAsZero) {
+    auto const fullPath = path("short-pixels-full.exr");
+    auto pixels = std::array<float, 4 * 4 * 3>{};
+    for (auto index = std::size_t{}; index < pixels.size(); ++index)
+        pixels[index] = 0.25F + 0.5F * static_cast<float>(index % 3) / 2.0F;
+    flux::test::writeFloatImage(fullPath, pixels, {4, 4});
+    auto const imagePath = path("short-pixels.exr");
+    std::filesystem::copy_file(
+        fullPath, imagePath, std::filesystem::copy_options::overwrite_existing
+    );
+    std::filesystem::resize_file(imagePath, std::filesystem::file_size(fullPath) - 1);
+
+    build(imagePath);
+
+    // The footprint selects the 2x2 mip level, which the image cache makes from the 4x4 one.
+    EXPECT_EQ(sample({0.5F, 0.5F}, {0.5F, 0.0F}, {0.0F, 0.5F}), flux::Vec4f{});
+    EXPECT_EQ(sample({0.25F, 0.5F}), flux::Vec4f{});
+    EXPECT_EQ(sample({0.25F, 0.5F}), flux::Vec4f{});
+    EXPECT_EQ(sample({0.75F, 0.5F}), flux::Vec4f{});
 }

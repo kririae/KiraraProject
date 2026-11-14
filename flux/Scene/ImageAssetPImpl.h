@@ -68,6 +68,7 @@ struct ImageAsset::pImpl {
     /// File layout used by OIIO texture lookups.
     std::uint8_t orientation;
     std::uint8_t fileComponentCount;
+    int authoredLevelCount;
 
     [[nodiscard]] Vec4f
     sample(OIIO::TextureOpt options, Vec2f uv, Vec2f duvdx, Vec2f duvdy, int channelCount) const;
@@ -77,6 +78,8 @@ struct ImageAsset::pImpl {
     /// The color components are \c linearRec709, except that an 8-bit \c srgbTexture image stays
     /// sRGB encoded.
     [[nodiscard]] OIIO::ImageBuf readLevel(int miplevel) const;
+
+    [[nodiscard]] ImageBuffer makeBuffer(OIIO::ImageBuf image) const;
 };
 
 /// \brief OIIO texture systems shared by one ImageAssetPool.

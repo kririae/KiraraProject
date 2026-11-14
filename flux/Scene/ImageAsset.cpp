@@ -4,6 +4,7 @@
 #include <OpenImageIO/imagebufalgo.h>
 #include <OpenImageIO/imagecache.h>
 #include <OpenImageIO/imageio.h>
+#include <fmt/format.h>
 
 #include <algorithm>
 #include <array>
@@ -44,6 +45,11 @@ void validateImageSpec(OIIO::ImageSpec const &spec) {
     auto const orientation = spec.get_int_attribute("Orientation", 1);
     if (orientation < 1 || orientation > 8)
         throw BadImage("its orientation must be valid");
+}
+
+[[nodiscard]] std::string describeReadFailure(int miplevel, std::string const &reason) {
+    return reason.empty() ? fmt::format("mip level {} failed to read", miplevel)
+                          : fmt::format("mip level {}: {}", miplevel, reason);
 }
 
 [[nodiscard]] ImageComponentType chooseComponentType(OIIO::ImageSpec const &spec) noexcept {
@@ -131,10 +137,10 @@ void validateImageSpec(OIIO::ImageSpec const &spec) {
 }
 
 /// The number of mip levels that the file holds, which is 1 for a file without mip levels.
-[[nodiscard]] int countMipLevels(std::string const &filename) {
+[[nodiscard]] int countAuthoredMipLevels(std::string const &filename) {
     auto const input = OIIO::ImageInput::open(filename);
     if (!input)
-        throw kira::Anyhow("ImageAsset: failed to open '{}': {}", filename, OIIO::geterror());
+        throw BadImage(OIIO::geterror());
     auto count = 1;
     while (input->seek_subimage(0, count))
         ++count;
@@ -176,7 +182,7 @@ ImageAssetPool::pImpl::pImpl() {
 ImageAsset::pImpl::pImpl()
     : extent{emptyExtent}, componentCount{4}, componentType{ImageComponentType::UNorm8},
       defaultComponentMapping{makeDefaultComponentMapping(4)}, orientation{1},
-      fileComponentCount{4} {}
+      fileComponentCount{4}, authoredLevelCount{1} {}
 
 ImageAsset::pImpl::pImpl(
     std::shared_ptr<OIIO::TextureSystem> system, std::filesystem::path const &path,
@@ -197,6 +203,8 @@ ImageAsset::pImpl::pImpl(
         ))
         throw BadImage(imageCache->geterror());
     validateImageSpec(spec);
+
+    authoredLevelCount = countAuthoredMipLevels(filename.string());
 
     auto const converts = !isLinearRec709(colorSpace);
     if (converts && spec.nchannels < 3)
@@ -287,9 +295,7 @@ OIIO::ImageBuf ImageAsset::pImpl::readLevel(int miplevel) const {
             /* subimage = */ 0, miplevel, /* chbegin = */ 0, fileComponentCount,
             /* force = */ true, toTypeDesc(componentType)
         ))
-        throw kira::Anyhow(
-            "ImageAsset: failed to read '{}': {}", filename.string(), image.geterror()
-        );
+        throw BadImage(describeReadFailure(miplevel, image.geterror()));
     if (colorTransformId == 0 || storedColorSpace == ImageColorSpace::SRGB)
         return image;
 
@@ -315,7 +321,46 @@ ImageComponentMapping ImageAsset::getDefaultComponentMapping() const noexcept {
     return pImpl_->defaultComponentMapping;
 }
 
+ImageAsset::ImageBuffer ImageAsset::pImpl::makeBuffer(OIIO::ImageBuf image) const {
+    auto const extent = Vec2u{
+        static_cast<std::uint32_t>(image.spec().width),
+        static_cast<std::uint32_t>(image.spec().height),
+    };
+    return ImageBuffer{
+        .image = std::move(image),
+        .extent = extent,
+        .componentCount = componentCount,
+        .componentType = componentType,
+        .colorSpace = storedColorSpace,
+    };
+}
+
 std::vector<ImageAsset::ImageBuffer> ImageAsset::readMipChain() const {
+    if (!pImpl_->filename.empty()) {
+        try {
+            return readFileMipChain();
+        } catch (BadImage const &bad) {
+            LogWarn("ImageAsset: '{}' cannot be read ({})", pImpl_->filename.string(), bad.what());
+        }
+    }
+
+    auto result = std::vector<ImageBuffer>{};
+    auto const spec = OIIO::ImageSpec{
+        static_cast<int>(emptyExtent.x()), static_cast<int>(emptyExtent.y()),
+        pImpl_->componentCount, toTypeDesc(pImpl_->componentType)
+    };
+    auto texel = OIIO::ImageBuf{spec};
+    if (!OIIO::ImageBufAlgo::fill(
+            texel, OIIO::cspan<float>{unusableTexel.data(), pImpl_->componentCount}
+        ))
+        throw kira::Anyhow(
+            "ImageAsset: failed to fill the texel of '{}'", pImpl_->filename.string()
+        );
+    result.push_back(pImpl_->makeBuffer(std::move(texel)));
+    return result;
+}
+
+std::vector<ImageAsset::ImageBuffer> ImageAsset::readFileMipChain() const {
     auto const encodeSRGB = pImpl_->storedColorSpace == ImageColorSpace::SRGB;
     auto const fileName = pImpl_->filename.string();
 
@@ -336,43 +381,15 @@ std::vector<ImageAsset::ImageBuffer> ImageAsset::readMipChain() const {
         return pImpl_->fileComponentCount == 3 ? appendAlpha(flipped, fileName) : flipped;
     };
 
-    auto const makeBuffer = [this, encodeSRGB](OIIO::ImageBuf image) {
-        auto const extent = Vec2u{
-            static_cast<std::uint32_t>(image.spec().width),
-            static_cast<std::uint32_t>(image.spec().height),
-        };
-        return ImageBuffer{
-            .image = std::move(image),
-            .extent = extent,
-            .componentCount = pImpl_->componentCount,
-            .componentType = pImpl_->componentType,
-            .colorSpace = encodeSRGB ? ImageColorSpace::SRGB : ImageColorSpace::Linear,
-        };
-    };
-
     auto result = std::vector<ImageBuffer>{};
-    if (pImpl_->filename.empty()) {
-        auto const spec = OIIO::ImageSpec{
-            static_cast<int>(emptyExtent.x()), static_cast<int>(emptyExtent.y()),
-            pImpl_->componentCount, toTypeDesc(pImpl_->componentType)
-        };
-        auto texel = OIIO::ImageBuf{spec};
-        if (!OIIO::ImageBufAlgo::fill(
-                texel, OIIO::cspan<float>{unusableTexel.data(), pImpl_->componentCount}
-            ))
-            throw kira::Anyhow("ImageAsset: failed to fill the texel of an empty asset");
-        result.push_back(makeBuffer(std::move(texel)));
-        return result;
-    }
-
     auto flipped = prepare(pImpl_->readLevel(0));
 
     // A file with mip levels keeps them, as the image cache does.
-    auto const authoredLevelCount = countMipLevels(fileName);
+    auto const authoredLevelCount = pImpl_->authoredLevelCount;
     if (authoredLevelCount > 1) {
-        result.push_back(makeBuffer(std::move(flipped)));
+        result.push_back(pImpl_->makeBuffer(std::move(flipped)));
         for (auto level = 1; level < authoredLevelCount; ++level)
-            result.push_back(makeBuffer(prepare(pImpl_->readLevel(level))));
+            result.push_back(pImpl_->makeBuffer(prepare(pImpl_->readLevel(level))));
         return result;
     }
 
@@ -390,7 +407,7 @@ std::vector<ImageAsset::ImageBuffer> ImageAsset::readMipChain() const {
             );
     }
 
-    result.push_back(makeBuffer(std::move(flipped)));
+    result.push_back(pImpl_->makeBuffer(std::move(flipped)));
     auto const channelCount = result.front().image.nchannels();
     auto const format = encodeSRGB ? OIIO::TypeDesc::FLOAT : toTypeDesc(pImpl_->componentType);
     auto width = result.front().extent.x();
@@ -409,7 +426,7 @@ std::vector<ImageAsset::ImageBuffer> ImageAsset::readMipChain() const {
             );
 
         if (!encodeSRGB) {
-            result.push_back(makeBuffer(std::move(level)));
+            result.push_back(pImpl_->makeBuffer(std::move(level)));
             continue;
         }
 
@@ -423,7 +440,7 @@ std::vector<ImageAsset::ImageBuffer> ImageAsset::readMipChain() const {
                 "ImageAsset: failed to encode a mip level of '{}': {}", fileName, encoded.geterror()
             );
         linear = std::move(level);
-        result.push_back(makeBuffer(std::move(encoded)));
+        result.push_back(pImpl_->makeBuffer(std::move(encoded)));
     }
     return result;
 }

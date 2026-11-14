@@ -9,6 +9,7 @@
 #include <string_view>
 #include <vector>
 
+#include "ImageWithUnreadableMipLevel.h"
 #include "TestUtils.h"
 #include "WhiteImageWithBlackMipLevel.h"
 #include "flux/IO/ImageIO.h"
@@ -88,18 +89,22 @@ protected:
         auto const texture = context->getObjects<flux::ImageTexture>().front();
         auto const assets = std::array{texture->getImageAsset()};
         pool.add(assets);
-        auto const image = pool.getImpl(texture->getImageAsset()->getId());
+        place(*texture);
+    }
+
+    void place(flux::ImageTexture const &texture) {
+        auto const image = pool.getImpl(texture.getImageAsset()->getId());
         filtered =
-            flux::createTextureObject(image, texture->getAddressModes(), texture->getFilterMode());
+            flux::createTextureObject(image, texture.getAddressModes(), texture.getFilterMode());
         point = flux::createTextureObject(
-            image, texture->getAddressModes(), flux::ImageTextureFilterMode::Point
+            image, texture.getAddressModes(), flux::ImageTextureFilterMode::Point
         );
-        auto const &scale = texture->getScale();
-        auto const &bias = texture->getBias();
+        auto const &scale = texture.getScale();
+        auto const &bias = texture.getBias();
         auto const entry = flux::OptixImageTexture{
             .texture = filtered.get(),
             .pointTexture = point.get(),
-            .componentMapping = texture->getComponentMapping(),
+            .componentMapping = texture.getComponentMapping(),
             .componentCount = image.componentCount,
             .scale = {scale.x(), scale.y(), scale.z(), scale.w()},
             .bias = {bias.x(), bias.y(), bias.z(), bias.w()},
@@ -544,4 +549,25 @@ TEST(OptixImagePoolTests, AddsAndRemovesImagesInBatches) {
     EXPECT_TRUE(pool.contains(kept));
     EXPECT_FALSE(pool.contains(dropped));
     EXPECT_THROW((void)pool.getImpl(dropped), std::out_of_range);
+}
+
+TEST_F(OptixImageTextureTests, AnImageWithAnUnreadableMipLevelSamplesAsZero) {
+    auto const unreadablePath = path("optix-unreadable-mip-level.exr");
+    flux::test::writeImageWithUnreadableMipLevel(unreadablePath);
+    auto const goodPath = path("optix-good-image.exr");
+    auto const pixels = std::array{0.25F, 0.5F, 0.75F};
+    flux::test::writeFloatImage(goodPath, pixels, {1, 1});
+    auto const unreadable = context->create<flux::ImageTexture>(
+        flux::ImageTextureSpec{.image = {.path = unreadablePath}}
+    );
+    auto const good =
+        context->create<flux::ImageTexture>(flux::ImageTextureSpec{.image = {.path = goodPath}});
+
+    auto const assets = std::array{unreadable->getImageAsset(), good->getImageAsset()};
+    EXPECT_NO_THROW(pool.add(assets));
+
+    place(*unreadable);
+    EXPECT_EQ(sample({0.5F, 0.5F}, true), (flux::Vec4f{0.0F, 0.0F, 0.0F, 0.0F}));
+    place(*good);
+    EXPECT_EQ(sample({0.5F, 0.5F}, true), (flux::Vec4f{0.25F, 0.5F, 0.75F, 1.0F}));
 }

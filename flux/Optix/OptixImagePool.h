@@ -41,7 +41,6 @@ public:
 
     /// \brief Reads \p assets and uploads their mip chains.
     /// \pre No asset of \p assets is present, and their IDs are distinct.
-    /// \throw kira::Anyhow If reading or uploading fails. Then nothing is added.
     void add(std::span<Ref<ImageAsset const> const> assets);
 
     /// \brief Deletes images once the stream finishes its current work.

@@ -161,12 +161,12 @@ target_compile_definitions(
 
 krr_add_test(
     flux Embree ImageTextureTests
-    SOURCES EmbreeImageTextureTests.cpp
+    SOURCES EmbreeImageTextureTests.cpp ImageWithUnreadableMipLevel.cpp
     HARD_DEPENDENCIES flux)
 target_compile_definitions(
     flux.Embree.ImageTextureTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
                                           FLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/EmbreeImageTextureTests")
-target_link_libraries(flux.Embree.ImageTextureTests PRIVATE OpenImageIO::OpenImageIO)
+target_link_libraries(flux.Embree.ImageTextureTests PRIVATE OpenImageIO::OpenImageIO OpenEXR::OpenEXR)
 
 krr_add_test(
     flux Scene PrimitiveTests
@@ -285,13 +285,14 @@ target_compile_definitions(
 
 krr_add_test(
     flux Optix ImageTextureTests
-    SOURCES OptixImageTextureTests.cu WhiteImageWithBlackMipLevel.cpp
+    SOURCES OptixImageTextureTests.cu WhiteImageWithBlackMipLevel.cpp ImageWithUnreadableMipLevel.cpp
     HARD_DEPENDENCIES flux)
 target_compile_definitions(
     flux.Optix.ImageTextureTests PRIVATE FLUX_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
                                          FLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/OptixImageTextureTests")
 target_include_directories(
     flux.Optix.ImageTextureTests PRIVATE $<TARGET_PROPERTY:OpenImageIO::OpenImageIO,INTERFACE_INCLUDE_DIRECTORIES>)
+target_link_libraries(flux.Optix.ImageTextureTests PRIVATE OpenEXR::OpenEXR)
 
 krr_add_test(
     flux Optix DeviceBufferTests
