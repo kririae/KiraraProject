@@ -40,7 +40,7 @@ A class that does the job of a class of the standard library mimics it, and its 
    2. Give an agent that has not read the code only the declarations of the new public names, without comments, and have it define each one. Rename each name that it defines differently from you.
    3. In your reasoning, list each concept that the change names, and the term that the place already uses for it. Rename where the change brings a second term for a concept, or a term with another meaning.
 
-Rename a bad name that you find in code you change, in a commit of its own.
+Rename a bad name that you find in code you change.
 
 ## Bad meanings
 

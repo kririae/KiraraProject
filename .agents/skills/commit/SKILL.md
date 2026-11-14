@@ -7,7 +7,7 @@ description: Use when you create, change, reorder, or land a commit.
 
 The history is what the user reviews. Work is a stack of steps on a target branch, the branch that the stack lands on. Each step is one commit: a self-contained change sized for one review, with its code, tests, and documents. A step is corrected in place, so the stack never holds a commit that fixes or follows up another one. The stack reads as if its final design was decided at once.
 
-- A commit makes one change. A rename and a feature are two steps.
+- A commit makes one change.
 - A message describes the change against the target branch, as [prose](../prose/SKILL.md) says. It never mentions a rejected option, an earlier version of a step, or a label of a plan.
 - A feature lands as a whole.
 - A commit that the upstream of the target branch contains is never rewritten. Nothing is pushed unless the user asks.
@@ -26,7 +26,6 @@ A review reads the commits, so the next step may start while a review runs. A fi
 ## Bad commits
 
 - `fix: address review comments` on top of the step it fixes. A fix amends its step.
-- One commit that renames a type and adds a feature. It makes two changes.
 - `feat: add step 2 of batch B`. The reader of the history has no plan.
 - A message that mentions an earlier version of the step. The reader sees only the final one.
 - A step handed to the user before an agent reviewed it. It skips a state.

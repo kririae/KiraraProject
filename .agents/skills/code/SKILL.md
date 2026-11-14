@@ -18,7 +18,7 @@ Code tests its design. Where the design forces complexity into the code, fix the
 2. Write the code. Name each entity as [naming](../naming/SKILL.md) says, and handle each bad value, misuse, and failure as [errors](../errors/SKILL.md) says.
 3. Check the code that you add or change:
    1. In your report, list each check, special case, flag, lock, layer, and copy of state or of logic, with the promise that needs it, and the design decision that forces it, if one does. Delete what no promise needs, and what you are not sure a promise needs. Where another decision would remove it, or the references do without it, stop, and report that decision.
-   2. In your reasoning, list each mechanism with its precedent, its reference, or its idiom. Rewrite a mechanism that differs from them, unless you can state a concrete reason. Where a precedent differs from another precedent or from the idiom, fix it in a commit of its own, or record it as an [open task](../locality/SKILL.md).
+   2. In your reasoning, list each mechanism with its precedent, its reference, or its idiom. Rewrite a mechanism that differs from them, unless you can state a concrete reason. Where a precedent differs from another precedent or from the idiom, fix it, or record it as an [open task](../locality/SKILL.md).
    3. In your reasoning, list each block nested more than two levels deep, and why an early exit, a `continue`, or a function cannot flatten it. Flatten each block for which you have no reason.
 
 ## Bad workarounds
