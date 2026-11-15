@@ -23,6 +23,7 @@
 #include "flux/Hydra/RenderParam.h"
 #include "flux/Hydra/RenderPass.h"
 #include "flux/Hydra/RenderSettings.h"
+#include "flux/Hydra/Renderer.h"
 #include "flux/Scene/Context.h"
 #include "kira/Compiler.h"
 #include "kira/Properties.h"
@@ -88,6 +89,7 @@ HdFLuxRenderDelegate::HdFLuxRenderDelegate(
     : pxr::HdRenderDelegate(settingsMap),
       resourceRegistry_(std::make_shared<pxr::HdResourceRegistry>()),
       renderParam_(std::make_unique<HdFLuxRenderParam>(mtlxRoot)),
+      renderer_(std::make_unique<HdFLuxRenderer>(*renderParam_)),
       defaultIntegrator_(renderParam_->GetContext()->getActiveIntegrator()->getImpl()),
       defaultShaderReorder_(renderParam_->GetContext()->getActiveIntegrator()->usesShaderReorder()),
       defaultSampler_(renderParam_->GetContext()->getActiveSampler()->getType()) {
@@ -131,7 +133,7 @@ pxr::HdRenderParam *HdFLuxRenderDelegate::GetRenderParam() const { return render
 pxr::HdRenderPassSharedPtr HdFLuxRenderDelegate::CreateRenderPass(
     pxr::HdRenderIndex *index, pxr::HdRprimCollection const &collection
 ) {
-    return std::make_shared<HdFLuxRenderPass>(index, collection, *renderParam_);
+    return std::make_shared<HdFLuxRenderPass>(index, collection, *renderParam_, *renderer_);
 }
 
 pxr::HdInstancer *

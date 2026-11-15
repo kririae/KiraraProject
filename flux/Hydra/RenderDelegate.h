@@ -9,6 +9,7 @@
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Sampling/Sampler.h"
 
+class HdFLuxRenderer;
 class HdFLuxRenderParam;
 
 namespace flux {
@@ -77,6 +78,7 @@ private:
 
     pxr::HdResourceRegistrySharedPtr resourceRegistry_;
     std::unique_ptr<HdFLuxRenderParam> renderParam_;
+    std::unique_ptr<HdFLuxRenderer> renderer_;
     flux::PathIntegrator::Impl defaultIntegrator_;
     bool defaultShaderReorder_;
     flux::SamplerType defaultSampler_;

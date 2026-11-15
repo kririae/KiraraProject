@@ -8,17 +8,15 @@
 #include <string>
 #include <vector>
 
-#include "flux/Hydra/Renderer.h"
-
+class HdFLuxRenderer;
 class HdFLuxRenderParam;
 
 /// \brief The interface to execute the rendering pipeline of FLux from Hydra.
 class HdFLuxRenderPass final : public pxr::HdRenderPass {
 public:
-    /// \pre \p param outlives the pass.
     HdFLuxRenderPass(
         pxr::HdRenderIndex *index, pxr::HdRprimCollection const &collection,
-        HdFLuxRenderParam &param
+        HdFLuxRenderParam &param, HdFLuxRenderer &renderer
     );
 
     /// \brief Returns whether the image has all the requested samples, the pass renders nothing, or
@@ -31,7 +29,7 @@ private:
     ) override;
 
     HdFLuxRenderParam &param_;
-    HdFLuxRenderer renderer_;
+    HdFLuxRenderer &renderer_;
     std::optional<unsigned int> settingsVersion_;
     std::vector<std::string> warnings_;
 };

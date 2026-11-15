@@ -15,6 +15,7 @@
 #include "flux/Hydra/RenderBuffer.h"
 #include "flux/Hydra/RenderParam.h"
 #include "flux/Hydra/RenderSettings.h"
+#include "flux/Hydra/Renderer.h"
 
 PXR_NAMESPACE_USING_DIRECTIVE
 
@@ -88,9 +89,10 @@ struct PassRequest {
 } // namespace
 
 HdFLuxRenderPass::HdFLuxRenderPass(
-    pxr::HdRenderIndex *index, pxr::HdRprimCollection const &collection, HdFLuxRenderParam &param
+    pxr::HdRenderIndex *index, pxr::HdRprimCollection const &collection, HdFLuxRenderParam &param,
+    HdFLuxRenderer &renderer
 )
-    : pxr::HdRenderPass(index, collection), param_{param}, renderer_{param} {}
+    : pxr::HdRenderPass(index, collection), param_{param}, renderer_{renderer} {}
 
 bool HdFLuxRenderPass::IsConverged() const { return renderer_.IsConverged(); }
 
