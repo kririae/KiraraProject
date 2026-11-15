@@ -39,14 +39,11 @@
 #include "flux/Shading/Mtlx/FLuxShaderGraphRefactor.h"
 #include "flux/Shading/Mtlx/FLuxSourceCodeNode.h"
 #include "flux/Shading/Mtlx/MtlxEmission.h"
+#include "flux/Shading/Mtlx/MtlxLibraries.inc"
 #include "kira/Anyhow.h"
 
 namespace flux {
 namespace {
-constexpr auto libraryFiles = std::to_array<std::pair<char const *, char const *>>({
-#include "flux/Shading/Mtlx/MtlxLibraries.inc"
-});
-
 /// \brief An input of a node, named by its path in the document, such as \c img/file.
 ///
 /// \c node is null if the document has no node at the path.
@@ -599,8 +596,8 @@ MtlxShaderGenerator::pImpl::pImpl(std::filesystem::path const &root)
     }
     if (loaded.empty())
         throw kira::Anyhow("MtlxShaderGenerator: {} holds no MaterialX libraries", root.string());
-    for (auto const *source : std::views::values(libraryFiles))
-        MaterialX::readFromXmlString(libraries, source, searchPath);
+    for (auto const source : std::views::values(mtlxLibraries))
+        MaterialX::readFromXmlString(libraries, std::string{source}, searchPath);
     appendBlackAddressMode(*libraries);
 
     generator = std::make_shared<FLuxShaderGenerator>(MaterialX::TypeSystem::create());

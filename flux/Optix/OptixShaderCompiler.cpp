@@ -5,7 +5,6 @@
 #include <tbb/enumerable_thread_specific.h>
 
 #include <algorithm>
-#include <array>
 #include <chrono>
 #include <cstddef>
 #include <filesystem>
@@ -15,20 +14,14 @@
 
 #include "flux/Core/Logging.h"
 #include "flux/Optix/OptixLaunchParams.h"
+#include "flux/Optix/OptixNvrtcHeaders.inc"
+#include "flux/Optix/OptixSlangModules.inc"
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Optix/SlangCompiler.h"
 #include "kira/Anyhow.h"
 
 namespace flux {
 namespace {
-constexpr auto slangModules = std::to_array<std::pair<char const *, char const *>>({
-#include "flux/Optix/OptixSlangModules.inc"
-});
-
-constexpr auto nvrtcHeaders = std::to_array<std::pair<char const *, char const *>>({
-#include "flux/Optix/OptixNvrtcHeaders.inc"
-});
-
 constexpr auto callableModule = "flux_callable";
 constexpr auto preludeInclude = "slang-cuda-prelude.h";
 constexpr auto shaderInclude = "shader.cu";
@@ -129,8 +122,8 @@ static_assert(is_same_v<decltype({edfCallable}), flux::OptixEDFCallable>);
     std::vector<char const *> headerNames{preludeInclude, shaderInclude};
     std::vector<char const *> headerTexts{prelude.c_str(), cuda.c_str()};
     for (auto const &[name, text] : nvrtcHeaders) {
-        headerNames.push_back(name);
-        headerTexts.push_back(text);
+        headerNames.push_back(name.data());
+        headerTexts.push_back(text.data());
     }
 
     nvrtcProgram handle{};
@@ -204,7 +197,7 @@ OptixShaderCompiler::compile(std::string const &source) const {
         auto name = getModuleName(path);
         if (name == callableModule)
             modules.push_back({.name = "shader", .source = source});
-        modules.push_back({.name = std::move(name), .source = text});
+        modules.push_back({.name = std::move(name), .source = std::string{text}});
     }
     auto const &slangCompiler = pImpl_->slangCompilers.local();
     auto const cuda = slangCompiler.compile(modules, callableModule);

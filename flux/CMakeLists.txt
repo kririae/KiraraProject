@@ -66,21 +66,6 @@ add_compile_definitions(
     $<$<COMPILE_LANGUAGE:CUDA>:TOML_RETURN_BOOL_FROM_FOR_EACH_BROKEN_ACKNOWLEDGED>)
 
 # ----------------------------------------------------------
-# Embedded files
-# ----------------------------------------------------------
-# Writes output, under the generated directory, with a {path, text} entry for each file, read at
-# configure time. The path is the one that an #include names.
-function(flux_embed output)
-    set(entries "")
-    foreach(file IN LISTS ARGN)
-        file(READ ${file} text)
-        string(APPEND entries "{\"flux/${file}\", R\"flux(${text})flux\"},\n")
-    endforeach()
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${ARGN})
-    file(CONFIGURE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/${output} CONTENT "@entries@" @ONLY)
-endfunction()
-
-# ----------------------------------------------------------
 # Libraries
 # ----------------------------------------------------------
 # Compile OIIO-backed image sources as host C++.
@@ -144,18 +129,19 @@ add_library(
     Shading/EDF.cpp
     Shading/Texture.cpp)
 
-flux_embed(flux/Optix/OptixSlangModules.inc Shading/flux-material.slang Optix/flux-context.slang
-           Optix/flux-callable.slang)
-flux_embed(
-    flux/Optix/OptixNvrtcHeaders.inc
-    Optix/OptixShaderCallable.h
-    Optix/OptixCallableLaunchParams.h
-    Optix/OptixImageTexture.cuh
-    Optix/OptixImageTexture.h
-    Scene/ImageComponentMapping.h)
+krr_embed(
+    flux flux::slangModules
+    OUTPUT flux/Optix/OptixSlangModules.inc
+    BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..
+    FILES Shading/flux-material.slang Optix/flux-context.slang Optix/flux-callable.slang)
+krr_embed(
+    flux flux::nvrtcHeaders
+    OUTPUT flux/Optix/OptixNvrtcHeaders.inc
+    BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..
+    FILES Optix/OptixShaderCallable.h Optix/OptixCallableLaunchParams.h Optix/OptixImageTexture.cuh
+          Optix/OptixImageTexture.h Scene/ImageComponentMapping.h)
 
 target_include_directories(flux PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
-target_include_directories(flux PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_link_libraries(
     flux
     PUBLIC CUDA::cudart_static
@@ -186,23 +172,32 @@ endif()
 # ----------------------------------------------------------
 # MaterialX
 # ----------------------------------------------------------
-flux_embed(flux/Shading/Mtlx/MtlxLibraries.inc Shading/Mtlx/libraries/genflux.mtlx
-           Shading/Mtlx/libraries/stdlib_genflux_impl.mtlx
-           Shading/Mtlx/libraries/pbrlib_genflux_impl.mtlx)
-flux_embed(flux/Shading/Mtlx/MtlxSlangLibraries.inc Shading/Mtlx/libraries/mx-prelude.slang
-           Shading/Mtlx/libraries/mx-ggx-reflection-sampler.slang
-           Shading/Mtlx/libraries/mx-ggx-refraction-sampler.slang Shading/Mtlx/libraries/mx-burley-diffuse-bsdf.slang
-           Shading/Mtlx/libraries/mx-conductor-bsdf.slang Shading/Mtlx/libraries/mx-dielectric-bsdf.slang
-           Shading/Mtlx/libraries/mx-generalized-schlick-bsdf.slang
-           Shading/Mtlx/libraries/mx-oren-nayar-diffuse-bsdf.slang Shading/Mtlx/libraries/mx-sheen-bsdf.slang
-           Shading/Mtlx/libraries/mx-subsurface-bsdf.slang Shading/Mtlx/libraries/mx-translucent-bsdf.slang)
-
 add_library(
     flux_mtlx STATIC
     Shading/Mtlx/FLuxShaderGenerator.cpp Shading/Mtlx/FLuxShaderGraphRefactor.cpp Shading/Mtlx/FLuxSourceCodeNode.cpp
     Shading/Mtlx/MtlxShaderGenerator.cpp Shading/Mtlx/MtlxEmission.cpp)
-target_include_directories(flux_mtlx PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated
-                                             ${CMAKE_CURRENT_SOURCE_DIR}/..)
+krr_embed(
+    flux_mtlx flux::mtlxLibraries
+    OUTPUT flux/Shading/Mtlx/MtlxLibraries.inc
+    BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..
+    FILES Shading/Mtlx/libraries/genflux.mtlx Shading/Mtlx/libraries/stdlib_genflux_impl.mtlx
+          Shading/Mtlx/libraries/pbrlib_genflux_impl.mtlx)
+krr_embed(
+    flux_mtlx flux::mtlxSlangLibraries
+    OUTPUT flux/Shading/Mtlx/MtlxSlangLibraries.inc
+    BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..
+    FILES Shading/Mtlx/libraries/mx-prelude.slang
+          Shading/Mtlx/libraries/mx-ggx-reflection-sampler.slang
+          Shading/Mtlx/libraries/mx-ggx-refraction-sampler.slang
+          Shading/Mtlx/libraries/mx-burley-diffuse-bsdf.slang
+          Shading/Mtlx/libraries/mx-conductor-bsdf.slang
+          Shading/Mtlx/libraries/mx-dielectric-bsdf.slang
+          Shading/Mtlx/libraries/mx-generalized-schlick-bsdf.slang
+          Shading/Mtlx/libraries/mx-oren-nayar-diffuse-bsdf.slang
+          Shading/Mtlx/libraries/mx-sheen-bsdf.slang
+          Shading/Mtlx/libraries/mx-subsurface-bsdf.slang
+          Shading/Mtlx/libraries/mx-translucent-bsdf.slang)
+target_include_directories(flux_mtlx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(
     flux_mtlx
     PUBLIC kira::Core kira::Vecteur

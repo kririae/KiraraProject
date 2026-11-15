@@ -108,6 +108,7 @@ list(APPEND CMAKE_MODULE_PATH "${KRR_ROOT_DIR}/cmake" "${CMAKE_BINARY_DIR}")
 # ----------------------------------------------------------
 # Platform detection
 # ----------------------------------------------------------
+include(KRR_Embed)
 include(KRR_Message)
 include(KRR_Packaging)
 

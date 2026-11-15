@@ -9,30 +9,26 @@
 #include <MaterialXGenShader/Util.h>
 
 #include <algorithm>
-#include <array>
 #include <filesystem>
 #include <memory>
 #include <sstream>
 #include <string>
 #include <string_view>
-#include <utility>
+
+#include "flux/Shading/Mtlx/MtlxSlangLibraries.inc"
 
 namespace flux {
 namespace {
 constexpr auto variablePrefix = "{{";
 constexpr auto variableSuffix = "}}";
 
-constexpr auto slangLibraryFiles = std::to_array<std::pair<char const *, char const *>>({
-#include "flux/Shading/Mtlx/MtlxSlangLibraries.inc"
-});
-
 /// \brief The source of the Slang file \p name of \c Shading/Mtlx/libraries, or null if there is
 /// none.
 [[nodiscard]] char const *findSlangLibrary(std::string_view name) {
-    auto const found = std::ranges::find_if(slangLibraryFiles, [&](auto const &entry) {
+    auto const found = std::ranges::find_if(mtlxSlangLibraries, [&](auto const &entry) {
         return std::filesystem::path{entry.first}.filename() == name;
     });
-    return found == slangLibraryFiles.end() ? nullptr : found->second;
+    return found == mtlxSlangLibraries.end() ? nullptr : found->second.data();
 }
 
 /// \brief The file that \p line includes, or an empty name if \p line includes none.
