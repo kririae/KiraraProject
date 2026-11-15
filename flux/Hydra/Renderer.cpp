@@ -93,9 +93,10 @@ void writeChannel(
 } // namespace
 
 HdFLuxRenderer::Accumulation::Accumulation(
-    flux::OptixHandler &handler, flux::FilmSpec const &spec, HdFLuxRenderSpec::View const &view
+    flux::OptixDeviceSession const &session, flux::FilmSpec const &spec,
+    HdFLuxRenderSpec::View const &view
 )
-    : accumulationBuffer{handler, spec}, film{spec}, camera{flux::Camera::create()},
+    : accumulationBuffer{session, spec}, film{spec}, camera{flux::Camera::create()},
       start{std::chrono::steady_clock::now()} {
     HdFLuxSetCamera(
         *camera, view.worldToView, view.projection,
@@ -125,7 +126,7 @@ void HdFLuxRenderer::StartRender(
             spec_ = spec;
             auto const film = toFilmSpec(spec);
             accumulation_ =
-                film ? std::make_unique<Accumulation>(param_.GetHandler(), *film, *spec.view)
+                film ? std::make_unique<Accumulation>(param_.GetDeviceSession(), *film, *spec.view)
                      : nullptr;
         }
 

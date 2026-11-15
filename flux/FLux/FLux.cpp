@@ -17,6 +17,7 @@
 #include "flux/FLux/TomlScene.h"
 #include "flux/IO/ImageIO.h"
 #include "flux/Optix/OptixAccumulationBuffer.h"
+#include "flux/Optix/OptixDeviceSession.h"
 #include "flux/Optix/OptixHandler.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Film.h"
@@ -89,16 +90,17 @@ int run(int argc, char **argv) {
         backend, film.getWidth(), film.getHeight(), scene.samplesPerPixel
     );
 
-    // Each buffer is destroyed before its handler.
     auto const stats = [&] {
         if (options.backend == flux::RenderBackend::Optix) {
-            flux::OptixHandler handler{scene.context};
+            flux::OptixDeviceSession const session{0};
+            flux::LogDebug(
+                "OptixDeviceSession: estimated resident threads {}",
+                session.getEstimatedResidentThreads()
+            );
+            flux::OptixHandler handler{session, scene.context};
             if (options.launchWaves)
                 handler.setLaunchWaves(*options.launchWaves);
-            flux::LogDebug(
-                "OptixHandler: estimated resident threads {}", handler.getEstimatedResidentThreads()
-            );
-            flux::OptixAccumulationBuffer buffer{handler, scene.film};
+            flux::OptixAccumulationBuffer buffer{session, scene.film};
             auto const pixelCount = std::uint64_t{film.getWidth()} * film.getHeight();
             auto const launchBatchSize = static_cast<std::uint32_t>(std::clamp<std::uint64_t>(
                 std::numeric_limits<std::uint32_t>::max() / pixelCount, 1, 32

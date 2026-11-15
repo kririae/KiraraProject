@@ -24,10 +24,8 @@ struct OptixAccumulationBuffer::pImpl final {
     /// \brief Returns the spec that \c film views.
     [[nodiscard]] FilmSpec getSpec() const noexcept;
 
-    /// The session of the handler that built the buffer.
-    /// It outlives the buffer.
-    /// Its stream orders the storage.
-    OptixDeviceSession const *session;
+    /// Outlives the buffer. Its stream orders the storage.
+    OptixDeviceSession const &session;
 
     /// Holds the primary context of \c session current while the members after it are built or
     /// destroyed. Their CUDA calls then use that context.

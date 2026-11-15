@@ -53,7 +53,10 @@ struct ScaleFilmChannels {
 } // namespace
 
 struct OptixHandler::pImpl final {
-    pImpl(Ref<Context> hostContext, int deviceOrdinal, std::span<char const> megaKernelIr);
+    pImpl(
+        OptixDeviceSession const &session, Ref<Context> hostContext,
+        std::span<char const> megaKernelIr
+    );
     ~pImpl();
 
     /// \brief Updates the OptiX scene from the host \c Context.
@@ -70,12 +73,12 @@ struct OptixHandler::pImpl final {
     void launch(OptixLaunchParams const &params, std::uint32_t size);
 
     /// \brief Returns the stream shared by this backend's device resources.
-    [[nodiscard]] cudaStream_t getStream() const noexcept { return deviceSession.getStream(); }
+    [[nodiscard]] cudaStream_t getStream() const noexcept { return session.getStream(); }
 
     /// \brief Returns how many threads to launch for \p chunkCount chunks.
     [[nodiscard]] std::uint32_t getLaunchSize(std::uint32_t chunkCount) const noexcept {
         auto const scaled =
-            static_cast<double>(deviceSession.getEstimatedResidentThreads()) * launchWaves;
+            static_cast<double>(session.getEstimatedResidentThreads()) * launchWaves;
         auto const threads = static_cast<std::uint32_t>(std::lround(std::max(scaled, 1.0)));
         return std::min(chunkCount, std::max(threads, 1U));
     }
@@ -83,13 +86,11 @@ struct OptixHandler::pImpl final {
     /// Host \c Context retained for the lifetime of the backend.
     Ref<Context> context;
 
-    /// CUDA execution state destroyed after every dependent resource.
-    OptixDeviceSession deviceSession;
+    OptixDeviceSession const &session;
 
     /// Holds the session's context current while the members declared after it are constructed
     /// and destroyed, so their CUDA calls use that context. Empty whenever no \c pImpl
     /// constructor or destructor is running, so the current context never outlives a call.
-    /// Destroyed before \c deviceSession releases the primary context.
     std::optional<CudaContextGuard> cudaContextGuard;
 
     /// Deletes objects once the stream no longer uses them. Destroyed after every member that uses
@@ -121,11 +122,12 @@ struct OptixHandler::pImpl final {
 };
 
 OptixHandler::pImpl::pImpl(
-    Ref<Context> hostContext, int deviceOrdinal, std::span<char const> megaKernelIr
+    OptixDeviceSession const &borrowedSession, Ref<Context> hostContext,
+    std::span<char const> megaKernelIr
 )
-    : context(requireContext(std::move(hostContext))), deviceSession(deviceOrdinal),
-      cudaContextGuard(std::in_place, deviceSession.getPrimaryContext()),
-      optixContext(*context, deviceSession.get(), deletionQueue, megaKernelIr) {
+    : context(requireContext(std::move(hostContext))), session(borrowedSession),
+      cudaContextGuard(std::in_place, session.getPrimaryContext()),
+      optixContext(*context, session.get(), deletionQueue, megaKernelIr) {
     chunkCounter.resize(1);
     sync();
     cudaContextGuard.reset();
@@ -134,8 +136,8 @@ OptixHandler::pImpl::pImpl(
 OptixHandler::pImpl::~pImpl() {
     // Member destruction enqueues stream releases that need the session's context current. C++
     // destroys the members declared after cudaContextGuard first, then cudaContextGuard, which
-    // pops, and deviceSession last, which releases the primary context.
-    cudaContextGuard.emplace(deviceSession.getPrimaryContext(), std::nothrow);
+    // pops.
+    cudaContextGuard.emplace(session.getPrimaryContext(), std::nothrow);
 }
 
 void OptixHandler::pImpl::sync() {
@@ -168,9 +170,9 @@ void OptixHandler::pImpl::launch(OptixLaunchParams const &params, std::uint32_t 
 }
 
 OptixHandler::OptixHandler(
-    Ref<Context> context, int deviceOrdinal, std::span<char const> megaKernelIr
+    OptixDeviceSession const &session, Ref<Context> context, std::span<char const> megaKernelIr
 )
-    : pImpl_(std::make_unique<pImpl>(std::move(context), deviceOrdinal, megaKernelIr)) {}
+    : pImpl_(std::make_unique<pImpl>(session, std::move(context), megaKernelIr)) {}
 
 OptixHandler::~OptixHandler() = default;
 
@@ -178,7 +180,7 @@ void OptixHandler::sync() {
     if (pImpl_->failed)
         return;
     try {
-        CudaContextGuard const guard(pImpl_->deviceSession.getPrimaryContext());
+        CudaContextGuard const guard(pImpl_->session.getPrimaryContext());
         pImpl_->sync();
     } catch (...) {
         pImpl_->failed = true;
@@ -191,10 +193,8 @@ std::uint64_t OptixHandler::getSyncedVersion() const noexcept { return *pImpl_->
 RenderStats OptixHandler::pImpl::render(
     Camera const &camera, OptixAccumulationBuffer::pImpl &buffer, std::uint32_t samples
 ) {
-    // The launch runs on this handler's stream, and the buffer's storage is ordered on the stream
-    // of the handler that built it. Two streams would race on the pixels.
-    if (buffer.session != &deviceSession)
-        throw std::invalid_argument("OptixHandler: buffer was created by another handler");
+    if (&buffer.session != &session)
+        throw std::invalid_argument("OptixHandler: buffer was built on another session");
 
     auto const &film = buffer.film;
     auto const cameraImpl = camera.getImpl();
@@ -210,7 +210,7 @@ RenderStats OptixHandler::pImpl::render(
     auto const chunkCount = (pathCount - 1) / chunkSize + 1;
     auto const launchSize = getLaunchSize(chunkCount);
 
-    CudaContextGuard const guard(deviceSession.getPrimaryContext());
+    CudaContextGuard const guard(session.getPrimaryContext());
     deletionQueue.deleteFinished();
 
     auto const accumulatedSamples = buffer.samples;
@@ -292,15 +292,7 @@ void OptixHandler::setLaunchWaves(double waves) {
     pImpl_->launchWaves = waves;
 }
 
-std::uint32_t OptixHandler::getEstimatedResidentThreads() const {
-    return pImpl_->deviceSession.getEstimatedResidentThreads();
-}
-
 bool OptixHandler::hasFailed() const noexcept { return pImpl_->failed; }
 
 Ref<Context> OptixHandler::getContext() const { return pImpl_->context; }
-
-OptixDeviceSession const &OptixHandler::getDeviceSession() const noexcept {
-    return pImpl_->deviceSession;
-}
 } // namespace flux

@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "flux/Core/Object.h"
+#include "flux/Optix/OptixDeviceSession.h"
 #include "flux/Optix/OptixHandler.h"
 #include "flux/Shading/Mtlx/MtlxShaderGenerator.h"
 
@@ -29,6 +30,10 @@ public:
 
 public:
     [[nodiscard]] flux::Ref<flux::Context> GetContext() const;
+
+    [[nodiscard]] flux::OptixDeviceSession const &GetDeviceSession() const noexcept {
+        return deviceSession_;
+    }
 
     /// \brief Returns the backend that renders the scene.
     [[nodiscard]] flux::OptixHandler &GetHandler() noexcept { return handler_; }
@@ -62,6 +67,8 @@ public:
     void ReportFailure() noexcept;
 
 private:
+    flux::Ref<flux::Context> context_;
+    flux::OptixDeviceSession deviceSession_;
     flux::OptixHandler handler_;
 
     flux::MtlxShaderGenerator shaderGenerator_;

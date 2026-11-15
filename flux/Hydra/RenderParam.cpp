@@ -55,14 +55,14 @@ createFallbackBSDF(flux::Context &context, flux::ShaderInstance instance) {
 HdFLuxRenderParam::HdFLuxRenderParam(
     std::filesystem::path const &mtlxRoot, pxr::HdRenderThread &renderThread
 )
-    : handler_{makeContext()}, shaderGenerator_{mtlxRoot},
-      fallbackShaderInstance_{generateFallbackShader(shaderGenerator_)},
-      fallbackBSDF_{createFallbackBSDF(*handler_.getContext(), fallbackShaderInstance_)},
+    : context_{makeContext()}, deviceSession_{0}, handler_{deviceSession_, context_},
+      shaderGenerator_{mtlxRoot}, fallbackShaderInstance_{generateFallbackShader(shaderGenerator_)},
+      fallbackBSDF_{createFallbackBSDF(*context_, fallbackShaderInstance_)},
       renderThread_{renderThread} {}
 
 HdFLuxRenderParam::~HdFLuxRenderParam() = default;
 
-flux::Ref<flux::Context> HdFLuxRenderParam::GetContext() const { return handler_.getContext(); }
+flux::Ref<flux::Context> HdFLuxRenderParam::GetContext() const { return context_; }
 
 flux::Ref<flux::BSDF const> HdFLuxRenderParam::GetFallbackBSDF() const { return fallbackBSDF_; }
 

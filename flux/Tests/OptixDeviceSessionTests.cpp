@@ -6,6 +6,7 @@
 #include "SceneUtils.h"
 #include "TestUtils.h"
 #include "flux/Optix/OptixAccumulationBuffer.h"
+#include "flux/Optix/OptixDeviceSession.h"
 #include "flux/Optix/OptixHandler.h"
 #include "flux/Optix/OptixUtils.h"
 #include "flux/Scene/Camera.h"
@@ -19,21 +20,24 @@ namespace {
     return current;
 }
 
-/// Exercises every public operation of the handler and the buffer that touches CUDA.
+/// Exercises every public operation of the session, the handler, and the buffer that touches CUDA.
 /// After each operation, the current context of the calling thread must be \p expected.
-void expectHandlerLeavesCurrentContext(CUcontext expected) {
+void expectOperationsLeaveCurrentContext(CUcontext expected) {
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
     auto camera = flux::Camera::create();
 
-    auto handler = std::make_unique<flux::OptixHandler>(context);
+    auto session = std::make_unique<flux::OptixDeviceSession>(0);
+    EXPECT_EQ(getCurrentContext(), expected);
+
+    auto handler = std::make_unique<flux::OptixHandler>(*session, context);
     EXPECT_EQ(getCurrentContext(), expected);
 
     handler->sync();
     EXPECT_EQ(getCurrentContext(), expected);
 
     auto buffer = std::make_unique<flux::OptixAccumulationBuffer>(
-        *handler, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::All}
+        *session, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::All}
     );
     EXPECT_EQ(getCurrentContext(), expected);
 
@@ -51,6 +55,9 @@ void expectHandlerLeavesCurrentContext(CUcontext expected) {
 
     handler.reset();
     EXPECT_EQ(getCurrentContext(), expected);
+
+    session.reset();
+    EXPECT_EQ(getCurrentContext(), expected);
 }
 } // namespace
 
@@ -62,7 +69,7 @@ TEST(OptixDeviceSessionTests, LeavesNoCurrentContextWhenCallerHadNone) {
     flux::cuCheck(cuCtxSetCurrent(nullptr));
     ASSERT_EQ(getCurrentContext(), nullptr);
 
-    expectHandlerLeavesCurrentContext(nullptr);
+    expectOperationsLeaveCurrentContext(nullptr);
 }
 
 TEST(OptixDeviceSessionTests, RestoresACallerCreatedContext) {
@@ -80,7 +87,7 @@ TEST(OptixDeviceSessionTests, RestoresACallerCreatedContext) {
 #endif
     ASSERT_EQ(getCurrentContext(), callerContext);
 
-    expectHandlerLeavesCurrentContext(callerContext);
+    expectOperationsLeaveCurrentContext(callerContext);
 
     // The handler never owned the caller's context, so it is still valid and current here.
     EXPECT_EQ(getCurrentContext(), callerContext);
@@ -95,11 +102,8 @@ TEST(OptixDeviceSessionTests, RejectsADeviceOrdinalOutsideTheDeviceRange) {
     int deviceCount = 0;
     flux::cuCheck(cuInit(0));
     flux::cuCheck(cuDeviceGetCount(&deviceCount));
-    auto context = flux::Context::create();
-    flux::test::setActiveDefaults(*context);
     flux::cuCheck(cuCtxSetCurrent(nullptr));
-    EXPECT_THROW((void)flux::OptixHandler(context, deviceCount), kira::Anyhow);
-    EXPECT_THROW((void)flux::OptixHandler(context, -1), kira::Anyhow);
+    EXPECT_THROW((void)flux::OptixDeviceSession(deviceCount), kira::Anyhow);
+    EXPECT_THROW((void)flux::OptixDeviceSession(-1), kira::Anyhow);
     EXPECT_EQ(getCurrentContext(), nullptr);
-    EXPECT_EQ(context.getRefCount(), 1);
 }

@@ -21,21 +21,21 @@ class OptixAccumulationBuffer;
 ///
 /// \par Failure
 /// An exception that escapes \c sync or \c render makes the handler failed for good.
-/// Create a new handler to render again.
+/// Rendering again takes a new handler, and a new session if CUDA failed.
 ///
 /// \remark Calls to a handler do not overlap, unless a function states otherwise.
 class OptixHandler final : private Noncopyable {
 public:
     /// \brief Creates a handler and builds its OptiX scene.
     ///
-    /// \p deviceOrdinal is the ordinal of the CUDA device that the handler runs on.
     /// \p megaKernelIr is the OptiX IR of the megakernel, which must outlive the handler.
     ///
+    /// \pre \p session outlives the handler.
     /// \pre \p context is not null.
-    /// \throw kira::Anyhow If \p deviceOrdinal is outside [0, device count), the context has no
-    /// active integrator or sampler, or CUDA or OptiX fails.
-    explicit OptixHandler(
-        Ref<Context> context, int deviceOrdinal = 0,
+    /// \throw kira::Anyhow If the context has no active integrator or sampler, or CUDA or OptiX
+    /// fails.
+    OptixHandler(
+        OptixDeviceSession const &session, Ref<Context> context,
         std::span<char const> megaKernelIr = getOptixMegaKernelIr()
     );
 
@@ -71,7 +71,7 @@ public:
     ///
     /// If \c render throws, \p buffer keeps its samples or has none.
     ///
-    /// \pre \p buffer was created by this handler.
+    /// \pre \p buffer was built on the session of the handler.
     /// \throw std::length_error If the pixel count of \p buffer times \p samples is more than
     /// 2^32 - 1.
     /// \throw kira::Anyhow If CUDA or OptiX fails.
@@ -85,11 +85,6 @@ public:
     /// \pre \p waves is positive.
     void setLaunchWaves(double waves);
 
-    /// \brief Returns the estimated number of threads that the device keeps resident for a launch.
-    ///
-    /// The estimate does not include the launch waves.
-    [[nodiscard]] std::uint32_t getEstimatedResidentThreads() const;
-
     /// \brief Returns whether an exception has escaped \c sync or \c render.
     ///
     /// Once true, it stays true.
@@ -98,10 +93,6 @@ public:
     [[nodiscard]] Ref<Context> getContext() const;
 
 private:
-    friend class OptixAccumulationBuffer;
-
-    [[nodiscard]] OptixDeviceSession const &getDeviceSession() const noexcept;
-
     struct pImpl;
     std::unique_ptr<pImpl> pImpl_;
 };

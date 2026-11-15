@@ -15,6 +15,7 @@
 #include "flux/Core/MathUtils.h"
 #include "flux/Core/ResolvedPath.h"
 #include "flux/Optix/OptixAccumulationBuffer.h"
+#include "flux/Optix/OptixDeviceSession.h"
 #include "flux/Optix/OptixHandler.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
@@ -231,9 +232,11 @@ constexpr auto tangentDocument = R"mtlx(<?xml version="1.0"?>
     cameraProperties.set("fov", 60.0F);
     auto const camera = flux::Camera::create(cameraProperties);
 
-    flux::OptixHandler handler(context);
+    flux::OptixDeviceSession const session{0};
+
+    flux::OptixHandler handler(session, context);
     flux::OptixAccumulationBuffer buffer(
-        handler, flux::FilmSpec{resolution, flux::FilmChannels::Color}
+        session, flux::FilmSpec{resolution, flux::FilmChannels::Color}
     );
     auto const render = [&] {
         handler.render(*camera, buffer, sampleCount);
@@ -264,9 +267,10 @@ constexpr auto tangentDocument = R"mtlx(<?xml version="1.0"?>
 [[nodiscard]] flux::Spectrum renderContextMean(
     flux::Ref<flux::Context> const &context, flux::Camera const &camera, std::uint32_t sampleCount
 ) {
-    flux::OptixHandler handler(context);
+    flux::OptixDeviceSession const session{0};
+    flux::OptixHandler handler(session, context);
     flux::OptixAccumulationBuffer buffer(
-        handler, flux::FilmSpec{resolution, flux::FilmChannels::Color}
+        session, flux::FilmSpec{resolution, flux::FilmChannels::Color}
     );
     handler.render(camera, buffer, sampleCount);
     flux::Film film{buffer.getSpec()};

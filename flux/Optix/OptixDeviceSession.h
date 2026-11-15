@@ -9,7 +9,9 @@
 #include "flux/Core/Object.h"
 
 namespace flux {
-/// \brief The CUDA device, stream, and OptiX device context that one handler runs on.
+/// \brief The CUDA device, stream, and OptiX device context that resources use.
+///
+/// Rendering again after a CUDA failure takes a new session.
 ///
 /// Never changes the calling thread's current context. A resource that uses the stream must be
 /// destroyed before the session, with \c getPrimaryContext() current.

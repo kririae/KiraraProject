@@ -52,6 +52,7 @@
 #include "flux/Core/ResolvedPath.h"
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Optix/OptixAccumulationBuffer.h"
+#include "flux/Optix/OptixDeviceSession.h"
 #include "flux/Optix/OptixHandler.h"
 #include "flux/Optix/OptixMegaKernelIr.h"
 #include "flux/Sampling/Sampler.h"
@@ -505,9 +506,9 @@ struct Image {
 }
 
 [[nodiscard]] std::unique_ptr<flux::OptixAccumulationBuffer>
-makeBuffer(flux::OptixHandler &handler) {
+makeBuffer(flux::OptixDeviceSession const &session) {
     return std::make_unique<flux::OptixAccumulationBuffer>(
-        handler, flux::FilmSpec{flux::Vec2u{imageSize, imageSize}, flux::FilmChannels::All}
+        session, flux::FilmSpec{flux::Vec2u{imageSize, imageSize}, flux::FilmChannels::All}
     );
 }
 
@@ -559,8 +560,8 @@ public:
         if (model.env)
             envImage = model.env->image;
         track();
-        handler = std::make_unique<flux::OptixHandler>(context, 0, megaKernelIr);
-        buffer = makeBuffer(*handler);
+        handler = std::make_unique<flux::OptixHandler>(session, context, megaKernelIr);
+        buffer = makeBuffer(session);
 
         // Start in the host's steady state: synced and cleared.
         context->clearDirty();
@@ -570,17 +571,17 @@ public:
     void restartHandler(std::span<char const> megaKernelIr = flux::getOptixMegaKernelIr()) {
         note("restart the handler");
         buffer.reset();
-        handler = std::make_unique<flux::OptixHandler>(context, 0, megaKernelIr);
-        buffer = makeBuffer(*handler);
+        handler = std::make_unique<flux::OptixHandler>(session, context, megaKernelIr);
+        buffer = makeBuffer(session);
     }
 
     Spec model;
     flux::Ref<flux::Context> context;
     Spec::Ids ids;
+    flux::OptixDeviceSession session{0};
     std::unique_ptr<flux::OptixHandler> handler;
     flux::Ref<flux::Camera> camera;
 
-    /// Destroyed before \c handler.
     std::unique_ptr<flux::OptixAccumulationBuffer> buffer;
     std::vector<std::string> log;
     bool ok{true};
@@ -846,8 +847,8 @@ public:
 
         auto fresh = flux::Context::create();
         (void)model.build(*fresh);
-        flux::OptixHandler freshHandler(fresh);
-        auto freshBuffer = makeBuffer(freshHandler);
+        flux::OptixHandler freshHandler(session, fresh);
+        auto freshBuffer = makeBuffer(session);
         auto const expected = renderImage(freshHandler, *makeCamera(), *freshBuffer);
         if (!(live == expected))
             report(

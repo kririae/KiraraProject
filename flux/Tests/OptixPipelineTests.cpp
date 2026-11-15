@@ -13,6 +13,7 @@
 #include "flux/Core/ResolvedPath.h"
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Optix/OptixAccumulationBuffer.h"
+#include "flux/Optix/OptixDeviceSession.h"
 #include "flux/Optix/OptixHandler.h"
 #include "flux/Optix/OptixSbt.h"
 #include "flux/Sampling/Sampler.h"
@@ -47,10 +48,12 @@ primitiveProperties(flux::TriangleMesh const &mesh, flux::BSDF const &bsdf) {
 }
 
 /// Renders \p samples samples into a new one-pixel color buffer and returns the pixel.
-[[nodiscard]] flux::Spectrum
-renderPixel(flux::OptixHandler &handler, flux::Camera const &camera, std::uint32_t samples) {
+[[nodiscard]] flux::Spectrum renderPixel(
+    flux::OptixDeviceSession const &session, flux::OptixHandler &handler,
+    flux::Camera const &camera, std::uint32_t samples
+) {
     flux::OptixAccumulationBuffer buffer(
-        handler, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}
+        session, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}
     );
     flux::Film film{flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}};
     handler.render(camera, buffer, samples);
@@ -106,9 +109,10 @@ TEST(OptixPipelineTests, RendersNothingForZeroSamples) {
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
     auto camera = flux::Camera::create();
-    flux::OptixHandler handler(context);
+    flux::OptixDeviceSession const session{0};
+    flux::OptixHandler handler(session, context);
     flux::OptixAccumulationBuffer buffer(
-        handler, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::All}
+        session, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::All}
     );
 
     EXPECT_EQ(handler.getContext(), context);
@@ -127,16 +131,17 @@ TEST(OptixPipelineTests, ReportsTheShapeOfABuffer) {
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
     auto camera = flux::Camera::create();
-    flux::OptixHandler handler(context);
+    flux::OptixDeviceSession const session{0};
+    flux::OptixHandler handler(session, context);
 
     auto const channels = flux::FilmChannels::Normal | flux::FilmChannels::Color;
-    flux::OptixAccumulationBuffer buffer(handler, flux::FilmSpec{flux::Vec2u{2, 3}, channels});
+    flux::OptixAccumulationBuffer buffer(session, flux::FilmSpec{flux::Vec2u{2, 3}, channels});
     EXPECT_EQ(buffer.getSpec(), (flux::FilmSpec{flux::Vec2u{2, 3}, channels}));
     EXPECT_EQ(buffer.getSampleCount(), 0);
 
     // A buffer without channels still counts samples.
     flux::OptixAccumulationBuffer empty(
-        handler, flux::FilmSpec{flux::Vec2u{2, 3}, flux::FilmChannels::None}
+        session, flux::FilmSpec{flux::Vec2u{2, 3}, flux::FilmChannels::None}
     );
     EXPECT_EQ(empty.getSpec().channels, flux::FilmChannels::None);
     EXPECT_NO_THROW(handler.render(*camera, empty, 2));
@@ -149,12 +154,13 @@ TEST(OptixPipelineTests, RejectsARenderBeyondThePathIndex) {
 
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
-    flux::OptixHandler handler(context);
+    flux::OptixDeviceSession const session{0};
+    flux::OptixHandler handler(session, context);
 
     // 65535 pixels at 65538 samples are more paths than a 32-bit path index counts. The buffer
     // holds no channels, so it holds no storage.
     flux::OptixAccumulationBuffer buffer(
-        handler, flux::FilmSpec{flux::Vec2u{255, 257}, flux::FilmChannels::None}
+        session, flux::FilmSpec{flux::Vec2u{255, 257}, flux::FilmChannels::None}
     );
     EXPECT_THROW(handler.render(*flux::Camera::create(), buffer, 65538), std::length_error);
     EXPECT_EQ(buffer.getSampleCount(), 0);
@@ -181,9 +187,10 @@ TEST(OptixPipelineTests, StartsTheSampleSequenceAtTheSamplerSampleOffset) {
     // Renders with a fresh handler, so the offset reaches it through the sampler alone.
     auto const render = [&](std::uint64_t offset, std::uint32_t samples) {
         sampler->setSampleOffset(offset);
-        flux::OptixHandler handler(context);
+        flux::OptixDeviceSession const session{0};
+        flux::OptixHandler handler(session, context);
         flux::OptixAccumulationBuffer buffer(
-            handler, flux::FilmSpec{flux::Vec2u{8, 8}, flux::FilmChannels::Color}
+            session, flux::FilmSpec{flux::Vec2u{8, 8}, flux::FilmChannels::Color}
         );
         handler.render(*camera, buffer, samples);
         return downloadColor(buffer);
@@ -207,9 +214,10 @@ TEST(OptixPipelineTests, StartsTheSampleSequenceAtTheSamplerSampleOffset) {
 
     // An offset edit reaches a handler that already exists through sync.
     sampler->setSampleOffset(0);
-    flux::OptixHandler handler(context);
+    flux::OptixDeviceSession const session{0};
+    flux::OptixHandler handler(session, context);
     flux::OptixAccumulationBuffer buffer(
-        handler, flux::FilmSpec{flux::Vec2u{8, 8}, flux::FilmChannels::Color}
+        session, flux::FilmSpec{flux::Vec2u{8, 8}, flux::FilmChannels::Color}
     );
     handler.render(*camera, buffer, 1);
     sampler->setSampleOffset(1);
@@ -224,10 +232,11 @@ TEST(OptixPipelineTests, ContinuesAnAccumulationAcrossRenders) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto scene = makeNoisyScene();
-    flux::OptixHandler handler(scene.context);
+    flux::OptixDeviceSession const session{0};
+    flux::OptixHandler handler(session, scene.context);
     constexpr auto spec = flux::FilmSpec{flux::Vec2u{8, 8}, flux::FilmChannels::Color};
-    flux::OptixAccumulationBuffer whole(handler, spec);
-    flux::OptixAccumulationBuffer split(handler, spec);
+    flux::OptixAccumulationBuffer whole(session, spec);
+    flux::OptixAccumulationBuffer split(session, spec);
 
     handler.render(*scene.camera, whole, 4);
     handler.render(*scene.camera, split, 1);
@@ -246,9 +255,10 @@ TEST(OptixPipelineTests, RestartsAnAccumulationAfterClear) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto scene = makeNoisyScene();
-    flux::OptixHandler handler(scene.context);
+    flux::OptixDeviceSession const session{0};
+    flux::OptixHandler handler(session, scene.context);
     flux::OptixAccumulationBuffer buffer(
-        handler, flux::FilmSpec{flux::Vec2u{8, 8}, flux::FilmChannels::Color}
+        session, flux::FilmSpec{flux::Vec2u{8, 8}, flux::FilmChannels::Color}
     );
 
     handler.render(*scene.camera, buffer, 2);
@@ -270,9 +280,10 @@ TEST(OptixPipelineTests, RemovesStalePixelsAfterClear) {
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
     auto camera = flux::Camera::create();
-    flux::OptixHandler handler(context);
+    flux::OptixDeviceSession const session{0};
+    flux::OptixHandler handler(session, context);
     flux::OptixAccumulationBuffer buffer(
-        handler, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}
+        session, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}
     );
     flux::Film film{flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}};
 
@@ -302,9 +313,10 @@ TEST(OptixPipelineTests, LeavesTheSampleCountAloneWhenTheSceneChanges) {
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
     auto camera = flux::Camera::create();
-    flux::OptixHandler handler(context);
+    flux::OptixDeviceSession const session{0};
+    flux::OptixHandler handler(session, context);
     flux::OptixAccumulationBuffer buffer(
-        handler, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}
+        session, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}
     );
 
     handler.render(*camera, buffer, 1);
@@ -326,33 +338,36 @@ TEST(OptixPipelineTests, RendersTheSceneAsOfTheLastSync) {
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
     auto camera = flux::Camera::create();
-    flux::OptixHandler handler(context);
+    flux::OptixDeviceSession const session{0};
+    flux::OptixHandler handler(session, context);
 
     kira::Properties lightProperties;
     lightProperties.set("scale", flux::Spectrum{0.25F, 0.5F, 0.75F});
     context->setActiveEnvMap(context->create<flux::EnvMapLight>(lightProperties));
     handler.sync();
-    EXPECT_EQ(renderPixel(handler, *camera, 1), (flux::Spectrum{0.25F, 0.5F, 0.75F}));
+    EXPECT_EQ(renderPixel(session, handler, *camera, 1), (flux::Spectrum{0.25F, 0.5F, 0.75F}));
 
     lightProperties.set("scale", flux::Spectrum{0.5F, 0.25F, 0.125F});
     context->setActiveEnvMap(context->create<flux::EnvMapLight>(lightProperties));
-    EXPECT_EQ(renderPixel(handler, *camera, 1), (flux::Spectrum{0.25F, 0.5F, 0.75F}));
+    EXPECT_EQ(renderPixel(session, handler, *camera, 1), (flux::Spectrum{0.25F, 0.5F, 0.75F}));
 
     handler.sync();
-    EXPECT_EQ(renderPixel(handler, *camera, 1), (flux::Spectrum{0.5F, 0.25F, 0.125F}));
+    EXPECT_EQ(renderPixel(session, handler, *camera, 1), (flux::Spectrum{0.5F, 0.25F, 0.125F}));
 }
 
-TEST(OptixPipelineTests, RejectsABufferFromAnotherHandler) {
+TEST(OptixPipelineTests, RejectsABufferOfAnotherSession) {
     if (!flux::test::hasCudaMemoryPoolSupport())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
     auto camera = flux::Camera::create();
-    flux::OptixHandler owner(context);
-    flux::OptixHandler other(context);
+    flux::OptixDeviceSession const ownerSession{0};
+    flux::OptixDeviceSession const otherSession{0};
+    flux::OptixHandler owner(ownerSession, context);
+    flux::OptixHandler other(otherSession, context);
     flux::OptixAccumulationBuffer buffer(
-        owner, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}
+        ownerSession, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}
     );
 
     EXPECT_THROW(other.render(*camera, buffer, 1), std::invalid_argument);
@@ -370,7 +385,8 @@ TEST(OptixPipelineTests, RejectsADownloadIntoAFilmOfAnotherShape) {
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
     auto camera = flux::Camera::create();
-    flux::OptixHandler handler(context);
+    flux::OptixDeviceSession const session{0};
+    flux::OptixHandler handler(session, context);
     auto const colorOf = [](flux::Film const &film) {
         auto const color = film.getChannel<flux::ColorChannel>();
         return std::vector<flux::Spectrum>(color.begin(), color.end());
@@ -382,7 +398,7 @@ TEST(OptixPipelineTests, RejectsADownloadIntoAFilmOfAnotherShape) {
     context->setActiveEnvMap(context->create<flux::EnvMapLight>(properties));
     handler.sync();
     flux::OptixAccumulationBuffer small(
-        handler, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}
+        session, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}
     );
     flux::Film film{flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}};
     handler.render(*camera, small, 1);
@@ -395,14 +411,14 @@ TEST(OptixPipelineTests, RejectsADownloadIntoAFilmOfAnotherShape) {
     context->setActiveEnvMap(context->create<flux::EnvMapLight>(properties));
     handler.sync();
     flux::OptixAccumulationBuffer wide(
-        handler, flux::FilmSpec{flux::Vec2u{2, 1}, flux::FilmChannels::Color}
+        session, flux::FilmSpec{flux::Vec2u{2, 1}, flux::FilmChannels::Color}
     );
     handler.render(*camera, wide, 1);
     EXPECT_THROW(wide.download(film), std::invalid_argument);
     EXPECT_EQ(colorOf(film), expected);
 
     flux::OptixAccumulationBuffer more(
-        handler, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::All}
+        session, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::All}
     );
     handler.render(*camera, more, 1);
     EXPECT_THROW(more.download(film), std::invalid_argument);
@@ -423,11 +439,12 @@ TEST(OptixPipelineTests, RendersTheSameSamplesForAnyChunkSize) {
         std::vector<flux::Vec3f> normal;
         std::vector<flux::Vec3f> albedo;
     };
-    flux::OptixHandler handler(scene.context);
+    flux::OptixDeviceSession const session{0};
+    flux::OptixHandler handler(session, scene.context);
     // A launch of one thread, which claims every chunk.
     handler.setLaunchWaves(1e-9);
     flux::OptixAccumulationBuffer buffer(
-        handler, flux::FilmSpec{flux::Vec2u{8, 8}, flux::FilmChannels::All}
+        session, flux::FilmSpec{flux::Vec2u{8, 8}, flux::FilmChannels::All}
     );
     flux::Film film{flux::FilmSpec{flux::Vec2u{8, 8}, flux::FilmChannels::All}};
     auto const render = [&](std::uint32_t chunkSize) {
@@ -458,23 +475,20 @@ TEST(OptixPipelineTests, RendersTheSameSamplesForAnyChunkSize) {
     }
 }
 
-TEST(OptixPipelineTests, RejectsANullContext) {
-    EXPECT_THROW((void)flux::OptixHandler(flux::Ref<flux::Context>{}), std::invalid_argument);
-}
-
 TEST(OptixPipelineTests, ReleasesContextAfterConstructionFails) {
     if (!flux::test::hasCudaMemoryPoolSupport())
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
-    EXPECT_THROW((void)flux::OptixHandler(context, 0, std::span<char const>{}), kira::Anyhow);
+    flux::OptixDeviceSession const session{0};
+    EXPECT_THROW((void)flux::OptixHandler(session, context, std::span<char const>{}), kira::Anyhow);
     EXPECT_EQ(context.getRefCount(), 1);
 
     auto camera = flux::Camera::create();
-    flux::OptixHandler handler(context);
+    flux::OptixHandler handler(session, context);
     flux::OptixAccumulationBuffer buffer(
-        handler, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::All}
+        session, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::All}
     );
     EXPECT_NO_THROW(handler.render(*camera, buffer, 1));
 }
@@ -497,9 +511,10 @@ TEST(OptixPipelineTests, RendersImageEnvironmentMapOnMiss) {
     kira::Properties cameraProps;
     cameraProps.set("fov", 1.0e-4F);
     auto camera = flux::Camera::create(cameraProps);
-    flux::OptixHandler handler(context);
+    flux::OptixDeviceSession const session{0};
+    flux::OptixHandler handler(session, context);
 
-    auto const color = renderPixel(handler, *camera, 1);
+    auto const color = renderPixel(session, handler, *camera, 1);
     EXPECT_NEAR(color.x(), 0.5F, 1.0e-5F);
     EXPECT_NEAR(color.y(), 0.5F, 1.0e-5F);
     EXPECT_NEAR(color.z(), 0.5F, 1.0e-5F);
@@ -512,9 +527,10 @@ TEST(OptixPipelineTests, SyncFailsForGoodWithoutAnActiveIntegratorOrSampler) {
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
     auto camera = flux::Camera::create();
-    flux::OptixHandler handler(context);
+    flux::OptixDeviceSession const session{0};
+    flux::OptixHandler handler(session, context);
     flux::OptixAccumulationBuffer buffer(
-        handler, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}
+        session, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}
     );
     auto const integratorId = context->getActiveIntegrator()->getContextId();
     auto const samplerId = context->getActiveSampler()->getContextId();
@@ -532,9 +548,9 @@ TEST(OptixPipelineTests, SyncFailsForGoodWithoutAnActiveIntegratorOrSampler) {
     EXPECT_TRUE(handler.hasFailed());
 
     // A new handler renders the fixed context, and fails when the sampler is gone.
-    flux::OptixHandler replacement(context);
+    flux::OptixHandler replacement(session, context);
     flux::OptixAccumulationBuffer replacementBuffer(
-        replacement, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}
+        session, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Color}
     );
     EXPECT_EQ(replacement.render(*camera, replacementBuffer, 1).paths, 1);
     EXPECT_FALSE(replacement.hasFailed());

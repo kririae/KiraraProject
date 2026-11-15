@@ -11,6 +11,7 @@
 #include "flux/IO/ImageIO.h"
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Optix/OptixAccumulationBuffer.h"
+#include "flux/Optix/OptixDeviceSession.h"
 #include "flux/Optix/OptixHandler.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
@@ -74,9 +75,10 @@ TEST(OptixGeometryTests, PreservesFilteredAlbedoUnderInstanceTransforms) {
     camera->setPosition({0.25F, 0.25F, 1.0F});
     camera->setLookAt({0.25F, 0.25F, 0.0F});
     camera->setVerticalFieldOfView(10.0F);
-    flux::OptixHandler handler(context);
+    flux::OptixDeviceSession const session{0};
+    flux::OptixHandler handler(session, context);
     flux::OptixAccumulationBuffer buffer(
-        handler, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Albedo}
+        session, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Albedo}
     );
     flux::Film film{flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Albedo}};
     handler.render(*camera, buffer, 32);
@@ -121,9 +123,11 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
     cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.0F});
     auto camera = flux::Camera::create(cameraProperties);
 
-    flux::OptixHandler handler(context);
+    flux::OptixDeviceSession const session{0};
+
+    flux::OptixHandler handler(session, context);
     flux::OptixAccumulationBuffer buffer(
-        handler, flux::FilmSpec{flux::Vec2u{3, 1}, flux::FilmChannels::All}
+        session, flux::FilmSpec{flux::Vec2u{3, 1}, flux::FilmChannels::All}
     );
     EXPECT_NO_THROW(handler.render(*camera, buffer, 1));
 
@@ -208,9 +212,10 @@ TEST(OptixGeometryTests, RendersDirectLightIntoColorChannel) {
     cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.0F});
     cameraProperties.set("fov", 1.0F);
     auto camera = flux::Camera::create(cameraProperties);
-    flux::OptixHandler handler(context);
+    flux::OptixDeviceSession const session{0};
+    flux::OptixHandler handler(session, context);
     flux::OptixAccumulationBuffer buffer(
-        handler, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::All}
+        session, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::All}
     );
     flux::Film film{flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::All}};
     handler.render(*camera, buffer, 4);

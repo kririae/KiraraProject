@@ -5,11 +5,10 @@
 
 #include "flux/Optix/OptixAccumulationBuffer.h"
 #include "flux/Optix/OptixAccumulationBufferPImpl.h"
-#include "flux/Optix/OptixHandler.h"
 
 namespace flux {
 OptixAccumulationBuffer::pImpl::pImpl(OptixDeviceSession const &deviceSession, FilmSpec const &spec)
-    : session(&deviceSession), cudaContextGuard(std::in_place, deviceSession.getPrimaryContext()),
+    : session(deviceSession), cudaContextGuard(std::in_place, deviceSession.getPrimaryContext()),
       storage(std::in_place, deviceSession.getStream()) {
     detail::checkFilmSpec(spec);
 
@@ -34,7 +33,7 @@ OptixAccumulationBuffer::pImpl::~pImpl() {
     // Member destruction enqueues stream releases that need the session's context current. C++
     // destroys the members declared after cudaContextGuard first, then cudaContextGuard, which
     // pops.
-    cudaContextGuard.emplace(session->getPrimaryContext(), std::nothrow);
+    cudaContextGuard.emplace(session.getPrimaryContext(), std::nothrow);
 }
 
 FilmSpec OptixAccumulationBuffer::pImpl::getSpec() const noexcept {
@@ -47,8 +46,10 @@ FilmSpec OptixAccumulationBuffer::pImpl::getSpec() const noexcept {
     return {.resolution = {film.width, film.height}, .channels = held};
 }
 
-OptixAccumulationBuffer::OptixAccumulationBuffer(OptixHandler &handler, FilmSpec const &spec)
-    : pImpl_(std::make_unique<pImpl>(handler.getDeviceSession(), spec)) {}
+OptixAccumulationBuffer::OptixAccumulationBuffer(
+    OptixDeviceSession const &session, FilmSpec const &spec
+)
+    : pImpl_(std::make_unique<pImpl>(session, spec)) {}
 
 OptixAccumulationBuffer::~OptixAccumulationBuffer() = default;
 
@@ -67,12 +68,12 @@ void OptixAccumulationBuffer::download(Film &film) {
     if (impl.samples == 0)
         return;
 
-    CudaContextGuard const guard(impl.session->getPrimaryContext());
+    CudaContextGuard const guard(impl.session.getPrimaryContext());
     auto const destination = film.getImpl();
     impl.storage.forEach([&](auto &channel) {
         using Channel = typename std::remove_reference_t<decltype(channel)>::ChannelType;
         auto *output = destination.channels.template get<Channel>().data;
-        channel.buffer.copyToHost({output, channel.buffer.size()}, impl.session->getStream());
+        channel.buffer.copyToHost({output, channel.buffer.size()}, impl.session.getStream());
     });
 }
 } // namespace flux

@@ -8,6 +8,7 @@
 #include "flux/Scene/Film.h"
 
 namespace flux {
+class OptixDeviceSession;
 class OptixHandler;
 
 /// \brief Holds the samples that an \c OptixHandler renders.
@@ -20,7 +21,7 @@ class OptixHandler;
 ///
 /// For every pixel, each channel holds the mean of the samples in the buffer.
 ///
-/// \warning Destroy the buffer before the handler that built it.
+/// \warning Destroy the buffer before its session.
 /// \remark A buffer is not thread-safe.
 class OptixAccumulationBuffer final : private Noncopyable {
 public:
@@ -28,10 +29,11 @@ public:
     ///
     /// The buffer has no samples.
     ///
+    /// \pre \p session outlives the buffer.
     /// \pre Both dimensions of the resolution of \p spec are nonzero.
     /// \pre The channels of \p spec have no unknown bit.
     /// \throw kira::Anyhow If CUDA fails.
-    OptixAccumulationBuffer(OptixHandler &handler, FilmSpec const &spec);
+    OptixAccumulationBuffer(OptixDeviceSession const &session, FilmSpec const &spec);
 
     ~OptixAccumulationBuffer();
 

@@ -71,7 +71,7 @@ private:
     /// \brief The samples of one image accumulated so far.
     struct Accumulation {
         Accumulation(
-            flux::OptixHandler &handler, flux::FilmSpec const &spec,
+            flux::OptixDeviceSession const &session, flux::FilmSpec const &spec,
             HdFLuxRenderSpec::View const &view
         );
 
