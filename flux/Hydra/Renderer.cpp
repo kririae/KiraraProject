@@ -2,6 +2,9 @@
 
 #include <pxr/base/work/loops.h>
 
+#include <algorithm>
+#include <chrono>
+#include <memory>
 #include <optional>
 #include <span>
 #include <vector>
@@ -88,109 +91,120 @@ void writeChannel(
 }
 } // namespace
 
-HdFLuxRenderer::Image::Image(flux::OptixHandler &handler, flux::FilmSpec const &spec)
-    : film{spec}, accumulation{handler, spec} {}
-
-HdFLuxRenderer::HdFLuxRenderer(HdFLuxRenderParam &param)
-    : param_{param},
-      schedule_{HdFLuxDefaultConvergedSamplesPerPixel, HdFLuxDefaultInteractiveSamplesPerLaunch},
-      contextVersion_{param.GetContext()->getVersion()}, camera_{flux::Camera::create()} {}
-
-bool HdFLuxRenderer::IsConverged() const {
-    return param_.HasFailed() || !image_ ||
-           image_->accumulation.getSampleCount() >= schedule_.GetTarget();
+HdFLuxRenderer::Accumulation::Accumulation(
+    flux::OptixHandler &handler, flux::FilmSpec const &spec, HdFLuxRenderSpec::View const &view
+)
+    : accumulationBuffer{handler, spec}, film{spec}, camera{flux::Camera::create()},
+      start{std::chrono::steady_clock::now()} {
+    HdFLuxSetCamera(
+        *camera, view.worldToView, view.projection,
+        static_cast<double>(spec.resolution.x()) / spec.resolution.y()
+    );
 }
 
-void HdFLuxRenderer::Render(HdFLuxRenderSpec const &spec, std::span<Output const> outputs) {
-    if (param_.HasFailed()) {
-        setConverged(outputs);
+HdFLuxRenderer::HdFLuxRenderer(HdFLuxRenderParam &param, pxr::HdRenderThread &renderThread)
+    : param_{param}, renderThread_{renderThread},
+      syncedVersion_{param.GetHandler().getSyncedVersion()},
+      schedule_{HdFLuxDefaultConvergedSamplesPerPixel, HdFLuxDefaultInteractiveSamplesPerLaunch} {}
+
+void HdFLuxRenderer::StartRender(
+    HdFLuxRenderSpec const &spec, std::span<Output const> outputs,
+    HdFLuxSampleSchedule const &schedule
+) {
+    if (param_.HasFailed())
         return;
+
+    auto const syncedVersion = param_.GetHandler().getSyncedVersion();
+    auto const imageChanged = syncedVersion != syncedVersion_ || spec != spec_;
+    if (imageChanged || schedule != schedule_ || !std::ranges::equal(outputs, outputs_)) {
+        renderThread_.StopRender();
+
+        if (imageChanged) {
+            syncedVersion_ = syncedVersion;
+            spec_ = spec;
+            auto const film = toFilmSpec(spec);
+            accumulation_ =
+                film ? std::make_unique<Accumulation>(param_.GetHandler(), *film, *spec.view)
+                     : nullptr;
+        }
+
+        schedule_ = schedule;
+        outputs_.assign(outputs.begin(), outputs.end());
+        setConverged(false);
     }
 
-    bool restart{false};
+    if (!IsConverged())
+        renderThread_.StartRender();
+}
 
-    if (spec != spec_) {
-        spec_ = spec;
-        restart = true;
+bool HdFLuxRenderer::IsConverged() const {
+    return param_.HasFailed() || std::ranges::all_of(outputs_, [](Output const &output) {
+        return output.buffer->IsConverged();
+    });
+}
 
-        auto const film = toFilmSpec(spec);
-        if (!film)
-            image_.reset();
-        else if (!image_ || image_->accumulation.getSpec() != *film)
-            image_ = std::make_unique<Image>(param_.GetHandler(), *film);
+void HdFLuxRenderer::Render() noexcept try {
+    while (!renderThread_.IsStopRequested() && !param_.HasFailed()) {
+        if (!isAtTarget())
+            launch();
+        writeOutputs();
+        publishProgress();
 
-        if (image_)
-            HdFLuxSetCamera(
-                *camera_, spec.view->worldToView, spec.view->projection,
-                static_cast<double>(spec.resolution.x()) / spec.resolution.y()
+        if (isAtTarget()) {
+            setConverged(true);
+            return;
+        }
+    }
+} catch (...) { param_.ReportFailure(); }
+
+bool HdFLuxRenderer::isAtTarget() const {
+    return !accumulation_ ||
+           accumulation_->accumulationBuffer.getSampleCount() >= schedule_.GetTarget();
+}
+
+void HdFLuxRenderer::launch() {
+    auto &accumulation = *accumulation_;
+    auto const pixelCount = std::uint64_t{spec_.resolution.x()} * spec_.resolution.y();
+    auto const count =
+        schedule_.GetNextSampleCount(accumulation.accumulationBuffer.getSampleCount(), pixelCount);
+
+    accumulation.stats +=
+        param_.GetHandler().render(*accumulation.camera, accumulation.accumulationBuffer, count);
+    accumulation.accumulationBuffer.download(accumulation.film);
+
+    if (isAtTarget())
+        accumulation.stats.log();
+}
+
+void HdFLuxRenderer::writeOutputs() const {
+    auto const hasSamples = accumulation_ && accumulation_->accumulationBuffer.getSampleCount() > 0;
+
+    for (auto const &output : outputs_)
+        if (hasSamples && output.channel != flux::FilmChannels::None)
+            writeChannel(
+                *output.buffer, accumulation_->film, output.channel, spec_.view->projection
             );
-    }
-
-    if (auto const version = param_.GetContext()->getVersion(); version != contextVersion_) {
-        contextVersion_ = version;
-        restart = true;
-    }
-
-    if (restart && image_) {
-        image_->accumulation.clear();
-        accumulationStart_ = std::chrono::steady_clock::now();
-    }
-
-    bool launched{false};
-
-    if (image_) {
-        auto &accumulation = image_->accumulation;
-        auto const pixelCount = std::uint64_t{spec.resolution.x()} * spec.resolution.y();
-
-        if (auto const count =
-                schedule_.GetNextSampleCount(accumulation.getSampleCount(), pixelCount);
-            count != 0) {
-            if (accumulation.getSampleCount() == 0)
-                renderStats_ = {};
-
-            renderStats_ += param_.GetHandler().render(*camera_, accumulation, count);
-            accumulation.download(image_->film);
-            launched = true;
-
-            if (IsConverged())
-                renderStats_.log();
-        }
-    }
-
-    auto const hasSamples = image_ && image_->accumulation.getSampleCount() > 0;
-
-    for (auto const &output : outputs) {
-        auto &buffer = *output.buffer;
-
-        if (hasSamples && output.channel != flux::FilmChannels::None) {
-            if (launched || !buffer.IsConverged())
-                writeChannel(buffer, image_->film, output.channel, spec_.view->projection);
-        } else if (!output.clearValue.IsEmpty()) {
-            buffer.Clear(output.clearValue);
-        }
-    }
-
-    publishProgress();
-    setConverged(outputs);
+        else if (!output.clearValue.IsEmpty())
+            output.buffer->Clear(output.clearValue);
 }
 
 void HdFLuxRenderer::publishProgress() {
-    if (!image_) {
-        param_.SetProgress(0.0, 0.0);
+    if (!accumulation_) {
+        percentDone_ = 0.0;
+        totalClockTime_ = 0.0;
         return;
     }
 
     auto const target = schedule_.GetTarget();
-    auto const samples = image_->accumulation.getSampleCount();
-    auto const percentDone =
+    auto const samples = accumulation_->accumulationBuffer.getSampleCount();
+    percentDone_ =
         target == 0 ? 100.0 : 100.0 * static_cast<double>(samples) / static_cast<double>(target);
-    auto const totalClockTime =
-        std::chrono::duration<double>(std::chrono::steady_clock::now() - accumulationStart_);
-    param_.SetProgress(percentDone, totalClockTime.count());
+    totalClockTime_ =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - accumulation_->start)
+            .count();
 }
 
-void HdFLuxRenderer::setConverged(std::span<Output const> outputs) const {
-    auto const converged = IsConverged();
-    for (auto const &output : outputs)
+void HdFLuxRenderer::setConverged(bool converged) const {
+    for (auto const &output : outputs_)
         output.buffer->SetConverged(converged);
 }

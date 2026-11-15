@@ -23,7 +23,7 @@ class OptixAccumulationBuffer;
 /// An exception that escapes \c sync or \c render makes the handler failed for good.
 /// Create a new handler to render again.
 ///
-/// \remark A handler is not thread-safe.
+/// \remark Calls to a handler do not overlap, unless a function states otherwise.
 class OptixHandler final : private Noncopyable {
 public:
     /// \brief Creates a handler and builds its OptiX scene.
@@ -50,6 +50,11 @@ public:
     /// fails.
     void sync();
 
+    /// \brief Returns the version of the context that the OptiX scene holds.
+    ///
+    /// It may overlap a render.
+    [[nodiscard]] std::uint64_t getSyncedVersion() const noexcept;
+
     /// \brief Renders \p samples samples per pixel from \p camera into \p buffer.
     ///
     /// Waits until the samples are in \p buffer.
@@ -58,6 +63,7 @@ public:
     /// samples.
     ///
     /// Renders the scene as of the last \c sync.
+    /// The context may be edited and collected while it runs.
     ///
     /// The new samples continue the sample sequence of \p buffer.
     /// If \p buffer has no samples, its old pixel values do not affect the result.

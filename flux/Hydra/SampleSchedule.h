@@ -32,6 +32,8 @@ public:
     [[nodiscard]] std::uint32_t
     GetNextSampleCount(std::uint64_t accumulated, std::uint64_t pixelCount) const;
 
+    bool operator==(HdFLuxSampleSchedule const &) const = default;
+
 private:
     std::uint64_t target_;
     std::uint32_t interactivePerLaunch_;

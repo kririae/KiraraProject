@@ -4,7 +4,6 @@
 #include <pxr/imaging/hd/renderPass.h>
 #include <pxr/imaging/hd/renderPassState.h>
 
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -19,8 +18,6 @@ public:
         HdFLuxRenderParam &param, HdFLuxRenderer &renderer
     );
 
-    /// \brief Returns whether the image has all the requested samples, the pass renders nothing, or
-    /// the delegate has failed.
     bool IsConverged() const override;
 
 private:
@@ -30,6 +27,6 @@ private:
 
     HdFLuxRenderParam &param_;
     HdFLuxRenderer &renderer_;
-    std::optional<unsigned int> settingsVersion_;
+
     std::vector<std::string> warnings_;
 };

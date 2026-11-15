@@ -1,6 +1,7 @@
 #pragma once
 
 #include <pxr/imaging/hd/renderDelegate.h>
+#include <pxr/imaging/hd/renderThread.h>
 
 #include <atomic>
 #include <filesystem>
@@ -21,13 +22,18 @@ struct HdFLuxPendingMaterial;
 /// \brief The state that the delegate shares with its passes and prims.
 class HdFLuxRenderParam final : public pxr::HdRenderParam {
 public:
+    /// \pre The render thread outlives the param.
     /// \throw std::exception If the OptiX backend or the shader generator cannot start.
-    explicit HdFLuxRenderParam(std::filesystem::path const &mtlxRoot);
+    HdFLuxRenderParam(std::filesystem::path const &mtlxRoot, pxr::HdRenderThread &renderThread);
     ~HdFLuxRenderParam() override;
 
-    /// \brief Returns the scene.
+public:
     [[nodiscard]] flux::Ref<flux::Context> GetContext() const;
 
+    /// \brief Returns the backend that renders the scene.
+    [[nodiscard]] flux::OptixHandler &GetHandler() noexcept { return handler_; }
+
+public:
     [[nodiscard]] flux::Ref<flux::BSDF const> GetFallbackBSDF() const;
 
     [[nodiscard]] flux::ShaderInstance const &GetFallbackShaderInstance() const noexcept;
@@ -41,15 +47,10 @@ public:
     /// \brief Returns the pending materials, and leaves none pending.
     [[nodiscard]] std::vector<HdFLuxPendingMaterial> ExtractPendingMaterials() noexcept;
 
-    /// \brief Returns the backend that renders the scene.
-    [[nodiscard]] flux::OptixHandler &GetHandler() noexcept { return handler_; }
+public:
+    void StopRender();
 
-    void SetProgress(double percentDone, double totalClockTime) noexcept;
-
-    [[nodiscard]] double GetPercentDone() const noexcept { return percentDone_; }
-
-    [[nodiscard]] double GetTotalClockTime() const noexcept { return totalClockTime_; }
-
+public:
     /// \brief Returns whether a failure was reported.
     ///
     /// Once true, it stays true.
@@ -62,11 +63,13 @@ public:
 
 private:
     flux::OptixHandler handler_;
+
     flux::MtlxShaderGenerator shaderGenerator_;
     flux::ShaderInstance fallbackShaderInstance_;
     flux::Ref<flux::ShaderBSDF> fallbackBSDF_;
     std::vector<HdFLuxPendingMaterial> pendingMaterials_;
-    std::atomic<double> percentDone_{0.0};
-    std::atomic<double> totalClockTime_{0.0};
-    bool failed_{false};
+
+    pxr::HdRenderThread &renderThread_;
+
+    std::atomic<bool> failed_{false};
 };

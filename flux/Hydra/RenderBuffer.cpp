@@ -12,6 +12,8 @@
 #include <type_traits>
 #include <variant>
 
+#include "flux/Hydra/RenderParam.h"
+
 PXR_NAMESPACE_USING_DIRECTIVE
 
 namespace {
@@ -96,6 +98,20 @@ void clearPixels(std::span<Component> data, std::array<double, 4> const &compone
 } // namespace
 
 HdFLuxRenderBuffer::HdFLuxRenderBuffer(pxr::SdfPath const &id) : pxr::HdRenderBuffer(id) {}
+
+void HdFLuxRenderBuffer::Sync(
+    pxr::HdSceneDelegate *sceneDelegate, pxr::HdRenderParam *renderParam,
+    pxr::HdDirtyBits *dirtyBits
+) {
+    if (*dirtyBits & DirtyDescription)
+        static_cast<HdFLuxRenderParam *>(renderParam)->StopRender();
+    pxr::HdRenderBuffer::Sync(sceneDelegate, renderParam, dirtyBits);
+}
+
+void HdFLuxRenderBuffer::Finalize(pxr::HdRenderParam *renderParam) {
+    static_cast<HdFLuxRenderParam *>(renderParam)->StopRender();
+    pxr::HdRenderBuffer::Finalize(renderParam);
+}
 
 bool HdFLuxRenderBuffer::Allocate(pxr::GfVec3i const &dimensions, pxr::HdFormat format, bool) {
     auto const componentFormat = pxr::HdGetComponentFormat(format);

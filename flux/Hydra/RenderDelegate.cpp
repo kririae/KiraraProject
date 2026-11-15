@@ -65,6 +65,24 @@ std::uint32_t getDepthSetting(
     return static_cast<std::uint32_t>(value);
 }
 
+HdFLuxSampleSchedule makeSchedule(pxr::HdRenderDelegate const &delegate) {
+    static pxr::TfToken const huskRenderMode{"renderMode"};
+    auto const batch =
+        !delegate.GetRenderSetting<bool>(pxr::HdRenderSettingsTokens->enableInteractive, true) ||
+        delegate.GetRenderSetting<std::string>(huskRenderMode, {}) == "batch";
+    return {
+        delegate.GetRenderSetting<int>(
+            pxr::HdRenderSettingsTokens->convergedSamplesPerPixel,
+            HdFLuxDefaultConvergedSamplesPerPixel
+        ),
+        delegate.GetRenderSetting<int>(
+            HdFLuxRenderSettingsTokens->interactiveSamplesPerLaunch,
+            HdFLuxDefaultInteractiveSamplesPerLaunch
+        ),
+        batch ? HdFLuxSampleSchedule::Mode::Batch : HdFLuxSampleSchedule::Mode::Interactive,
+    };
+}
+
 pxr::TfToken
 getSamplerSetting(pxr::HdRenderDelegate const &delegate, pxr::TfToken const &defaultValue) {
     auto const value = delegate.GetRenderSetting(HdFLuxRenderSettingsTokens->sampler);
@@ -88,15 +106,19 @@ HdFLuxRenderDelegate::HdFLuxRenderDelegate(
 )
     : pxr::HdRenderDelegate(settingsMap),
       resourceRegistry_(std::make_shared<pxr::HdResourceRegistry>()),
-      renderParam_(std::make_unique<HdFLuxRenderParam>(mtlxRoot)),
-      renderer_(std::make_unique<HdFLuxRenderer>(*renderParam_)),
+      renderParam_(std::make_unique<HdFLuxRenderParam>(mtlxRoot, renderThread_)),
+      renderer_(std::make_unique<HdFLuxRenderer>(*renderParam_, renderThread_)),
+      schedule_(HdFLuxDefaultConvergedSamplesPerPixel, HdFLuxDefaultInteractiveSamplesPerLaunch),
       defaultIntegrator_(renderParam_->GetContext()->getActiveIntegrator()->getImpl()),
       defaultShaderReorder_(renderParam_->GetContext()->getActiveIntegrator()->usesShaderReorder()),
       defaultSampler_(renderParam_->GetContext()->getActiveSampler()->getType()) {
     _PopulateDefaultSettings(GetRenderSettingDescriptors());
+
+    renderThread_.SetRenderCallback([renderer = renderer_.get()] { renderer->Render(); });
+    renderThread_.StartThread();
 }
 
-HdFLuxRenderDelegate::~HdFLuxRenderDelegate() = default;
+HdFLuxRenderDelegate::~HdFLuxRenderDelegate() { renderThread_.StopThread(); }
 
 pxr::TfTokenVector const &HdFLuxRenderDelegate::GetSupportedRprimTypes() const {
     static auto const Types = pxr::TfTokenVector{pxr::HdPrimTypeTokens->mesh};
@@ -196,9 +218,13 @@ void HdFLuxRenderDelegate::CommitResources(pxr::HdChangeTracker *) try {
         settingsVersion_ = version;
         syncIntegrator(*context);
         syncSampler(*context);
+        schedule_ = makeSchedule(*this);
     }
     context->collectGarbage();
-    renderParam_->GetHandler().sync();
+    if (context->getVersion() != renderParam_->GetHandler().getSyncedVersion()) {
+        renderThread_.StopRender();
+        renderParam_->GetHandler().sync();
+    }
 
     // It is the host's role to manually clear dirty state since multiple handlers might consume the
     // same context.
@@ -270,8 +296,8 @@ pxr::HdRenderSettingDescriptorList HdFLuxRenderDelegate::GetRenderSettingDescrip
 pxr::VtDictionary HdFLuxRenderDelegate::GetRenderStats() const {
     pxr::VtDictionary stats;
     stats["rendererName"] = std::string{"FLux"};
-    stats["percentDone"] = renderParam_->GetPercentDone();
-    stats["totalClockTime"] = renderParam_->GetTotalClockTime();
+    stats["percentDone"] = renderer_->GetPercentDone();
+    stats["totalClockTime"] = renderer_->GetTotalClockTime();
     if (renderParam_->HasFailed())
         stats["huskErrorStatus"] = 1;
     return stats;

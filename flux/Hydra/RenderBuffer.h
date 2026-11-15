@@ -13,9 +13,19 @@
 #include "flux/Core/Math.h"
 
 /// \brief A render buffer in host memory.
+///
+/// The render thread writes it and flags it converged. A sync that reallocates it, and its
+/// finalization, stop the render thread first.
 class HdFLuxRenderBuffer final : public pxr::HdRenderBuffer {
 public:
     explicit HdFLuxRenderBuffer(pxr::SdfPath const &id);
+
+    void Sync(
+        pxr::HdSceneDelegate *sceneDelegate, pxr::HdRenderParam *renderParam,
+        pxr::HdDirtyBits *dirtyBits
+    ) override;
+
+    void Finalize(pxr::HdRenderParam *renderParam) override;
 
     /// \brief Allocates \p dimensions pixels of \p format.
     ///

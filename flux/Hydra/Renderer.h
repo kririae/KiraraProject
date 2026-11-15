@@ -1,11 +1,14 @@
 #pragma once
 
 #include <pxr/base/vt/value.h>
+#include <pxr/imaging/hd/renderThread.h>
 
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <memory>
 #include <span>
+#include <vector>
 
 #include "flux/Core/Object.h"
 #include "flux/Core/RenderStats.h"
@@ -19,6 +22,11 @@ class HdFLuxRenderBuffer;
 class HdFLuxRenderParam;
 
 /// \brief Renders the image of a spec into buffers, one spec at a time.
+///
+/// The image is what the samples converge to, and depends only on the scene of the last sync and
+/// on the spec. An output is converged once it holds an accumulation of the image at the target.
+///
+/// The render thread accumulates samples while an output is not converged, until the param fails.
 class HdFLuxRenderer final {
 public:
     /// \brief A buffer that receives one channel of the image.
@@ -26,57 +34,75 @@ public:
         HdFLuxRenderBuffer *buffer;
         flux::FilmChannels channel;
         pxr::VtValue clearValue;
+
+        bool operator==(Output const &) const = default;
     };
 
-    /// \pre \p param outlives the renderer.
-    explicit HdFLuxRenderer(HdFLuxRenderParam &param);
+public:
+    // Called on Hydra threads.
 
-    /// \brief Sets the samples to reach and the samples per launch.
-    ///
-    /// The image is not restarted.
-    void SetSchedule(HdFLuxSampleSchedule const &schedule) noexcept { schedule_ = schedule; }
+    /// \pre The param and the render thread outlive the renderer.
+    HdFLuxRenderer(HdFLuxRenderParam &param, pxr::HdRenderThread &renderThread);
 
-    /// \brief Adds samples to the image of \p spec and writes the image into \p outputs.
+    /// \brief Makes the render thread render the image of a spec into outputs, up to a schedule.
     ///
-    /// A change of \p spec or of the scene starts the image over. An output with a channel holds
-    /// the image once it has a sample. Any other output holds its clear value, if it has one. Every
-    /// buffer of \p outputs ends with the converged state of the image.
-    ///
-    /// \pre The buffers of \p outputs are alive.
-    /// \pre Every output with a channel has the resolution of \p spec, and \p spec has its channel.
-    /// \throw std::length_error If the image of \p spec has more than 2^32 - 1 pixels.
+    /// \pre A buffer of the outputs is finalized before it is destroyed.
+    /// \pre Every output with a channel has the resolution of the spec, and the spec has its
+    /// channel.
     /// \throw kira::Anyhow If CUDA or OptiX fails.
-    void Render(HdFLuxRenderSpec const &spec, std::span<Output const> outputs);
+    void StartRender(
+        HdFLuxRenderSpec const &spec, std::span<Output const> outputs,
+        HdFLuxSampleSchedule const &schedule
+    );
 
-    /// \brief Returns whether the image has its samples, nothing is rendered, or the param failed.
     [[nodiscard]] bool IsConverged() const;
 
-private:
-    /// The film and the accumulation buffer that render one spec.
-    struct Image {
-        Image(flux::OptixHandler &handler, flux::FilmSpec const &spec);
+    [[nodiscard]] double GetPercentDone() const noexcept { return percentDone_; }
 
+    [[nodiscard]] double GetTotalClockTime() const noexcept { return totalClockTime_; }
+
+public:
+    // Called inside the render callback of the render thread.
+
+    /// A failure is reported to the param.
+    void Render() noexcept;
+
+private:
+    /// \brief The samples of one image accumulated so far.
+    struct Accumulation {
+        Accumulation(
+            flux::OptixHandler &handler, flux::FilmSpec const &spec,
+            HdFLuxRenderSpec::View const &view
+        );
+
+        flux::OptixAccumulationBuffer accumulationBuffer;
         flux::Film film;
-        flux::OptixAccumulationBuffer accumulation;
+        flux::Ref<flux::Camera> camera;
+        std::chrono::steady_clock::time_point start;
+        flux::RenderStats stats;
     };
 
-    void setConverged(std::span<Output const> outputs) const;
+    [[nodiscard]] bool isAtTarget() const;
+    void launch();
+    void writeOutputs() const;
+    void setConverged(bool converged) const;
     void publishProgress();
 
+private:
     HdFLuxRenderParam &param_;
-    HdFLuxSampleSchedule schedule_;
+    pxr::HdRenderThread &renderThread_;
 
-    /// The spec of the last render.
+    // Written only while the render thread is stopped.
+    std::uint64_t syncedVersion_;
     HdFLuxRenderSpec spec_;
-    std::uint64_t contextVersion_;
+    HdFLuxSampleSchedule schedule_;
+    std::vector<Output> outputs_;
 
-    /// The image of \c spec_, or null if \c spec_ renders nothing.
-    std::unique_ptr<Image> image_;
-    std::chrono::steady_clock::time_point accumulationStart_;
+    // Replaced only while the render thread is stopped, and raised by the render thread. Null if
+    // the spec renders nothing.
+    std::unique_ptr<Accumulation> accumulation_;
 
-    /// The sum over the launches that gave the image its samples.
-    flux::RenderStats renderStats_;
-
-    /// The camera of \c spec_, converted when the spec changes.
-    flux::Ref<flux::Camera> camera_;
+    // Written by the render thread.
+    std::atomic<double> percentDone_{0.0};
+    std::atomic<double> totalClockTime_{0.0};
 };

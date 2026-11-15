@@ -52,10 +52,13 @@ createFallbackBSDF(flux::Context &context, flux::ShaderInstance instance) {
 }
 } // namespace
 
-HdFLuxRenderParam::HdFLuxRenderParam(std::filesystem::path const &mtlxRoot)
+HdFLuxRenderParam::HdFLuxRenderParam(
+    std::filesystem::path const &mtlxRoot, pxr::HdRenderThread &renderThread
+)
     : handler_{makeContext()}, shaderGenerator_{mtlxRoot},
       fallbackShaderInstance_{generateFallbackShader(shaderGenerator_)},
-      fallbackBSDF_{createFallbackBSDF(*handler_.getContext(), fallbackShaderInstance_)} {}
+      fallbackBSDF_{createFallbackBSDF(*handler_.getContext(), fallbackShaderInstance_)},
+      renderThread_{renderThread} {}
 
 HdFLuxRenderParam::~HdFLuxRenderParam() = default;
 
@@ -75,10 +78,7 @@ std::vector<HdFLuxPendingMaterial> HdFLuxRenderParam::ExtractPendingMaterials() 
     return std::exchange(pendingMaterials_, {});
 }
 
-void HdFLuxRenderParam::SetProgress(double percentDone, double totalClockTime) noexcept {
-    percentDone_ = percentDone;
-    totalClockTime_ = totalClockTime;
-}
+void HdFLuxRenderParam::StopRender() { renderThread_.StopRender(); }
 
 void HdFLuxRenderParam::ReportFailure() noexcept {
     failed_ = true;

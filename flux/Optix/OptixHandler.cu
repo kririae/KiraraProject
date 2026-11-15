@@ -186,6 +186,8 @@ void OptixHandler::sync() {
     }
 }
 
+std::uint64_t OptixHandler::getSyncedVersion() const noexcept { return *pImpl_->syncedVersion; }
+
 RenderStats OptixHandler::pImpl::render(
     Camera const &camera, OptixAccumulationBuffer::pImpl &buffer, std::uint32_t samples
 ) {

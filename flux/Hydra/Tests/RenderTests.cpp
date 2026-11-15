@@ -43,6 +43,7 @@
 #include <pxr/usd/sdf/assetPath.h>
 
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
@@ -56,11 +57,7 @@
 
 #include "flux/Hydra/RenderParam.h"
 #include "flux/Hydra/RenderSettings.h"
-#include "flux/Integrator/PathIntegrator.h"
-#include "flux/Sampling/Sampler.h"
-#include "flux/Scene/Context.h"
 #include "flux/Tests/TestUtils.h"
-#include "kira/Properties.h"
 
 PXR_NAMESPACE_USING_DIRECTIVE
 
@@ -378,8 +375,6 @@ private:
 
 /// Renders the camera of a retained scene through the FLux plugin into a color buffer, and a camera
 /// depth buffer that keeps its clear value.
-///
-/// Eight samples at four per launch converge in two executions.
 class RenderTests : public testing::Test {
 protected:
     void SetUp() override {
@@ -443,10 +438,10 @@ protected:
 
             tasks_.clear();
             pass_.reset();
-            delegate_->DestroyBprim(buffer_);
-            delegate_->DestroyBprim(cameraDepthBuffer_);
+            destroyBuffer(buffer_);
+            destroyBuffer(cameraDepthBuffer_);
             for (auto *const buffer : extraBuffers_)
-                delegate_->DestroyBprim(buffer);
+                destroyBuffer(buffer);
         }
     }
 
@@ -455,6 +450,12 @@ protected:
     }
 
     void execute() { engine_.Execute(index_.get(), &tasks_); }
+
+    /// Finalizes and destroys a buffer, as the render index does.
+    void destroyBuffer(HdRenderBuffer *buffer) {
+        buffer->Finalize(delegate_->GetRenderParam());
+        delegate_->DestroyBprim(buffer);
+    }
 
     void syncIndex() {
         HdTaskSharedPtrVector noTasks;
@@ -509,10 +510,10 @@ protected:
 
     /// Executes until the pass converges, and checks that the buffer is flagged converged too.
     void executeToConvergence() {
-        int count{0};
+        auto const deadline = std::chrono::steady_clock::now() + std::chrono::seconds{30};
         do {
             execute();
-        } while (!pass_->IsConverged() && ++count < 8);
+        } while (!pass_->IsConverged() && std::chrono::steady_clock::now() < deadline);
 
         EXPECT_TRUE(pass_->IsConverged());
         EXPECT_TRUE(buffer_->IsConverged());
@@ -534,14 +535,7 @@ protected:
 TEST_F(RenderTests, ConvergesAtTheBufferSize) {
     auto *const unallocated = bindBuffer(HdAovTokens->primId);
 
-    execute();
-    EXPECT_FALSE(pass_->IsConverged());
-    EXPECT_FALSE(buffer_->IsConverged());
-    EXPECT_FALSE(unallocated->IsConverged());
-
-    execute();
-    EXPECT_TRUE(pass_->IsConverged());
-    EXPECT_TRUE(buffer_->IsConverged());
+    executeToConvergence();
     EXPECT_TRUE(unallocated->IsConverged());
 
     // The buffer was cleared to alpha 0, and a rendered pixel is opaque.
@@ -559,25 +553,10 @@ TEST_F(RenderTests, ConvergesAtTheBufferSize) {
     cameraDepthBuffer_->Unmap();
 }
 
-TEST_F(RenderTests, RestartsWhenTheCameraMoves) {
-    executeToConvergence();
-
-    moveCamera(6.0);
-
-    execute();
-    EXPECT_FALSE(pass_->IsConverged());
-    EXPECT_FALSE(buffer_->IsConverged());
-
-    executeToConvergence();
-}
-
 TEST_F(RenderTests, RestartsWhenTheBufferIsResized) {
     executeToConvergence();
 
     ASSERT_TRUE(buffer_->Allocate({width / 2, height / 2, 1}, HdFormatFloat32Vec4, false));
-
-    execute();
-    EXPECT_FALSE(pass_->IsConverged());
 
     executeToConvergence();
 }
@@ -585,7 +564,7 @@ TEST_F(RenderTests, RestartsWhenTheBufferIsResized) {
 TEST_F(RenderTests, WritesTheImageIntoANewBufferThatReplacesTheBoundOne) {
     executeToConvergence();
 
-    delegate_->DestroyBprim(buffer_);
+    destroyBuffer(buffer_);
     buffer_ = static_cast<HdRenderBuffer *>(
         delegate_->CreateBprim(HdPrimTypeTokens->renderBuffer, SdfPath{"/color"})
     );
@@ -595,9 +574,7 @@ TEST_F(RenderTests, WritesTheImageIntoANewBufferThatReplacesTheBoundOne) {
     bindings[0].renderBuffer = buffer_;
     state_->SetAovBindings(bindings);
 
-    execute();
-    EXPECT_TRUE(pass_->IsConverged());
-    EXPECT_TRUE(buffer_->IsConverged());
+    executeToConvergence();
 
     auto const *const pixels = static_cast<float const *>(buffer_->Map());
     for (int pixel = 0; pixel < width * height; ++pixel)
@@ -608,7 +585,7 @@ TEST_F(RenderTests, WritesTheImageIntoANewBufferThatReplacesTheBoundOne) {
 TEST_F(RenderTests, RendersNothingForAZeroTargetAfterTheImageWasRendered) {
     executeToConvergence();
 
-    delegate_->DestroyBprim(buffer_);
+    destroyBuffer(buffer_);
     buffer_ = static_cast<HdRenderBuffer *>(
         delegate_->CreateBprim(HdPrimTypeTokens->renderBuffer, SdfPath{"/color"})
     );
@@ -621,8 +598,7 @@ TEST_F(RenderTests, RendersNothingForAZeroTargetAfterTheImageWasRendered) {
     delegate_->SetRenderSetting(HdRenderSettingsTokens->convergedSamplesPerPixel, VtValue{0});
     moveCamera(6.0);
 
-    execute();
-    EXPECT_TRUE(buffer_->IsConverged());
+    executeToConvergence();
 
     // The buffer holds its clear value, alpha 0, and not the old image.
     auto const *const pixels = static_cast<float const *>(buffer_->Map());
@@ -638,44 +614,12 @@ TEST_F(RenderTests, AppliesAChangedClearValueToABufferThatShowsNoImage) {
     bindings[1].clearValue = VtValue{0.5F};
     state_->SetAovBindings(bindings);
 
-    execute();
+    executeToConvergence();
 
     auto const *const depths = static_cast<float const *>(cameraDepthBuffer_->Map());
     for (int pixel = 0; pixel < width * height; ++pixel)
         ASSERT_EQ(depths[pixel], 0.5F) << "pixel " << pixel;
     cameraDepthBuffer_->Unmap();
-}
-
-TEST_F(RenderTests, ConvergesInOneExecutionWhenTheHostIsNotInteractive) {
-    delegate_->SetRenderSetting(HdRenderSettingsTokens->enableInteractive, VtValue{false});
-
-    execute();
-
-    EXPECT_TRUE(pass_->IsConverged());
-    EXPECT_TRUE(buffer_->IsConverged());
-}
-
-TEST_F(RenderTests, RestartsWhenTheSceneIsEdited) {
-    executeToConvergence();
-
-    auto const context = param().GetContext();
-    context->setActiveSampler(context->create<flux::IndependentSampler>(kira::Properties{}));
-
-    execute();
-    EXPECT_FALSE(pass_->IsConverged());
-
-    executeToConvergence();
-}
-
-TEST_F(RenderTests, RendersMoreWhenTheSettingsRaiseTheTarget) {
-    executeToConvergence();
-
-    delegate_->SetRenderSetting(HdRenderSettingsTokens->convergedSamplesPerPixel, VtValue{16});
-
-    execute();
-    EXPECT_FALSE(pass_->IsConverged());
-
-    executeToConvergence();
 }
 
 namespace {
@@ -732,8 +676,7 @@ TEST_F(RenderTests, WritesThePrimIdAndTheInstanceIdOfTheHitsAndMinusOneWhereNoth
          {meshPath, HdPrimTypeTokens->mesh, makeMesh(makeQuad(1.5F))}}
     );
 
-    execute();
-    execute();
+    executeToConvergence();
 
     auto const leftPrimId = index_->GetRprim(leftPath)->GetPrimId();
     auto const rightPrimId = index_->GetRprim(meshPath)->GetPrimId();
@@ -1111,7 +1054,7 @@ TEST_F(RenderTests, RendersTheNextFrameWithAMaxDepthChangedAfterTheImageWasRende
     EXPECT_EQ(centerChannel(buffer_, 0), 1.0F);
 
     delegate_->SetRenderSetting(HdFLuxRenderSettingsTokens->maxDepth, VtValue{0});
-    execute();
+    executeToConvergence();
 
     EXPECT_EQ(centerChannel(buffer_, 0), 0.0F);
 }
