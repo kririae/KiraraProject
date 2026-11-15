@@ -93,11 +93,12 @@ string(STRIP ${KRR_COMMIT_SHORT_HASH} KRR_COMMIT_SHORT_HASH)
 set(KRR_VERSION_MAJOR 0)
 set(KRR_VERSION_MINOR 0)
 set(KRR_VERSION_PATCH 1)
+set(KRR_VERSION "${KRR_VERSION_MAJOR}.${KRR_VERSION_MINOR}.${KRR_VERSION_PATCH}")
 
 message("╔════════════════════════════════════════════════════════════════════════════╗")
 message("║                               Kirara Project                               ║")
 message("╚════════════════════════════════════════════════════════════════════════════╝")
-message("Version:     ${KRR_VERSION_MAJOR}.${KRR_VERSION_MINOR}.${KRR_VERSION_PATCH}")
+message("Version:     ${KRR_VERSION}")
 message("Commit Hash: ${KRR_COMMIT_HASH}")
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -112,6 +113,7 @@ list(APPEND CMAKE_MODULE_PATH "${KRR_ROOT_DIR}/cmake" "${CMAKE_BINARY_DIR}")
 # Platform detection
 # ----------------------------------------------------------
 include(KRR_Message)
+include(KRR_Packaging)
 
 if(WIN32)
     set(KRR_BUILD_FOR_WINDOWS ON)
@@ -193,3 +195,5 @@ endif()
 if(KRR_BUILD_KIRARA_DANCE)
     add_subdirectory(kirara-dance2)
 endif()
+
+krr_configure_packages()

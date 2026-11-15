@@ -234,6 +234,22 @@ endif()
 target_compile_options(flux PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--use_fast_math>)
 
 # ----------------------------------------------------------
+# Licenses
+# ----------------------------------------------------------
+# Installs the license of FLux, and those of the code that it takes from vcpkg, rapidobj, OptiX, and
+# the CUDA Toolkit, into the package of <component>.
+function(flux_install_licenses component)
+    install(FILES "${KRR_ROOT_DIR}/LICENSE" DESTINATION . COMPONENT ${component})
+    install(DIRECTORY "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/share/"
+            DESTINATION licenses/vcpkg COMPONENT ${component}
+            FILES_MATCHING PATTERN copyright)
+    install(FILES "${rapidobj_SOURCE_DIR}/LICENSE" DESTINATION licenses/rapidobj COMPONENT ${component})
+    install(FILES "${optix_SOURCE_DIR}/LICENSE.txt" "${optix_SOURCE_DIR}/license_info.txt"
+            DESTINATION licenses/optix COMPONENT ${component})
+    install(FILES "${CUDAToolkit_LIBRARY_ROOT}/EULA.txt" DESTINATION licenses/cuda COMPONENT ${component})
+endfunction()
+
+# ----------------------------------------------------------
 # Subdirectories
 # ----------------------------------------------------------
 add_subdirectory(FLux)

@@ -100,6 +100,7 @@ target_compile_definitions(hdFLux PRIVATE MFB_PACKAGE_NAME=hdFLux MFB_ALT_PACKAG
 set_target_properties(hdFLux PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set_target_properties(hdFLux PROPERTIES INSTALL_RPATH "$ORIGIN")
     set(exportMap "${CMAKE_CURRENT_SOURCE_DIR}/exports.map")
     target_link_options(hdFLux PRIVATE "LINKER:--version-script=${exportMap}")
     set_property(TARGET hdFLux APPEND PROPERTY LINK_DEPENDS "${exportMap}")
@@ -122,7 +123,8 @@ file(WRITE "${packageDir}/dso/usd_plugins/plugInfo.json" "{ \"Includes\": [ \"*/
 configure_file(UsdRenderers.json "${packageDir}/UsdRenderers.json" COPYONLY)
 configure_file(HdFLuxRendererPlugin_Viewport.ds
                "${packageDir}/soho/parameters/HdFLuxRendererPlugin_Viewport.ds" COPYONLY)
-file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/packages/flux.json" "{ \"hpath\": \"${packageDir}\" }\n")
+string(TOLOWER "${CMAKE_SYSTEM_NAME}" packagePlatform)
+configure_file(flux.json.in "${CMAKE_CURRENT_BINARY_DIR}/packages/flux.json" @ONLY)
 
 set(resourceDir "${packageDir}/dso/usd_plugins/hdFLux/resources")
 add_custom_target(
@@ -141,6 +143,35 @@ add_custom_command(
 
 target_sources(hdFLux PRIVATE "${packageDir}/dso/usd/${flux_optix_ir_name}")
 target_compile_definitions(hdFLux PRIVATE FLUX_OPTIX_IR_NAME="${flux_optix_ir_name}")
+
+# ----------------------------------------------------------
+# Package
+# ----------------------------------------------------------
+if(NOT DEFINED _houdini_python_version)
+    message(FATAL_ERROR "The Houdini CMake package of ${KRR_HFS} names no Python version")
+endif()
+krr_add_package(
+    hdFLux
+    FILE_NAME
+        "hdFLux-${KRR_VERSION}-houdini-${Houdini_VERSION}-python-${_houdini_python_version}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+flux_install_licenses(hdFLux)
+
+install(TARGETS hdFLux
+        LIBRARY DESTINATION houdini/dso/usd COMPONENT hdFLux
+        RUNTIME DESTINATION houdini/dso/usd COMPONENT hdFLux)
+install(IMPORTED_RUNTIME_ARTIFACTS slang::slang
+        LIBRARY DESTINATION houdini/dso/usd COMPONENT hdFLux
+        RUNTIME DESTINATION houdini/dso/usd COMPONENT hdFLux)
+install(FILES "${packageDir}/dso/usd/${flux_optix_ir_name}"
+        DESTINATION houdini/dso/usd COMPONENT hdFLux)
+install(DIRECTORY "${packageDir}/dso/usd_plugins/"
+        DESTINATION houdini/dso/usd_plugins COMPONENT hdFLux)
+install(DIRECTORY "${packageDir}/soho/" DESTINATION houdini/soho COMPONENT hdFLux)
+install(FILES "${packageDir}/UsdRenderers.json" DESTINATION houdini COMPONENT hdFLux)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/packages/flux.json"
+        DESTINATION packages COMPONENT hdFLux)
+configure_file(INSTALL.txt.in "${CMAKE_CURRENT_BINARY_DIR}/INSTALL.txt" @ONLY)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/INSTALL.txt" DESTINATION . COMPONENT hdFLux)
 
 if(KRR_BUILD_TESTS)
     add_subdirectory(Tests)
