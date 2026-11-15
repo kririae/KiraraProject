@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <cstring>
+#include <memory>
+#include <new>
 #include <type_traits>
 
 #include "ArithLib.h"
@@ -44,7 +47,17 @@ TEST_F(VecteurStaticTests, InvalidConstructor) {
 #endif
 
 TEST_F(VecteurStaticTests, ZeroConstructor) {
+    static_assert(std::is_trivially_default_constructible_v<Vec3i>);
+
     InstantiateStaticTests<int, 3>([]<typename Vecteur>() {
+        alignas(Vecteur) unsigned char storage[sizeof(Vecteur)];
+        std::memset(storage, 0xa5, sizeof(storage));
+        auto *value = new (storage) Vecteur{};
+        EXPECT_EQ(0, value->x());
+        EXPECT_EQ(0, value->y());
+        EXPECT_EQ(0, value->z());
+        std::destroy_at(value);
+
         Vecteur v{0};
         EXPECT_EQ(0, v.x());
         EXPECT_EQ(0, v.y());
