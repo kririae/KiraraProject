@@ -59,12 +59,12 @@ if(WIN32)
     list(APPEND runtimeDirs "${nvrtcDir}")
 endif()
 
-# The exclusions leave out the libraries of the system and the NVIDIA driver.
 if(POLICY CMP0207)
     cmake_policy(SET CMP0207 NEW)
 endif()
+# The exclusions leave out the libraries of the system and the NVIDIA driver.
 install(RUNTIME_DEPENDENCY_SET flux_cli_runtime
-        PRE_EXCLUDE_REGEXES "^api-ms-" "^ext-ms-"
+        PRE_EXCLUDE_REGEXES "^api-ms-" "^ext-ms-" "^nvcuda\\.dll$" "^libcuda\\.so"
         POST_EXCLUDE_REGEXES "[/\\\\][Ss][Yy][Ss][Tt][Ee][Mm]32[/\\\\]" "^/lib" "^/usr/lib"
         DIRECTORIES ${runtimeDirs}
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT flux
