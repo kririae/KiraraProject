@@ -26,9 +26,6 @@
 #include <windows.h>
 #endif
 
-#ifndef FLUX_RELATIVE_OPTIX_IR
-#error "FLUX_RELATIVE_OPTIX_IR must name the OptiX IR relative to the executable"
-#endif
 #ifndef FLUX_RELATIVE_MATERIALX_DIR
 #error "FLUX_RELATIVE_MATERIALX_DIR must name the MaterialX root relative to the executable"
 #endif
@@ -95,7 +92,7 @@ int run(int argc, char **argv) {
     // Each buffer is destroyed before its handler.
     auto const stats = [&] {
         if (options.backend == flux::RenderBackend::Optix) {
-            flux::OptixHandler handler{scene.context, executableDir / FLUX_RELATIVE_OPTIX_IR};
+            flux::OptixHandler handler{scene.context};
             if (options.launchWaves)
                 handler.setLaunchWaves(*options.launchWaves);
             flux::LogDebug(

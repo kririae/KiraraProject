@@ -83,12 +83,11 @@ getSamplerSetting(pxr::HdRenderDelegate const &delegate, pxr::TfToken const &def
 } // namespace
 
 HdFLuxRenderDelegate::HdFLuxRenderDelegate(
-    std::filesystem::path const &modulePath, std::filesystem::path const &mtlxRoot,
-    pxr::HdRenderSettingsMap const &settingsMap
+    std::filesystem::path const &mtlxRoot, pxr::HdRenderSettingsMap const &settingsMap
 )
     : pxr::HdRenderDelegate(settingsMap),
       resourceRegistry_(std::make_shared<pxr::HdResourceRegistry>()),
-      renderParam_(std::make_unique<HdFLuxRenderParam>(modulePath, mtlxRoot)),
+      renderParam_(std::make_unique<HdFLuxRenderParam>(mtlxRoot)),
       defaultIntegrator_(renderParam_->GetContext()->getActiveIntegrator()->getImpl()),
       defaultShaderReorder_(renderParam_->GetContext()->getActiveIntegrator()->usesShaderReorder()),
       defaultSampler_(renderParam_->GetContext()->getActiveSampler()->getType()) {

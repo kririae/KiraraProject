@@ -110,11 +110,10 @@ struct OptixContext::pImpl final : private CudaStreamMixin {
 public:
     pImpl(
         Context &context, OptixDeviceContext deviceContext, DeletionQueue &deletionQueue,
-        std::filesystem::path modulePath
+        std::span<char const> megaKernelIr
     )
         : CudaStreamMixin(deletionQueue.getStream()), context(context),
-          deviceContext(deviceContext), deletionQueue(deletionQueue),
-          modulePath(std::move(modulePath)) {}
+          deviceContext(deviceContext), deletionQueue(deletionQueue), megaKernelIr(megaKernelIr) {}
 
     ~pImpl() {
         // Work on the stream may still use the texture objects and the program, and they are not
@@ -196,7 +195,7 @@ public:
     /// Rebuilds the module, the program, and the SBT when the specialization differs.
     void syncProgram(CompileStats &stats);
 
-    std::filesystem::path modulePath;
+    std::span<char const> megaKernelIr;
     std::shared_ptr<OptixMegaKernelModule const> megaKernelModule;
     std::unique_ptr<OptixProgram> program;
     OptixSbt sbt{deletionQueue};
@@ -217,9 +216,9 @@ public:
 
 OptixContext::OptixContext(
     Context &context, OptixDeviceContext deviceContext, DeletionQueue &deletionQueue,
-    std::filesystem::path const &modulePath
+    std::span<char const> megaKernelIr
 )
-    : pImpl_(std::make_unique<pImpl>(context, deviceContext, deletionQueue, modulePath)) {}
+    : pImpl_(std::make_unique<pImpl>(context, deviceContext, deletionQueue, megaKernelIr)) {}
 
 OptixContext::~OptixContext() = default;
 
@@ -499,7 +498,8 @@ void OptixContext::pImpl::syncProgram(CompileStats &stats) {
         deletionQueue.deleteLater(std::shared_ptr<OptixProgram const>(std::move(program)));
     if (!megaKernelModule || megaKernelModule->getSpec() != spec) {
         auto const start = std::chrono::steady_clock::now();
-        megaKernelModule = std::make_shared<OptixMegaKernelModule>(deviceContext, modulePath, spec);
+        megaKernelModule =
+            std::make_shared<OptixMegaKernelModule>(deviceContext, megaKernelIr, spec);
         stats.megaKernelModuleTime = std::chrono::steady_clock::now() - start;
     }
     auto const start = std::chrono::steady_clock::now();

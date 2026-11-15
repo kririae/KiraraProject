@@ -5,11 +5,11 @@
 
 #include <array>
 #include <cstddef>
-#include <filesystem>
 #include <set>
 #include <string>
 #include <vector>
 
+#include "flux/Optix/OptixMegaKernelIr.h"
 #include "flux/Optix/OptixMegaKernelModule.h"
 #include "flux/Optix/OptixPipelineCompileOptions.h"
 #include "flux/Optix/OptixShaderCompiler.h"
@@ -88,7 +88,7 @@ TEST(OptixShaderModule, TwoSourcesThatDifferOnlyByACommentLinkIntoOnePipeline) {
     flux::OptixShaderModule const second(device.context, secondIr);
 
     flux::OptixMegaKernelModule const megaKernel(
-        device.context, std::filesystem::path(FLUX_TEST_OPTIX_IR),
+        device.context, flux::getOptixMegaKernelIr(),
         {.samplerType = flux::SamplerType::Independent,
          .bsdfTypes = 0,
          .edfTypes = 0,

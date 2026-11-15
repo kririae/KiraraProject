@@ -134,16 +134,6 @@ add_custom_target(
     VERBATIM)
 add_dependencies(hdFLux hdFLux_materialx_libraries)
 
-add_custom_command(
-    OUTPUT "${packageDir}/dso/usd/${flux_optix_ir_name}"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_OBJECTS:flux_megakernel_ir>"
-            "${packageDir}/dso/usd/${flux_optix_ir_name}"
-    DEPENDS flux_megakernel_ir "$<TARGET_OBJECTS:flux_megakernel_ir>"
-    VERBATIM)
-
-target_sources(hdFLux PRIVATE "${packageDir}/dso/usd/${flux_optix_ir_name}")
-target_compile_definitions(hdFLux PRIVATE FLUX_OPTIX_IR_NAME="${flux_optix_ir_name}")
-
 # ----------------------------------------------------------
 # Package
 # ----------------------------------------------------------
@@ -162,8 +152,6 @@ install(TARGETS hdFLux
 install(IMPORTED_RUNTIME_ARTIFACTS slang::slang
         LIBRARY DESTINATION houdini/dso/usd COMPONENT hdFLux
         RUNTIME DESTINATION houdini/dso/usd COMPONENT hdFLux)
-install(FILES "${packageDir}/dso/usd/${flux_optix_ir_name}"
-        DESTINATION houdini/dso/usd COMPONENT hdFLux)
 install(DIRECTORY "${packageDir}/dso/usd_plugins/"
         DESTINATION houdini/dso/usd_plugins COMPONENT hdFLux)
 install(DIRECTORY "${packageDir}/soho/" DESTINATION houdini/soho COMPONENT hdFLux)

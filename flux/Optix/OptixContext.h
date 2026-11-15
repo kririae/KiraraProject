@@ -5,8 +5,8 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <filesystem>
 #include <memory>
+#include <span>
 #include <type_traits>
 
 #include "flux/Core/Object.h"
@@ -42,7 +42,7 @@ private:
     /// handler and must outlive this object. All work runs on the stream of the deletion queue.
     OptixContext(
         Context &context, OptixDeviceContext deviceContext, DeletionQueue &deletionQueue,
-        std::filesystem::path const &modulePath
+        std::span<char const> megaKernelIr
     );
 
     /// \brief Brings the OptiX scene up to date with the host \c Context.

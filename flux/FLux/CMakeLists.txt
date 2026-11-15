@@ -26,17 +26,7 @@ file(RELATIVE_PATH dataFromBin "/${CMAKE_INSTALL_BINDIR}" "/${dataDir}")
 
 set_target_properties(flux_cli PROPERTIES RUNTIME_OUTPUT_DIRECTORY
                                           "$<1:${layoutDir}/${CMAKE_INSTALL_BINDIR}>")
-target_compile_definitions(
-    flux_cli PRIVATE FLUX_RELATIVE_OPTIX_IR="${dataFromBin}/${flux_optix_ir_name}"
-                     FLUX_RELATIVE_MATERIALX_DIR="${dataFromBin}/materialx")
-
-add_custom_command(
-    OUTPUT "${layoutDir}/${dataDir}/${flux_optix_ir_name}"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_OBJECTS:flux_megakernel_ir>"
-            "${layoutDir}/${dataDir}/${flux_optix_ir_name}"
-    DEPENDS flux_megakernel_ir "$<TARGET_OBJECTS:flux_megakernel_ir>"
-    VERBATIM)
-target_sources(flux_cli PRIVATE "${layoutDir}/${dataDir}/${flux_optix_ir_name}")
+target_compile_definitions(flux_cli PRIVATE FLUX_RELATIVE_MATERIALX_DIR="${dataFromBin}/materialx")
 
 add_custom_target(
     flux_cli_materialx_libraries

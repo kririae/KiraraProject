@@ -52,10 +52,8 @@ createFallbackBSDF(flux::Context &context, flux::ShaderInstance instance) {
 }
 } // namespace
 
-HdFLuxRenderParam::HdFLuxRenderParam(
-    std::filesystem::path const &modulePath, std::filesystem::path const &mtlxRoot
-)
-    : handler_{makeContext(), modulePath}, shaderGenerator_{mtlxRoot},
+HdFLuxRenderParam::HdFLuxRenderParam(std::filesystem::path const &mtlxRoot)
+    : handler_{makeContext()}, shaderGenerator_{mtlxRoot},
       fallbackShaderInstance_{generateFallbackShader(shaderGenerator_)},
       fallbackBSDF_{createFallbackBSDF(*handler_.getContext(), fallbackShaderInstance_)} {}
 

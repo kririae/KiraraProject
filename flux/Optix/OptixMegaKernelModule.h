@@ -5,7 +5,6 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <filesystem>
 #include <span>
 
 #include "flux/Core/Object.h"
@@ -38,12 +37,11 @@ struct OptixMegaKernelModuleSpec {
 /// The module borrows its OptiX device context, which must outlive it.
 class OptixMegaKernelModule final : private Noncopyable {
 public:
-    /// \brief Builds the module from \p modulePath, specialized by \p spec.
+    /// \brief Builds the module from the OptiX IR \p ir, specialized by \p spec.
     ///
     /// The module must provide \c __raygen__megakernel and \c __miss__megakernel.
     OptixMegaKernelModule(
-        OptixDeviceContext deviceContext, std::filesystem::path const &modulePath,
-        OptixMegaKernelModuleSpec spec
+        OptixDeviceContext deviceContext, std::span<char const> ir, OptixMegaKernelModuleSpec spec
     );
 
     /// \brief Returns the specialization required by \p context.
@@ -86,7 +84,7 @@ private:
         EmptyState, OptixDeviceContext deviceContext, OptixMegaKernelModuleSpec spec
     ) noexcept;
 
-    void buildModule(std::filesystem::path const &modulePath);
+    void buildModule(std::span<char const> ir);
     void buildProgramGroups();
 
     OptixDeviceContext deviceContext_;

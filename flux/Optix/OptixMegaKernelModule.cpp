@@ -3,9 +3,6 @@
 #include <optix_stubs.h>
 
 #include <cstddef>
-#include <fstream>
-#include <limits>
-#include <vector>
 
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Optix/OptixLaunchParams.h"
@@ -17,35 +14,15 @@
 #include "kira/Anyhow.h"
 
 namespace flux {
-namespace {
-[[nodiscard]] std::vector<char> readBinary(std::filesystem::path const &path) {
-    std::ifstream input(path, std::ios::binary | std::ios::ate);
-    if (!input)
-        throw kira::Anyhow("OptixMegaKernelModule: failed to open OptiX IR '{}'", path.string());
-
-    auto const end = input.tellg();
-    if (end <= 0)
-        throw kira::Anyhow("OptixMegaKernelModule: OptiX IR '{}' is empty", path.string());
-    if (end > std::numeric_limits<std::streamsize>::max())
-        throw kira::Anyhow("OptixMegaKernelModule: OptiX IR '{}' is too large", path.string());
-
-    std::vector<char> data(static_cast<std::size_t>(end));
-    input.seekg(0);
-    if (!input.read(data.data(), static_cast<std::streamsize>(data.size())))
-        throw kira::Anyhow("OptixMegaKernelModule: failed to read OptiX IR '{}'", path.string());
-    return data;
-}
-} // namespace
 
 OptixMegaKernelModule::OptixMegaKernelModule(
-    OptixDeviceContext deviceContext, std::filesystem::path const &modulePath,
-    OptixMegaKernelModuleSpec spec
+    OptixDeviceContext deviceContext, std::span<char const> ir, OptixMegaKernelModuleSpec spec
 )
     : OptixMegaKernelModule(EmptyState{}, deviceContext, spec) {
     if (!deviceContext_)
         throw kira::Anyhow("OptixMegaKernelModule: device context must not be null");
 
-    buildModule(modulePath);
+    buildModule(ir);
     buildProgramGroups();
 }
 
@@ -96,8 +73,7 @@ OptixMegaKernelModuleSpec OptixMegaKernelModule::makeSpec(Context const &context
     };
 }
 
-void OptixMegaKernelModule::buildModule(std::filesystem::path const &modulePath) {
-    auto const ir = readBinary(modulePath);
+void OptixMegaKernelModule::buildModule(std::span<char const> ir) {
     OptixModuleCompileOptions moduleOptions{};
     // Keep the megakernel below the measured OptiX register-allocation cliff.
     moduleOptions.maxRegisterCount = megakernelMaxRegisterCount;

@@ -1,11 +1,12 @@
 #pragma once
 
 #include <cstdint>
-#include <filesystem>
 #include <memory>
+#include <span>
 
 #include "flux/Core/Object.h"
 #include "flux/Core/RenderStats.h"
+#include "flux/Optix/OptixMegaKernelIr.h"
 
 namespace flux {
 class Camera;
@@ -27,14 +28,15 @@ class OptixHandler final : private Noncopyable {
 public:
     /// \brief Creates a handler and builds its OptiX scene.
     ///
-    /// \p modulePath names the OptiX IR module that the handler uses.
     /// \p deviceOrdinal is the ordinal of the CUDA device that the handler runs on.
+    /// \p megaKernelIr is the OptiX IR of the megakernel, which must outlive the handler.
     ///
     /// \pre \p context is not null.
     /// \throw kira::Anyhow If \p deviceOrdinal is outside [0, device count), the context has no
     /// active integrator or sampler, or CUDA or OptiX fails.
-    OptixHandler(
-        Ref<Context> context, std::filesystem::path const &modulePath, int deviceOrdinal = 0
+    explicit OptixHandler(
+        Ref<Context> context, int deviceOrdinal = 0,
+        std::span<char const> megaKernelIr = getOptixMegaKernelIr()
     );
 
     ~OptixHandler();

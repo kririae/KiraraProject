@@ -53,6 +53,7 @@
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Optix/OptixAccumulationBuffer.h"
 #include "flux/Optix/OptixHandler.h"
+#include "flux/Optix/OptixMegaKernelIr.h"
 #include "flux/Sampling/Sampler.h"
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
@@ -65,10 +66,6 @@
 #include "flux/Shading/EDF.h"
 #include "flux/Shading/Texture.h"
 #include "kira/Anyhow.h"
-
-#ifndef FLUX_TEST_OPTIX_IR
-#error "FLUX_TEST_OPTIX_IR must name the test OptiX IR module"
-#endif
 
 #ifndef FLUX_TEST_OUTPUT_DIR
 #error "FLUX_TEST_OUTPUT_DIR must name the test output directory"
@@ -556,13 +553,13 @@ makeBuffer(flux::OptixHandler &handler) {
 
 class Rig {
 public:
-    explicit Rig(Spec initial, std::filesystem::path modulePath = FLUX_TEST_OPTIX_IR)
+    explicit Rig(Spec initial, std::span<char const> megaKernelIr = flux::getOptixMegaKernelIr())
         : model(std::move(initial)), context(flux::Context::create()), camera(makeCamera()) {
         ids = model.build(*context);
         if (model.env)
             envImage = model.env->image;
         track();
-        handler = std::make_unique<flux::OptixHandler>(context, modulePath);
+        handler = std::make_unique<flux::OptixHandler>(context, 0, megaKernelIr);
         buffer = makeBuffer(*handler);
 
         // Start in the host's steady state: synced and cleared.
@@ -570,10 +567,10 @@ public:
     }
 
     /// Replaces the handler with a new one on the same context, as a host does after a failure.
-    void restartHandler(std::filesystem::path modulePath = FLUX_TEST_OPTIX_IR) {
+    void restartHandler(std::span<char const> megaKernelIr = flux::getOptixMegaKernelIr()) {
         note("restart the handler");
         buffer.reset();
-        handler = std::make_unique<flux::OptixHandler>(context, modulePath);
+        handler = std::make_unique<flux::OptixHandler>(context, 0, megaKernelIr);
         buffer = makeBuffer(*handler);
     }
 
@@ -849,7 +846,7 @@ public:
 
         auto fresh = flux::Context::create();
         (void)model.build(*fresh);
-        flux::OptixHandler freshHandler(fresh, std::filesystem::path(FLUX_TEST_OPTIX_IR));
+        flux::OptixHandler freshHandler(fresh);
         auto freshBuffer = makeBuffer(freshHandler);
         auto const expected = renderImage(freshHandler, *makeCamera(), *freshBuffer);
         if (!(live == expected))
@@ -1605,22 +1602,17 @@ TEST(OptixFuzzUpdateTests, ForgetsWhatASyncWithoutAClearCollects) {
 }
 
 namespace {
-/// Copies the OptiX IR to a file that a test can delete.
-[[nodiscard]] std::filesystem::path copyModule() {
-    auto const directory = std::filesystem::path(FLUX_TEST_OUTPUT_DIR);
-    std::filesystem::create_directories(directory);
-    auto const copy = directory / "Module.optixir";
-    std::filesystem::copy_file(
-        FLUX_TEST_OPTIX_IR, copy, std::filesystem::copy_options::overwrite_existing
-    );
-    return copy;
+/// Copies the OptiX IR of the megakernel into a buffer that a test can corrupt.
+[[nodiscard]] std::vector<char> copyMegaKernelIr() {
+    auto const ir = flux::getOptixMegaKernelIr();
+    return {ir.begin(), ir.end()};
 }
 } // namespace
 
 // A sync that fails before the OptiX scene update leaves the handler failed for good. A new handler
 // on the same context renders the edits.
-// Building the megakernel module reads the IR file. Without that file, the live handler can sync
-// only while the module is kept, and a failed sync leaves it failed for good.
+// Building the megakernel module reads the IR. With a corrupt IR, the live handler can sync only
+// while the module is kept, and a failed sync leaves it failed for good.
 // A failed update of the OptiX scene leaves the handler failed for good, even after the cause is
 // gone and a clear dropped the tracked changes of the failed edits. A new handler renders them.
 TEST(OptixFuzzUpdateTests, FailsForGoodAfterAFailedSync) {
@@ -1628,28 +1620,27 @@ TEST(OptixFuzzUpdateTests, FailsForGoodAfterAFailedSync) {
         GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
 
     auto base = makeBase();
-    auto const module = copyModule();
-    Rig rig(base.spec, module);
+    auto megaKernelIr = copyMegaKernelIr();
+    Rig rig(base.spec, megaKernelIr);
     auto const before = rig.frame();
 
     // Succeed and then fail before a clear, so the clear below drops the failed edits. The
     // sampler switch makes the failing sync rebuild the program after it rebuilt the tables.
     rig.handler->sync();
-    auto const saved = module.string() + ".saved";
-    std::filesystem::rename(module, saved);
+    std::ranges::fill(megaKernelIr, '\0');
     rig.move(base.occluder, makeTransform(0.6F, 1.1F, false, {0.3F, 0.2F, 0.5F}));
     rig.switchSampler(true, false);
     EXPECT_THROW(rig.handler->sync(), kira::Anyhow);
     EXPECT_TRUE(rig.handler->hasFailed());
 
-    // Drop the tracked changes and restore the module. The failed handler still does nothing.
+    // Drop the tracked changes and restore the IR. The failed handler still does nothing.
     rig.clearOnly();
-    std::filesystem::rename(saved, module);
+    std::ranges::copy(flux::getOptixMegaKernelIr(), megaKernelIr.begin());
     rig.context->collectGarbage();
     rig.handler->sync();
     EXPECT_TRUE(rig.handler->hasFailed());
 
-    rig.restartHandler(module);
+    rig.restartHandler(megaKernelIr);
     auto const after = rig.compare();
     EXPECT_FALSE(rig.handler->hasFailed());
     EXPECT_FALSE(after == before);

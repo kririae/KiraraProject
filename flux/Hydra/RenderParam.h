@@ -21,12 +21,8 @@ struct HdFLuxPendingMaterial;
 /// \brief The state that the delegate shares with its passes and prims.
 class HdFLuxRenderParam final : public pxr::HdRenderParam {
 public:
-    /// \brief Creates a param that renders with the OptiX IR module at \p modulePath.
-    ///
     /// \throw std::exception If the OptiX backend or the shader generator cannot start.
-    HdFLuxRenderParam(
-        std::filesystem::path const &modulePath, std::filesystem::path const &mtlxRoot
-    );
+    explicit HdFLuxRenderParam(std::filesystem::path const &mtlxRoot);
     ~HdFLuxRenderParam() override;
 
     /// \brief Returns the scene.

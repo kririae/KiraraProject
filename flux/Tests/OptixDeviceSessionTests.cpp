@@ -1,7 +1,6 @@
 #include <cuda.h>
 #include <gtest/gtest.h>
 
-#include <filesystem>
 #include <memory>
 
 #include "SceneUtils.h"
@@ -12,10 +11,6 @@
 #include "flux/Scene/Camera.h"
 #include "flux/Scene/Context.h"
 #include "kira/Anyhow.h"
-
-#ifndef FLUX_TEST_OPTIX_IR
-#error "FLUX_TEST_OPTIX_IR must name the test OptiX IR module"
-#endif
 
 namespace {
 [[nodiscard]] CUcontext getCurrentContext() {
@@ -31,8 +26,7 @@ void expectHandlerLeavesCurrentContext(CUcontext expected) {
     flux::test::setActiveDefaults(*context);
     auto camera = flux::Camera::create();
 
-    auto handler =
-        std::make_unique<flux::OptixHandler>(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
+    auto handler = std::make_unique<flux::OptixHandler>(context);
     EXPECT_EQ(getCurrentContext(), expected);
 
     handler->sync();
@@ -103,11 +97,9 @@ TEST(OptixDeviceSessionTests, RejectsADeviceOrdinalOutsideTheDeviceRange) {
     flux::cuCheck(cuDeviceGetCount(&deviceCount));
     auto context = flux::Context::create();
     flux::test::setActiveDefaults(*context);
-    auto const modulePath = std::filesystem::path(FLUX_TEST_OPTIX_IR);
-
     flux::cuCheck(cuCtxSetCurrent(nullptr));
-    EXPECT_THROW((void)flux::OptixHandler(context, modulePath, deviceCount), kira::Anyhow);
-    EXPECT_THROW((void)flux::OptixHandler(context, modulePath, -1), kira::Anyhow);
+    EXPECT_THROW((void)flux::OptixHandler(context, deviceCount), kira::Anyhow);
+    EXPECT_THROW((void)flux::OptixHandler(context, -1), kira::Anyhow);
     EXPECT_EQ(getCurrentContext(), nullptr);
     EXPECT_EQ(context.getRefCount(), 1);
 }

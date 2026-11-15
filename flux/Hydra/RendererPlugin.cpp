@@ -44,10 +44,8 @@ private:
             auto const plugin = pxr::PlugRegistry::GetInstance().GetPluginForType(
                 pxr::TfType::Find<HdFLuxRendererPlugin>()
             );
-            auto const mtlxRoot = std::filesystem::path{plugin->GetResourcePath()};
             return new HdFLuxRenderDelegate(
-                std::filesystem::path{plugin->GetPath()}.parent_path() / FLUX_OPTIX_IR_NAME,
-                mtlxRoot, settingsMap
+                std::filesystem::path{plugin->GetResourcePath()}, settingsMap
             );
         } catch (std::exception const &error) {
             flux::LogError(

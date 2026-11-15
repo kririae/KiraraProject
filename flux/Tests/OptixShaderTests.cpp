@@ -27,10 +27,6 @@
 #include "flux/Shading/Texture.h"
 #include "kira/Anyhow.h"
 
-#ifndef FLUX_TEST_OPTIX_IR
-#error "FLUX_TEST_OPTIX_IR must name the test OptiX IR module"
-#endif
-
 namespace {
 constexpr auto resolution = flux::Vec2u{16, 16};
 constexpr std::uint32_t samples = 16;
@@ -235,7 +231,7 @@ constexpr auto tangentDocument = R"mtlx(<?xml version="1.0"?>
     cameraProperties.set("fov", 60.0F);
     auto const camera = flux::Camera::create(cameraProperties);
 
-    flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
+    flux::OptixHandler handler(context);
     flux::OptixAccumulationBuffer buffer(
         handler, flux::FilmSpec{resolution, flux::FilmChannels::Color}
     );
@@ -268,7 +264,7 @@ constexpr auto tangentDocument = R"mtlx(<?xml version="1.0"?>
 [[nodiscard]] flux::Spectrum renderContextMean(
     flux::Ref<flux::Context> const &context, flux::Camera const &camera, std::uint32_t sampleCount
 ) {
-    flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
+    flux::OptixHandler handler(context);
     flux::OptixAccumulationBuffer buffer(
         handler, flux::FilmSpec{resolution, flux::FilmChannels::Color}
     );

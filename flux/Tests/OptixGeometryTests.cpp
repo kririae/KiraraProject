@@ -24,10 +24,6 @@
 #error "FLUX_TEST_FIXTURES_DIR must name the FLux test fixtures directory"
 #endif
 
-#ifndef FLUX_TEST_OPTIX_IR
-#error "FLUX_TEST_OPTIX_IR must name the test OptiX IR module"
-#endif
-
 #ifndef FLUX_TEST_OUTPUT_DIR
 #error "FLUX_TEST_OUTPUT_DIR must name the FLux test output directory"
 #endif
@@ -78,7 +74,7 @@ TEST(OptixGeometryTests, PreservesFilteredAlbedoUnderInstanceTransforms) {
     camera->setPosition({0.25F, 0.25F, 1.0F});
     camera->setLookAt({0.25F, 0.25F, 0.0F});
     camera->setVerticalFieldOfView(10.0F);
-    flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
+    flux::OptixHandler handler(context);
     flux::OptixAccumulationBuffer buffer(
         handler, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::Albedo}
     );
@@ -125,7 +121,7 @@ TEST(OptixGeometryTests, MaterializesSparseHostObjectsAsDenseInstances) {
     cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.0F});
     auto camera = flux::Camera::create(cameraProperties);
 
-    flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
+    flux::OptixHandler handler(context);
     flux::OptixAccumulationBuffer buffer(
         handler, flux::FilmSpec{flux::Vec2u{3, 1}, flux::FilmChannels::All}
     );
@@ -212,7 +208,7 @@ TEST(OptixGeometryTests, RendersDirectLightIntoColorChannel) {
     cameraProperties.set("look_at", flux::Vec3f{0.25F, 0.25F, 0.0F});
     cameraProperties.set("fov", 1.0F);
     auto camera = flux::Camera::create(cameraProperties);
-    flux::OptixHandler handler(context, std::filesystem::path(FLUX_TEST_OPTIX_IR));
+    flux::OptixHandler handler(context);
     flux::OptixAccumulationBuffer buffer(
         handler, flux::FilmSpec{flux::Vec2u{1, 1}, flux::FilmChannels::All}
     );

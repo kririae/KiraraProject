@@ -18,13 +18,10 @@ class Context;
 /// \brief The interface to configure the FLux's context from Hydra.
 class HdFLuxRenderDelegate final : public pxr::HdRenderDelegate {
 public:
-    /// \brief Creates a delegate that renders with the OptiX IR module at \p modulePath.
-    ///
     /// \param mtlxRoot The folder that holds the MaterialX \c libraries folder.
     /// \throw std::exception If the OptiX backend or the shader generator cannot start.
     HdFLuxRenderDelegate(
-        std::filesystem::path const &modulePath, std::filesystem::path const &mtlxRoot,
-        pxr::HdRenderSettingsMap const &settingsMap
+        std::filesystem::path const &mtlxRoot, pxr::HdRenderSettingsMap const &settingsMap
     );
     ~HdFLuxRenderDelegate() override;
 

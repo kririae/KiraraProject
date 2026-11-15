@@ -53,7 +53,7 @@ struct ScaleFilmChannels {
 } // namespace
 
 struct OptixHandler::pImpl final {
-    pImpl(Ref<Context> hostContext, std::filesystem::path const &modulePath, int deviceOrdinal);
+    pImpl(Ref<Context> hostContext, int deviceOrdinal, std::span<char const> megaKernelIr);
     ~pImpl();
 
     /// \brief Updates the OptiX scene from the host \c Context.
@@ -121,11 +121,11 @@ struct OptixHandler::pImpl final {
 };
 
 OptixHandler::pImpl::pImpl(
-    Ref<Context> hostContext, std::filesystem::path const &modulePath, int deviceOrdinal
+    Ref<Context> hostContext, int deviceOrdinal, std::span<char const> megaKernelIr
 )
     : context(requireContext(std::move(hostContext))), deviceSession(deviceOrdinal),
       cudaContextGuard(std::in_place, deviceSession.getPrimaryContext()),
-      optixContext(*context, deviceSession.get(), deletionQueue, modulePath) {
+      optixContext(*context, deviceSession.get(), deletionQueue, megaKernelIr) {
     chunkCounter.resize(1);
     sync();
     cudaContextGuard.reset();
@@ -168,9 +168,9 @@ void OptixHandler::pImpl::launch(OptixLaunchParams const &params, std::uint32_t 
 }
 
 OptixHandler::OptixHandler(
-    Ref<Context> context, std::filesystem::path const &modulePath, int deviceOrdinal
+    Ref<Context> context, int deviceOrdinal, std::span<char const> megaKernelIr
 )
-    : pImpl_(std::make_unique<pImpl>(std::move(context), modulePath, deviceOrdinal)) {}
+    : pImpl_(std::make_unique<pImpl>(std::move(context), deviceOrdinal, megaKernelIr)) {}
 
 OptixHandler::~OptixHandler() = default;
 

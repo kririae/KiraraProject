@@ -102,6 +102,7 @@ add_library(
     Optix/OptixHandler.cu
     Optix/OptixIas.cpp
     Optix/OptixLightSampler.cu
+    Optix/OptixMegaKernelIr.cpp
     Optix/OptixMegaKernelModule.cpp
     Optix/OptixProgram.cpp
     Optix/OptixSbt.cpp
@@ -212,7 +213,11 @@ set_target_properties(flux_megakernel_ir PROPERTIES CUDA_OPTIX_COMPILATION ON)
 target_include_directories(flux_megakernel_ir PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(flux_megakernel_ir PRIVATE kira::Vecteur OptiX::OptiX)
 target_compile_options(flux_megakernel_ir PRIVATE --use_fast_math)
-set(flux_optix_ir_name OptixMegaKernel.optixir)
+krr_embed(
+    flux flux::optixMegaKernelIrFiles
+    OUTPUT flux/Optix/OptixMegaKernelIrFiles.inc
+    BASE_DIR "$<PATH:GET_PARENT_PATH,$<TARGET_OBJECTS:flux_megakernel_ir>>"
+    FILES "$<TARGET_OBJECTS:flux_megakernel_ir>")
 
 # ----------------------------------------------------------
 # Warnings
