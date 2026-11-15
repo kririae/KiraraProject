@@ -11,6 +11,9 @@ if(NOT KRR_HFS)
 endif()
 set(Houdini_DIR "${KRR_HFS}/toolkit/cmake")
 find_package(Houdini CONFIG REQUIRED)
+if(NOT DEFINED _houdini_python_version)
+    message(FATAL_ERROR "The Houdini CMake package of ${KRR_HFS} names no Python version")
+endif()
 
 # hdFLux uses the NVRTC that Houdini ships.
 if(WIN32)
@@ -143,9 +146,6 @@ add_dependencies(hdFLux hdFLux_materialx_libraries)
 # ----------------------------------------------------------
 # Package
 # ----------------------------------------------------------
-if(NOT DEFINED _houdini_python_version)
-    message(FATAL_ERROR "The Houdini CMake package of ${KRR_HFS} names no Python version")
-endif()
 krr_add_package(
     hdFLux
     FILE_NAME
