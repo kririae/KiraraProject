@@ -126,12 +126,7 @@ string(TOLOWER "${CMAKE_SYSTEM_NAME}" packagePlatform)
 configure_file(flux.json.in "${CMAKE_CURRENT_BINARY_DIR}/packages/flux.json" @ONLY)
 
 set(resourceDir "${packageDir}/dso/usd_plugins/hdFLux/resources")
-add_custom_target(
-    hdFLux_materialx_libraries
-    COMMAND "${CMAKE_COMMAND}" -E copy_directory_if_different "${MATERIALX_STDLIB_DIR}"
-            "${resourceDir}/libraries"
-    VERBATIM)
-add_dependencies(hdFLux hdFLux_materialx_libraries)
+flux_copy_materialx_libraries(hdFLux "${resourceDir}/libraries")
 
 # ----------------------------------------------------------
 # Package

@@ -213,6 +213,15 @@ target_link_libraries(
     PRIVATE flux_warnings MaterialXCore MaterialXFormat MaterialXGenShader MaterialXGenSlang)
 get_filename_component(flux_materialx_root "${MATERIALX_STDLIB_DIR}" DIRECTORY)
 
+# Copies the MaterialX libraries to <dir> before <target> builds.
+function(flux_copy_materialx_libraries target dir)
+    add_custom_target(
+        ${target}_materialx_libraries
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory_if_different "${MATERIALX_STDLIB_DIR}" "${dir}"
+        VERBATIM)
+    add_dependencies(${target} ${target}_materialx_libraries)
+endfunction()
+
 # ----------------------------------------------------------
 # OptiX IR
 # ----------------------------------------------------------

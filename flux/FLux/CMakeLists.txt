@@ -21,12 +21,7 @@ set_target_properties(flux_cli PROPERTIES RUNTIME_OUTPUT_DIRECTORY
                                           "$<1:${layoutDir}/${CMAKE_INSTALL_BINDIR}>")
 target_compile_definitions(flux_cli PRIVATE FLUX_RELATIVE_MATERIALX_DIR="${dataFromBin}/materialx")
 
-add_custom_target(
-    flux_cli_materialx_libraries
-    COMMAND "${CMAKE_COMMAND}" -E copy_directory_if_different "${MATERIALX_STDLIB_DIR}"
-            "${layoutDir}/${dataDir}/materialx/libraries"
-    VERBATIM)
-add_dependencies(flux_cli flux_cli_materialx_libraries)
+flux_copy_materialx_libraries(flux_cli "${layoutDir}/${dataDir}/materialx/libraries")
 
 # ----------------------------------------------------------
 # Package
