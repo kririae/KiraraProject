@@ -19,6 +19,16 @@
     }
 
     parm {
+        name    "xn__fluxinteractiveSamplesPerLaunch_irb"
+        label   "Interactive Samples Per Launch"
+        type    int
+        size    1
+        default { 4 }
+        parmtag { "uiscope" "viewport" }
+        parmtag { "usdvaluetype" "int" }
+    }
+
+    parm {
         name    "xn__fluxmaxDepth_kva"
         label   "Max Depth"
         type    int
