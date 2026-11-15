@@ -35,7 +35,7 @@ target_compile_definitions(
 
 target_compile_definitions(
     flux.Hydra.RenderTests
-    PRIVATE HDFLUX_PLUGIN_PATH="${packageDir}/dso/usd_plugins"
+    PRIVATE HDFLUX_PLUGIN_PATH="$<TARGET_FILE_DIR:hdFLux>/../usd_plugins"
             HDFLUX_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/RenderTests")
 
 set_tests_properties(flux.Hydra.RenderTests PROPERTIES LABELS integration TIMEOUT 120

@@ -1,3 +1,6 @@
+# ----------------------------------------------------------
+# Houdini
+# ----------------------------------------------------------
 if((NOT WIN32 AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
    OR NOT CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|amd64|x86_64)$")
     message(FATAL_ERROR "The Hydra delegate requires x64 Windows or Linux")
@@ -31,6 +34,9 @@ foreach(library MaterialXCore MaterialXFormat pxr_hdMtlx)
                                                               "${houdini_${library}}")
 endforeach()
 
+# ----------------------------------------------------------
+# Library
+# ----------------------------------------------------------
 add_library(
     flux_hydra STATIC
     AovMapping.cpp
@@ -90,6 +96,9 @@ target_compile_options(flux_hydra PRIVATE $<$<CXX_COMPILER_FRONTEND_VARIANT:MSVC
 set_target_properties(flux_hydra PROPERTIES POSITION_INDEPENDENT_CODE ON CXX_VISIBILITY_PRESET hidden
                                             VISIBILITY_INLINES_HIDDEN ON)
 
+# ----------------------------------------------------------
+# Plugin
+# ----------------------------------------------------------
 add_library(hdFLux SHARED RendererPlugin.cpp)
 target_link_libraries(hdFLux PRIVATE flux_hydra)
 
@@ -107,26 +116,30 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_options(hdFLux PRIVATE "LINKER:--no-undefined")
 endif()
 
-# A Houdini package: Houdini loads the plugin from dso/usd and finds its Plug resources under
-# dso/usd_plugins.
-set(packageDir "${CMAKE_CURRENT_BINARY_DIR}/houdini")
+# ----------------------------------------------------------
+# Layout
+# ----------------------------------------------------------
+# houdiniDir holds the folder of the Houdini package as it is installed: Houdini loads the plugin
+# from dso/usd and finds its Plug resources under dso/usd_plugins.
+set(houdiniDir "${CMAKE_CURRENT_BINARY_DIR}/houdini")
+set(resourceDir "${houdiniDir}/dso/usd_plugins/hdFLux/resources")
+
 set_target_properties(
     hdFLux
     PROPERTIES PREFIX ""
-               LIBRARY_OUTPUT_DIRECTORY "$<1:${packageDir}/dso/usd>"
-               RUNTIME_OUTPUT_DIRECTORY "$<1:${packageDir}/dso/usd>")
+               LIBRARY_OUTPUT_DIRECTORY "$<1:${houdiniDir}/dso/usd>"
+               RUNTIME_OUTPUT_DIRECTORY "$<1:${houdiniDir}/dso/usd>")
 
-file(GENERATE OUTPUT "${packageDir}/dso/usd_plugins/hdFLux/resources/plugInfo.json"
-     INPUT plugInfo.json.in)
-file(WRITE "${packageDir}/dso/usd_plugins/plugInfo.json" "{ \"Includes\": [ \"*/resources/\" ] }\n")
-configure_file(UsdRenderers.json "${packageDir}/UsdRenderers.json" COPYONLY)
-configure_file(HdFLuxRendererPlugin_Viewport.ds
-               "${packageDir}/soho/parameters/HdFLuxRendererPlugin_Viewport.ds" COPYONLY)
-string(TOLOWER "${CMAKE_SYSTEM_NAME}" packagePlatform)
-configure_file(flux.json.in "${CMAKE_CURRENT_BINARY_DIR}/packages/flux.json" @ONLY)
-
-set(resourceDir "${packageDir}/dso/usd_plugins/hdFLux/resources")
+file(GENERATE OUTPUT "${resourceDir}/plugInfo.json" INPUT plugInfo.json.in)
+file(WRITE "${houdiniDir}/dso/usd_plugins/plugInfo.json" "{ \"Includes\": [ \"*/resources/\" ] }\n")
 flux_copy_materialx_libraries(hdFLux "${resourceDir}/libraries")
+configure_file(UsdRenderers.json "${houdiniDir}/UsdRenderers.json" COPYONLY)
+configure_file(HdFLuxRendererPlugin_Viewport.ds
+               "${houdiniDir}/soho/parameters/HdFLuxRendererPlugin_Viewport.ds" COPYONLY)
+
+string(TOLOWER "${CMAKE_SYSTEM_NAME}" houdiniOs)
+configure_file(flux.json.in "${CMAKE_CURRENT_BINARY_DIR}/packages/flux.json" @ONLY)
+configure_file(INSTALL.txt.in "${CMAKE_CURRENT_BINARY_DIR}/INSTALL.txt" @ONLY)
 
 # ----------------------------------------------------------
 # Package
@@ -143,19 +156,21 @@ install(TARGETS hdFLux
 install(IMPORTED_RUNTIME_ARTIFACTS slang::slang
         LIBRARY DESTINATION houdini/dso/usd COMPONENT hdFLux
         RUNTIME DESTINATION houdini/dso/usd COMPONENT hdFLux)
-install(FILES "${packageDir}/dso/usd_plugins/plugInfo.json"
+install(FILES "${houdiniDir}/dso/usd_plugins/plugInfo.json"
         DESTINATION houdini/dso/usd_plugins COMPONENT hdFLux)
 install(FILES "${resourceDir}/plugInfo.json"
         DESTINATION houdini/dso/usd_plugins/hdFLux/resources COMPONENT hdFLux)
 install(DIRECTORY "${MATERIALX_STDLIB_DIR}/"
         DESTINATION houdini/dso/usd_plugins/hdFLux/resources/libraries COMPONENT hdFLux)
-install(DIRECTORY "${packageDir}/soho/" DESTINATION houdini/soho COMPONENT hdFLux)
-install(FILES "${packageDir}/UsdRenderers.json" DESTINATION houdini COMPONENT hdFLux)
+install(DIRECTORY "${houdiniDir}/soho/" DESTINATION houdini/soho COMPONENT hdFLux)
+install(FILES "${houdiniDir}/UsdRenderers.json" DESTINATION houdini COMPONENT hdFLux)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/packages/flux.json"
         DESTINATION packages COMPONENT hdFLux)
-configure_file(INSTALL.txt.in "${CMAKE_CURRENT_BINARY_DIR}/INSTALL.txt" @ONLY)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/INSTALL.txt" DESTINATION . COMPONENT hdFLux)
 
+# ----------------------------------------------------------
+# Subdirectories
+# ----------------------------------------------------------
 if(KRR_BUILD_TESTS)
     add_subdirectory(Tests)
 endif()
