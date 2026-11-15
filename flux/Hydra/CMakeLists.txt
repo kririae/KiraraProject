@@ -12,6 +12,12 @@ endif()
 set(Houdini_DIR "${KRR_HFS}/toolkit/cmake")
 find_package(Houdini CONFIG REQUIRED)
 
+# hdFLux uses the NVRTC that Houdini ships.
+if(WIN32)
+    find_file(houdini_nvrtc "nvrtc64_${CUDAToolkit_VERSION_MAJOR}0_0.dll"
+              PATHS "${KRR_HFS}/bin" NO_DEFAULT_PATH NO_CACHE REQUIRED)
+endif()
+
 foreach(library MaterialXCore MaterialXFormat pxr_hdMtlx)
     find_library(houdini_${library}
                  NAMES ${library} lib${library}
