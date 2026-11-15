@@ -49,6 +49,16 @@ install(TARGETS flux_cli RUNTIME_DEPENDENCY_SET flux_cli_runtime
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT flux)
 install(DIRECTORY "${layoutDir}/${dataDir}/" DESTINATION ${dataDir} COMPONENT flux)
 
+set(runtimeDirs "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin")
+if(WIN32)
+    # NVRTC loads its builtins at run time.
+    find_file(nvrtcBuiltins "nvrtc-builtins64_${CUDAToolkit_VERSION_MAJOR}${CUDAToolkit_VERSION_MINOR}.dll"
+              PATHS "${CUDAToolkit_BIN_DIR}/x64" "${CUDAToolkit_BIN_DIR}" NO_DEFAULT_PATH NO_CACHE REQUIRED)
+    install(FILES "${nvrtcBuiltins}" DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT flux)
+    cmake_path(GET nvrtcBuiltins PARENT_PATH nvrtcDir)
+    list(APPEND runtimeDirs "${nvrtcDir}")
+endif()
+
 # The exclusions leave out the libraries of the system and the NVIDIA driver.
 if(POLICY CMP0207)
     cmake_policy(SET CMP0207 NEW)
@@ -56,15 +66,11 @@ endif()
 install(RUNTIME_DEPENDENCY_SET flux_cli_runtime
         PRE_EXCLUDE_REGEXES "^api-ms-" "^ext-ms-"
         POST_EXCLUDE_REGEXES "[/\\\\][Ss][Yy][Ss][Tt][Ee][Mm]32[/\\\\]" "^/lib" "^/usr/lib"
-        DIRECTORIES "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin" "${CUDAToolkit_BIN_DIR}"
+        DIRECTORIES ${runtimeDirs}
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT flux
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT flux)
 
 if(WIN32)
-    # Installs the builtins of NVRTC, which NVRTC loads at run time.
-    install(FILES "${CUDAToolkit_BIN_DIR}/nvrtc-builtins64_${CUDAToolkit_VERSION_MAJOR}${CUDAToolkit_VERSION_MINOR}.dll"
-            DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT flux)
-
     set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION ${CMAKE_INSTALL_BINDIR})
     set(CMAKE_INSTALL_SYSTEM_RUNTIME_COMPONENT flux)
     include(InstallRequiredSystemLibraries)
