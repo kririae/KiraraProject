@@ -14,8 +14,6 @@ if(CMAKE_CUDA_HOST_COMPILER_ID STREQUAL "MSVC")
     add_compile_definitions($<$<COMPILE_LANGUAGE:CUDA>:FMT_UNICODE=0>)
 endif()
 
-# With a static CUDA runtime, a plugin carries its own copy, which the runtime of a host application
-# can neither replace nor conflict with.
 set(CMAKE_CUDA_RUNTIME_LIBRARY Static)
 
 # ----------------------------------------------------------
@@ -237,8 +235,8 @@ target_compile_options(flux PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--use_fast_math>)
 # ----------------------------------------------------------
 # Licenses
 # ----------------------------------------------------------
-# Installs the license of FLux, and those of the code that it takes from vcpkg, rapidobj, OptiX, and
-# the CUDA Toolkit, into the package of <component>.
+# Installs the licenses of FLux and of the code that it takes from others into the package of
+# <component>.
 function(flux_install_licenses component)
     install(FILES "${KRR_ROOT_DIR}/LICENSE" DESTINATION . COMPONENT ${component})
     install(DIRECTORY "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/share/"

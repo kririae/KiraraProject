@@ -52,9 +52,6 @@ add_library(
     SampleSchedule.cpp
     Transform.cpp)
 
-# Houdini's Houdini target serves HDK plugins. It forces -std=c++17, which overrides the C++20 the
-# delegate is written in, and adds HDK definitions that the USD headers on Linux do not read. The
-# delegate takes only the target's include directories and links the USD libraries it calls.
 target_include_directories(flux_hydra SYSTEM
                            PUBLIC "$<TARGET_PROPERTY:Houdini,INTERFACE_INCLUDE_DIRECTORIES>")
 
@@ -103,9 +100,7 @@ target_link_libraries(hdFLux PRIVATE flux_hydra)
 # TF_REGISTRY_FUNCTION registers under the package name.
 target_compile_definitions(hdFLux PRIVATE MFB_PACKAGE_NAME=hdFLux MFB_ALT_PACKAGE_NAME=hdFLux)
 
-# The plugin exports no symbol. Plug registers it through static initializers and looks nothing up,
-# and an exported symbol could interpose on a library of the host or be preempted by one. Hidden
-# visibility also lets the compiler bind the plugin's calls to its own functions directly.
+# The plugin exports no symbol.
 set_target_properties(hdFLux PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -117,8 +112,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 # A Houdini package: Houdini loads the plugin from dso/usd and finds its Plug resources under
-# dso/usd_plugins. The generator expression keeps a multi-config generator from adding a
-# per-configuration directory, which plugInfo.json does not name.
+# dso/usd_plugins.
 set(packageDir "${CMAKE_CURRENT_BINARY_DIR}/houdini")
 set_target_properties(
     hdFLux

@@ -18,8 +18,7 @@ endif()
 # Layout
 # ----------------------------------------------------------
 # layoutDir holds flux and its resources as they are installed, and flux finds its resources
-# relative to itself. The generator expression keeps a multi-config generator from adding a
-# per-configuration directory.
+# relative to itself.
 set(layoutDir "${CMAKE_CURRENT_BINARY_DIR}/layout")
 set(dataDir "${CMAKE_INSTALL_DATADIR}/flux")
 file(RELATIVE_PATH dataFromBin "/${CMAKE_INSTALL_BINDIR}" "/${dataDir}")
@@ -51,7 +50,6 @@ install(DIRECTORY "${MATERIALX_STDLIB_DIR}/" DESTINATION ${dataDir}/materialx/li
 
 set(runtimeDirs "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin")
 if(WIN32)
-    # NVRTC loads its builtins at run time.
     find_file(nvrtcBuiltins "nvrtc-builtins64_${CUDAToolkit_VERSION_MAJOR}${CUDAToolkit_VERSION_MINOR}.dll"
               PATHS "${CUDAToolkit_BIN_DIR}/x64" "${CUDAToolkit_BIN_DIR}" NO_DEFAULT_PATH NO_CACHE REQUIRED)
     install(FILES "${nvrtcBuiltins}" DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT flux)
