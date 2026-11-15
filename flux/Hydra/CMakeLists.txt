@@ -76,7 +76,7 @@ target_compile_definitions(flux_hydra PUBLIC _GLIBCXX_PERMIT_BACKWARD_HASH)
 
 if(WIN32)
     target_compile_definitions(
-        flux_hydra PUBLIC NOMINMAX HBOOST_ALL_NO_LIB
+        flux_hydra PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN HBOOST_ALL_NO_LIB
                           _SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING)
 endif()
 if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
