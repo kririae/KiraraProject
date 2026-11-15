@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <thread>
 #include <vector>
 
 #include "flux/Hydra/Camera.h"
@@ -144,7 +145,12 @@ bool HdFLuxRenderer::IsConverged() const {
 }
 
 void HdFLuxRenderer::Render() noexcept try {
-    while (!renderThread_.IsStopRequested() && !param_.HasFailed()) {
+    while (true) {
+        while (renderThread_.IsPauseRequested() && !renderThread_.IsStopRequested())
+            std::this_thread::sleep_for(std::chrono::milliseconds{10});
+        if (renderThread_.IsStopRequested() || param_.HasFailed())
+            return;
+
         if (!isAtTarget())
             launch();
         writeOutputs();

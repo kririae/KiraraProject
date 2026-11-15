@@ -231,6 +231,18 @@ void HdFLuxRenderDelegate::CommitResources(pxr::HdChangeTracker *) try {
     context->clearDirty();
 } catch (...) { renderParam_->ReportFailure(); }
 
+bool HdFLuxRenderDelegate::IsPauseSupported() const { return true; }
+
+bool HdFLuxRenderDelegate::Pause() {
+    renderThread_.PauseRender();
+    return true;
+}
+
+bool HdFLuxRenderDelegate::Resume() {
+    renderThread_.ResumeRender();
+    return true;
+}
+
 void HdFLuxRenderDelegate::syncIntegrator(flux::Context &context) const {
     auto const maxDepth =
         getDepthSetting(*this, HdFLuxRenderSettingsTokens->maxDepth, defaultIntegrator_.maxDepth);

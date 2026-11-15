@@ -68,6 +68,10 @@ public:
 public:
     void CommitResources(pxr::HdChangeTracker *tracker) override;
 
+    bool IsPauseSupported() const override;
+    bool Pause() override;
+    bool Resume() override;
+
     pxr::HdAovDescriptor GetDefaultAovDescriptor(pxr::TfToken const &name) const override;
 
     pxr::HdRenderSettingDescriptorList GetRenderSettingDescriptors() const override;
