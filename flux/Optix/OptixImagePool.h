@@ -89,6 +89,16 @@ private:
         OptixImage image;
     };
 
+    /// \brief Copies the pixels of an image level into a CUDA array.
+    /// \param destination The array. The level must fit in it.
+    /// \param level The level. Kept alive until the copy finishes.
+    /// \param deletionQueue The copy runs on its stream.
+    /// \throw kira::Anyhow If CUDA fails.
+    static void copyToArray(
+        cudaArray_t destination, std::shared_ptr<ImageAsset::ImageBuffer const> level,
+        DeletionQueue &deletionQueue
+    );
+
     DeletionQueue &deletionQueue_;
     std::unordered_map<std::size_t, std::shared_ptr<Entry const>> entries_;
 };

@@ -3,43 +3,38 @@
 #include <tbb/parallel_for.h>
 
 #include <cstddef>
+#include <memory>
+#include <utility>
 #include <vector>
 
-#include "flux/Optix/DeviceBuffer.h"
 #include "flux/Scene/ImageAssetPImpl.h"
 
 namespace flux {
-namespace {
-/// \brief Copies rows of host bytes into a CUDA array.
-/// \param destination The array. The rows must fit in it.
-/// \param source The rows. Not used after the call returns.
-/// \param rowBytes The size of one row in bytes. Positive, and divides the size of \p source.
-/// \param deletionQueue The copy runs on its stream.
-/// \throw kira::Anyhow If CUDA fails.
-void copyToArray(
-    cudaArray_t destination, std::span<std::byte const> source, std::size_t rowBytes,
+void OptixImagePool::copyToArray(
+    cudaArray_t destination, std::shared_ptr<ImageAsset::ImageBuffer const> level,
     DeletionQueue &deletionQueue
 ) {
-    auto shared = detail::copyToShared(source);
+    auto const pixels = level->getPixels();
+    auto const height = std::size_t{level->extent.y()};
+    auto const rowBytes = pixels.size_bytes() / height;
 
     // clang-format off
     auto const error = cudaMemcpy2DToArrayAsync(
         /* dst =     */ destination,
         /* wOffset = */ 0,
         /* hOffset = */ 0,
-        /* src =     */ shared.get(),
+        /* src =     */ pixels.data(),
         /* spitch =  */ rowBytes,
         /* width =   */ rowBytes,
-        /* height =  */ source.size() / rowBytes,
+        /* height =  */ height,
         /* kind =    */ cudaMemcpyHostToDevice,
         /* stream =  */ deletionQueue.getStream()
     );
     // clang-format on
 
-    deletionQueue.deleteLater(std::move(shared));
+    deletionQueue.deleteLater(std::move(level));
     cudaCheck(error);
 }
-} // namespace
 
 OptixImagePool::~OptixImagePool() {
     // Uploads on the stream may still write the arrays.
@@ -61,13 +56,16 @@ void OptixImagePool::add(std::span<Ref<ImageAsset const> const> assets) {
 
         for (std::size_t index = 0; index < assets.size(); ++index) {
             auto const &asset = assets[index];
-            auto const &levels = mipChains[index];
-            auto const &image = levels.front();
+            auto &levels = mipChains[index];
+            auto const extent = levels.front().extent;
+            auto const componentCount = levels.front().componentCount;
+            auto const componentType = levels.front().componentType;
+            auto const colorSpace = levels.front().colorSpace;
 
             // Keep one- and two-component arrays compact.
             auto bits = 0;
             auto kind = cudaChannelFormatKindUnsigned;
-            switch (image.componentType) {
+            switch (componentType) {
             case ImageComponentType::UNorm8:
                 bits = 8;
                 kind = cudaChannelFormatKindUnsigned;
@@ -82,13 +80,13 @@ void OptixImagePool::add(std::span<Ref<ImageAsset const> const> assets) {
                 break;
             }
             auto const channelDesc = cudaCreateChannelDesc(
-                bits, image.componentCount >= 2 ? bits : 0, image.componentCount == 4 ? bits : 0,
-                image.componentCount == 4 ? bits : 0, kind
+                bits, componentCount >= 2 ? bits : 0, componentCount == 4 ? bits : 0,
+                componentCount == 4 ? bits : 0, kind
             );
 
             auto array = cudaMipmappedArray_t{};
             cudaCheck(cudaMallocMipmappedArray(
-                &array, &channelDesc, cudaExtent{image.extent.x(), image.extent.y(), 0},
+                &array, &channelDesc, cudaExtent{extent.x(), extent.y(), 0},
                 static_cast<unsigned int>(levels.size())
             ));
 
@@ -97,8 +95,8 @@ void OptixImagePool::add(std::span<Ref<ImageAsset const> const> assets) {
                     .owner = Array(array),
                     .image = {
                         .array = array,
-                        .componentType = image.componentType,
-                        .colorSpace = image.colorSpace,
+                        .componentType = componentType,
+                        .colorSpace = colorSpace,
                         .numLevels = static_cast<std::uint32_t>(levels.size()),
                         .componentCount = asset->getComponentCount(),
                     },
@@ -111,10 +109,9 @@ void OptixImagePool::add(std::span<Ref<ImageAsset const> const> assets) {
                     &levelArray, entry.image.array, static_cast<unsigned int>(level)
                 ));
 
-                auto const &levelImage = levels[level];
-                auto const levelPixels = levelImage.getPixels();
                 copyToArray(
-                    levelArray, levelPixels, levelPixels.size_bytes() / levelImage.extent.y(),
+                    levelArray,
+                    std::make_shared<ImageAsset::ImageBuffer const>(std::move(levels[level])),
                     deletionQueue_
                 );
             }
