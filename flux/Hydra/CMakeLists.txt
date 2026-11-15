@@ -132,16 +132,15 @@ add_custom_target(
     VERBATIM)
 add_dependencies(hdFLux hdFLux_materialx_libraries)
 
-set(moduleName OptixMegaKernel.optixir)
 add_custom_command(
-    OUTPUT "${packageDir}/dso/usd/${moduleName}"
+    OUTPUT "${packageDir}/dso/usd/${flux_optix_ir_name}"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_OBJECTS:flux_megakernel_ir>"
-            "${packageDir}/dso/usd/${moduleName}"
+            "${packageDir}/dso/usd/${flux_optix_ir_name}"
     DEPENDS flux_megakernel_ir "$<TARGET_OBJECTS:flux_megakernel_ir>"
     VERBATIM)
 
-target_sources(hdFLux PRIVATE "${packageDir}/dso/usd/${moduleName}")
-target_compile_definitions(hdFLux PRIVATE FLUX_OPTIX_IR_NAME="${moduleName}")
+target_sources(hdFLux PRIVATE "${packageDir}/dso/usd/${flux_optix_ir_name}")
+target_compile_definitions(hdFLux PRIVATE FLUX_OPTIX_IR_NAME="${flux_optix_ir_name}")
 
 if(KRR_BUILD_TESTS)
     add_subdirectory(Tests)

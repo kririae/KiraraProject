@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 
 #include "flux/Core/Math.h"
 #include "flux/Scene/Camera.h"
@@ -21,6 +22,8 @@ struct LoadedScene {
 };
 
 /// \brief Loads the TOML scene that \p options names.
+///
+/// \p mtlxRoot is the folder that holds the MaterialX \c libraries folder.
 ///
 /// \par BSDF properties
 /// - \c name: required string, which primitives use to refer to the BSDF.
@@ -43,5 +46,6 @@ struct LoadedScene {
 /// \par Film properties
 /// - \c resolution: required uint32 image resolution.
 /// - \c num_samples: optional uint32 target sample count, defaults to 1.
-[[nodiscard]] LoadedScene loadTomlScene(FLuxCLIOptions const &options);
+[[nodiscard]] LoadedScene
+loadTomlScene(FLuxCLIOptions const &options, std::filesystem::path const &mtlxRoot);
 } // namespace flux

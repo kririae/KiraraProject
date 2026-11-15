@@ -38,9 +38,8 @@ struct Material {
 };
 
 /// \brief Creates the \c Material of the \c file and \c material properties of \p props.
-[[nodiscard]] Material createMaterial(
-    TXContext &tx, std::optional<MtlxShaderGenerator> &generator, kira::Properties &props
-) {
+[[nodiscard]] Material
+createMaterial(TXContext &tx, MtlxShaderGenerator &generator, kira::Properties &props) {
     auto const type = props.use<std::string>("type");
     if (type != "materialx")
         throw kira::Anyhow("unsupported material type '{}'", type);
@@ -51,15 +50,13 @@ struct Material {
     if (!std::filesystem::exists(path))
         throw kira::Anyhow("MaterialX file '{}' does not exist", identifier);
 
-    if (!generator)
-        generator.emplace(FLUX_MATERIALX_DIR);
     auto stream = std::ifstream{path};
     if (!stream)
         throw kira::Anyhow("failed to read MaterialX file '{}'", identifier);
     auto const document =
         std::string{std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}};
 
-    auto generation = generator->generate(document, materialName, ResolvedPath{identifier});
+    auto generation = generator.generate(document, materialName, ResolvedPath{identifier});
     for (auto const &diagnostic : generation.diagnostics)
         LogWarn("{}", diagnostic);
     auto const &instance = generation.instance;
@@ -78,7 +75,7 @@ struct Material {
 }
 } // namespace
 
-LoadedScene loadTomlScene(FLuxCLIOptions const &options) {
+LoadedScene loadTomlScene(FLuxCLIOptions const &options, std::filesystem::path const &mtlxRoot) {
     auto const extension = options.scenePath.extension().string();
     if (extension != ".toml")
         throw kira::Anyhow("unsupported scene extension '{}'", extension);
@@ -138,7 +135,9 @@ LoadedScene loadTomlScene(FLuxCLIOptions const &options) {
             auto name = props.use<std::string>("name");
             if (materials.contains(name))
                 throw kira::Anyhow("duplicate material name '{}'", name);
-            materials.emplace(std::move(name), createMaterial(tx, mtlxGenerator, props));
+            if (!mtlxGenerator)
+                mtlxGenerator.emplace(mtlxRoot);
+            materials.emplace(std::move(name), createMaterial(tx, *mtlxGenerator, props));
         }
     }
 
