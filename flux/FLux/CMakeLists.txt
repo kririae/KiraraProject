@@ -4,8 +4,8 @@ include(GNUInstallDirs)
 # Program
 # ----------------------------------------------------------
 add_executable(flux_cli FLux.cpp FLuxCLI.cpp TomlScene.cpp)
-set_target_properties(flux_cli PROPERTIES OUTPUT_NAME flux ARCHIVE_OUTPUT_NAME flux_cli)
-target_compile_definitions(flux_cli PRIVATE "$<$<PLATFORM_ID:Windows>:NOMINMAX;WIN32_LEAN_AND_MEAN>")
+set_target_properties(flux_cli PROPERTIES OUTPUT_NAME flux)
+target_compile_definitions(flux_cli PRIVATE $<$<PLATFORM_ID:Windows>:WIN32_LEAN_AND_MEAN>)
 target_link_libraries(flux_cli PRIVATE argparse::argparse flux flux_mtlx)
 
 if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
