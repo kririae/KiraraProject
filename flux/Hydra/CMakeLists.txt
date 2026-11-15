@@ -158,8 +158,12 @@ install(TARGETS hdFLux
 install(IMPORTED_RUNTIME_ARTIFACTS slang::slang
         LIBRARY DESTINATION houdini/dso/usd COMPONENT hdFLux
         RUNTIME DESTINATION houdini/dso/usd COMPONENT hdFLux)
-install(DIRECTORY "${packageDir}/dso/usd_plugins/"
+install(FILES "${packageDir}/dso/usd_plugins/plugInfo.json"
         DESTINATION houdini/dso/usd_plugins COMPONENT hdFLux)
+install(FILES "${resourceDir}/plugInfo.json"
+        DESTINATION houdini/dso/usd_plugins/hdFLux/resources COMPONENT hdFLux)
+install(DIRECTORY "${MATERIALX_STDLIB_DIR}/"
+        DESTINATION houdini/dso/usd_plugins/hdFLux/resources/libraries COMPONENT hdFLux)
 install(DIRECTORY "${packageDir}/soho/" DESTINATION houdini/soho COMPONENT hdFLux)
 install(FILES "${packageDir}/UsdRenderers.json" DESTINATION houdini COMPONENT hdFLux)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/packages/flux.json"

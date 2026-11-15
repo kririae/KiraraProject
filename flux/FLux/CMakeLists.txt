@@ -47,7 +47,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 install(TARGETS flux_cli RUNTIME_DEPENDENCY_SET flux_cli_runtime
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT flux)
-install(DIRECTORY "${layoutDir}/${dataDir}/" DESTINATION ${dataDir} COMPONENT flux)
+install(DIRECTORY "${MATERIALX_STDLIB_DIR}/" DESTINATION ${dataDir}/materialx/libraries COMPONENT flux)
 
 set(runtimeDirs "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin")
 if(WIN32)
