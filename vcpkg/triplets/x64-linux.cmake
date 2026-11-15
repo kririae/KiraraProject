@@ -4,9 +4,9 @@ set(VCPKG_LIBRARY_LINKAGE static)
 
 set(VCPKG_CMAKE_SYSTEM_NAME Linux)
 
-# One process runs one oneTBB runtime. A host application such as Houdini loads its own, which
-# the core then shares through the dynamic library's soname.
-if(PORT STREQUAL "tbb")
+# One process runs one oneTBB and one MaterialX. A host application such as Houdini loads its own,
+# which the core then shares through the name of the dynamic library.
+if(PORT STREQUAL "materialx" OR PORT STREQUAL "tbb")
     set(VCPKG_LIBRARY_LINKAGE dynamic)
 endif()
 

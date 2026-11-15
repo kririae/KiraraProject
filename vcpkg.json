@@ -46,6 +46,11 @@
   },
   "overrides": [
     {
+      "$comment": "Houdini ships MaterialX 1.39.5, whose library names carry its version.",
+      "name": "materialx",
+      "version": "1.39.5"
+    },
+    {
       "$comment": "Houdini ships oneTBB 2022.1. Code built against newer TBB headers may not run on it.",
       "name": "tbb",
       "version": "2022.1.0"
