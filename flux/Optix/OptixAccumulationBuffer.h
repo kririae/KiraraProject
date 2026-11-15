@@ -19,8 +19,6 @@ class OptixHandler;
 /// Public operations do not need a current CUDA context.
 /// They leave the current CUDA context of the calling thread unchanged.
 ///
-/// For every pixel, each channel holds the mean of the samples in the buffer.
-///
 /// \warning Destroy the buffer before its session.
 /// \remark A buffer is not thread-safe.
 class OptixAccumulationBuffer final : private Noncopyable {
@@ -48,7 +46,12 @@ public:
     /// \brief Returns the spec that the buffer was built from.
     [[nodiscard]] FilmSpec getSpec() const noexcept;
 
-    /// \brief Copies the mean of the samples into \p film.
+    /// \brief Returns the device view of the channels of the buffer.
+    ///
+    /// The view stays valid until the buffer is destroyed.
+    [[nodiscard]] Film::Impl getImpl() noexcept;
+
+    /// \brief Copies the channels of the buffer into \p film.
     ///
     /// Waits until the copy is done.
     ///

@@ -31,7 +31,8 @@ enum class FilmChannels : std::uint32_t {
     Depth = 1U << 3U,
     ObjectId = 1U << 4U,
     InstanceId = 1U << 5U,
-    All = (1U << 0U) | (1U << 1U) | (1U << 2U) | (1U << 3U) | (1U << 4U) | (1U << 5U),
+    DenoisedColor = 1U << 6U,
+    All = (1U << 0U) | (1U << 1U) | (1U << 2U) | (1U << 3U) | (1U << 4U) | (1U << 5U) | (1U << 6U),
 };
 
 template <> inline constexpr bool isEnumFlags<FilmChannels> = true;
@@ -118,9 +119,22 @@ struct InstanceIdChannel {
     [[nodiscard]] static KIRA_HOST_DEVICE constexpr Value getClearValue() noexcept { return -1; }
 };
 
+/// \brief Describes the channel of the denoised color.
+///
+/// A pixel holds the result of the last denoise of the accumulation, or 0 before the first one.
+struct DenoisedColorChannel {
+    using Value = Spectrum;
+    static constexpr FilmChannels flag = FilmChannels::DenoisedColor;
+    static constexpr bool accumulates = false;
+    [[nodiscard]] static KIRA_HOST_DEVICE constexpr Value getClearValue() noexcept {
+        return Value{};
+    }
+};
+
 /// \brief Type list of all film channels supported by the renderer.
 using FilmChannelTypes = detail::TypeList<
-    ColorChannel, NormalChannel, AlbedoChannel, DepthChannel, ObjectIdChannel, InstanceIdChannel>;
+    ColorChannel, NormalChannel, AlbedoChannel, DepthChannel, ObjectIdChannel, InstanceIdChannel,
+    DenoisedColorChannel>;
 
 /// \brief Stores one channel-specific element for every type in \c Channels.
 ///

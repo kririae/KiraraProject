@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -14,6 +15,7 @@
 #include "flux/Integrator/PathIntegrator.h"
 #include "flux/Optix/OptixAccumulationBuffer.h"
 #include "flux/Optix/OptixDeviceSession.h"
+#include "flux/Optix/OptixFilmDenoiser.h"
 #include "flux/Optix/OptixHandler.h"
 #include "flux/Optix/OptixSbt.h"
 #include "flux/Sampling/Sampler.h"
@@ -424,6 +426,53 @@ TEST(OptixPipelineTests, RejectsADownloadIntoAFilmOfAnotherShape) {
     EXPECT_THROW(more.download(film), std::invalid_argument);
     EXPECT_EQ(film.getSpec().channels, flux::FilmChannels::Color);
     EXPECT_EQ(colorOf(film), expected);
+}
+
+TEST(OptixPipelineTests, DenoisesIntoTheDenoisedColorAndLeavesTheColorAlone) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    auto scene = makeNoisyScene();
+    flux::OptixDeviceSession const session{0};
+    flux::OptixHandler handler(session, scene.context);
+    constexpr auto spec = flux::FilmSpec{
+        flux::Vec2u{8, 8}, flux::FilmChannels::Color | flux::FilmChannels::Albedo |
+                               flux::FilmChannels::Normal | flux::FilmChannels::DenoisedColor
+    };
+    flux::OptixAccumulationBuffer buffer(session, spec);
+    flux::OptixFilmDenoiser denoiser(session, spec.resolution);
+    handler.render(*scene.camera, buffer, 4);
+    auto const noisy = downloadColor(buffer);
+
+    denoiser.denoise(buffer.getImpl());
+
+    flux::Film film{spec};
+    buffer.download(film);
+    auto const color = film.getChannel<flux::ColorChannel>();
+    EXPECT_EQ(std::vector(color.begin(), color.end()), noisy);
+    auto const denoised = film.getChannel<flux::DenoisedColorChannel>();
+    EXPECT_TRUE(std::ranges::any_of(denoised, [](flux::Spectrum const &value) {
+        return value != flux::Spectrum{};
+    }));
+}
+
+TEST(OptixPipelineTests, RejectsAFilmWithoutTheDenoisedColorOrOfAnotherResolution) {
+    if (!flux::test::hasCudaMemoryPoolSupport())
+        GTEST_SKIP() << "Stream-ordered CUDA allocation is unavailable";
+
+    flux::OptixDeviceSession const session{0};
+    flux::OptixFilmDenoiser denoiser(session, flux::Vec2u{8, 8});
+    auto const guides =
+        flux::FilmChannels::Color | flux::FilmChannels::Albedo | flux::FilmChannels::Normal;
+    flux::OptixAccumulationBuffer withoutDenoisedColor(
+        session, flux::FilmSpec{flux::Vec2u{8, 8}, guides}
+    );
+    flux::OptixAccumulationBuffer smaller(
+        session, flux::FilmSpec{flux::Vec2u{8, 4}, guides | flux::FilmChannels::DenoisedColor}
+    );
+
+    EXPECT_THROW(denoiser.denoise(withoutDenoisedColor.getImpl()), std::invalid_argument);
+    EXPECT_THROW(denoiser.denoise(smaller.getImpl()), std::invalid_argument);
 }
 
 TEST(OptixPipelineTests, RendersTheSameSamplesForAnyChunkSize) {

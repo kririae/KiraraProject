@@ -59,6 +59,8 @@ std::uint64_t OptixAccumulationBuffer::getSampleCount() const noexcept { return 
 
 FilmSpec OptixAccumulationBuffer::getSpec() const noexcept { return pImpl_->getSpec(); }
 
+Film::Impl OptixAccumulationBuffer::getImpl() noexcept { return pImpl_->film; }
+
 void OptixAccumulationBuffer::download(Film &film) {
     auto &impl = *pImpl_;
     if (film.getSpec() != impl.getSpec())

@@ -97,6 +97,7 @@ add_library(
     Optix/OptixShaderCompiler.cpp
     Optix/OptixContext.cpp
     Optix/OptixDeviceSession.cpp
+    Optix/OptixFilmDenoiser.cpp
     Optix/OptixGas.cpp
     Optix/OptixGeometryPool.cpp
     Optix/OptixHandler.cu
