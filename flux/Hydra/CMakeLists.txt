@@ -75,7 +75,7 @@ target_link_libraries(
            Houdini::Dep::pxr_vt
            Houdini::Dep::pxr_work
            Houdini::Dep::python${_houdini_python_version}
-    PRIVATE Eigen3::Eigen)
+    PRIVATE Eigen3::Eigen flux_warnings)
 
 # tf/hashset.h includes libstdc++'s deprecated <ext/hash_set>.
 target_compile_definitions(flux_hydra PUBLIC _GLIBCXX_PERMIT_BACKWARD_HASH)
@@ -85,11 +85,7 @@ if(WIN32)
         flux_hydra PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN HBOOST_ALL_NO_LIB
                           _SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING)
 endif()
-if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-    target_compile_options(flux_hydra PRIVATE /W4 /bigobj)
-else()
-    target_compile_options(flux_hydra PRIVATE -Wall -Wextra)
-endif()
+target_compile_options(flux_hydra PRIVATE $<$<CXX_COMPILER_FRONTEND_VARIANT:MSVC>:/bigobj>)
 
 set_target_properties(flux_hydra PROPERTIES POSITION_INDEPENDENT_CODE ON CXX_VISIBILITY_PRESET hidden
                                             VISIBILITY_INLINES_HIDDEN ON)

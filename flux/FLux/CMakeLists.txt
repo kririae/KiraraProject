@@ -6,13 +6,7 @@ include(GNUInstallDirs)
 add_executable(flux_cli FLux.cpp FLuxCLI.cpp TomlScene.cpp)
 set_target_properties(flux_cli PROPERTIES OUTPUT_NAME flux)
 target_compile_definitions(flux_cli PRIVATE $<$<PLATFORM_ID:Windows>:WIN32_LEAN_AND_MEAN>)
-target_link_libraries(flux_cli PRIVATE argparse::argparse flux flux_mtlx)
-
-if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-    target_compile_options(flux_cli PRIVATE /W4)
-else()
-    target_compile_options(flux_cli PRIVATE -Wall -Wextra)
-endif()
+target_link_libraries(flux_cli PRIVATE argparse::argparse flux flux_mtlx flux_warnings)
 
 # ----------------------------------------------------------
 # Layout

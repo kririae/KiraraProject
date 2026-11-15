@@ -63,6 +63,10 @@ add_compile_definitions(
     $<$<COMPILE_LANGUAGE:CUDA>:TOML_RETURN_BOOL_FROM_FOR_EACH_BROKEN=1>
     $<$<COMPILE_LANGUAGE:CUDA>:TOML_RETURN_BOOL_FROM_FOR_EACH_BROKEN_ACKNOWLEDGED>)
 
+add_library(flux_warnings INTERFACE)
+target_compile_options(
+    flux_warnings INTERFACE "$<$<COMPILE_LANGUAGE:CXX>:$<IF:$<CXX_COMPILER_FRONTEND_VARIANT:MSVC>,/W4,-Wall;-Wextra>>")
+
 # ----------------------------------------------------------
 # Libraries
 # ----------------------------------------------------------
@@ -73,6 +77,7 @@ target_include_directories(flux_oiio PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(
     flux_oiio
     PRIVATE CUDA::cudart_static
+            flux_warnings
             kira::Core
             kira::Vecteur
             OpenImageIO::OpenImageIO
@@ -154,10 +159,14 @@ target_link_libraries(
     PRIVATE CUDA::cuda_driver
             Eigen3::Eigen
             flux_oiio
+            flux_warnings
             rapidobj::rapidobj
             slang::slang
             TBB::tbb
             unofficial::miniply::miniply)
+target_compile_options(
+    flux PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:$<IF:$<CXX_COMPILER_FRONTEND_VARIANT:MSVC>,/fp:fast,-ffast-math>>"
+                 $<$<COMPILE_LANGUAGE:CUDA>:--use_fast_math>)
 
 if(WIN32)
     target_link_libraries(flux PRIVATE CUDA::nvrtc)
@@ -201,11 +210,11 @@ target_include_directories(flux_mtlx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(
     flux_mtlx
     PUBLIC kira::Core kira::Vecteur
-    PRIVATE MaterialXCore MaterialXFormat MaterialXGenShader MaterialXGenSlang)
+    PRIVATE flux_warnings MaterialXCore MaterialXFormat MaterialXGenShader MaterialXGenSlang)
 get_filename_component(flux_materialx_root "${MATERIALX_STDLIB_DIR}" DIRECTORY)
 
 # ----------------------------------------------------------
-# Programs
+# OptiX IR
 # ----------------------------------------------------------
 add_library(flux_megakernel_ir OBJECT Optix/OptixMegaKernel.cu)
 set_target_properties(flux_megakernel_ir PROPERTIES CUDA_OPTIX_COMPILATION ON)
@@ -217,20 +226,6 @@ krr_embed(
     OUTPUT flux/Optix/OptixMegaKernelIrFiles.inc
     BASE_DIR "$<PATH:GET_PARENT_PATH,$<TARGET_OBJECTS:flux_megakernel_ir>>"
     FILES "$<TARGET_OBJECTS:flux_megakernel_ir>")
-
-# ----------------------------------------------------------
-# Warnings
-# ----------------------------------------------------------
-if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-    target_compile_options(flux PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:/W4;/fp:fast>")
-    target_compile_options(flux_mtlx PRIVATE /W4)
-    target_compile_options(flux_oiio PRIVATE /W4)
-else()
-    target_compile_options(flux PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:-Wall;-Wextra;-ffast-math>")
-    target_compile_options(flux_mtlx PRIVATE -Wall -Wextra)
-    target_compile_options(flux_oiio PRIVATE -Wall -Wextra)
-endif()
-target_compile_options(flux PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--use_fast_math>)
 
 # ----------------------------------------------------------
 # Licenses
