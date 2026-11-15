@@ -10,6 +10,11 @@ function(add_hydra_test name)
     # The test builds against Houdini's USD.
     target_include_directories(flux.Hydra.${name} SYSTEM
                                PRIVATE "$<TARGET_PROPERTY:Houdini,INTERFACE_INCLUDE_DIRECTORIES>")
+
+    if(WIN32)
+        set_tests_properties(flux.Hydra.${name} PROPERTIES
+                             ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${KRR_HFS}/bin")
+    endif()
 endfunction()
 
 add_hydra_test(AovMappingTests)
