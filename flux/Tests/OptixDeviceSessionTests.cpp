@@ -79,7 +79,11 @@ TEST(OptixDeviceSessionTests, RestoresACallerCreatedContext) {
     CUdevice device{};
     flux::cuCheck(cuDeviceGet(&device, 0));
     CUcontext callerContext = nullptr;
+#if CUDA_VERSION >= 13000
     flux::cuCheck(cuCtxCreate(&callerContext, nullptr, 0, device));
+#else
+    flux::cuCheck(cuCtxCreate(&callerContext, 0, device));
+#endif
     ASSERT_EQ(getCurrentContext(), callerContext);
 
     expectHandlerLeavesCurrentContext(callerContext);
