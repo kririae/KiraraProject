@@ -166,13 +166,18 @@ target_link_libraries(
 target_link_libraries(
     flux
     PRIVATE CUDA::cuda_driver
-            CUDA::nvrtc
             Eigen3::Eigen
             flux_oiio
             rapidobj::rapidobj
             slang::slang
             TBB::tbb
             unofficial::miniply::miniply)
+
+if(WIN32)
+    target_link_libraries(flux PRIVATE CUDA::nvrtc)
+else()
+    target_link_libraries(flux PRIVATE CUDA::nvrtc_static)
+endif()
 
 if(MSVC AND (NOT DEFINED CMAKE_MSVC_RUNTIME_LIBRARY OR CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "DLL$"))
     target_link_options(flux INTERFACE "LINKER:/NODEFAULTLIB:LIBCMT")
