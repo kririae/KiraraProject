@@ -11,6 +11,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "flux/Hydra/AovMapping.h"
@@ -70,16 +71,31 @@ HdFLuxSampleSchedule makeSchedule(pxr::HdRenderDelegate const &delegate) {
     auto const batch =
         !delegate.GetRenderSetting<bool>(pxr::HdRenderSettingsTokens->enableInteractive, true) ||
         delegate.GetRenderSetting<std::string>(huskRenderMode, {}) == "batch";
+    auto const target = delegate.GetRenderSetting<int>(
+        pxr::HdRenderSettingsTokens->convergedSamplesPerPixel, HdFLuxDefaultConvergedSamplesPerPixel
+    );
+
+    std::optional<HdFLuxSampleSchedule::DenoiseCadence> denoiseCadence;
+    if (delegate.GetRenderSetting<bool>(HdFLuxRenderSettingsTokens->denoise, HdFLuxDefaultDenoise))
+        denoiseCadence = HdFLuxSampleSchedule::DenoiseCadence{
+            .startSample = batch ? target
+                                 : delegate.GetRenderSetting<int>(
+                                       HdFLuxRenderSettingsTokens->denoiseStartSample,
+                                       HdFLuxDefaultDenoiseStartSample
+                                   ),
+            .launchesPerDenoise = delegate.GetRenderSetting<int>(
+                HdFLuxRenderSettingsTokens->launchesPerDenoise, HdFLuxDefaultLaunchesPerDenoise
+            ),
+        };
+
     return {
-        delegate.GetRenderSetting<int>(
-            pxr::HdRenderSettingsTokens->convergedSamplesPerPixel,
-            HdFLuxDefaultConvergedSamplesPerPixel
-        ),
+        target,
         delegate.GetRenderSetting<int>(
             HdFLuxRenderSettingsTokens->interactiveSamplesPerLaunch,
             HdFLuxDefaultInteractiveSamplesPerLaunch
         ),
         batch ? HdFLuxSampleSchedule::Mode::Batch : HdFLuxSampleSchedule::Mode::Interactive,
+        denoiseCadence,
     };
 }
 
@@ -302,6 +318,15 @@ pxr::HdRenderSettingDescriptorList HdFLuxRenderDelegate::GetRenderSettingDescrip
         {.name = "Shader Execution Reordering",
          .key = HdFLuxRenderSettingsTokens->shaderReorder,
          .defaultValue = pxr::VtValue(defaultShaderReorder_)},
+        {.name = "Denoise",
+         .key = HdFLuxRenderSettingsTokens->denoise,
+         .defaultValue = pxr::VtValue(HdFLuxDefaultDenoise)},
+        {.name = "Denoise Start Sample",
+         .key = HdFLuxRenderSettingsTokens->denoiseStartSample,
+         .defaultValue = pxr::VtValue(HdFLuxDefaultDenoiseStartSample)},
+        {.name = "Launches Per Denoise",
+         .key = HdFLuxRenderSettingsTokens->launchesPerDenoise,
+         .defaultValue = pxr::VtValue(HdFLuxDefaultLaunchesPerDenoise)},
     };
 }
 

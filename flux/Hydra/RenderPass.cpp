@@ -27,7 +27,9 @@ struct PassRequest {
     std::vector<std::string> warnings;
 };
 
-[[nodiscard]] PassRequest makePassRequest(pxr::HdRenderPassState const &renderPassState) {
+[[nodiscard]] PassRequest makePassRequest(
+    pxr::HdRenderPassState const &renderPassState, HdFLuxSampleSchedule const &schedule
+) {
     PassRequest request;
     bool hasResolution{false};
 
@@ -75,6 +77,10 @@ struct PassRequest {
         request.outputs.push_back({buffer, channel, binding.clearValue});
     }
 
+    if (schedule.Denoises() && flux::any(request.spec.channels & flux::FilmChannels::Color))
+        request.spec.channels = request.spec.channels | flux::FilmChannels::Albedo |
+                                flux::FilmChannels::Normal | flux::FilmChannels::DenoisedColor;
+
     auto const *const camera = renderPassState.GetCamera();
     if (camera && camera->GetProjection() != pxr::HdCamera::Perspective) {
         request.warnings.emplace_back("An orthographic camera is not rendered");
@@ -99,7 +105,10 @@ bool HdFLuxRenderPass::IsConverged() const { return renderer_.IsConverged(); }
 void HdFLuxRenderPass::_Execute(
     pxr::HdRenderPassStateSharedPtr const &renderPassState, pxr::TfTokenVector const &
 ) try {
-    auto request = makePassRequest(*renderPassState);
+    auto const &delegate =
+        *static_cast<HdFLuxRenderDelegate *>(GetRenderIndex()->GetRenderDelegate());
+    auto const &schedule = delegate.GetSchedule();
+    auto request = makePassRequest(*renderPassState, schedule);
 
     if (request.warnings != warnings_) {
         for (auto const &warning : request.warnings)
@@ -107,7 +116,5 @@ void HdFLuxRenderPass::_Execute(
         warnings_ = std::move(request.warnings);
     }
 
-    auto const &delegate =
-        *static_cast<HdFLuxRenderDelegate *>(GetRenderIndex()->GetRenderDelegate());
-    renderer_.StartRender(request.spec, request.outputs, delegate.GetSchedule());
+    renderer_.StartRender(request.spec, request.outputs, schedule);
 } catch (...) { param_.ReportFailure(); }

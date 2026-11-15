@@ -72,4 +72,34 @@
         parmtag { "uiscope" "viewport" }
         parmtag { "usdvaluetype" "bool" }
     }
+
+    parm {
+        name    "xn__fluxdenoise_xta"
+        label   "Denoise"
+        type    toggle
+        size    1
+        default { 0 }
+        parmtag { "uiscope" "viewport" }
+        parmtag { "usdvaluetype" "bool" }
+    }
+
+    parm {
+        name    "xn__fluxdenoiseStartSample_ucb"
+        label   "Denoise Start Sample"
+        type    int
+        size    1
+        default { 2 }
+        parmtag { "uiscope" "viewport" }
+        parmtag { "usdvaluetype" "int" }
+    }
+
+    parm {
+        name    "xn__fluxlaunchesPerDenoise_ucb"
+        label   "Launches Per Denoise"
+        type    int
+        size    1
+        default { 4 }
+        parmtag { "uiscope" "viewport" }
+        parmtag { "usdvaluetype" "int" }
+    }
 }

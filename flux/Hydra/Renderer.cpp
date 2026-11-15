@@ -81,6 +81,9 @@ void writeChannel(
     case flux::FilmChannels::InstanceId:
         buffer.Write(film.getChannel<flux::InstanceIdChannel>());
         return;
+    case flux::FilmChannels::DenoisedColor:
+        buffer.Write(film.getChannel<flux::DenoisedColorChannel>());
+        return;
     default: return;
     }
 }
@@ -132,6 +135,7 @@ void HdFLuxRenderer::StartRender(
 
         schedule_ = schedule;
         outputs_.assign(outputs.begin(), outputs.end());
+        updateDenoiser();
         setConverged(false);
     }
 
@@ -154,7 +158,9 @@ void HdFLuxRenderer::Render() noexcept try {
 
         if (!isAtTarget())
             launch();
-        writeOutputs();
+        if (auto const publication = getPublication();
+            publication != HdFLuxSampleSchedule::Publication::None)
+            publish(publication);
         publishProgress();
 
         if (isAtTarget()) {
@@ -169,6 +175,17 @@ bool HdFLuxRenderer::isAtTarget() const {
            accumulation_->accumulationBuffer.getSampleCount() >= schedule_.GetTarget();
 }
 
+void HdFLuxRenderer::updateDenoiser() {
+    if (!accumulation_ || !flux::any(spec_.channels & flux::FilmChannels::DenoisedColor)) {
+        denoiser_.reset();
+        return;
+    }
+
+    if (!denoiser_ || !(denoiser_->getResolution() == spec_.resolution))
+        denoiser_ =
+            std::make_unique<flux::OptixFilmDenoiser>(param_.GetDeviceSession(), spec_.resolution);
+}
+
 void HdFLuxRenderer::launch() {
     auto &accumulation = *accumulation_;
     auto const pixelCount = std::uint64_t{spec_.resolution.x()} * spec_.resolution.y();
@@ -177,22 +194,49 @@ void HdFLuxRenderer::launch() {
 
     accumulation.stats +=
         param_.GetHandler().render(*accumulation.camera, accumulation.accumulationBuffer, count);
-    accumulation.accumulationBuffer.download(accumulation.film);
+    if (accumulation.launchesSinceDenoise)
+        ++*accumulation.launchesSinceDenoise;
 
     if (isAtTarget())
         accumulation.stats.log();
 }
 
-void HdFLuxRenderer::writeOutputs() const {
-    auto const hasSamples = accumulation_ && accumulation_->accumulationBuffer.getSampleCount() > 0;
+HdFLuxSampleSchedule::Publication HdFLuxRenderer::getPublication() const {
+    if (!denoiser_)
+        return HdFLuxSampleSchedule::Publication::Noisy;
+    return schedule_.GetPublication(
+        accumulation_->accumulationBuffer.getSampleCount(), accumulation_->launchesSinceDenoise
+    );
+}
 
-    for (auto const &output : outputs_)
-        if (hasSamples && output.channel != flux::FilmChannels::None)
-            writeChannel(
-                *output.buffer, accumulation_->film, output.channel, spec_.view->projection
-            );
-        else if (!output.clearValue.IsEmpty())
-            output.buffer->Clear(output.clearValue);
+void HdFLuxRenderer::publish(HdFLuxSampleSchedule::Publication publication) {
+    if (accumulation_) {
+        auto &accumulation = *accumulation_;
+        if (publication == HdFLuxSampleSchedule::Publication::Denoised) {
+            denoiser_->denoise(accumulation.accumulationBuffer.getImpl());
+            accumulation.launchesSinceDenoise = 0;
+        }
+        accumulation.accumulationBuffer.download(accumulation.film);
+    }
+    writeOutputs(publication);
+}
+
+void HdFLuxRenderer::writeOutputs(HdFLuxSampleSchedule::Publication publication) const {
+    auto const hasSamples = accumulation_ && accumulation_->accumulationBuffer.getSampleCount() > 0;
+    auto const color = publication == HdFLuxSampleSchedule::Publication::Denoised
+                           ? flux::FilmChannels::DenoisedColor
+                           : flux::FilmChannels::Color;
+
+    for (auto const &output : outputs_) {
+        if (!hasSamples || output.channel == flux::FilmChannels::None) {
+            if (!output.clearValue.IsEmpty())
+                output.buffer->Clear(output.clearValue);
+            continue;
+        }
+
+        auto const channel = output.channel == flux::FilmChannels::Color ? color : output.channel;
+        writeChannel(*output.buffer, accumulation_->film, channel, spec_.view->projection);
+    }
 }
 
 void HdFLuxRenderer::publishProgress() {
