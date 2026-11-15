@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Runs a command while it holds the lock of one GPU, so that GPU jobs never overlap.
 # The GPU is CUDA_VISIBLE_DEVICES, or 0. The command waits for the lock, and holds it until it and its children exit.
+# On Windows, the command runs without the lock.
 # Usage: tools/with-gpu.sh <command> [<argument>...]
 #        tools/with-gpu.sh --who
 set -euo pipefail
@@ -15,6 +16,17 @@ if [[ ! $gpu =~ ^[0-9]+$ ]]; then
     echo "CUDA_VISIBLE_DEVICES must name one GPU, not '$gpu'" >&2
     exit 2
 fi
+export CUDA_VISIBLE_DEVICES=$gpu
+
+case $(uname -s) in
+MINGW* | MSYS* | CYGWIN*)
+    if [[ $1 == --who ]]; then
+        echo "GPU $gpu has no lock on Windows"
+        exit 0
+    fi
+    exec "$@"
+    ;;
+esac
 
 # The lock file also records its holder.
 lock=${XDG_RUNTIME_DIR:-/tmp}/kirara-gpu-$gpu.lock
@@ -34,6 +46,4 @@ if ! flock --nonblock 9; then
     flock 9
 fi
 printf 'pid %s in %s since %s: %s\n' "$$" "$PWD" "$(date '+%F %T')" "$*" >"$lock"
-
-export CUDA_VISIBLE_DEVICES=$gpu
 exec "$@"
