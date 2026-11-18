@@ -37,23 +37,18 @@ install(TARGETS flux_cli RUNTIME_DEPENDENCY_SET flux_cli_runtime
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT flux)
 install(DIRECTORY "${MATERIALX_STDLIB_DIR}/" DESTINATION ${dataDir}/materialx/libraries COMPONENT flux)
 
-set(runtimeDirs "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin")
 if(WIN32)
-    find_file(nvrtcBuiltins "nvrtc-builtins64_${CUDAToolkit_VERSION_MAJOR}${CUDAToolkit_VERSION_MINOR}.dll"
-              PATHS "${CUDAToolkit_BIN_DIR}/x64" "${CUDAToolkit_BIN_DIR}" NO_DEFAULT_PATH NO_CACHE REQUIRED)
-    install(FILES "${nvrtcBuiltins}" DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT flux)
-    cmake_path(GET nvrtcBuiltins PARENT_PATH nvrtcDir)
-    list(APPEND runtimeDirs "${nvrtcDir}")
+    install(FILES ${nvrtcRuntime} DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT flux)
 endif()
 
 if(POLICY CMP0207)
     cmake_policy(SET CMP0207 NEW)
 endif()
-# The exclusions leave out the libraries of the system and the NVIDIA driver.
+# The exclusions leave out the libraries of the system, the NVIDIA driver, and NVRTC.
 install(RUNTIME_DEPENDENCY_SET flux_cli_runtime
-        PRE_EXCLUDE_REGEXES "^api-ms-" "^ext-ms-" "^nvcuda\\.dll$" "^libcuda\\.so"
+        PRE_EXCLUDE_REGEXES "^api-ms-" "^ext-ms-" "^nvcuda\\.dll$" "^libcuda\\.so" "^nvrtc"
         POST_EXCLUDE_REGEXES "[/\\\\][Ss][Yy][Ss][Tt][Ee][Mm]32[/\\\\]" "^/lib" "^/usr/lib"
-        DIRECTORIES ${runtimeDirs}
+        DIRECTORIES "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin"
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT flux
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT flux)
 

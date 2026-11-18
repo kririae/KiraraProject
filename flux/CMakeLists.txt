@@ -170,6 +170,14 @@ target_compile_options(
 
 if(WIN32)
     target_link_libraries(flux PRIVATE CUDA::nvrtc)
+
+    # nvrtcRuntime lists the DLLs of NVRTC that a binary linking flux loads.
+    set(nvrtcDirs "${CUDAToolkit_BIN_DIR}/x64" "${CUDAToolkit_BIN_DIR}")
+    find_file(nvrtcDll "nvrtc64_${CUDAToolkit_VERSION_MAJOR}0_0.dll"
+              PATHS ${nvrtcDirs} NO_DEFAULT_PATH NO_CACHE REQUIRED)
+    find_file(nvrtcBuiltinsDll "nvrtc-builtins64_${CUDAToolkit_VERSION_MAJOR}${CUDAToolkit_VERSION_MINOR}.dll"
+              PATHS ${nvrtcDirs} NO_DEFAULT_PATH NO_CACHE REQUIRED)
+    set(nvrtcRuntime "${nvrtcDll}" "${nvrtcBuiltinsDll}")
 else()
     target_link_libraries(flux PRIVATE CUDA::nvrtc_static)
 endif()
