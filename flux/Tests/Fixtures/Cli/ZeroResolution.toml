@@ -1,0 +1,4 @@
+[camera]
+[integrator]
+[film]
+resolution = [0, 2]

@@ -1,7 +1,10 @@
 include(CMakePackageConfigHelpers)
 project(kira LANGUAGES C CXX)
 
-set(_kira_modules Core GTestMain Geometry Vecteur)
+set(_kira_modules Core Geometry Vecteur)
+if(KRR_BUILD_TESTS)
+    list(APPEND _kira_modules GTestMain)
+endif()
 
 foreach(module ${_kira_modules})
     add_subdirectory(${module})

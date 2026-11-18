@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<materialx version="1.39">
+
+  <implementation name="IM_surfacematerial_genflux" nodedef="ND_surfacematerial" target="genflux"
+                  sourcecode="{{surfaceshader}}"/>
+
+  <!-- A geometric node: the expression reads the shell's `ctx` parameter by name. -->
+  <implementation name="IM_normal_vector3_genflux" nodedef="ND_normal_vector3" target="genflux"
+                  sourcecode="fluxGetWorldNormal(ctx)"/>
+  <implementation name="IM_tangent_vector3_genflux" nodedef="ND_tangent_vector3" target="genflux"
+                  sourcecode="fluxGetWorldTangent(ctx)"/>
+  <implementation name="IM_bitangent_vector3_genflux" nodedef="ND_bitangent_vector3" target="genflux"
+                  sourcecode="cross(fluxGetWorldNormal(ctx), fluxGetWorldTangent(ctx))"/>
+  <implementation name="IM_texcoord_vector2_genflux" nodedef="ND_texcoord_vector2" target="genflux"
+                  sourcecode="fluxGetTexCoord(ctx)"/>
+  <!-- The generator accepts only the geomprop that names the texture coordinates. -->
+  <implementation name="IM_geompropvalue_vector2_genflux" nodedef="ND_geompropvalue_vector2" target="genflux"
+                  sourcecode="fluxGetTexCoord(ctx)"/>
+
+  <!-- An image node samples the texture whose slot its `file` input holds. -->
+  <implementation name="IM_image_float_genflux" nodedef="ND_image_float" target="genflux"
+                  sourcecode="fluxSampleTexture(ctx, {{file}}, {{texcoord}}).r"/>
+  <implementation name="IM_image_color3_genflux" nodedef="ND_image_color3" target="genflux"
+                  sourcecode="fluxSampleTexture(ctx, {{file}}, {{texcoord}}).rgb"/>
+  <implementation name="IM_image_color4_genflux" nodedef="ND_image_color4" target="genflux"
+                  sourcecode="fluxSampleTexture(ctx, {{file}}, {{texcoord}})"/>
+  <implementation name="IM_image_vector2_genflux" nodedef="ND_image_vector2" target="genflux"
+                  sourcecode="fluxSampleTexture(ctx, {{file}}, {{texcoord}}).rg"/>
+  <implementation name="IM_image_vector3_genflux" nodedef="ND_image_vector3" target="genflux"
+                  sourcecode="fluxSampleTexture(ctx, {{file}}, {{texcoord}}).rgb"/>
+  <implementation name="IM_image_vector4_genflux" nodedef="ND_image_vector4" target="genflux"
+                  sourcecode="fluxSampleTexture(ctx, {{file}}, {{texcoord}})"/>
+
+</materialx>

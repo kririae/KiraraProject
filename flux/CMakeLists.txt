@@ -1,0 +1,274 @@
+# ----------------------------------------------------------
+# Language and CUDA runtime
+# ----------------------------------------------------------
+if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES AND "$ENV{CUDAARCHS}" STREQUAL "")
+    set(CMAKE_CUDA_ARCHITECTURES 75)
+endif()
+
+enable_language(CUDA)
+set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD})
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+
+if(CMAKE_CUDA_HOST_COMPILER_ID STREQUAL "MSVC")
+    add_compile_options($<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/Zc:preprocessor,/utf-8>)
+    add_compile_definitions($<$<COMPILE_LANGUAGE:CUDA>:FMT_UNICODE=0>)
+endif()
+
+set(CMAKE_CUDA_RUNTIME_LIBRARY Static)
+
+# ----------------------------------------------------------
+# Dependencies
+# ----------------------------------------------------------
+find_package(argparse CONFIG REQUIRED)
+find_package(CUDAToolkit REQUIRED)
+find_package(Eigen3 CONFIG REQUIRED)
+find_package(embree 4 REQUIRED)
+find_package(MaterialX 1.39.5 CONFIG REQUIRED)
+find_package(OpenImageIO CONFIG REQUIRED)
+find_package(slang CONFIG REQUIRED)
+find_package(TBB CONFIG REQUIRED)
+find_package(unofficial-miniply CONFIG REQUIRED)
+
+# ----------------------------------------------------------
+# Packages built from source
+# ----------------------------------------------------------
+CPMAddPackage(
+    NAME rapidobj
+    GITHUB_REPOSITORY guybrush77/rapidobj
+    GIT_TAG v1.1
+    GIT_SHALLOW TRUE
+    OPTIONS "CMAKE_POLICY_DEFAULT_CMP0159 NEW")
+
+CPMAddPackage(
+    NAME optix
+    GITHUB_REPOSITORY NVIDIA/optix-dev
+    GIT_TAG v9.1.0
+    GIT_SHALLOW TRUE
+    DOWNLOAD_ONLY YES)
+
+add_library(flux_optix_headers INTERFACE)
+add_library(OptiX::OptiX ALIAS flux_optix_headers)
+target_include_directories(flux_optix_headers SYSTEM INTERFACE "${optix_SOURCE_DIR}/include")
+target_compile_definitions(flux_optix_headers INTERFACE $<$<PLATFORM_ID:Windows>:NOMINMAX>)
+
+# ----------------------------------------------------------
+# Compiler options
+# ----------------------------------------------------------
+add_compile_options($<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+add_compile_definitions(
+    # CUDA 12.9 does not propagate CCCL's public int128 switch to this libcudacxx path.
+    $<$<COMPILE_LANGUAGE:CUDA>:_CCCL_DISABLE_INT128>
+    $<$<COMPILE_LANGUAGE:CUDA>:_LIBCUDACXX_HAS_NO_INT128>
+    # NVCC needs toml++'s fallback for compilers that cannot parse bool-returning for_each visitors.
+    $<$<COMPILE_LANGUAGE:CUDA>:TOML_RETURN_BOOL_FROM_FOR_EACH_BROKEN=1>
+    $<$<COMPILE_LANGUAGE:CUDA>:TOML_RETURN_BOOL_FROM_FOR_EACH_BROKEN_ACKNOWLEDGED>)
+
+add_library(flux_warnings INTERFACE)
+target_compile_options(
+    flux_warnings INTERFACE "$<$<COMPILE_LANGUAGE:CXX>:$<IF:$<CXX_COMPILER_FRONTEND_VARIANT:MSVC>,/W4,-Wall;-Wextra>>")
+
+# ----------------------------------------------------------
+# Libraries
+# ----------------------------------------------------------
+# Compile OIIO-backed image sources as host C++.
+add_library(flux_oiio STATIC Embree/EmbreeImageTexturePool.cpp IO/ImageIO.cpp Optix/OptixImagePool.cpp
+                             Scene/ImageAsset.cpp)
+target_include_directories(flux_oiio PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_link_libraries(
+    flux_oiio
+    PRIVATE CUDA::cudart_static
+            flux_warnings
+            kira::Core
+            kira::Vecteur
+            OpenImageIO::OpenImageIO
+            OptiX::OptiX)
+
+add_library(
+    flux STATIC
+    Core/Object.cpp
+    Core/RenderStats.cpp
+    Embree/EmbreeAccumulationBuffer.cpp
+    Embree/EmbreeContext.cpp
+    Embree/EmbreeHandler.cpp
+    Embree/EmbreeLightSampler.cpp
+    Embree/EmbreeMegaKernel.cpp
+    Integrator/PathIntegrator.cpp
+    Optix/DeletionQueue.cpp
+    Optix/OptixAccumulationBuffer.cu
+    Optix/OptixShaderModule.cpp
+    Optix/OptixShaderPool.cpp
+    Optix/OptixShaderCompiler.cpp
+    Optix/OptixContext.cpp
+    Optix/OptixDeviceSession.cpp
+    Optix/OptixFilmDenoiser.cpp
+    Optix/OptixGas.cpp
+    Optix/OptixGeometryPool.cpp
+    Optix/OptixHandler.cu
+    Optix/OptixIas.cpp
+    Optix/OptixLightSampler.cu
+    Optix/OptixMegaKernelIr.cpp
+    Optix/OptixMegaKernelModule.cpp
+    Optix/OptixProgram.cpp
+    Optix/OptixSbt.cpp
+    Optix/OptixTextureObject.cpp
+    Optix/SlangCompiler.cpp
+    Sampling/AliasTable.cpp
+    Sampling/Distribution2D.cpp
+    Sampling/LightPowerDistribution.cpp
+    Sampling/Sampler.cpp
+    Scene/Camera.cpp
+    Scene/Context.cpp
+    Scene/ContextIndexMap.cpp
+    Scene/EnvMapLight.cpp
+    Scene/Film.cpp
+    Scene/Geometry.cpp
+    Scene/Light.cpp
+    Scene/LightTableData.cpp
+    Scene/Primitive.cpp
+    Scene/RenderObject.cpp
+    Scene/SceneTableData.cpp
+    Scene/ShaderAsset.cpp
+    Scene/TriangleMesh.cpp
+    Scene/TXContext.cpp
+    Shading/BSDF.cpp
+    Shading/EDF.cpp
+    Shading/Texture.cpp)
+
+krr_embed(
+    flux flux::slangModules
+    OUTPUT flux/Optix/OptixSlangModules.inc
+    BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..
+    FILES Shading/flux-material.slang Optix/flux-context.slang Optix/flux-callable.slang)
+krr_embed(
+    flux flux::nvrtcHeaders
+    OUTPUT flux/Optix/OptixNvrtcHeaders.inc
+    BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..
+    FILES Optix/OptixShaderCallable.h Optix/OptixCallableLaunchParams.h Optix/OptixImageTexture.cuh
+          Optix/OptixImageTexture.h Scene/ImageComponentMapping.h)
+
+target_include_directories(flux PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_link_libraries(
+    flux
+    PUBLIC CUDA::cudart_static
+           embree
+           kira::Core
+           kira::Vecteur
+           OptiX::OptiX)
+target_link_libraries(
+    flux
+    PRIVATE CUDA::cuda_driver
+            Eigen3::Eigen
+            flux_oiio
+            flux_warnings
+            rapidobj::rapidobj
+            slang::slang
+            TBB::tbb
+            unofficial::miniply::miniply)
+target_compile_options(
+    flux PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:$<IF:$<CXX_COMPILER_FRONTEND_VARIANT:MSVC>,/fp:fast,-ffast-math>>"
+                 $<$<COMPILE_LANGUAGE:CUDA>:--use_fast_math>)
+
+if(WIN32)
+    target_link_libraries(flux PRIVATE CUDA::nvrtc)
+
+    # nvrtcRuntime lists the DLLs of NVRTC that a binary linking flux loads.
+    set(nvrtcDirs "${CUDAToolkit_BIN_DIR}/x64" "${CUDAToolkit_BIN_DIR}")
+    find_file(nvrtcDll "nvrtc64_${CUDAToolkit_VERSION_MAJOR}0_0.dll"
+              PATHS ${nvrtcDirs} NO_DEFAULT_PATH NO_CACHE REQUIRED)
+    find_file(nvrtcBuiltinsDll "nvrtc-builtins64_${CUDAToolkit_VERSION_MAJOR}${CUDAToolkit_VERSION_MINOR}.dll"
+              PATHS ${nvrtcDirs} NO_DEFAULT_PATH NO_CACHE REQUIRED)
+    set(nvrtcRuntime "${nvrtcDll}" "${nvrtcBuiltinsDll}")
+else()
+    target_link_libraries(flux PRIVATE CUDA::nvrtc_static)
+endif()
+
+if(MSVC AND (NOT DEFINED CMAKE_MSVC_RUNTIME_LIBRARY OR CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "DLL$"))
+    target_link_options(flux INTERFACE "LINKER:/NODEFAULTLIB:LIBCMT")
+endif()
+
+# ----------------------------------------------------------
+# MaterialX
+# ----------------------------------------------------------
+add_library(
+    flux_mtlx STATIC
+    Shading/Mtlx/FLuxShaderGenerator.cpp Shading/Mtlx/FLuxShaderGraphRefactor.cpp Shading/Mtlx/FLuxSourceCodeNode.cpp
+    Shading/Mtlx/MtlxShaderGenerator.cpp Shading/Mtlx/MtlxEmission.cpp)
+krr_embed(
+    flux_mtlx flux::mtlxLibraries
+    OUTPUT flux/Shading/Mtlx/MtlxLibraries.inc
+    BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..
+    FILES Shading/Mtlx/libraries/genflux.mtlx Shading/Mtlx/libraries/stdlib_genflux_impl.mtlx
+          Shading/Mtlx/libraries/pbrlib_genflux_impl.mtlx)
+krr_embed(
+    flux_mtlx flux::mtlxSlangLibraries
+    OUTPUT flux/Shading/Mtlx/MtlxSlangLibraries.inc
+    BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..
+    FILES Shading/Mtlx/libraries/mx-prelude.slang
+          Shading/Mtlx/libraries/mx-ggx-reflection-sampler.slang
+          Shading/Mtlx/libraries/mx-ggx-refraction-sampler.slang
+          Shading/Mtlx/libraries/mx-burley-diffuse-bsdf.slang
+          Shading/Mtlx/libraries/mx-conductor-bsdf.slang
+          Shading/Mtlx/libraries/mx-dielectric-bsdf.slang
+          Shading/Mtlx/libraries/mx-generalized-schlick-bsdf.slang
+          Shading/Mtlx/libraries/mx-oren-nayar-diffuse-bsdf.slang
+          Shading/Mtlx/libraries/mx-sheen-bsdf.slang
+          Shading/Mtlx/libraries/mx-subsurface-bsdf.slang
+          Shading/Mtlx/libraries/mx-translucent-bsdf.slang)
+target_include_directories(flux_mtlx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_link_libraries(
+    flux_mtlx
+    PUBLIC kira::Core kira::Vecteur
+    PRIVATE flux_warnings MaterialXCore MaterialXFormat MaterialXGenShader MaterialXGenSlang)
+get_filename_component(flux_materialx_root "${MATERIALX_STDLIB_DIR}" DIRECTORY)
+
+# Copies the MaterialX libraries to <dir> before <target> builds.
+function(flux_copy_materialx_libraries target dir)
+    add_custom_target(
+        ${target}_materialx_libraries
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory_if_different "${MATERIALX_STDLIB_DIR}" "${dir}"
+        VERBATIM)
+    add_dependencies(${target} ${target}_materialx_libraries)
+endfunction()
+
+# ----------------------------------------------------------
+# OptiX IR
+# ----------------------------------------------------------
+add_library(flux_megakernel_ir OBJECT Optix/OptixMegaKernel.cu)
+set_target_properties(flux_megakernel_ir PROPERTIES CUDA_OPTIX_COMPILATION ON)
+target_include_directories(flux_megakernel_ir PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_link_libraries(flux_megakernel_ir PRIVATE kira::Vecteur OptiX::OptiX)
+target_compile_options(flux_megakernel_ir PRIVATE --use_fast_math)
+krr_embed(
+    flux flux::optixMegaKernelIrFiles
+    OUTPUT flux/Optix/OptixMegaKernelIrFiles.inc
+    BASE_DIR "$<PATH:GET_PARENT_PATH,$<TARGET_OBJECTS:flux_megakernel_ir>>"
+    FILES "$<TARGET_OBJECTS:flux_megakernel_ir>")
+
+# ----------------------------------------------------------
+# Licenses
+# ----------------------------------------------------------
+# Installs the licenses of FLux and of the code that it takes from others into the package of
+# <component>.
+function(flux_install_licenses component)
+    install(FILES "${KRR_ROOT_DIR}/LICENSE" DESTINATION . COMPONENT ${component})
+    install(DIRECTORY "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/share/"
+            DESTINATION licenses/vcpkg COMPONENT ${component}
+            FILES_MATCHING PATTERN copyright)
+    install(FILES "${rapidobj_SOURCE_DIR}/LICENSE" DESTINATION licenses/rapidobj COMPONENT ${component})
+    install(FILES "${optix_SOURCE_DIR}/LICENSE.txt" "${optix_SOURCE_DIR}/license_info.txt"
+            DESTINATION licenses/optix COMPONENT ${component})
+    install(FILES "${CUDAToolkit_LIBRARY_ROOT}/EULA.txt" DESTINATION licenses/cuda COMPONENT ${component})
+endfunction()
+
+# ----------------------------------------------------------
+# Subdirectories
+# ----------------------------------------------------------
+add_subdirectory(FLux)
+
+if(KRR_BUILD_FLUX_HYDRA)
+    add_subdirectory(Hydra)
+endif()
+
+if(KRR_BUILD_TESTS)
+    add_subdirectory(Tests)
+endif()

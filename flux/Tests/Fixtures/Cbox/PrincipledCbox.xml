@@ -1,0 +1,74 @@
+<scene version="3.0.0">
+    <integrator type="path">
+        <integer name="max_depth" value="64"/>
+        <integer name="rr_depth" value="8"/>
+    </integrator>
+    <sensor type="perspective">
+        <float name="fov" value="19.5"/>
+        <string name="fov_axis" value="y"/>
+        <transform name="to_world">
+            <lookat origin="0,1,6.8" target="0,1,0" up="0,1,0"/>
+        </transform>
+        <sampler type="independent">
+            <integer name="sample_count" value="256"/>
+        </sampler>
+        <film type="hdrfilm">
+            <integer name="width" value="512"/>
+            <integer name="height" value="512"/>
+            <string name="pixel_format" value="rgb"/>
+            <string name="component_format" value="float32"/>
+            <rfilter type="box"/>
+        </film>
+    </sensor>
+    <bsdf type="principled" id="grey">
+        <rgb name="base_color" value="0.725,0.71,0.68"/>
+        <float name="roughness" value="0.5"/>
+        <float name="specular" value="0.5"/>
+    </bsdf>
+    <bsdf type="principled" id="green">
+        <rgb name="base_color" value="0.14,0.45,0.091"/>
+        <float name="roughness" value="0.5"/>
+        <float name="specular" value="0.5"/>
+    </bsdf>
+    <bsdf type="principled" id="red">
+        <rgb name="base_color" value="0.63,0.065,0.05"/>
+        <float name="roughness" value="0.5"/>
+        <float name="specular" value="0.5"/>
+    </bsdf>
+    <shape type="ply">
+        <string name="filename" value="geometry/light.ply"/>
+        <boolean name="face_normals" value="true"/>
+        <bsdf type="diffuse"><rgb name="reflectance" value="0,0,0"/></bsdf>
+        <emitter type="area"><rgb name="radiance" value="17,12,5"/></emitter>
+    </shape>
+    <shape type="ply">
+        <string name="filename" value="geometry/floor.ply"/>
+        <boolean name="face_normals" value="true"/>
+        <ref id="grey"/>
+    </shape>
+    <shape type="ply">
+        <string name="filename" value="geometry/left.ply"/>
+        <boolean name="face_normals" value="true"/>
+        <ref id="red"/>
+    </shape>
+    <shape type="ply">
+        <string name="filename" value="geometry/right.ply"/>
+        <boolean name="face_normals" value="true"/>
+        <ref id="green"/>
+    </shape>
+    <shape type="ply">
+        <string name="filename" value="geometry/ceiling.ply"/>
+        <boolean name="face_normals" value="true"/>
+        <ref id="grey"/>
+    </shape>
+    <shape type="ply">
+        <string name="filename" value="geometry/back.ply"/>
+        <boolean name="face_normals" value="true"/>
+        <ref id="grey"/>
+    </shape>
+    <shape type="ply">
+        <string name="filename" value="geometry/boxes.ply"/>
+        <boolean name="face_normals" value="true"/>
+        <ref id="grey"/>
+    </shape>
+</scene>

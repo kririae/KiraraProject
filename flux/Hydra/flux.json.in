@@ -1,0 +1,14 @@
+{
+    "enable": "houdini_version == '@Houdini_VERSION@' and houdini_os == '@houdiniOs@' and houdini_python == 'python@_houdini_python_version@'",
+    "hpath": "$HOUDINI_PACKAGE_PATH/../houdini",
+    "env": [
+        {
+            "PATH": {
+                "value": {
+                    "houdini_os == 'windows'": "$HOUDINI_PACKAGE_PATH/../houdini/dso/usd"
+                },
+                "method": "append"
+            }
+        }
+    ]
+}

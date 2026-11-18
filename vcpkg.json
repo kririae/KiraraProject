@@ -12,6 +12,26 @@
     "tomlplusplus"
   ],
   "features": {
+    "flux": {
+      "description": "Build the FLux renderer",
+      "dependencies": [
+        "argparse",
+        {
+          "name": "embree",
+          "default-features": false,
+          "features": [
+            "geometry-instance",
+            "geometry-triangle",
+            "tasking-tbb"
+          ]
+        },
+        "materialx",
+        "miniply",
+        "openimageio",
+        "shader-slang",
+        "tbb"
+      ]
+    },
     "kirara-dance": {
       "description": "Build kirara-dance",
       "dependencies": [
@@ -23,5 +43,17 @@
         "usd"
       ]
     }
-  }
+  },
+  "overrides": [
+    {
+      "$comment": "Houdini ships MaterialX 1.39.5, whose library names carry its version.",
+      "name": "materialx",
+      "version": "1.39.5"
+    },
+    {
+      "$comment": "Houdini ships oneTBB 2022.1. Code built against newer TBB headers may not run on it.",
+      "name": "tbb",
+      "version": "2022.1.0"
+    }
+  ]
 }

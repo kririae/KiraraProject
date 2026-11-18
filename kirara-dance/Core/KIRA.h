@@ -3,7 +3,6 @@
 #include <kira/Anyhow.h>
 #include <kira/Assertions.h>
 #include <kira/Compiler.h>
-#include <kira/FileResolver.h>
 #include <kira/Logger.h>
 
 namespace krd {

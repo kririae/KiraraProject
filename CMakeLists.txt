@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.27.4)
+cmake_minimum_required(VERSION 3.31)
 
 # ----------------------------------------------------------
 # User options
@@ -14,12 +14,7 @@ cmake_dependent_option(
     OFF)
 option(KRR_BUILD_FOR_NATIVE "Build with -march=native -mtune=native" OFF)
 
-cmake_dependent_option(
-    KRR_USE_MOLD
-    "Use mold as the linker"
-    OFF
-    "NOT KRR_BUILD_FOR_MACOS"
-    OFF)
+option(KRR_USE_MOLD "Use mold as the linker" OFF)
 
 option(KRR_ENABLE_LSAN "Enable LSAN (leak sanitizer)" OFF)
 option(KRR_ENABLE_ASAN "Enable ASAN (address sanitizer)" OFF)
@@ -29,6 +24,13 @@ option(KRR_ENABLE_CLANG_TIDY "Enable clang-tidy for analysis" OFF)
 
 # Optional modules
 option(KRR_BUILD_KIRARA_DANCE "Build the KiraraDance application" OFF)
+option(KRR_BUILD_FLUX "Build the FLux renderer" OFF)
+cmake_dependent_option(
+    KRR_BUILD_FLUX_HYDRA
+    "Build hdFLux, the Hydra render delegate of FLux"
+    OFF
+    "KRR_BUILD_FLUX"
+    OFF)
 
 # ----------------------------------------------------------
 # vcpkg setup
@@ -43,6 +45,10 @@ if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
             "${CMAKE_CURRENT_SOURCE_DIR}/external/vcpkg/scripts/buildsystems/vcpkg.cmake"
             CACHE STRING "vcpkg toolchain file")
     endif()
+endif()
+
+if(KRR_BUILD_FLUX)
+    list(APPEND VCPKG_MANIFEST_FEATURES flux)
 endif()
 
 if(KRR_BUILD_KIRARA_DANCE)
@@ -60,12 +66,15 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_PCH_WARN_INVALID ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_DISABLE_FIND_PACKAGE_Tiff ON)
+if(NOT DEFINED CMAKE_MSVC_DEBUG_INFORMATION_FORMAT)
+    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>")
+endif()
 
 set(KRR_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
-if(MSVC)
-    add_compile_options(/Zc:preprocessor)
-endif()
+add_compile_options($<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/Zc:preprocessor>)
 
 execute_process(
     WORKING_DIRECTORY ${KRR_ROOT_DIR}
@@ -77,17 +86,18 @@ execute_process(
     COMMAND git rev-parse HEAD
     RESULT_VARIABLE SHORT_HASH_RESULT
     OUTPUT_VARIABLE KRR_COMMIT_HASH)
-string(STRIP ${KRR_COMMIT_HASH} KRR_COMMIT_HASH)
-string(STRIP ${KRR_COMMIT_SHORT_HASH} KRR_COMMIT_SHORT_HASH)
+string(STRIP "${KRR_COMMIT_HASH}" KRR_COMMIT_HASH)
+string(STRIP "${KRR_COMMIT_SHORT_HASH}" KRR_COMMIT_SHORT_HASH)
 
 set(KRR_VERSION_MAJOR 0)
 set(KRR_VERSION_MINOR 0)
 set(KRR_VERSION_PATCH 1)
+set(KRR_VERSION "${KRR_VERSION_MAJOR}.${KRR_VERSION_MINOR}.${KRR_VERSION_PATCH}")
 
 message("╔════════════════════════════════════════════════════════════════════════════╗")
 message("║                               Kirara Project                               ║")
 message("╚════════════════════════════════════════════════════════════════════════════╝")
-message("Version:     ${KRR_VERSION_MAJOR}.${KRR_VERSION_MINOR}.${KRR_VERSION_PATCH}")
+message("Version:     ${KRR_VERSION}")
 message("Commit Hash: ${KRR_COMMIT_HASH}")
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -101,7 +111,9 @@ list(APPEND CMAKE_MODULE_PATH "${KRR_ROOT_DIR}/cmake" "${CMAKE_BINARY_DIR}")
 # ----------------------------------------------------------
 # Platform detection
 # ----------------------------------------------------------
+include(KRR_Embed)
 include(KRR_Message)
+include(KRR_Packaging)
 
 if(WIN32)
     set(KRR_BUILD_FOR_WINDOWS ON)
@@ -176,6 +188,12 @@ endif()
 # ----------------------------------------------------------
 add_subdirectory(kira)
 
+if(KRR_BUILD_FLUX)
+    add_subdirectory(flux)
+endif()
+
 if(KRR_BUILD_KIRARA_DANCE)
     add_subdirectory(kirara-dance2)
 endif()
+
+krr_configure_packages()

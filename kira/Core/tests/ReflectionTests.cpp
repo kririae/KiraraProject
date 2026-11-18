@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
 #include "kira/Anyhow.h"
-#include "kira/FileResolver.h"
 #include "kira/Reflection.h"
 #include "kira/SmallVector.h"
 
@@ -63,14 +62,6 @@ TEST(ReflectionTests, Anyhow) {
     auto str = Serialize(anyhow);
     auto st = Deserialize<Anyhow>(str).value();
     EXPECT_STREQ(anyhow.what(), st.what());
-}
-
-TEST(ReflectionTests, FileResolver) {
-    FileResolver fr;
-    fr.append("test1");
-    auto str = Serialize(fr);
-    auto st = Deserialize<FileResolver>(str).value();
-    EXPECT_EQ(fr.size(), st.size());
 }
 
 TEST(ReflectionTests, SmallVector) {

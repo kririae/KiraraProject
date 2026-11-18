@@ -1,17 +1,19 @@
-// clang-format off
-#define TOML_IMPLEMENTATION
 #include "kira/Properties.h"
-// clang-format on
 
 #include <fmt/format.h>
 
 #include <algorithm>
+#include <magic_enum/magic_enum.hpp>
 #include <sstream>
 #include <utility>
 
 #include "kira/Assertions.h"
 
 namespace kira {
+std::string_view toml_type_name(toml::node_type type) noexcept {
+    return magic_enum::enum_name(type);
+}
+
 namespace {
 std::optional<std::string>
 get_diagnostic_impl(toml::source_region const &region, auto const &sourceLines) {
@@ -41,7 +43,9 @@ get_diagnostic_impl(toml::source_region const &region, auto const &sourceLines) 
                 "{0:{1}} | {2}", "", lineNumberWidth, std::string(region.begin.column - 1, ' ')
             );
             if (lineNumber == region.end.line)
-                oss << std::string(region.end.column - region.begin.column, '^');
+                oss << std::string(
+                    std::max<std::size_t>(region.end.column - region.begin.column, 1), '^'
+                );
             else
                 oss << std::string(line.length() - region.begin.column + 1, '^');
             oss << '\n';
@@ -80,6 +84,19 @@ void erase_used_nodes(
 
 Properties::Properties() : root_{std::make_shared<detail::PropertiesRoot>()} {
     table_ = &root_->table;
+}
+
+Properties Properties::parse(std::string_view source, std::filesystem::path const &path) {
+    try {
+        return {toml::parse(source, path.string()), source};
+    } catch (toml::parse_error const &error) {
+        Properties diagnosticContext{toml::table{}, source};
+        throw Anyhow(
+            "Failed to parse TOML '{}': {} (line {}, column {}){}", path.string(),
+            error.description(), error.source().begin.line, error.source().begin.column,
+            diagnosticContext.get_diagnostic_(error.source()).value_or("")
+        );
+    }
 }
 
 Properties::Properties(toml::table table, std::string_view source)

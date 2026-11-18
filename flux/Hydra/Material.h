@@ -1,0 +1,52 @@
+#pragma once
+
+#include <pxr/imaging/hd/material.h>
+
+#include "flux/Core/Object.h"
+
+namespace flux {
+class BSDF;
+class EDF;
+class ShaderBSDF;
+class ShaderEDF;
+} // namespace flux
+
+class HdFLuxRenderParam;
+
+/// \brief A material of the scene, which gives a BSDF and an EDF.
+///
+/// Both keep their identity across syncs.
+class HdFLuxMaterial final : public pxr::HdMaterial {
+public:
+    explicit HdFLuxMaterial(pxr::SdfPath const &id);
+    ~HdFLuxMaterial() override;
+
+    void Sync(
+        pxr::HdSceneDelegate *sceneDelegate, pxr::HdRenderParam *renderParam,
+        pxr::HdDirtyBits *dirtyBits
+    ) override;
+
+    pxr::HdDirtyBits GetInitialDirtyBitsMask() const override;
+
+    [[nodiscard]] flux::Ref<flux::BSDF const> GetBSDF() const;
+
+    [[nodiscard]] flux::Ref<flux::EDF const> GetEDF() const;
+
+private:
+    /// Once it is set, \c edf_ is set too.
+    flux::Ref<flux::ShaderBSDF> bsdf_;
+    flux::Ref<flux::ShaderEDF> edf_;
+};
+
+/// \brief A network that a material synced, and the objects that take its shader.
+struct HdFLuxPendingMaterial {
+    pxr::SdfPath id;
+
+    /// It has no nodes if the scene gives the material no network.
+    pxr::HdMaterialNetwork2 network;
+
+    flux::Ref<flux::ShaderBSDF> bsdf;
+    flux::Ref<flux::ShaderEDF> edf;
+};
+
+void HdFLuxCommitMaterials(HdFLuxRenderParam &param);

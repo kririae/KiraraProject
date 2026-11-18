@@ -1,0 +1,151 @@
+#include "flux/Optix/OptixImagePool.h"
+
+#include <tbb/parallel_for.h>
+
+#include <cstddef>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "flux/Scene/ImageAssetPImpl.h"
+
+namespace flux {
+void OptixImagePool::copyToArray(
+    cudaArray_t destination, std::shared_ptr<ImageAsset::ImageBuffer const> level,
+    DeletionQueue &deletionQueue
+) {
+    auto const pixels = level->getPixels();
+    auto const height = std::size_t{level->extent.y()};
+    auto const rowBytes = pixels.size_bytes() / height;
+
+    // clang-format off
+    auto const error = cudaMemcpy2DToArrayAsync(
+        /* dst =     */ destination,
+        /* wOffset = */ 0,
+        /* hOffset = */ 0,
+        /* src =     */ pixels.data(),
+        /* spitch =  */ rowBytes,
+        /* width =   */ rowBytes,
+        /* height =  */ height,
+        /* kind =    */ cudaMemcpyHostToDevice,
+        /* stream =  */ deletionQueue.getStream()
+    );
+    // clang-format on
+
+    deletionQueue.deleteLater(std::move(level));
+    cudaCheck(error);
+}
+
+OptixImagePool::~OptixImagePool() {
+    // Uploads on the stream may still write the arrays.
+    for (auto &[id, entry] : entries_)
+        deletionQueue_.deleteLater(std::move(entry));
+}
+
+void OptixImagePool::add(std::span<Ref<ImageAsset const> const> assets) {
+    if (assets.empty())
+        return;
+
+    std::vector<std::shared_ptr<Entry const>> entries;
+    entries.reserve(assets.size());
+    try {
+        std::vector<std::vector<ImageAsset::ImageBuffer>> mipChains(assets.size());
+        tbb::parallel_for(std::size_t{0}, assets.size(), [&](std::size_t index) {
+            mipChains[index] = assets[index]->readMipChain();
+        });
+
+        for (std::size_t index = 0; index < assets.size(); ++index) {
+            auto const &asset = assets[index];
+            auto &levels = mipChains[index];
+            auto const extent = levels.front().extent;
+            auto const componentCount = levels.front().componentCount;
+            auto const componentType = levels.front().componentType;
+            auto const colorSpace = levels.front().colorSpace;
+
+            // Keep one- and two-component arrays compact.
+            auto bits = 0;
+            auto kind = cudaChannelFormatKindUnsigned;
+            switch (componentType) {
+            case ImageComponentType::UNorm8:
+                bits = 8;
+                kind = cudaChannelFormatKindUnsigned;
+                break;
+            case ImageComponentType::Float16:
+                bits = 16;
+                kind = cudaChannelFormatKindFloat;
+                break;
+            case ImageComponentType::Float32:
+                bits = 32;
+                kind = cudaChannelFormatKindFloat;
+                break;
+            }
+            auto const channelDesc = cudaCreateChannelDesc(
+                bits, componentCount >= 2 ? bits : 0, componentCount == 4 ? bits : 0,
+                componentCount == 4 ? bits : 0, kind
+            );
+
+            auto array = cudaMipmappedArray_t{};
+            cudaCheck(cudaMallocMipmappedArray(
+                &array, &channelDesc, cudaExtent{extent.x(), extent.y(), 0},
+                static_cast<unsigned int>(levels.size())
+            ));
+
+            auto const &entry = *entries.emplace_back(
+                std::make_shared<Entry const>(Entry{
+                    .owner = Array(array),
+                    .image = {
+                        .array = array,
+                        .componentType = componentType,
+                        .colorSpace = colorSpace,
+                        .numLevels = static_cast<std::uint32_t>(levels.size()),
+                        .componentCount = asset->getComponentCount(),
+                    },
+                })
+            );
+
+            for (auto level = std::size_t{}; level < levels.size(); ++level) {
+                auto levelArray = cudaArray_t{};
+                cudaCheck(cudaGetMipmappedArrayLevel(
+                    &levelArray, entry.image.array, static_cast<unsigned int>(level)
+                ));
+
+                copyToArray(
+                    levelArray,
+                    std::make_shared<ImageAsset::ImageBuffer const>(std::move(levels[level])),
+                    deletionQueue_
+                );
+            }
+        }
+
+        entries_.reserve(entries_.size() + entries.size());
+        for (std::size_t i = 0; i < entries.size(); ++i)
+            entries_.try_emplace(assets[i]->getId(), entries[i]);
+    } catch (...) {
+        // Uploads on the stream may still write the new arrays.
+        for (auto const &asset : assets)
+            entries_.erase(asset->getId());
+
+        for (auto &entry : entries)
+            deletionQueue_.deleteLater(std::move(entry));
+
+        throw;
+    }
+}
+
+void OptixImagePool::remove(std::span<std::size_t const> ids) {
+    // Uploads on the stream may still write the arrays.
+    for (auto const id : ids)
+        if (auto node = entries_.extract(id))
+            deletionQueue_.deleteLater(std::move(node.mapped()));
+}
+
+std::vector<std::size_t> OptixImagePool::getIds() const {
+    std::vector<std::size_t> ids;
+    ids.reserve(entries_.size());
+    for (auto const &[id, entry] : entries_)
+        ids.push_back(id);
+    return ids;
+}
+
+OptixImage OptixImagePool::getImpl(std::size_t id) const { return entries_.at(id)->image; }
+} // namespace flux

@@ -1,0 +1,113 @@
+diff --git a/src/libtexture/imagecache.cpp b/src/libtexture/imagecache.cpp
+index deaf583..f708ef3 100644
+--- a/src/libtexture/imagecache.cpp
++++ b/src/libtexture/imagecache.cpp
+@@ -1070,6 +1070,44 @@ ImageCacheFile::init_from_spec()
+ 
+ 
+ 
++namespace {
++
++bool
++apply_color_transform(ImageCacheImpl& imagecache, const TileID& id, int width,
++                      int height, void* data, TypeDesc format,
++                      stride_t xstride = AutoStride,
++                      stride_t ystride = AutoStride)
++{
++    if (id.colortransformid() <= 0)
++        return true;
++
++    int nchannels = id.chend() - id.chbegin();
++    ImageSpec spec(width, height, nchannels, format);
++    const ImageSpec& file_spec = id.file().spec(id.subimage());
++    for (int channel = 0; channel < nchannels; ++channel)
++        spec.channelnames[channel] = file_spec.channel_name(id.chbegin() + channel);
++    if (file_spec.alpha_channel >= id.chbegin()
++        && file_spec.alpha_channel < id.chend())
++        spec.alpha_channel = file_spec.alpha_channel - id.chbegin();
++    if (file_spec.z_channel >= id.chbegin() && file_spec.z_channel < id.chend())
++        spec.z_channel = file_spec.z_channel - id.chbegin();
++    image_span<std::byte> pixels(static_cast<std::byte*>(data), nchannels, width,
++                                 height, 1, format.size(), xstride, ystride,
++                                 AutoStride, format.size());
++    ImageBuf wrapper(spec, pixels);
++    return ImageBufAlgo::colorconvert(
++        wrapper, wrapper,
++        ColorConfig::default_colorconfig().getColorSpaceNameByIndex(
++            (id.colortransformid() >> 16) - 1),
++        imagecache.colorspace(), !imagecache.unassociatedalpha(), string_view(),
++        string_view(), nullptr,
++        ROI(), 1);
++}
++
++}  // namespace
++
++
++
+ bool
+ ImageCacheFile::read_tile(ImageCachePerThreadInfo* thread_info,
+                           const TileID& id, void* data)
+@@ -1138,20 +1167,8 @@ ImageCacheFile::read_tile(ImageCachePerThreadInfo* thread_info,
+         thread_info->m_stats.bytes_read += b;
+         m_bytesread += b;
+         ++m_tilesread;
+-        if (id.colortransformid() > 0) {
+-            // OIIO::print("CONVERT id {} {},{} to cs {}\n", filename(), id.x(), id.y(),
+-            //       id.colortransformid());
+-            ImageSpec tilespec(dims.tile_width, dims.tile_height,
+-                               dims.nchannels, format);
+-            ImageBuf wrapper(tilespec, make_cspan((const std::byte*)data,
+-                                                  tilespec.image_bytes()));
+-            ImageBufAlgo::colorconvert(
+-                wrapper, wrapper,
+-                ColorConfig::default_colorconfig().getColorSpaceNameByIndex(
+-                    (id.colortransformid() >> 16) - 1),
+-                m_imagecache.colorspace(), true, string_view(), string_view(),
+-                nullptr, ROI(), 1);
+-        }
++        ok = apply_color_transform(m_imagecache, id, dims.tile_width,
++                                   dims.tile_height, data, format);
+     }
+     return ok;
+ }
+@@ -1323,6 +1340,13 @@ ImageCacheFile::read_untiled(ImageCachePerThreadInfo* thread_info,
+         thread_info->m_stats.bytes_read += b;
+         m_bytesread += b;
+         ++m_tilesread;
++        // Transform the tile row before adding any of its tiles to the cache.
++        if (ok)
++            ok = apply_color_transform(m_imagecache, id, dims.width,
++                                       y1 - y0 + 1, buf.get(), format,
++                                       pixelsize, scanlinesize);
++        if (!ok)
++            return false;
+ 
+         // For all tiles in the tile-row, enter them into the cache if not
+         // already there.  Special case for the tile we're actually being
+@@ -1364,6 +1388,10 @@ ImageCacheFile::read_untiled(ImageCachePerThreadInfo* thread_info,
+         thread_info->m_stats.bytes_read += b;
+         m_bytesread += b;
+         ++m_tilesread;
++        if (ok)
++            ok = apply_color_transform(m_imagecache, id, dims.width,
++                                       dims.height, data, format, xstride,
++                                       ystride);
+         // If we read the whole image (and there are no other subimages),
+         // presumably we're done, so release the file handle.
+         if (subimages() == 1)
+diff --git a/testsuite/texture-colorspace/run.py b/testsuite/texture-colorspace/run.py
+index 4122901..9fe923f 100755
+--- a/testsuite/texture-colorspace/run.py
++++ b/testsuite/texture-colorspace/run.py
+@@ -12,6 +12,11 @@
+ # they can't match against each others' ref images.
+ 
+ command += oiiotool ("-pattern constant:color=0.5,0.5,0.5 64x64 3 -d uint8 -otex grey.exr")
++command += oiiotool ("-pattern constant:color=0.5,0.5,0.5 64x64 3 -d uint8 -o grey-scanline.exr")
+ command += testtex_command ("-res 64 64 --no-gettextureinfo --nowarp grey.exr -o nocc.exr")
+ command += testtex_command ("-res 60 60 --no-gettextureinfo --nowarp --texcolorspace sRGB grey.exr -o cc.exr")
++command += testtex_command ("-res 60 60 --no-gettextureinfo --nowarp --texcolorspace sRGB grey-scanline.exr -o cc-scanline.exr")
++command += testtex_command ("-res 60 60 --no-gettextureinfo --nowarp --autotile 64 --texcolorspace sRGB grey-scanline.exr -o cc-autotile.exr")
++command += oiio_app("idiff") + " -q cc.exr cc-scanline.exr ;\n"
++command += oiio_app("idiff") + " -q cc.exr cc-autotile.exr ;\n"
+ outputs = [ "nocc.exr", "cc.exr", "out.txt" ]

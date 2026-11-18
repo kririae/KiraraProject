@@ -1,15 +1,23 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstdlib>
 #include <span>
 
+#include "Traits.h"
 #include "kira/Anyhow.h"
 #include "kira/Compiler.h"
 
-#include "Traits.h"
-
 namespace kira::vecteur {
+/// Copies \p source to \p destination, converting each element to \p Scalar.
+template <typename Scalar, typename Range, typename Iterator>
+constexpr void copy_converted(Range const &source, Iterator destination) {
+    std::ranges::transform(source, destination, [](auto value) {
+        return static_cast<Scalar>(value);
+    });
+}
+
 //! NOTE(krr): Copy assignment matrix:
 //! | this \ rhs | static | dynamic | rvalue dynamic |
 //! |------------|--------|---------|----------------|
@@ -46,13 +54,18 @@ public:
             x = v;
     }
 
-    /// Construct a vector with the elements set to `ts...`.
-    template <typename... Ts>
-    constexpr VecteurStorage(Ts... ts)
-        requires(sizeof...(Ts) == Size)
-        : storage{static_cast<Scalar>(ts)...} {
+    /// Construct a vector with the elements set to `first` and `rest...`.
+    ///
+    /// \note The first element stands apart from the pack so that this is not a default constructor
+    /// ([class.default.ctor]), which MSVC would otherwise let suppress the zero-initialization of a
+    /// value-initialized object that inherits it.
+    template <typename First, typename... Rest>
+    constexpr VecteurStorage(First first, Rest... rest)
+        requires(1 + sizeof...(Rest) == Size)
+        : storage{static_cast<Scalar>(first), static_cast<Scalar>(rest)...} {
         static_assert(
-            std::conjunction_v<is_safely_convertible_t<Ts, Scalar>...>,
+            std::conjunction_v<
+                is_safely_convertible_t<First, Scalar>, is_safely_convertible_t<Rest, Scalar>...>,
             "The types of the arguments must be safely convertible to the scalar type."
         );
     }
@@ -64,7 +77,7 @@ public:
             "The types must be safely convertible to the scalar."
         );
 
-        std::copy_n(sp.begin(), this->size(), this->begin());
+        copy_converted<Scalar>(sp, this->begin());
     }
 
     /// Construct a vector with the elements from an array.
@@ -74,15 +87,11 @@ public:
             "The types must be safely convertible to the scalar."
         );
 
-        std::copy_n(arr.begin(), this->size(), this->begin());
+        copy_converted<Scalar>(arr, this->begin());
     }
 
     /// Construct a vector with the elements from another vector.
-    ///
-    /// \note The `explicit` here bans construction from other backends.
-    explicit constexpr VecteurStorage(VecteurStorage const &rhs) {
-        std::copy_n(rhs.begin(), this->size(), this->begin());
-    }
+    constexpr VecteurStorage(VecteurStorage const &) = default;
 
     /// Construct a vector with elements from another different-typed vector.
     ///
@@ -96,7 +105,7 @@ public:
             "The types must be safely convertible to the scalar."
         );
 
-        std::copy_n(rhs.begin(), this->size(), this->begin());
+        copy_converted<Scalar>(rhs, this->begin());
     }
 
     /// \}
@@ -107,10 +116,8 @@ public:
     // -----------------------------------------------------------------------------------------------------------------
     /// \{
 
-#if 0
     // (1) static from static
-    constexpr auto operator=(VecteurStorage const &rhs) = default;
-#endif
+    constexpr VecteurStorage &operator=(VecteurStorage const &) = default;
 
     // (1') static from static, different type
     template <is_leaf_vecteur RHS>
@@ -118,7 +125,7 @@ public:
         requires((not RHS::is_dynamic) and is_safely_convertible<typename RHS::Scalar, Scalar>)
     {
         static_assert(Size == RHS::Size, "The scalar types of the operands must be the same.");
-        std::copy_n(rhs.begin(), this->size(), this->begin());
+        copy_converted<Scalar>(rhs, this->begin());
         return *this;
     }
 
@@ -232,7 +239,7 @@ public:
     explicit constexpr VecteurStorage(std::span<RHS, ASize> sp)
         requires(is_safely_convertible<RHS, Scalar>)
         : VecteurStorage(sp.size()) {
-        std::copy_n(sp.begin(), this->size(), this->begin());
+        copy_converted<Scalar>(sp, this->begin());
     }
 
     /// Construct a vector with the elements from an array.
@@ -240,7 +247,7 @@ public:
     explicit constexpr VecteurStorage(std::array<RHS, ASize> const &arr)
         requires(is_safely_convertible<RHS, Scalar>)
         : VecteurStorage(arr.size()) {
-        std::copy_n(arr.begin(), this->size(), this->begin());
+        copy_converted<Scalar>(arr, this->begin());
     }
 
     /// Construct a vector with elements from another different-typed vector.
@@ -248,7 +255,7 @@ public:
     explicit constexpr VecteurStorage(RHS const &rhs)
         requires(is_safely_convertible<typename RHS::Scalar, Scalar>)
         : VecteurStorage(rhs.size()) {
-        std::copy_n(rhs.begin(), this->size(), this->begin());
+        copy_converted<Scalar>(rhs, this->begin());
     }
 
     /// \}
@@ -285,7 +292,7 @@ public:
     {
         if (this->size() != rhs.size())
             this->realloc(rhs.size());
-        std::copy_n(rhs.begin(), this->size(), this->begin());
+        copy_converted<Scalar>(rhs, this->begin());
         return *this;
     }
 
@@ -297,7 +304,7 @@ public:
         static_assert(not RHS::is_dynamic(), "The RHS must be a static vector.");
         if (this->size() != rhs.size())
             this->realloc(rhs.size());
-        std::copy_n(rhs.begin(), this->size(), this->begin());
+        copy_converted<Scalar>(rhs, this->begin());
         return *this;
     }
 

@@ -1,6 +1,13 @@
 #pragma once
 
+#if defined(__NVCC_DIAG_PRAGMA_SUPPORT__) && defined(_MSC_VER)
+#pragma nv_diagnostic push
+#pragma nv_diag_suppress 1388, 1394
+#endif
 #include <spdlog/spdlog.h>
+#if defined(__NVCC_DIAG_PRAGMA_SUPPORT__) && defined(_MSC_VER)
+#pragma nv_diagnostic pop
+#endif
 
 #include <filesystem>
 #include <source_location>

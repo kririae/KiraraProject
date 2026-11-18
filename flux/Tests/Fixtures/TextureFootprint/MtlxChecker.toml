@@ -1,0 +1,31 @@
+# Checker.toml with a MaterialX image node. The repeated image is smaller than a pixel. Its linear
+# mean is 0.5.
+[camera]
+position = [0.0, 0.0, 3.0]
+look_at = [0.0, 0.0, 0.0]
+ref_up = [0.0, 1.0, 0.0]
+fov = 32.0
+
+[film]
+resolution = [64, 64]
+num_samples = 1024
+
+[integrator]
+type = "path"
+max_depth = 2
+rr_depth = 8
+
+[envmap]
+scale = [1.0, 1.0, 1.0]
+
+[[material]]
+name = "checker"
+type = "materialx"
+file = "MtlxChecker.mtlx"
+material = "checker"
+
+[[primitive]]
+type = "trimesh"
+path = "../Shared/Geometry/CheckerPlane.ply"
+transform = [2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+material = "checker"

@@ -1,0 +1,40 @@
+#usda 1.0
+(
+    defaultPrim = "World"
+    upAxis = "Y"
+)
+
+def Xform "World"
+{
+    def Camera "Camera"
+    {
+        double3 xformOp:translate = (0, 0, 10)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+}
+
+def Scope "Render"
+{
+    def RenderSettings "Settings"
+    {
+        rel camera = </World/Camera>
+        int2 resolution = (64, 32)
+        rel products = </Render/Product>
+    }
+
+    def RenderProduct "Product"
+    {
+        token productName = "color.exr"
+        rel orderedVars = </Render/Vars/Color>
+    }
+
+    def Scope "Vars"
+    {
+        def RenderVar "Color"
+        {
+            string sourceName = "color"
+            token dataType = "color4f"
+            string driver:parameters:aov:name = "C"
+        }
+    }
+}

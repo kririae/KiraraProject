@@ -1,23 +1,24 @@
 #pragma once
 
+#ifndef __CUDACC__
 #include <hwy/highway.h>
-
-#include "kira/Compiler.h"
+#endif
 
 #include "Base.h"
 #include "Traits.h"
+#include "kira/Compiler.h"
 
 namespace kira::vecteur {
+#ifndef __CUDACC__
 namespace hn = hwy::HWY_NAMESPACE;
+#endif
 
-#if defined(__CUDA_ARCH__)
-/// A Fake a non-constexpr base when all implementations are not presented.
+#if defined(__CUDACC__)
+/// Use the constexpr implementation when compiling with CUDA.
 template <typename Scalar, std::size_t Size, typename Derived>
 struct VecteurImpl<Scalar, Size, VecteurBackend::Generic, false, Derived>
     : VecteurImpl<Scalar, Size, VecteurBackend::Generic, true, Derived> {
-    using Base = VecteurImpl<
-        Scalar, Size, VecteurBackend::Generic, true,
-        Vecteur<Scalar, Size, VecteurBackend::Generic>>;
+    using Base = VecteurImpl<Scalar, Size, VecteurBackend::Generic, true, Derived>;
     using Base::Base;
     using Base::operator=;
 };

@@ -6,7 +6,7 @@ include(KRR_Message)
 CPMAddPackage(
     NAME cmake-scripts
     GITHUB_REPOSITORY StableCoder/cmake-scripts
-    GIT_TAG "25.08")
+    GIT_TAG c012a75c255e57523c9e2faacd86356439318542)
 
 list(APPEND CMAKE_MODULE_PATH "${cmake-scripts_SOURCE_DIR}")
 

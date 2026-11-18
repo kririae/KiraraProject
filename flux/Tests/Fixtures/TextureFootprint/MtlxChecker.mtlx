@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<materialx version="1.39">
+  <image name="checker_image" type="color3">
+    <input name="file" type="filename" value="../Shared/Textures/Checker.png" />
+  </image>
+  <oren_nayar_diffuse_bsdf name="checker_bsdf" type="BSDF">
+    <input name="color" type="color3" nodename="checker_image" />
+    <input name="roughness" type="float" value="0" />
+  </oren_nayar_diffuse_bsdf>
+  <surface name="checker_surface" type="surfaceshader">
+    <input name="bsdf" type="BSDF" nodename="checker_bsdf" />
+  </surface>
+  <surfacematerial name="checker" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="checker_surface" />
+  </surfacematerial>
+</materialx>

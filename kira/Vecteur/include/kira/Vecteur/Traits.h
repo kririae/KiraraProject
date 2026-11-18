@@ -134,6 +134,8 @@ concept is_static_operable = ((LHS::Size == RHS::Size) || (LHS::Size == std::dyn
 
 template <is_vecteur LHS, is_vecteur RHS>
 constexpr auto CheckDynamicOperable(LHS const &lhs, RHS const &rhs) {
+    (void)(lhs);
+    (void)(rhs);
     if constexpr (LHS::is_dynamic() or RHS::is_dynamic()) {
         // You already use the dynamic vector, right?
         KIRA_ASSERT(

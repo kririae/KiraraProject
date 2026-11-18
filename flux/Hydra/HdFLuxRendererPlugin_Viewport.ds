@@ -1,0 +1,115 @@
+/// Display Options controls for the hdFLux render delegate.
+
+#include "$HFS/houdini/soho/parameters/CommonMacros.ds"
+
+{
+    name    "HdFLuxRendererPlugin"
+    label   "FLux"
+    parmtag { spare_opfilter "!!SHOP/PROPERTIES!!" }
+    parmtag { spare_classtags "render" }
+
+    parm {
+        name    "convergedSamplesPerPixel"
+        label   "Converged Samples Per Pixel"
+        type    int
+        size    1
+        default { 128 }
+        parmtag { "uiscope" "viewport" }
+        parmtag { "usdvaluetype" "int" }
+    }
+
+    parm {
+        name    "xn__fluxinteractiveSamplesPerLaunch_irb"
+        label   "Interactive Samples Per Launch"
+        type    int
+        size    1
+        default { 4 }
+        parmtag { "uiscope" "viewport" }
+        parmtag { "usdvaluetype" "int" }
+    }
+
+    parm {
+        name    "xn__fluxmaxDepth_kva"
+        label   "Max Depth"
+        type    int
+        size    1
+        default { 8 }
+        parmtag { "uiscope" "viewport" }
+        parmtag { "usdvaluetype" "int" }
+    }
+
+    parm {
+        name    "xn__fluxrrDepth_xta"
+        label   "Russian Roulette Depth"
+        type    int
+        size    1
+        default { 2 }
+        parmtag { "uiscope" "viewport" }
+        parmtag { "usdvaluetype" "int" }
+    }
+
+    parm {
+        name    "xn__fluxrrProb_bsa"
+        label   "Russian Roulette Probability"
+        type    float
+        size    1
+        default { 0.95 }
+        range   { 0! 1! }
+        parmtag { "uiscope" "viewport" }
+        parmtag { "usdvaluetype" "float" }
+    }
+
+    parm {
+        name    "xn__fluxsampler_xta"
+        label   "Sampler"
+        type    string
+        size    1
+        default { "independent" }
+        parmtag { "uiscope" "viewport" }
+        parmtag { "usdvaluetype" "token" }
+        menu {
+            "independent" "Independent"
+            "sobol"       "Sobol"
+        }
+    }
+
+    parm {
+        name    "xn__fluxshaderReorder_p3a"
+        label   "Shader Execution Reordering"
+        type    toggle
+        size    1
+        default { 0 }
+        parmtag { "uiscope" "viewport" }
+        parmtag { "usdvaluetype" "bool" }
+    }
+
+    parm {
+        name    "xn__fluxdenoise_xta"
+        label   "Denoise"
+        type    toggle
+        size    1
+        default { 0 }
+        parmtag { "uiscope" "viewport" }
+        parmtag { "usdvaluetype" "bool" }
+    }
+
+    parm {
+        name    "xn__fluxdenoiseStartSample_ucb"
+        label   "Denoise Start Sample"
+        type    int
+        size    1
+        default { 2 }
+        parmtag { "uiscope" "viewport" }
+        parmtag { "usdvaluetype" "int" }
+    }
+
+    parm {
+        name    "xn__fluxlaunchesPerDenoise_ucb"
+        label   "Launches Per Denoise"
+        type    int
+        size    1
+        default { 4 }
+        parmtag { "uiscope" "viewport" }
+        parmtag { "usdvaluetype" "int" }
+    }
+}

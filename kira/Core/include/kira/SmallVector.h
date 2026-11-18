@@ -69,13 +69,15 @@ protected:
         : BeginX(FirstEl), Capacity(static_cast<Size_T>(TotalCapacity)) {}
 
     /// This is a helper for \a grow() that's out of line to reduce code
-    /// duplication.  This function will report a fatal error if it can't grow at
-    /// least to \p MinSize.
+    /// duplication.  This function throws std::length_error if it can't grow at
+    /// least to \p MinSize, and std::bad_alloc if the allocation fails.
+    /// The elements are kept then.
     void *mallocForGrow(void *FirstEl, size_t MinSize, size_t TSize, size_t &NewCapacity);
 
     /// This is an implementation of the grow() method which only works
     /// on POD-like data types and is out of line to reduce code duplication.
-    /// This function will report a fatal error if it cannot increase capacity.
+    /// This function throws std::length_error if it cannot increase capacity,
+    /// and std::bad_alloc if the allocation fails. The elements are kept then.
     void grow_pod(void *FirstEl, size_t MinSize, size_t TSize);
 
     /// If vector was first created with capacity 0, getFirstEl() points to the
@@ -123,8 +125,9 @@ using SmallVectorSizeType =
 
 /// Figure out the offset of the first element.
 template <class T, typename = void> struct SmallVectorAlignmentAndSize {
-    alignas(SmallVectorBase<
-            SmallVectorSizeType<T>>) char Base[sizeof(SmallVectorBase<SmallVectorSizeType<T>>)];
+    alignas(
+        SmallVectorBase<SmallVectorSizeType<T>>
+    ) char Base[sizeof(SmallVectorBase<SmallVectorSizeType<T>>)];
     alignas(T) char FirstEl[sizeof(T)];
 };
 
@@ -1234,7 +1237,9 @@ public:
         return *this;
     }
 
-    SmallVector(SmallVector &&RHS) : SmallVectorImpl<T>(N) {
+    // SmallVector<T, 0> is empty or owns remote storage. A same-type move
+    // transfers that storage.
+    SmallVector(SmallVector &&RHS) noexcept(N == 0) : SmallVectorImpl<T>(N) {
         if (!RHS.empty())
             SmallVectorImpl<T>::operator=(::std::move(RHS));
     }
@@ -1244,13 +1249,13 @@ public:
             SmallVectorImpl<T>::operator=(::std::move(RHS));
     }
 
-    SmallVector &operator=(SmallVector &&RHS) {
+    SmallVector &
+    operator=(SmallVector &&RHS) noexcept(N == 0 && std::is_nothrow_destructible_v<T>) {
         if (N) {
             SmallVectorImpl<T>::operator=(::std::move(RHS));
             return *this;
         }
-        // SmallVectorImpl<T>::operator= does not leverage N==0. Optimize the
-        // case.
+        // Transfer remote storage directly when N == 0.
         if (this == &RHS)
             return *this;
         if (RHS.empty()) {
@@ -1318,10 +1323,5 @@ inline void swap(kira::SmallVectorImpl<T> &LHS, kira::SmallVectorImpl<T> &RHS) {
     LHS.swap(RHS);
 }
 
-/// Implement std::swap in terms of SmallVector swap.
-template <typename T, unsigned N>
-inline void swap(kira::SmallVector<T, N> &LHS, kira::SmallVector<T, N> &RHS) {
-    LHS.swap(RHS);
-}
 } // end namespace std
 // NOLINTEND

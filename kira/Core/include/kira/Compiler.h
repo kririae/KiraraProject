@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdlib>
+
 namespace kira {
 /// \brief Cherry-picked useful macros from LLVM and some elsewhere.
 /// \{
@@ -29,6 +31,14 @@ namespace kira {
 #else
 #define KIRA_HAS_CPP_ATTRIBUTE(x) 0
 #endif
+#endif
+
+#if defined(__CUDACC__)
+#define KIRA_DEVICE      __device__
+#define KIRA_HOST_DEVICE __host__ __device__
+#else
+#define KIRA_DEVICE
+#define KIRA_HOST_DEVICE
 #endif
 
 #if __has_builtin(__builtin_expect) || defined(__GNUC__)
@@ -82,6 +92,16 @@ namespace kira {
 #define KIRA_ASSUME(expr) __builtin_assume(expr)
 #elif defined(_MSC_VER)
 #define KIRA_ASSUME(expr) __assume(expr)
+#endif
+
+#if defined(__CUDA_ARCH__) || __has_builtin(__builtin_unreachable) || defined(__GNUC__)
+#define KIRA_UNREACHABLE() __builtin_unreachable()
+#elif defined(__NVCC__) && defined(_MSC_VER)
+#define KIRA_UNREACHABLE() ::std::abort()
+#elif defined(_MSC_VER)
+#define KIRA_UNREACHABLE() __assume(false)
+#else
+#define KIRA_UNREACHABLE() ((void)0)
 #endif
 /// \}
 } // namespace kira
