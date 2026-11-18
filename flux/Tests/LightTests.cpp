@@ -12,14 +12,15 @@
 
 namespace {
 struct UVTextureEvaluator {
-    [[nodiscard]] static flux::Vec4f
-    eval4f(std::uint32_t, flux::Vec2f uv, flux::Vec2f const &, flux::Vec2f const &) noexcept {
+    [[nodiscard]] static flux::Vec4f evalImageTexture(
+        std::uint32_t, flux::Vec2f uv, flux::Vec2f const &, flux::Vec2f const &
+    ) noexcept {
         return {uv.x(), uv.y(), 0.0F, 1.0F};
     }
 };
 
 struct GradientTextureEvaluator {
-    [[nodiscard]] static flux::Vec4f eval4f(
+    [[nodiscard]] static flux::Vec4f evalImageTexture(
         std::uint32_t, flux::Vec2f, flux::Vec2f const &duvdx, flux::Vec2f const &duvdy
     ) noexcept {
         return {duvdx.x(), duvdy.y(), 0.0F, 1.0F};

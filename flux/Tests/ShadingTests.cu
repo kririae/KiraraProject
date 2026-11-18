@@ -22,12 +22,13 @@
 
 namespace {
 struct TestImageTextureEvaluator {
-    [[nodiscard]] KIRA_HOST_DEVICE static flux::Vec4f
-    eval4f(std::uint32_t index, flux::Vec2f uv, flux::Vec2f const &, flux::Vec2f const &) noexcept {
+    [[nodiscard]] KIRA_HOST_DEVICE static flux::Vec4f evalImageTexture(
+        std::uint32_t index, flux::Vec2f uv, flux::Vec2f const &, flux::Vec2f const &
+    ) noexcept {
         return {static_cast<float>(index) + uv.x(), uv.y(), 3.0F, 4.0F};
     }
 
-    [[nodiscard]] KIRA_HOST_DEVICE static flux::BSDFResult execute(
+    [[nodiscard]] KIRA_HOST_DEVICE static flux::BSDFResult executeShaderBSDF(
         std::uint32_t, flux::ShadingContext const &, flux::Vec3f const &, flux::Vec3f const &, bool,
         float, flux::Vec2f const &
     ) noexcept {

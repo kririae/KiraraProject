@@ -256,7 +256,9 @@ struct Texture::Impl {
         if (type == TextureType::Constant)
             return storage.constant.eval4f(ctx);
         if (type == TextureType::Image)
-            return Evaluator::eval4f(storage.image.imageTextureIndex, ctx.uv, ctx.duvdx, ctx.duvdy);
+            return Evaluator::evalImageTexture(
+                storage.image.imageTextureIndex, ctx.uv, ctx.duvdx, ctx.duvdy
+            );
         KIRA_UNREACHABLE();
     }
 };

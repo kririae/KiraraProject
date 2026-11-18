@@ -18,7 +18,7 @@ __constant__ flux::OptixLaunchParams optixLaunchParams{};
 
 namespace {
 struct OptixEvaluator {
-    [[nodiscard]] KIRA_DEVICE static flux::Vec4f eval4f(
+    [[nodiscard]] KIRA_DEVICE static flux::Vec4f evalImageTexture(
         std::uint32_t index, flux::Vec2f uv, flux::Vec2f const &duvdx, flux::Vec2f const &duvdy
     ) noexcept {
         auto const &texture = optixLaunchParams.callable.imageTextures.getTexture(index);
@@ -30,7 +30,7 @@ struct OptixEvaluator {
     }
 
     /// \brief Runs the callable of the shader EDF at EDF index \p index.
-    [[nodiscard]] KIRA_DEVICE static flux::Spectrum evaluate(
+    [[nodiscard]] KIRA_DEVICE static flux::Spectrum evaluateShaderEDF(
         std::uint32_t index, flux::Vec2f const &uv, flux::Vec3f const &normal, flux::Vec3f const &wo
     ) noexcept {
         auto const binding = optixLaunchParams.scene.shaderEDFBindings[index];
@@ -44,7 +44,7 @@ struct OptixEvaluator {
     }
 
     /// \brief Runs the callable of the shader BSDF at BSDF index \p index.
-    [[nodiscard]] KIRA_DEVICE static flux::BSDFResult execute(
+    [[nodiscard]] KIRA_DEVICE static flux::BSDFResult executeShaderBSDF(
         std::uint32_t index, flux::ShadingContext const &ctx, flux::Vec3f const &wo,
         flux::Vec3f const &wi, bool eval, float u1, flux::Vec2f const &u2
     ) noexcept {

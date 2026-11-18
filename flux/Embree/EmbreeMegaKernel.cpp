@@ -14,7 +14,7 @@
 namespace flux::embree {
 struct EmbreeEvaluator {
     /// Never runs: sync throws on a scene with a shader BSDF.
-    [[noreturn]] static BSDFResult execute(
+    [[noreturn]] static BSDFResult executeShaderBSDF(
         std::uint32_t, ShadingContext const &, Vec3f const &, Vec3f const &, bool, float,
         Vec2f const &
     ) noexcept {
@@ -23,12 +23,13 @@ struct EmbreeEvaluator {
 
     /// Never runs: sync throws on a scene with a shader EDF.
     [[noreturn]] static Spectrum
-    evaluate(std::uint32_t, Vec2f const &, Vec3f const &, Vec3f const &) noexcept {
+    evaluateShaderEDF(std::uint32_t, Vec2f const &, Vec3f const &, Vec3f const &) noexcept {
         std::abort();
     }
 
-    [[nodiscard]] static Vec4f
-    eval4f(std::uint32_t index, Vec2f uv, Vec2f const &duvdx, Vec2f const &duvdy) noexcept {
+    [[nodiscard]] static Vec4f evalImageTexture(
+        std::uint32_t index, Vec2f uv, Vec2f const &duvdx, Vec2f const &duvdy
+    ) noexcept {
         return getLaunchParams().scene.imageTexturePool.eval4f(index, uv, duvdx, duvdy);
     }
 };

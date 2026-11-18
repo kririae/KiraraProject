@@ -28,7 +28,7 @@ KIRA_HOST_DEVICE inline BSDFResult BSDF::Dispatcher::execute(
     else if (selectedType == BSDFType::Principled)
         return bsdf.storage.principled.template execute<Evaluator>(ctx, wo, wi, eval, u1, u2);
     else if (selectedType == BSDFType::Shader)
-        return Evaluator::execute(bsdf.storage.shader.index, ctx, wo, wi, eval, u1, u2);
+        return Evaluator::executeShaderBSDF(bsdf.storage.shader.index, ctx, wo, wi, eval, u1, u2);
     KIRA_UNREACHABLE();
 }
 

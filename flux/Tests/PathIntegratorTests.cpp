@@ -21,7 +21,7 @@ struct EmitterHitContext {
 
 /// An evaluator for a scene without a shader EDF.
 struct NoShaderEvaluator {
-    [[nodiscard]] static flux::Spectrum evaluate(
+    [[nodiscard]] static flux::Spectrum evaluateShaderEDF(
         std::uint32_t, flux::Vec2f const &, flux::Vec3f const &, flux::Vec3f const &
     ) noexcept {
         return {};

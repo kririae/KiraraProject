@@ -202,8 +202,8 @@ public:
     /// \pre \p wo is normalized.
     /// \pre \c types contains \p edf's implementation type, or is empty.
     ///
-    /// A shader EDF runs through \c Evaluator::evaluate, which takes the EDF index of the shader
-    /// EDF, the uv and the shading normal of \p isect, and \p wo.
+    /// A shader EDF runs through \c Evaluator::evaluateShaderEDF, which takes the EDF index of the
+    /// shader EDF, the uv and the shading normal of \p isect, and \p wo.
     template <typename Evaluator>
     [[nodiscard]] KIRA_HOST_DEVICE Spectrum evaluate(
         EDF::Impl const &edf, SurfaceInteraction const &isect, Vec3f const &wo
@@ -219,7 +219,9 @@ public:
                 {.geometricNormal = isect.geometricNormal, .wo = wo}
             );
         else if (selectedType == EDFType::Shader)
-            return Evaluator::evaluate(edf.storage.shader.index, isect.uv, isect.shadingNormal, wo);
+            return Evaluator::evaluateShaderEDF(
+                edf.storage.shader.index, isect.uv, isect.shadingNormal, wo
+            );
         KIRA_UNREACHABLE();
     }
 };

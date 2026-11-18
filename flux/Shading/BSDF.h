@@ -392,8 +392,8 @@ public:
     /// \pre Samples are in \f$[0,1)\f$.
     /// \pre \c types contains \p bsdf's implementation type.
     ///
-    /// A shader BSDF runs through \c Evaluator::execute, which takes the BSDF index of the shader
-    /// BSDF and the arguments of this function after \p bsdf.
+    /// A shader BSDF runs through \c Evaluator::executeShaderBSDF, which takes the BSDF index of
+    /// the shader BSDF and the arguments of this function after \p bsdf.
     template <typename Evaluator>
     [[nodiscard]] KIRA_HOST_DEVICE BSDFResult execute(
         BSDF::Impl const &bsdf, ShadingContext const &ctx, Vec3f const &wo, Vec3f const &wi,
