@@ -18,10 +18,9 @@ if(NOT DEFINED _houdini_python_version)
     message(FATAL_ERROR "The Houdini CMake package of ${KRR_HFS} names no Python version")
 endif()
 
-# hdFLux uses the NVRTC that Houdini ships.
 if(WIN32)
-    find_file(houdini_nvrtc "nvrtc64_${CUDAToolkit_VERSION_MAJOR}0_0.dll"
-              PATHS "${KRR_HFS}/bin" NO_DEFAULT_PATH NO_CACHE REQUIRED)
+    cmake_path(GET nvrtcDll FILENAME nvrtcName)
+    find_file(houdiniNvrtc "${nvrtcName}" PATHS "${KRR_HFS}/bin" NO_DEFAULT_PATH NO_CACHE)
 endif()
 
 foreach(library MaterialXCore MaterialXFormat pxr_hdMtlx)
@@ -156,6 +155,11 @@ install(TARGETS hdFLux
 install(IMPORTED_RUNTIME_ARTIFACTS slang::slang
         LIBRARY DESTINATION houdini/dso/usd COMPONENT hdFLux
         RUNTIME DESTINATION houdini/dso/usd COMPONENT hdFLux)
+# hdFLux uses the NVRTC that Houdini ships, and carries its own where Houdini ships none of its
+# major version.
+if(WIN32 AND NOT houdiniNvrtc)
+    install(FILES ${nvrtcRuntime} DESTINATION houdini/dso/usd COMPONENT hdFLux)
+endif()
 install(FILES "${houdiniDir}/dso/usd_plugins/plugInfo.json"
         DESTINATION houdini/dso/usd_plugins COMPONENT hdFLux)
 install(FILES "${resourceDir}/plugInfo.json"
